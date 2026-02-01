@@ -335,7 +335,7 @@ fn map_envelope_to_mm(env: &WsEnvelope, seq: i64) -> Option<mm::WebSocketMessage
                 let mm_reaction = mm::Reaction {
                     user_id: encode_mm_id(reaction.user_id),
                     post_id: encode_mm_id(reaction.post_id),
-                    emoji_name: reaction.emoji_name,
+                    emoji_name: crate::mattermost_compat::emoji_data::get_short_name_for_emoji(&reaction.emoji_name),
                     create_at: reaction.created_at.timestamp_millis(),
                     update_at: reaction.created_at.timestamp_millis(),
                     delete_at: 0,
@@ -360,7 +360,7 @@ fn map_envelope_to_mm(env: &WsEnvelope, seq: i64) -> Option<mm::WebSocketMessage
                 let mm_reaction = mm::Reaction {
                     user_id: encode_mm_id(reaction.user_id),
                     post_id: encode_mm_id(reaction.post_id),
-                    emoji_name: reaction.emoji_name,
+                    emoji_name: crate::mattermost_compat::emoji_data::get_short_name_for_emoji(&reaction.emoji_name),
                     create_at: reaction.created_at.timestamp_millis(),
                     update_at: reaction.created_at.timestamp_millis(),
                     delete_at: 0,

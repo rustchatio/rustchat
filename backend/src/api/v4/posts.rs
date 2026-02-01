@@ -1010,7 +1010,7 @@ pub(crate) async fn reactions_for_posts(
             .push(mm::Reaction {
                 user_id: encode_mm_id(user_id),
                 post_id: encode_mm_id(post_id),
-                emoji_name,
+                emoji_name: crate::mattermost_compat::emoji_data::get_short_name_for_emoji(&emoji_name),
                 create_at: created_at.timestamp_millis(),
                 update_at: created_at.timestamp_millis(),
                 delete_at: 0,
@@ -1140,7 +1140,7 @@ async fn get_reactions(
     let mm_reactions = reactions.into_iter().map(|(user_id, post_id, emoji_name, created_at, channel_id)| mm::Reaction {
         user_id: encode_mm_id(user_id),
         post_id: encode_mm_id(post_id),
-        emoji_name,
+        emoji_name: crate::mattermost_compat::emoji_data::get_short_name_for_emoji(&emoji_name),
         create_at: created_at.timestamp_millis(),
         update_at: created_at.timestamp_millis(),
         delete_at: 0,
