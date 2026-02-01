@@ -25,9 +25,11 @@ use crate::config::CallsConfig;
 
 pub mod signaling;
 pub mod tracks;
+pub mod manager;
 
 use signaling::{SignalingMessage, SignalingServer};
 use tracks::TrackManager;
+pub use manager::SFUManager;
 
 /// Represents a participant in the SFU
 pub struct Participant {

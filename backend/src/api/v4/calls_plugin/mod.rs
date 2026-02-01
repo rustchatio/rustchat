@@ -20,13 +20,15 @@ use crate::error::{ApiResult, AppError};
 use crate::mattermost_compat::id::{encode_mm_id, parse_mm_or_uuid};
 use crate::realtime::WsEnvelope;
 
+pub mod commands;
 mod state;
 mod turn;
-mod sfu;
+pub mod sfu;
 
 use state::{CallState, CallStateManager, Participant};
 use turn::{TurnCredentialGenerator, TurnServerConfig};
 use sfu::signaling::{SignalingMessage, parse_websocket_message, serialize_websocket_message};
+use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
 
 /// Build the calls plugin router
 pub fn router() -> Router<AppState> {
@@ -47,6 +49,11 @@ pub fn router() -> Router<AppState> {
         // Raise/lower hand endpoints
         .route("/plugins/com.mattermost.calls/calls/{channel_id}/raise-hand", post(raise_hand))
         .route("/plugins/com.mattermost.calls/calls/{channel_id}/lower-hand", post(lower_hand))
+        // WebRTC signaling endpoints
+        .route("/plugins/com.mattermost.calls/calls/{channel_id}/offer", post(handle_offer))
+        .route("/plugins/com.mattermost.calls/calls/{channel_id}/ice", post(handle_ice_candidate))
+        // Slash commands
+        .merge(commands::router())
 }
 
 // ============ Response Models ============
@@ -100,6 +107,25 @@ struct StatusResponse {
 #[derive(Debug, Deserialize)]
 struct ReactionRequest {
     emoji: String,
+}
+
+// WebRTC Signaling Request/Response structs
+#[derive(Debug, Deserialize)]
+pub struct OfferRequest {
+    pub sdp: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct AnswerResponse {
+    pub sdp: String,
+    pub type_: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct IceCandidateRequest {
+    pub candidate: String,
+    pub sdp_mid: Option<String>,
+    pub sdp_mline_index: Option<u32>,
 }
 
 // ============ Handlers ============
@@ -211,6 +237,14 @@ async fn start_call(
     
     call_manager.add_participant(call_id, participant.clone()).await;
     
+    // Get or create SFU for this call
+    let sfu = state.sfu_manager.get_or_create_sfu(call_id).await
+        .map_err(|e| AppError::Internal(format!("Failed to create SFU: {}", e)))?;
+    
+    // Add owner as participant in the SFU
+    sfu.add_participant(auth.user_id, participant.session_id).await
+        .map_err(|e| AppError::Internal(format!("Failed to add participant to SFU: {}", e)))?;
+    
     // Broadcast call_start event
     broadcast_call_event(
         &state,
@@ -289,6 +323,14 @@ async fn join_call(
     
     call_manager.add_participant(call.call_id, participant.clone()).await;
     
+    // Get or create SFU for this call
+    let sfu = state.sfu_manager.get_or_create_sfu(call.call_id).await
+        .map_err(|e| AppError::Internal(format!("Failed to get or create SFU: {}", e)))?;
+    
+    // Add participant to the SFU
+    sfu.add_participant(auth.user_id, participant.session_id).await
+        .map_err(|e| AppError::Internal(format!("Failed to add participant to SFU: {}", e)))?;
+    
     // Broadcast user_joined event
     broadcast_call_event(
         &state,
@@ -326,8 +368,18 @@ async fn leave_call(
         .await
         .ok_or_else(|| AppError::NotFound("No active call in this channel".to_string()))?;
     
-    // Remove participant
+    // Get participant info before removing (for session_id)
+    let participant = call_manager.get_participant(call.call_id, auth.user_id).await;
+    
+    // Remove participant from call manager
     call_manager.remove_participant(call.call_id, auth.user_id).await;
+    
+    // Remove participant from SFU if exists
+    if let Some(participant) = participant {
+        if let Some(sfu) = state.sfu_manager.get_sfu(call.call_id).await {
+            let _ = sfu.remove_participant(participant.session_id).await;
+        }
+    }
     
     // Broadcast user_left event
     broadcast_call_event(
@@ -345,6 +397,9 @@ async fn leave_call(
     let participants = call_manager.get_participants(call.call_id).await;
     if participants.is_empty() {
         call_manager.remove_call(call.call_id).await;
+        
+        // Remove the SFU for this call
+        state.sfu_manager.remove_sfu(call.call_id).await;
         
         // Broadcast call_end event
         broadcast_call_event(
@@ -632,6 +687,90 @@ async fn lower_hand(
         None,
     ).await;
     
+    Ok(Json(StatusResponse { status: "OK".to_string() }))
+}
+
+/// POST /plugins/com.mattermost.calls/calls/{channel_id}/offer
+/// Receives SDP offer from client, creates peer connection in SFU, returns SDP answer
+async fn handle_offer(
+    State(state): State<AppState>,
+    auth: MmAuthUser,
+    Path(channel_id): Path<String>,
+    Json(payload): Json<OfferRequest>,
+) -> ApiResult<Json<AnswerResponse>> {
+    let channel_uuid = parse_mm_or_uuid(&channel_id)
+        .ok_or_else(|| AppError::BadRequest("Invalid channel_id".to_string()))?;
+
+    // Get call manager
+    let call_manager = get_call_manager(&state);
+
+    // Find call
+    let call = call_manager
+        .get_call_by_channel(&channel_uuid)
+        .await
+        .ok_or_else(|| AppError::NotFound("No active call in this channel".to_string()))?;
+
+    // Get participant session_id
+    let participant = call_manager
+        .get_participant(call.call_id, auth.user_id)
+        .await
+        .ok_or_else(|| AppError::Forbidden("You are not in this call".to_string()))?;
+
+    // Get SFU for this call
+    let sfu = state.sfu_manager.get_sfu(call.call_id).await
+        .ok_or_else(|| AppError::NotFound("SFU not found for this call".to_string()))?;
+
+    // Parse the offer SDP
+    let offer = RTCSessionDescription::offer(payload.sdp)
+        .map_err(|e| AppError::BadRequest(format!("Invalid SDP offer: {}", e)))?;
+
+    // Handle the offer and get answer
+    let answer = sfu.handle_offer(participant.session_id, offer).await
+        .map_err(|e| AppError::Internal(format!("Failed to handle offer: {}", e)))?;
+
+    // Extract SDP from answer
+    let sdp = answer.sdp;
+
+    Ok(Json(AnswerResponse {
+        sdp,
+        type_: "answer".to_string(),
+    }))
+}
+
+/// POST /plugins/com.mattermost.calls/calls/{channel_id}/ice
+/// Receives ICE candidate from client and adds it to the peer connection
+async fn handle_ice_candidate(
+    State(state): State<AppState>,
+    auth: MmAuthUser,
+    Path(channel_id): Path<String>,
+    Json(payload): Json<IceCandidateRequest>,
+) -> ApiResult<Json<StatusResponse>> {
+    let channel_uuid = parse_mm_or_uuid(&channel_id)
+        .ok_or_else(|| AppError::BadRequest("Invalid channel_id".to_string()))?;
+
+    // Get call manager
+    let call_manager = get_call_manager(&state);
+
+    // Find call
+    let call = call_manager
+        .get_call_by_channel(&channel_uuid)
+        .await
+        .ok_or_else(|| AppError::NotFound("No active call in this channel".to_string()))?;
+
+    // Get participant session_id
+    let participant = call_manager
+        .get_participant(call.call_id, auth.user_id)
+        .await
+        .ok_or_else(|| AppError::Forbidden("You are not in this call".to_string()))?;
+
+    // Get SFU for this call
+    let sfu = state.sfu_manager.get_sfu(call.call_id).await
+        .ok_or_else(|| AppError::NotFound("SFU not found for this call".to_string()))?;
+
+    // Handle the ICE candidate
+    sfu.handle_ice_candidate(participant.session_id, payload.candidate).await
+        .map_err(|e| AppError::Internal(format!("Failed to handle ICE candidate: {}", e)))?;
+
     Ok(Json(StatusResponse { status: "OK".to_string() }))
 }
 

@@ -162,20 +162,27 @@ export interface HealthStatus {
     uptime_seconds: number;
 }
 
+// MiroTalk Configuration
 export interface MiroTalkConfig {
     is_active: boolean;
-    mode: 'disabled' | 'sfu' | 'p2p';
+    mode: 'sfu' | 'p2p' | 'disabled';
     base_url: string;
     api_key_secret: string;
-    default_room_prefix?: string;
-    join_behavior: 'embed_iframe' | 'new_tab';
+    default_room_prefix: string;
+    join_behavior: 'new_tab' | 'embed_iframe';
 }
 
-export interface MiroTalkStats {
-    peers?: number;
-    rooms?: number;
-    active_rooms?: string[];
-    [key: string]: any;
+// Calls Plugin Configuration
+export interface CallsPluginConfig {
+    enabled: boolean;
+    turn_server_url: string;
+    turn_server_username: string;
+    turn_server_credential: string;
+    udp_port_min: number;
+    udp_port_max: number;
+    tcp_port: number;
+    ice_host_override: string;
+    stun_servers: string[];
 }
 
 export interface Permission {
@@ -272,10 +279,14 @@ export const adminApi = {
     // Email
     testEmail: (to: string) => api.post('/admin/email/test', { to }),
 
-    // Integrations - MiroTalk
+    // MiroTalk Integration
     getMiroTalkConfig: () => api.get<MiroTalkConfig>('/admin/integrations/mirotalk'),
     updateMiroTalkConfig: (config: MiroTalkConfig) => api.put<MiroTalkConfig>('/admin/integrations/mirotalk', config),
-    testMiroTalkConnection: () => api.post<MiroTalkStats>('/admin/integrations/mirotalk/test'),
+    testMiroTalkConnection: () => api.post('/admin/integrations/mirotalk/test'),
+
+    // Calls Plugin
+    getCallsPluginConfig: () => api.get<CallsPluginConfig>('/api/v1/admin/plugins/calls'),
+    updateCallsPluginConfig: (config: CallsPluginConfig) => api.put<CallsPluginConfig>('/api/v1/admin/plugins/calls', config),
 };
 
 export default adminApi;

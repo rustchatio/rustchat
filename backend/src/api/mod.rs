@@ -35,6 +35,7 @@ use tower_http::{
 use crate::realtime::WsHub;
 use crate::storage::S3Client;
 use crate::config::Config;
+use crate::api::v4::calls_plugin::sfu::SFUManager;
 
 /// Application state shared across handlers
 #[derive(Clone)]
@@ -48,6 +49,7 @@ pub struct AppState {
     pub http_client: reqwest::Client,
     pub start_time: std::time::Instant,
     pub config: Config,
+    pub sfu_manager: Arc<SFUManager>, // NEW
 }
 
 /// Build the main application router
@@ -60,6 +62,8 @@ pub fn router(
     s3_client: S3Client,
     config: Config,
 ) -> Router {
+    let sfu_manager = SFUManager::new(config.calls.clone());
+
     let state = AppState {
         db,
         redis,
@@ -70,6 +74,7 @@ pub fn router(
         http_client: reqwest::Client::new(),
         start_time: std::time::Instant::now(),
         config,
+        sfu_manager, // NEW
     };
 
     // CORS configuration
