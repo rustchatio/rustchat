@@ -6,6 +6,7 @@ use axum::{
     routing::{get, post, put},
     Json, Router,
 };
+use bytes::Bytes;
 use serde_json::json;
 
 pub fn router() -> Router<AppState> {
@@ -58,6 +59,7 @@ fn get_hardcoded_role(name: &str) -> Option<Role> {
             description: "Default Channel User Role".to_string(),
             permissions: vec![
                 "read_channel".to_string(),
+                "read_post".to_string(),
                 "create_post".to_string(),
                 "add_reaction".to_string(),
                 "remove_reaction".to_string(),
@@ -113,6 +115,7 @@ fn get_hardcoded_role(name: &str) -> Option<Role> {
             description: "Default Channel Admin Role".to_string(),
             permissions: vec![
                 "read_channel".to_string(),
+                "read_post".to_string(),
                 "create_post".to_string(),
                 "add_reaction".to_string(),
                 "remove_reaction".to_string(),
@@ -152,8 +155,10 @@ async fn get_roles(
 async fn get_roles_by_names(
     State(_state): State<AppState>,
     _auth: crate::api::v4::extractors::MmAuthUser,
-    Json(names): Json<Vec<String>>,
+    headers: axum::http::HeaderMap,
+    body: Bytes,
 ) -> ApiResult<Json<Vec<Role>>> {
+    let names: Vec<String> = parse_body(&headers, &body, "Invalid roles body")?;
     let mut roles = Vec::new();
     for full_name in names {
         for name in full_name.split_whitespace() {
@@ -166,6 +171,28 @@ async fn get_roles_by_names(
         }
     }
     Ok(Json(roles))
+}
+
+fn parse_body<T: serde::de::DeserializeOwned>(
+    headers: &axum::http::HeaderMap,
+    body: &Bytes,
+    message: &str,
+) -> ApiResult<T> {
+    let content_type = headers
+        .get(axum::http::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+
+    if content_type.starts_with("application/json") {
+        serde_json::from_slice(body).map_err(|_| crate::error::AppError::BadRequest(message.to_string()))
+    } else if content_type.starts_with("application/x-www-form-urlencoded") {
+        serde_urlencoded::from_bytes(body)
+            .map_err(|_| crate::error::AppError::BadRequest(message.to_string()))
+    } else {
+        serde_json::from_slice(body)
+            .or_else(|_| serde_urlencoded::from_bytes(body))
+            .map_err(|_| crate::error::AppError::BadRequest(message.to_string()))
+    }
 }
 
 /// GET /api/v4/roles/{role_id}
