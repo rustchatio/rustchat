@@ -2,11 +2,11 @@ use crate::api::AppState;
 use crate::error::ApiResult;
 use crate::mattermost_compat::models::Role;
 use axum::{
+    body::Bytes,
     extract::{Path, State},
     routing::{get, post, put},
     Json, Router,
 };
-use bytes::Bytes;
 use serde_json::json;
 
 pub fn router() -> Router<AppState> {
