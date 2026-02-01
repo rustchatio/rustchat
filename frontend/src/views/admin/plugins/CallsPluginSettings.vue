@@ -48,11 +48,17 @@ async function saveSettings() {
     saveSuccess.value = false;
 
     try {
-        // Create a copy of config with null conversions
+        // Create a flat copy of config (extract from settings if nested)
         const configToSend = {
-            ...config.value,
+            enabled: config.value.enabled ?? true,
+            turn_server_enabled: config.value.turn_server_enabled ?? true,
+            turn_server_url: config.value.turn_server_url || '',
+            turn_server_username: config.value.turn_server_username || '',
+            turn_server_credential: config.value.turn_server_credential || null,
+            udp_port: config.value.udp_port || 8443,
+            tcp_port: config.value.tcp_port || 8443,
             ice_host_override: config.value.ice_host_override || null,
-            turn_server_credential: config.value.turn_server_credential || null
+            stun_servers: config.value.stun_servers || ['stun:stun.l.google.com:19302']
         };
 
         const { data } = await adminApi.updateCallsPluginConfig(configToSend);
