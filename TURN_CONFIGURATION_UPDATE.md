@@ -6,9 +6,9 @@ Updated RustChat to use your specific TURN server values as defaults and added a
 ## Your TURN Server Values
 ```bash
 TURN_SERVER_ENABLED=true
-TURN_SERVER_URL=turn:turn.kubedo.io:3478
-TURN_SERVER_USERNAME=PtU7Uv7NdR2YcBJMC5n6EdfGoFhXLp
-TURN_SERVER_CREDENTIAL=axY1ofBashEbJat9
+TURN_SERVER_URL=turn:turn.rustchat.io:3478
+TURN_SERVER_USERNAME=XXXXXXXXXXXXXXXXXXXXX
+TURN_SERVER_CREDENTIAL=yyyyyyyyyyyyy
 ```
 
 ## Changes Made
@@ -17,9 +17,9 @@ TURN_SERVER_CREDENTIAL=axY1ofBashEbJat9
 
 **New Environment Variables:**
 - `TURN_SERVER_ENABLED` - Enable/disable TURN server (default: true)
-- `TURN_SERVER_URL` - TURN server URL (default: turn:turn.kubedo.io:3478)
-- `TURN_SERVER_USERNAME` - TURN username (default: PtU7Uv7NdR2YcBJMC5n6EdfGoFhXLp)
-- `TURN_SERVER_CREDENTIAL` - TURN credential (default: axY1ofBashEbJat9)
+- `TURN_SERVER_URL` - TURN server URL (default: turn:turn.rustchat.io:3478)
+- `TURN_SERVER_USERNAME` - TURN username (default: XXXXXXXXXXXXXXXXXX)
+- `TURN_SERVER_CREDENTIAL` - TURN credential (default: yyyyyyyyyyyyyyyy)
 
 **Removed:**
 - `TURN_SECRET` (no longer needed with static credentials)
@@ -47,9 +47,9 @@ The config loader now reads both `RUSTCHAT_*` and `TURN_SERVER_*` prefixed varia
       "urls": ["stun:stun.l.google.com:19302"]
     },
     {
-      "urls": ["turn:turn.kubedo.io:3478"],
-      "username": "PtU7Uv7NdR2YcBJMC5n6EdfGoFhXLp",
-      "credential": "axY1ofBashEbJat9"
+      "urls": ["turn:turn.rustchat.io:3478"],
+      "username": "XXXXXXXXXXXXXXXXXXX",
+      "credential": "yyyyyyyyyyyyyyyyyyyy"
     }
   ]
 }
@@ -79,9 +79,9 @@ GET /api/v1/admin/plugins/calls
   "settings": {
     "enabled": true,
     "turn_server_enabled": true,
-    "turn_server_url": "turn:turn.kubedo.io:3478",
-    "turn_server_username": "PtU7Uv7NdR2YcBJMC5n6EdfGoFhXLp",
-    "turn_server_credential": "axY1ofBashEbJat9",
+    "turn_server_url": "turn:turn.rustchat.io:3478",
+    "turn_server_username": "XXXXXXX",
+    "turn_server_credential": "yyyyyyyy",
     "udp_port": 8443,
     "tcp_port": 8443,
     "ice_host_override": null,
@@ -98,9 +98,9 @@ Content-Type: application/json
 {
   "enabled": true,
   "turn_server_enabled": true,
-  "turn_server_url": "turn:turn.kubedo.io:3478",
-  "turn_server_username": "PtU7Uv7NdR2YcBJMC5n6EdfGoFhXLp",
-  "turn_server_credential": "axY1ofBashEbJat9",
+  "turn_server_url": "turn:turn.rustchat.io:3478",
+  "turn_server_username": "XXXXXXXXXXXXXXX",
+  "turn_server_credential": "xxxxxxxxxxxx",
   "udp_port": 8443,
   "tcp_port": 8443,
   "ice_host_override": "your.public.ip",
@@ -134,9 +134,9 @@ Admin Console
 ```bash
 # These are now optional since defaults are set:
 # TURN_SERVER_ENABLED=true
-# TURN_SERVER_URL=turn:turn.kubedo.io:3478
-# TURN_SERVER_USERNAME=PtU7Uv7NdR2YcBJMC5n6EdfGoFhXLp
-# TURN_SERVER_CREDENTIAL=axY1ofBashEbJat9
+# TURN_SERVER_URL=turn:turn.rustchat.io:3478
+# TURN_SERVER_USERNAME=XXXXXXXXXXXXXXXXXX
+# TURN_SERVER_CREDENTIAL=yyyyyyyyyyyyy
 ```
 
 ### Optional Overrides
@@ -180,9 +180,9 @@ curl -X PUT http://localhost:8080/api/v1/admin/plugins/calls \
   -d '{
     "enabled": true,
     "turn_server_enabled": true,
-    "turn_server_url": "turn:turn.kubedo.io:3478",
-    "turn_server_username": "PtU7Uv7NdR2YcBJMC5n6EdfGoFhXLp",
-    "turn_server_credential": "axY1ofBashEbJat9",
+    "turn_server_url": "turn:turn.rustchat.io:3478",
+    "turn_server_username": "XXXXXXXXXXXXXXXXX",
+    "turn_server_credential": "yyyyyyyyyyy",
     "udp_port": 8443,
     "tcp_port": 8443,
     "ice_host_override": null,
