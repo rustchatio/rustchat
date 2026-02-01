@@ -337,6 +337,10 @@ fn map_envelope_to_mm(env: &WsEnvelope, seq: i64) -> Option<mm::WebSocketMessage
                     post_id: encode_mm_id(reaction.post_id),
                     emoji_name: reaction.emoji_name,
                     create_at: reaction.created_at.timestamp_millis(),
+                    update_at: reaction.created_at.timestamp_millis(),
+                    delete_at: 0,
+                    channel_id: env.channel_id.map(encode_mm_id).unwrap_or_default(),
+                    remote_id: "".to_string(),
                 };
                 let reaction_json = serde_json::to_string(&mm_reaction).unwrap_or_default();
                 Some(mm::WebSocketMessage {
@@ -358,6 +362,10 @@ fn map_envelope_to_mm(env: &WsEnvelope, seq: i64) -> Option<mm::WebSocketMessage
                     post_id: encode_mm_id(reaction.post_id),
                     emoji_name: reaction.emoji_name,
                     create_at: reaction.created_at.timestamp_millis(),
+                    update_at: reaction.created_at.timestamp_millis(),
+                    delete_at: 0,
+                    channel_id: env.channel_id.map(encode_mm_id).unwrap_or_default(),
+                    remote_id: "".to_string(),
                 };
                 let reaction_json = serde_json::to_string(&mm_reaction).unwrap_or_default();
                 Some(mm::WebSocketMessage {

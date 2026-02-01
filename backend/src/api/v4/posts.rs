@@ -6,6 +6,7 @@ use axum::{
     routing::{delete, get, post, put},
     Json, Router,
 };
+use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use serde_json::json;
 use uuid::Uuid;
@@ -950,9 +951,23 @@ async fn add_reaction(
         .fetch_one(&state.db)
         .await?;
 
+    let mm_reaction = mm::Reaction {
+        user_id: encode_mm_id(reaction.user_id),
+        post_id: encode_mm_id(reaction.post_id),
+        emoji_name: reaction.emoji_name,
+        create_at: reaction.created_at.timestamp_millis(),
+        update_at: reaction.created_at.timestamp_millis(),
+        delete_at: 0,
+        channel_id: encode_mm_id(channel_id),
+        remote_id: "".to_string(),
+    };
+
+    let reaction_json = serde_json::to_string(&mm_reaction).unwrap();
+    let data = serde_json::json!({ "reaction": reaction_json });
+
     let broadcast = WsEnvelope::event(
         EventType::ReactionAdded,
-        reaction.clone(),
+        data,
         Some(channel_id),
     )
     .with_broadcast(WsBroadcast {
@@ -963,12 +978,7 @@ async fn add_reaction(
     });
     state.ws_hub.broadcast(broadcast).await;
 
-    Ok((StatusCode::CREATED, Json(mm::Reaction {
-        user_id: encode_mm_id(reaction.user_id),
-        post_id: encode_mm_id(reaction.post_id),
-        emoji_name: reaction.emoji_name,
-        create_at: reaction.created_at.timestamp_millis(),
-    })))
+    Ok((StatusCode::CREATED, Json(mm_reaction)))
 }
 
 pub(crate) async fn reactions_for_posts(
@@ -981,22 +991,31 @@ pub(crate) async fn reactions_for_posts(
         return Ok(HashMap::new());
     }
 
-    let reactions: Vec<crate::models::post::Reaction> = sqlx::query_as(
-        "SELECT post_id, user_id, emoji_name, created_at FROM reactions WHERE post_id = ANY($1)",
+    let reactions: Vec<(Uuid, Uuid, String, DateTime<Utc>, Uuid)> = sqlx::query_as(
+        r#"
+        SELECT r.post_id, r.user_id, r.emoji_name, r.created_at, p.channel_id
+        FROM reactions r
+        JOIN posts p ON p.id = r.post_id
+        WHERE r.post_id = ANY($1)
+        "#,
     )
     .bind(post_ids)
     .fetch_all(&state.db)
     .await?;
 
     let mut map: HashMap<Uuid, Vec<mm::Reaction>> = HashMap::new();
-    for r in reactions {
-        map.entry(r.post_id)
+    for (post_id, user_id, emoji_name, created_at, channel_id) in reactions {
+        map.entry(post_id)
             .or_default()
             .push(mm::Reaction {
-                user_id: encode_mm_id(r.user_id),
-                post_id: encode_mm_id(r.post_id),
-                emoji_name: r.emoji_name,
-                create_at: r.created_at.timestamp_millis(),
+                user_id: encode_mm_id(user_id),
+                post_id: encode_mm_id(post_id),
+                emoji_name,
+                create_at: created_at.timestamp_millis(),
+                update_at: created_at.timestamp_millis(),
+                delete_at: 0,
+                channel_id: encode_mm_id(channel_id),
+                remote_id: "".to_string(),
             });
     }
 
@@ -1073,7 +1092,21 @@ async fn remove_reaction_internal(
             .fetch_one(&state.db)
             .await?;
 
-        let broadcast = WsEnvelope::event(EventType::ReactionRemoved, r, Some(channel_id))
+        let mm_reaction = mm::Reaction {
+            user_id: encode_mm_id(r.user_id),
+            post_id: encode_mm_id(r.post_id),
+            emoji_name: r.emoji_name,
+            create_at: r.created_at.timestamp_millis(),
+            update_at: r.created_at.timestamp_millis(),
+            delete_at: 0,
+            channel_id: encode_mm_id(channel_id),
+            remote_id: "".to_string(),
+        };
+
+        let reaction_json = serde_json::to_string(&mm_reaction).unwrap();
+        let data = serde_json::json!({ "reaction": reaction_json });
+
+        let broadcast = WsEnvelope::event(EventType::ReactionRemoved, data, Some(channel_id))
             .with_broadcast(WsBroadcast {
                 channel_id: Some(channel_id),
                 team_id: None,
@@ -1092,16 +1125,27 @@ async fn get_reactions(
 ) -> ApiResult<Json<Vec<mm::Reaction>>> {
     let post_id = parse_mm_or_uuid(&post_id)
         .ok_or_else(|| AppError::BadRequest("Invalid post_id".to_string()))?;
-    let reactions: Vec<crate::models::post::Reaction> = sqlx::query_as("SELECT * FROM reactions WHERE post_id = $1")
-        .bind(post_id)
-        .fetch_all(&state.db)
-        .await?;
+    let reactions: Vec<(Uuid, Uuid, String, DateTime<Utc>, Uuid)> = sqlx::query_as(
+        r#"
+        SELECT r.user_id, r.post_id, r.emoji_name, r.created_at, p.channel_id
+        FROM reactions r
+        JOIN posts p ON p.id = r.post_id
+        WHERE r.post_id = $1
+        "#,
+    )
+    .bind(post_id)
+    .fetch_all(&state.db)
+    .await?;
 
-    let mm_reactions = reactions.into_iter().map(|r| mm::Reaction {
-        user_id: encode_mm_id(r.user_id),
-        post_id: encode_mm_id(r.post_id),
-        emoji_name: r.emoji_name,
-        create_at: r.created_at.timestamp_millis(),
+    let mm_reactions = reactions.into_iter().map(|(user_id, post_id, emoji_name, created_at, channel_id)| mm::Reaction {
+        user_id: encode_mm_id(user_id),
+        post_id: encode_mm_id(post_id),
+        emoji_name,
+        create_at: created_at.timestamp_millis(),
+        update_at: created_at.timestamp_millis(),
+        delete_at: 0,
+        channel_id: encode_mm_id(channel_id),
+        remote_id: "".to_string(),
     }).collect();
 
     Ok(Json(mm_reactions))

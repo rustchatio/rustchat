@@ -293,6 +293,8 @@ async fn upload_data(
         let file_info = mm::FileInfo {
             id: encode_mm_id(file_id),
             user_id: encode_mm_id(auth.user_id),
+            post_id: "".to_string(),
+            channel_id: encode_mm_id(session.channel_id),
             create_at: now.timestamp_millis(),
             update_at: now.timestamp_millis(),
             delete_at: 0,
@@ -303,6 +305,7 @@ async fn upload_data(
             width: width.unwrap_or(0),
             height: height.unwrap_or(0),
             has_preview_image: has_thumbnail,
+            mini_preview: None,
         };
 
         Ok((StatusCode::CREATED, Json(serde_json::to_value(file_info).unwrap())).into_response())

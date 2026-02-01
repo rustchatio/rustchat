@@ -194,6 +194,8 @@ impl From<FileInfo> for mm::FileInfo {
         mm::FileInfo {
             id: encode_mm_id(f.id),
             user_id: encode_mm_id(f.uploader_id),
+            post_id: f.post_id.map(encode_mm_id).unwrap_or_default(),
+            channel_id: f.channel_id.map(encode_mm_id).unwrap_or_default(),
             create_at: f.created_at.timestamp_millis(),
             update_at: f.created_at.timestamp_millis(),
             delete_at: 0,
@@ -204,6 +206,7 @@ impl From<FileInfo> for mm::FileInfo {
             width: f.width.unwrap_or(0),
             height: f.height.unwrap_or(0),
             has_preview_image: f.has_thumbnail,
+            mini_preview: None,
         }
     }
 }

@@ -173,12 +173,18 @@ pub struct Reaction {
     pub post_id: String,
     pub emoji_name: String,
     pub create_at: i64,
+    pub update_at: i64,
+    pub delete_at: i64,
+    pub channel_id: String,
+    pub remote_id: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileInfo {
     pub id: String,
     pub user_id: String,
+    pub post_id: String,
+    pub channel_id: String,
     pub create_at: i64,
     pub update_at: i64,
     pub delete_at: i64,
@@ -189,6 +195,8 @@ pub struct FileInfo {
     pub width: i32,
     pub height: i32,
     pub has_preview_image: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub mini_preview: Option<Vec<u8>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
