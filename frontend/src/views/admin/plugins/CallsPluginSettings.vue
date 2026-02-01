@@ -28,11 +28,10 @@ const stunServerInput = ref('');
 onMounted(async () => {
     try {
         const { data } = await adminApi.getCallsPluginConfig();
-        // Convert null values to empty strings for form inputs
         config.value = {
-            ...data,
-            ice_host_override: data.ice_host_override || '',
-            turn_server_credential: data.turn_server_credential || ''
+            ...data.settings,
+            ice_host_override: data.settings.ice_host_override || '',
+            turn_server_credential: data.settings.turn_server_credential || ''
         };
     } catch (e: any) {
         console.error("Failed to load Calls Plugin config", e);
@@ -62,7 +61,7 @@ async function saveSettings() {
         };
 
         const { data } = await adminApi.updateCallsPluginConfig(configToSend);
-        config.value = data;
+        config.value = data.settings;
         saveSuccess.value = true;
         setTimeout(() => saveSuccess.value = false, 3000);
     } catch (e: any) {
@@ -79,10 +78,21 @@ async function testConfiguration() {
 
     try {
         // Save first, then test
-        await adminApi.updateCallsPluginConfig(config.value);
+        const configToSend = {
+            enabled: config.value.enabled ?? true,
+            turn_server_enabled: config.value.turn_server_enabled ?? true,
+            turn_server_url: config.value.turn_server_url || '',
+            turn_server_username: config.value.turn_server_username || '',
+            turn_server_credential: config.value.turn_server_credential || null,
+            udp_port: config.value.udp_port || 8443,
+            tcp_port: config.value.tcp_port || 8443,
+            ice_host_override: config.value.ice_host_override || null,
+            stun_servers: config.value.stun_servers || ['stun:stun.l.google.com:19302']
+        };
+        await adminApi.updateCallsPluginConfig(configToSend);
         const { data } = await adminApi.getCallsPluginConfig();
         testSuccess.value = true;
-        testResult.value = `Configuration saved successfully. Plugin ${data.enabled ? 'enabled' : 'disabled'}.`;
+        testResult.value = `Configuration saved successfully. Plugin ${data.settings.enabled ? 'enabled' : 'disabled'}.`;
     } catch (e: any) {
         testSuccess.value = false;
         testResult.value = e.response?.data?.message || e.message || 'Test failed';

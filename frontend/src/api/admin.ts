@@ -185,6 +185,12 @@ export interface CallsPluginConfig {
     stun_servers: string[];
 }
 
+export interface CallsPluginConfigResponse {
+    plugin_id: string;
+    plugin_name: string;
+    settings: CallsPluginConfig;
+}
+
 export interface Permission {
     id: string;
     description: string | null;
@@ -285,8 +291,8 @@ export const adminApi = {
     testMiroTalkConnection: () => api.post('/admin/integrations/mirotalk/test'),
 
     // Calls Plugin
-    getCallsPluginConfig: () => api.get<CallsPluginConfig>('/admin/plugins/calls'),
-    updateCallsPluginConfig: (config: CallsPluginConfig) => api.put<CallsPluginConfig>('/admin/plugins/calls', config),
+    getCallsPluginConfig: () => api.get<CallsPluginConfigResponse>('/admin/plugins/calls'),
+    updateCallsPluginConfig: (config: CallsPluginConfig) => api.put<CallsPluginConfigResponse>('/admin/plugins/calls', config),
 };
 
 export default adminApi;
