@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { Users, Search, Hash, Lock, Phone, Bookmark, MoreVertical, LogOut, Info, Pin } from 'lucide-vue-next'
-import { ref } from 'vue';
+import { Users, Search, Hash, Lock, Phone, Bookmark, MoreVertical, LogOut, Info, Pin, PhoneCall } from 'lucide-vue-next'
+import { ref, computed } from 'vue';
 import { useCallsStore } from '../../stores/calls';
 import { useChannelStore } from '../../stores/channels';
 import { useAuthStore } from '../../stores/auth';
@@ -28,6 +28,14 @@ const configStore = useConfigStore()
 
 const showMenu = ref(false)
 
+const hasActiveCall = computed(() => {
+    return callsStore.currentChannelCall(props.channelId)
+})
+
+const isInCurrentCall = computed(() => {
+    return callsStore.isInCall && callsStore.currentCall?.channelId === props.channelId
+})
+
 const startCall = async () => {
     if (configStore.siteConfig.mirotalk_enabled) {
         try {
@@ -43,8 +51,30 @@ const startCall = async () => {
             console.error('Failed to start video call', e);
             alert('Failed to start video call');
         }
-    } else if (props.channelId) {
-        callsStore.startCall(props.channelId)
+    }
+}
+
+const startNativeCall = async () => {
+    if (!props.channelId) return
+    
+    // If already in this call, just expand it
+    if (isInCurrentCall.value) {
+        callsStore.isExpanded = true
+        return
+    }
+    
+    // If there's an existing call in this channel, join it
+    if (hasActiveCall.value) {
+        await callsStore.joinCall(props.channelId)
+    } else {
+        // Start a new call
+        await callsStore.startCall(props.channelId)
+    }
+}
+
+const joinExistingCall = async () => {
+    if (hasActiveCall.value && props.channelId) {
+        await callsStore.joinCall(props.channelId)
     }
 }
 
@@ -128,13 +158,40 @@ const handleLeave = async () => {
         
         <div class="w-px h-5 bg-gray-200 dark:bg-white/10 mx-2"></div>
 
+        <!-- Native Audio Call Button -->
+        <button 
+          v-if="hasActiveCall && !isInCurrentCall"
+          @click="joinExistingCall"
+          class="w-9 h-9 flex items-center justify-center bg-green-500/20 text-green-600 dark:text-green-400 hover:bg-green-500/30 rounded-full transition-all duration-200 animate-pulse"
+          title="Join active call"
+        >
+            <PhoneCall class="w-4.5 h-4.5" />
+        </button>
+        <button 
+          v-else-if="isInCurrentCall"
+          @click="callsStore.isExpanded = true"
+          class="w-9 h-9 flex items-center justify-center bg-green-500/20 text-green-600 dark:text-green-400 hover:bg-green-500/30 rounded-full transition-all duration-200"
+          title="Show call"
+        >
+            <Phone class="w-4.5 h-4.5" />
+        </button>
+        <button 
+          v-else
+          @click="startNativeCall"
+          class="w-9 h-9 flex items-center justify-center hover:bg-green-50 dark:hover:bg-green-500/10 text-green-600 dark:text-green-400 rounded-full transition-all duration-200"
+          title="Start audio call"
+        >
+            <Phone class="w-4.5 h-4.5" />
+        </button>
+
+        <!-- MiroTalk Video Call Button -->
         <button 
           v-if="configStore.siteConfig.mirotalk_enabled"
           @click="startCall"
-          class="w-9 h-9 flex items-center justify-center hover:bg-green-50 dark:hover:bg-green-500/10 text-green-600 dark:text-green-400 rounded-full transition-all duration-200"
-          title="Start Call"
+          class="w-9 h-9 flex items-center justify-center hover:bg-blue-50 dark:hover:bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-full transition-all duration-200"
+          title="Start video call"
         >
-            <Phone class="w-4.5 h-4.5" />
+            <PhoneCall class="w-4.5 h-4.5" />
         </button>
         <button 
           @click="toggleView('search')"

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { Smile, Paperclip, Send, X, File as FileIcon, Video } from 'lucide-vue-next';
+import { Smile, Paperclip, Send, X, File as FileIcon, Video, Phone } from 'lucide-vue-next';
 import { useToast } from '../../composables/useToast';
 import { filesApi, type FileUploadResponse } from '../../api/files';
 import FileUploader from '../atomic/FileUploader.vue';
@@ -10,8 +10,10 @@ import MarkdownPreview from './MarkdownPreview.vue';
 import MentionAutocomplete from './MentionAutocomplete.vue';
 import { useTeamStore } from '../../stores/teams';
 import { useConfigStore } from '../../stores/config';
+import { useCallsStore } from '../../stores/calls';
+import { useChannelStore } from '../../stores/channels';
 
-const emit = defineEmits(['send', 'typing', 'startCall'])
+const emit = defineEmits(['send', 'typing', 'startCall', 'startAudioCall'])
 const content = ref('')
 const showEmojiPicker = ref(false)
 const showPreview = ref(false)
@@ -19,6 +21,8 @@ const textareaRef = ref<HTMLTextAreaElement | null>(null)
 const toast = useToast()
 const teamStore = useTeamStore()
 const configStore = useConfigStore()
+const callsStore = useCallsStore()
+const channelStore = useChannelStore()
 
 const showMentionMenu = ref(false)
 const attachedFiles = ref<{ 
@@ -31,10 +35,103 @@ const mentionQuery = ref('')
 
 let lastTypingEmit = 0
 
-// Special mentions
+// Slash command handling
+async function handleSlashCommand(command: string, args: string[]): Promise<boolean> {
+    const channelId = channelStore.currentChannelId
+    if (!channelId) return false
+
+    switch (command) {
+        case '/call':
+        case '/call start': {
+            const subCommand = args[0]
+            
+            if (subCommand === 'start' || !subCommand) {
+                // Check if call already exists
+                const existingCall = callsStore.currentChannelCall(channelId)
+                if (existingCall) {
+                    toast.error('A call is already in progress', 'Join the existing call instead')
+                    return true
+                }
+                
+                try {
+                    await callsStore.startCall(channelId)
+                    toast.success('Call started', 'You are now in a call')
+                } catch (error: any) {
+                    toast.error('Failed to start call', error.message || 'Unknown error')
+                }
+                return true
+            }
+            
+            if (subCommand === 'join') {
+                try {
+                    await callsStore.joinCall(channelId)
+                } catch (error: any) {
+                    toast.error('Failed to join call', error.message || 'Unknown error')
+                }
+                return true
+            }
+            
+            if (subCommand === 'leave') {
+                if (callsStore.isInCall) {
+                    await callsStore.leaveCall()
+                } else {
+                    toast.error('Not in a call', 'You are not currently in a call')
+                }
+                return true
+            }
+            
+            if (subCommand === 'end') {
+                if (callsStore.isInCall) {
+                    await callsStore.endCall()
+                } else {
+                    toast.error('Not in a call', 'You are not currently in a call')
+                }
+                return true
+            }
+            
+            return false
+        }
+        
+        default:
+            return false
+    }
+}
 
 function handleSend() {
   if (!content.value.trim() && attachedFiles.value.length === 0) return
+  
+  // Check for slash commands
+  const text = content.value.trim()
+  if (text.startsWith('/')) {
+    const parts = text.split(' ')
+    const command = parts[0]
+    const args = parts.slice(1)
+    
+    // Handle /call start, /call join, etc.
+    if (command === '/call' && args.length > 0) {
+      const fullCommand = `${command} ${args[0]}`
+      const remainingArgs = args.slice(1)
+      handleSlashCommand(fullCommand, remainingArgs).then(handled => {
+        if (handled) {
+          content.value = ''
+          attachedFiles.value = []
+          showPreview.value = false
+        }
+      })
+      return
+    }
+    
+    if (command) {
+      handleSlashCommand(command, args).then(handled => {
+        if (handled) {
+          content.value = ''
+          attachedFiles.value = []
+          showPreview.value = false
+        }
+      })
+    }
+    return
+  }
   
   // Only send files that have finished uploading
   const fileIds = attachedFiles.value
@@ -338,6 +435,24 @@ function formatFileSize(bytes: number): string {
                   title="Start video call"
                 >
                     <Video class="w-4.5 h-4.5" />
+                </button>
+                
+                <!-- Native Audio Call Button -->
+                <button
+                  v-if="!callsStore.isInCall"
+                  @click="$emit('startAudioCall')"
+                  class="p-2 hover:bg-blue-500/10 hover:text-blue-500 rounded-lg transition-colors"
+                  title="Start audio call"
+                >
+                    <Phone class="w-4.5 h-4.5" />
+                </button>
+                <button
+                  v-else
+                  @click="callsStore.toggleExpanded()"
+                  class="p-2 bg-green-500/20 text-green-500 rounded-lg transition-colors animate-pulse"
+                  title="Show active call"
+                >
+                    <Phone class="w-4.5 h-4.5" />
                 </button>
             </div>
             
