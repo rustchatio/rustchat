@@ -115,6 +115,10 @@ pub struct CallsConfig {
     /// STUN server URLs
     #[serde(default = "default_stun_servers")]
     pub stun_servers: Vec<String>,
+
+    /// Call state backend mode: memory, redis, auto
+    #[serde(default = "default_calls_state_backend")]
+    pub state_backend: String,
 }
 
 impl Default for CallsConfig {
@@ -130,6 +134,7 @@ impl Default for CallsConfig {
             turn_server_credential: String::new(),
             turn_ttl_minutes: default_turn_ttl(),
             stun_servers: default_stun_servers(),
+            state_backend: default_calls_state_backend(),
         }
     }
 }
@@ -160,6 +165,10 @@ fn default_turn_ttl() -> u64 {
 
 fn default_stun_servers() -> Vec<String> {
     vec!["stun:stun.l.google.com:19302".to_string()]
+}
+
+fn default_calls_state_backend() -> String {
+    "auto".to_string()
 }
 
 fn default_host() -> String {

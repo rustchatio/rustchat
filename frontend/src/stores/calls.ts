@@ -98,6 +98,29 @@ export const useCallsStore = defineStore('calls', () => {
         }
     })
 
+    onEvent('custom_com.mattermost.calls_signal', async (data) => {
+        const active = currentCall.value
+        if (!active?.peerConnection) return
+
+        const eventChannelId = data.channel_id_raw || data.channel_id
+        if (eventChannelId !== active.channelId) return
+
+        const signal = data.signal
+        if (!signal?.type) return
+
+        try {
+            if (signal.type === 'ice-candidate' && signal.candidate) {
+                await active.peerConnection.addIceCandidate({
+                    candidate: signal.candidate,
+                    sdpMid: signal.sdp_mid ?? null,
+                    sdpMLineIndex: signal.sdp_mline_index ?? null
+                })
+            }
+        } catch (error) {
+            console.error('Failed to handle signaling event', error)
+        }
+    })
+
     // Actions
     async function loadConfig() {
         try {

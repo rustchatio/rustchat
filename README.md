@@ -50,7 +50,8 @@ RustChat currently includes these major function groups.
 - Mattermost Calls plugin route namespace under `/api/v4/plugins/com.mattermost.calls/*`.
 - Call lifecycle APIs (start/join/leave/state, mute/unmute, raise/lower hand, react, screenshare flags).
 - TURN/STUN config exposure for clients.
-- Initial SFU/WebRTC scaffolding (`offer`, `ice`, SFU manager/tracks/signaling modules).
+- SFU/WebRTC signaling path (`offer`, `ice`) with ICE candidate handling and websocket signaling events.
+- Redis-backed call state backend with `memory|redis|auto` mode selection.
 
 ## Compatibility
 
@@ -70,7 +71,7 @@ Compatibility claims in this section were last verified on **2026-02-07** agains
 | RustChat API v1 (`/api/v1`) | Working baseline | Native API used by web app and admin console. |
 | Mattermost API v4 (`/api/v4`) | Partial compatibility | Broad endpoint surface exists; parity varies by endpoint depth. |
 | Mattermost Mobile/Desktop clients | Partial compatibility | Login, teams/channels, posts, websocket, and calls plugin handshake paths are present; some features are stubbed or simplified. |
-| Mattermost Calls plugin API | Partial compatibility | Signaling/state endpoints exist; media path is not fully complete. |
+| Mattermost Calls plugin API | Partial compatibility | Signaling and distributed call state baseline are implemented; media forwarding/scaling is still evolving. |
 
 ### Compatibility behavior notes
 - `/api/v4/*` responses include `X-MM-COMPAT: 1`.
@@ -87,9 +88,7 @@ The following are known technical/design gaps in the current codebase:
 - Many v4 routes exist, but a subset return placeholder/hardcoded responses or stub success payloads (for example in cluster/compliance/terms/roles and other enterprise modules).
 
 2. Calls architecture not fully production-ready
-- Call state is in-memory and process-local.
-- `CallStateManager` is currently accessed via `lazy_static` inside calls plugin handlers instead of living in shared app state.
-- SFU path has incomplete pieces (ICE handling placeholder behavior, media forwarding wiring still partial).
+- SFU media forwarding/scaling remains a baseline implementation.
 
 3. Dual websocket stacks increase complexity
 - There is a v1 websocket endpoint and a separate Mattermost-style v4 websocket implementation with overlapping responsibilities.
@@ -117,9 +116,8 @@ The following are known technical/design gaps in the current codebase:
 - Add an automated compatibility matrix generated from tests, not manual docs.
 
 3. Complete calls media architecture
-- Move call manager into `AppState`.
-- Finish ICE handling and media forwarding path.
-- Add Redis-backed distributed call state for multi-node deployments.
+- Extend SFU media quality and scaling controls for high-participant calls.
+- Harden distributed SFU orchestration across instances.
 
 4. Tighten security posture
 - Restrict CORS by environment.
@@ -172,6 +170,10 @@ rustchat/
 ├── scripts/        # Smoke/build helper scripts
 └── tools/          # Compatibility tooling and reports
 ```
+
+## Calls Deployment Modes
+
+See `docs/calls_deployment_modes.md` for single-node vs multi-node behavior, fallback semantics, and current limits.
 
 ## Documentation
 

@@ -3,6 +3,7 @@
 //! Routes audio/video tracks between participants in a call.
 //! Each participant sends one stream and receives streams from all other participants.
 
+use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};
@@ -10,6 +11,7 @@ use uuid::Uuid;
 use webrtc::api::interceptor_registry::register_default_interceptors;
 use webrtc::api::media_engine::MediaEngine;
 use webrtc::api::APIBuilder;
+use webrtc::ice_transport::ice_candidate::RTCIceCandidateInit;
 use webrtc::ice_transport::ice_server::RTCIceServer;
 use webrtc::interceptor::registry::Registry;
 use webrtc::peer_connection::configuration::RTCConfiguration;
@@ -48,6 +50,7 @@ pub struct SFU {
     participants: Arc<RwLock<HashMap<Uuid, Participant>>>,
     track_manager: Arc<TrackManager>,
     signaling: Arc<SignalingServer>,
+    pending_ice_candidates: Arc<RwLock<HashMap<Uuid, Vec<RTCIceCandidateInit>>>>,
 }
 
 impl SFU {
@@ -58,12 +61,14 @@ impl SFU {
         let participants = Arc::new(RwLock::new(HashMap::new()));
         let track_manager = Arc::new(TrackManager::new());
         let signaling = Arc::new(SignalingServer::new());
+        let pending_ice_candidates = Arc::new(RwLock::new(HashMap::new()));
 
         Ok(Arc::new(Self {
             config,
             participants,
             track_manager,
             signaling,
+            pending_ice_candidates,
         }))
     }
 
@@ -124,13 +129,16 @@ impl SFU {
             audio_track: None,
             video_track: None,
             screen_track: None,
-            signaling_tx,
+            signaling_tx: signaling_tx.clone(),
         };
 
         self.participants
             .write()
             .await
             .insert(session_id, participant);
+        self.signaling
+            .register_channel(session_id, signaling_tx.clone())
+            .await;
 
         Ok((peer_connection, signaling_rx))
     }
@@ -151,6 +159,11 @@ impl SFU {
                 .remove_participant_tracks(session_id)
                 .await;
         }
+        self.signaling.unregister_channel(session_id).await;
+        self.pending_ice_candidates
+            .write()
+            .await
+            .remove(&session_id);
 
         Ok(())
     }
@@ -171,6 +184,8 @@ impl SFU {
         participant
             .peer_connection
             .set_remote_description(offer)
+            .await?;
+        self.flush_pending_ice_candidates(session_id, &participant.peer_connection)
             .await?;
 
         // Create answer
@@ -201,6 +216,8 @@ impl SFU {
         &self,
         session_id: Uuid,
         candidate: String,
+        sdp_mid: Option<String>,
+        sdp_mline_index: Option<u16>,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let participants = self.participants.read().await;
 
@@ -208,10 +225,27 @@ impl SFU {
             .get(&session_id)
             .ok_or("Participant not found")?;
 
-        // Parse and add ICE candidate
-        // Note: webrtc-rs expects the candidate in a specific format
-        // For now, we'll skip detailed parsing and just forward it
-        // In production, use webrtc::ice_transport::ice_candidate::RTCIceCandidateInit
+        let candidate_init = Self::parse_client_ice_candidate(candidate, sdp_mid, sdp_mline_index)?;
+
+        if participant
+            .peer_connection
+            .remote_description()
+            .await
+            .is_none()
+        {
+            self.pending_ice_candidates
+                .write()
+                .await
+                .entry(session_id)
+                .or_default()
+                .push(candidate_init);
+            return Ok(());
+        }
+
+        participant
+            .peer_connection
+            .add_ice_candidate(candidate_init)
+            .await?;
 
         Ok(())
     }
@@ -229,7 +263,11 @@ impl SFU {
         }
 
         // Add TURN server if enabled
-        if self.config.turn_server_enabled {
+        if self.config.turn_server_enabled
+            && !self.config.turn_server_url.trim().is_empty()
+            && !self.config.turn_server_username.trim().is_empty()
+            && !self.config.turn_server_credential.trim().is_empty()
+        {
             servers.push(RTCIceServer {
                 urls: vec![self.config.turn_server_url.clone()],
                 username: self.config.turn_server_username.clone(),
@@ -245,7 +283,7 @@ impl SFU {
     async fn setup_track_handlers(
         &self,
         peer_connection: &Arc<RTCPeerConnection>,
-        user_id: Uuid,
+        _user_id: Uuid,
         session_id: Uuid,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let track_manager = self.track_manager.clone();
@@ -354,12 +392,17 @@ impl SFU {
             move |candidate: Option<webrtc::ice_transport::ice_candidate::RTCIceCandidate>| {
                 if let Some(candidate) = candidate {
                     // Send ICE candidate to client via signaling
+                    let candidate_json = candidate.to_json().ok();
                     let _ = signaling_tx_ice.send(SignalingMessage::IceCandidate {
-                        candidate: candidate
-                            .to_json()
-                            .ok()
-                            .map(|j| j.candidate)
+                        candidate: candidate_json
+                            .as_ref()
+                            .map(|j| j.candidate.clone())
                             .unwrap_or_default(),
+                        sdp_mid: candidate_json.as_ref().and_then(|j| j.sdp_mid.clone()),
+                        sdp_mline_index: candidate_json.as_ref().and_then(|j| j.sdp_mline_index),
+                        username_fragment: candidate_json
+                            .as_ref()
+                            .and_then(|j| j.username_fragment.clone()),
                     });
                 }
 
@@ -399,11 +442,104 @@ impl SFU {
     pub async fn get_participant_count(&self) -> usize {
         self.participants.read().await.len()
     }
+
+    async fn flush_pending_ice_candidates(
+        &self,
+        session_id: Uuid,
+        peer_connection: &Arc<RTCPeerConnection>,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        let pending = self
+            .pending_ice_candidates
+            .write()
+            .await
+            .remove(&session_id);
+        if let Some(candidates) = pending {
+            for candidate in candidates {
+                peer_connection.add_ice_candidate(candidate).await?;
+            }
+        }
+        Ok(())
+    }
+
+    fn parse_client_ice_candidate(
+        candidate: String,
+        sdp_mid: Option<String>,
+        sdp_mline_index: Option<u16>,
+    ) -> Result<RTCIceCandidateInit, Box<dyn std::error::Error + Send + Sync>> {
+        #[derive(Debug, Deserialize)]
+        struct BrowserIceCandidate {
+            candidate: String,
+            #[serde(rename = "sdpMid")]
+            sdp_mid: Option<String>,
+            #[serde(rename = "sdpMLineIndex")]
+            sdp_mline_index: Option<u16>,
+            #[serde(rename = "usernameFragment")]
+            username_fragment: Option<String>,
+        }
+
+        let trimmed = candidate.trim();
+        if trimmed.is_empty() {
+            return Err("ICE candidate cannot be empty".into());
+        }
+
+        if trimmed.starts_with('{') {
+            let parsed: BrowserIceCandidate = serde_json::from_str(trimmed)?;
+            return Ok(RTCIceCandidateInit {
+                candidate: parsed.candidate,
+                sdp_mid: parsed.sdp_mid,
+                sdp_mline_index: parsed.sdp_mline_index,
+                username_fragment: parsed.username_fragment,
+            });
+        }
+
+        Ok(RTCIceCandidateInit {
+            candidate: trimmed.to_string(),
+            sdp_mid,
+            sdp_mline_index,
+            username_fragment: None,
+        })
+    }
 }
 
 impl Drop for SFU {
     fn drop(&mut self) {
         // Cleanup when SFU is dropped
         // In production, you'd want to properly close all peer connections
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::SFU;
+
+    #[test]
+    fn parses_browser_json_ice_candidate() {
+        let candidate = r#"{"candidate":"candidate:1 1 UDP 1 127.0.0.1 5000 typ host","sdpMid":"0","sdpMLineIndex":0}"#;
+        let parsed = SFU::parse_client_ice_candidate(candidate.to_string(), None, None)
+            .expect("candidate should parse");
+
+        assert_eq!(
+            parsed.candidate,
+            "candidate:1 1 UDP 1 127.0.0.1 5000 typ host"
+        );
+        assert_eq!(parsed.sdp_mid.as_deref(), Some("0"));
+        assert_eq!(parsed.sdp_mline_index, Some(0));
+    }
+
+    #[test]
+    fn parses_plain_ice_candidate_with_explicit_indexes() {
+        let parsed = SFU::parse_client_ice_candidate(
+            "candidate:2 1 UDP 1 192.168.1.10 6000 typ host".to_string(),
+            Some("audio".to_string()),
+            Some(1),
+        )
+        .expect("candidate should parse");
+
+        assert_eq!(
+            parsed.candidate,
+            "candidate:2 1 UDP 1 192.168.1.10 6000 typ host"
+        );
+        assert_eq!(parsed.sdp_mid.as_deref(), Some("audio"));
+        assert_eq!(parsed.sdp_mline_index, Some(1));
     }
 }

@@ -620,6 +620,12 @@ fn map_envelope_to_mm(env: &WsEnvelope) -> Option<mm::WebSocketMessage> {
                 broadcast: map_broadcast(env.broadcast.as_ref()),
             })
         }
+        event_name if event_name.starts_with("custom_") => Some(mm::WebSocketMessage {
+            seq,
+            event: event_name.to_string(),
+            data: env.data.clone(),
+            broadcast: map_broadcast(env.broadcast.as_ref()),
+        }),
         _ => None,
     }
 }
@@ -652,7 +658,10 @@ fn map_broadcast(b_opt: Option<&crate::realtime::WsBroadcast>) -> mm::Broadcast 
 
 #[cfg(test)]
 mod tests {
+    use super::map_envelope_to_mm;
     use super::parse_authentication_challenge;
+    use crate::realtime::{WsBroadcast, WsEnvelope};
+    use uuid::Uuid;
 
     #[test]
     fn parse_authentication_challenge_accepts_valid_payload() {
@@ -677,5 +686,29 @@ mod tests {
     fn parse_authentication_challenge_requires_token() {
         let msg = r#"{"action":"authentication_challenge","seq":3,"data":{}}"#;
         assert!(parse_authentication_challenge(msg).is_none());
+    }
+
+    #[test]
+    fn map_envelope_to_mm_passes_custom_events() {
+        let channel_id = Uuid::new_v4();
+        let env = WsEnvelope {
+            msg_type: "event".to_string(),
+            event: "custom_com.mattermost.calls_signal".to_string(),
+            seq: None,
+            channel_id: Some(channel_id),
+            data: serde_json::json!({
+                "signal": { "type": "answer", "sdp": "v=0" }
+            }),
+            broadcast: Some(WsBroadcast {
+                channel_id: Some(channel_id),
+                team_id: None,
+                user_id: None,
+                exclude_user_id: None,
+            }),
+        };
+
+        let mapped = map_envelope_to_mm(&env).expect("custom event should map");
+        assert_eq!(mapped.event, "custom_com.mattermost.calls_signal");
+        assert_eq!(mapped.data["signal"]["type"], "answer");
     }
 }

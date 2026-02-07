@@ -12,23 +12,26 @@ use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
+use tokio::sync::mpsc;
 use uuid::Uuid;
 
 use crate::api::v4::extractors::MmAuthUser;
 use crate::api::AppState;
 use crate::error::{ApiResult, AppError};
 use crate::mattermost_compat::id::{encode_mm_id, parse_mm_or_uuid};
-use crate::realtime::WsEnvelope;
+use crate::realtime::{WsBroadcast, WsEnvelope};
 
 pub mod commands;
 pub mod sfu;
 pub mod state;
 mod turn;
 
-use sfu::signaling::{parse_websocket_message, serialize_websocket_message, SignalingMessage};
-use state::{CallState, CallStateManager, Participant};
+use sfu::signaling::SignalingMessage;
+use state::{CallState, Participant};
 use turn::{TurnCredentialGenerator, TurnServerConfig};
 use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
+
+const CALLS_SIGNAL_EVENT: &str = "custom_com.mattermost.calls_signal";
 
 /// Build the calls plugin router
 pub fn router() -> Router<AppState> {
@@ -163,7 +166,7 @@ pub struct AnswerResponse {
 pub struct IceCandidateRequest {
     pub candidate: String,
     pub sdp_mid: Option<String>,
-    pub sdp_mline_index: Option<u32>,
+    pub sdp_mline_index: Option<u16>,
 }
 
 // ============ Handlers ============
@@ -228,7 +231,7 @@ async fn get_channels(
     auth: MmAuthUser,
 ) -> ApiResult<Json<Vec<CallChannelInfo>>> {
     // Get call manager
-    let call_manager = get_call_manager(&state);
+    let call_manager = state.call_state_manager.as_ref();
 
     // Get all active calls
     let active_calls = call_manager.get_all_calls().await;
@@ -287,7 +290,7 @@ async fn start_call(
     check_channel_permission(&state, auth.user_id, channel_uuid).await?;
 
     // Get or initialize call state manager
-    let call_manager = get_call_manager(&state);
+    let call_manager = state.call_state_manager.as_ref();
 
     // Check if call already exists
     if let Some(call) = call_manager.get_call_by_channel(&channel_uuid).await {
@@ -337,9 +340,17 @@ async fn start_call(
         .map_err(|e| AppError::Internal(format!("Failed to create SFU: {}", e)))?;
 
     // Add owner as participant in the SFU
-    sfu.add_participant(auth.user_id, participant.session_id)
+    let (_, signaling_rx) = sfu
+        .add_participant(auth.user_id, participant.session_id)
         .await
         .map_err(|e| AppError::Internal(format!("Failed to add participant to SFU: {}", e)))?;
+    spawn_signaling_forwarder(
+        &state,
+        channel_uuid,
+        auth.user_id,
+        participant.session_id,
+        signaling_rx,
+    );
 
     // Broadcast call_start event
     broadcast_call_event(
@@ -395,7 +406,7 @@ async fn join_call(
     check_channel_permission(&state, auth.user_id, channel_uuid).await?;
 
     // Get call manager
-    let call_manager = get_call_manager(&state);
+    let call_manager = state.call_state_manager.as_ref();
 
     // Find active call in channel
     let call = call_manager
@@ -437,9 +448,17 @@ async fn join_call(
         .map_err(|e| AppError::Internal(format!("Failed to get or create SFU: {}", e)))?;
 
     // Add participant to the SFU
-    sfu.add_participant(auth.user_id, participant.session_id)
+    let (_, signaling_rx) = sfu
+        .add_participant(auth.user_id, participant.session_id)
         .await
         .map_err(|e| AppError::Internal(format!("Failed to add participant to SFU: {}", e)))?;
+    spawn_signaling_forwarder(
+        &state,
+        channel_uuid,
+        auth.user_id,
+        participant.session_id,
+        signaling_rx,
+    );
 
     // Broadcast user_joined event
     broadcast_call_event(
@@ -473,7 +492,7 @@ async fn leave_call(
         .ok_or_else(|| AppError::BadRequest("Invalid channel_id".to_string()))?;
 
     // Get call manager
-    let call_manager = get_call_manager(&state);
+    let call_manager = state.call_state_manager.as_ref();
 
     // Find call
     let call = call_manager
@@ -549,7 +568,7 @@ async fn get_call_state(
         .ok_or_else(|| AppError::BadRequest("Invalid channel_id".to_string()))?;
 
     // Get call manager
-    let call_manager = get_call_manager(&state);
+    let call_manager = state.call_state_manager.as_ref();
 
     // Find call
     let call = call_manager
@@ -616,7 +635,7 @@ async fn toggle_screen_share(
         .ok_or_else(|| AppError::BadRequest("Invalid channel_id".to_string()))?;
 
     // Get call manager
-    let call_manager = get_call_manager(&state);
+    let call_manager = state.call_state_manager.as_ref();
 
     // Find call
     let call = call_manager
@@ -680,7 +699,7 @@ async fn mute_user(
         .ok_or_else(|| AppError::BadRequest("Invalid channel_id".to_string()))?;
 
     // Get call manager
-    let call_manager = get_call_manager(&state);
+    let call_manager = state.call_state_manager.as_ref();
 
     // Find call
     let call = call_manager
@@ -723,7 +742,7 @@ async fn unmute_user(
         .ok_or_else(|| AppError::BadRequest("Invalid channel_id".to_string()))?;
 
     // Get call manager
-    let call_manager = get_call_manager(&state);
+    let call_manager = state.call_state_manager.as_ref();
 
     // Find call
     let call = call_manager
@@ -766,7 +785,7 @@ async fn raise_hand(
         .ok_or_else(|| AppError::BadRequest("Invalid channel_id".to_string()))?;
 
     // Get call manager
-    let call_manager = get_call_manager(&state);
+    let call_manager = state.call_state_manager.as_ref();
 
     // Find call
     let call = call_manager
@@ -809,7 +828,7 @@ async fn lower_hand(
         .ok_or_else(|| AppError::BadRequest("Invalid channel_id".to_string()))?;
 
     // Get call manager
-    let call_manager = get_call_manager(&state);
+    let call_manager = state.call_state_manager.as_ref();
 
     // Find call
     let call = call_manager
@@ -853,7 +872,7 @@ async fn handle_offer(
         .ok_or_else(|| AppError::BadRequest("Invalid channel_id".to_string()))?;
 
     // Get call manager
-    let call_manager = get_call_manager(&state);
+    let call_manager = state.call_state_manager.as_ref();
 
     // Find call
     let call = call_manager
@@ -886,6 +905,14 @@ async fn handle_offer(
 
     // Extract SDP from answer
     let sdp = answer.sdp;
+    send_signaling_event(
+        &state,
+        channel_uuid,
+        auth.user_id,
+        participant.session_id,
+        SignalingMessage::Answer { sdp: sdp.clone() },
+    )
+    .await;
 
     Ok(Json(AnswerResponse {
         sdp,
@@ -905,7 +932,7 @@ async fn handle_ice_candidate(
         .ok_or_else(|| AppError::BadRequest("Invalid channel_id".to_string()))?;
 
     // Get call manager
-    let call_manager = get_call_manager(&state);
+    let call_manager = state.call_state_manager.as_ref();
 
     // Find call
     let call = call_manager
@@ -927,9 +954,14 @@ async fn handle_ice_candidate(
         .ok_or_else(|| AppError::NotFound("SFU not found for this call".to_string()))?;
 
     // Handle the ICE candidate
-    sfu.handle_ice_candidate(participant.session_id, payload.candidate)
-        .await
-        .map_err(|e| AppError::Internal(format!("Failed to handle ICE candidate: {}", e)))?;
+    sfu.handle_ice_candidate(
+        participant.session_id,
+        payload.candidate,
+        payload.sdp_mid,
+        payload.sdp_mline_index,
+    )
+    .await
+    .map_err(|e| AppError::Internal(format!("Failed to handle ICE candidate: {}", e)))?;
 
     Ok(Json(StatusResponse {
         status: "OK".to_string(),
@@ -937,16 +969,6 @@ async fn handle_ice_candidate(
 }
 
 // ============ Helper Functions ============
-
-/// Get or initialize the call manager from app state
-fn get_call_manager(state: &AppState) -> &CallStateManager {
-    // For now, we'll use a static instance. In production, this should be in AppState
-    // This is a simplified version - in the real implementation, CallStateManager should be in AppState
-    lazy_static::lazy_static! {
-        static ref MANAGER: CallStateManager = CallStateManager::new();
-    }
-    &MANAGER
-}
 
 /// Check if user has permission to access channel
 async fn check_channel_permission(
@@ -992,6 +1014,71 @@ async fn broadcast_call_event(
             team_id: None,
             user_id: None,
             exclude_user_id,
+        }),
+    };
+
+    state.ws_hub.broadcast(envelope).await;
+}
+
+fn spawn_signaling_forwarder(
+    state: &AppState,
+    channel_id: Uuid,
+    user_id: Uuid,
+    session_id: Uuid,
+    mut rx: mpsc::UnboundedReceiver<SignalingMessage>,
+) {
+    let state = state.clone();
+    tokio::spawn(async move {
+        send_signaling_event(
+            &state,
+            channel_id,
+            user_id,
+            session_id,
+            SignalingMessage::ConnectionState {
+                state: "ready".to_string(),
+            },
+        )
+        .await;
+
+        while let Some(signal) = rx.recv().await {
+            send_signaling_event(&state, channel_id, user_id, session_id, signal).await;
+        }
+    });
+}
+
+async fn send_signaling_event(
+    state: &AppState,
+    channel_id: Uuid,
+    user_id: Uuid,
+    session_id: Uuid,
+    signal: SignalingMessage,
+) {
+    let signal_payload = serde_json::to_value(signal).unwrap_or_else(|_| {
+        serde_json::json!({
+            "type": "error",
+            "message": "failed to serialize signaling payload"
+        })
+    });
+
+    let envelope = WsEnvelope {
+        msg_type: "event".to_string(),
+        event: CALLS_SIGNAL_EVENT.to_string(),
+        seq: None,
+        channel_id: Some(channel_id),
+        data: serde_json::json!({
+            "channel_id": encode_mm_id(channel_id),
+            "channel_id_raw": channel_id.to_string(),
+            "user_id": encode_mm_id(user_id),
+            "user_id_raw": user_id.to_string(),
+            "session_id": encode_mm_id(session_id),
+            "session_id_raw": session_id.to_string(),
+            "signal": signal_payload,
+        }),
+        broadcast: Some(WsBroadcast {
+            channel_id: None,
+            team_id: None,
+            user_id: Some(user_id),
+            exclude_user_id: None,
         }),
     };
 

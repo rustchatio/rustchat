@@ -73,7 +73,6 @@ url = "2.5.8"
 # TURN credential generation
 hmac = "0.12"
 sha1 = "0.10"
-lazy_static = "1.5"
 
 # WebRTC for SFU
 webrtc = "0.12"
@@ -86,6 +85,7 @@ interceptor = "0.12"
 reqwest = { version = "0.12", features = ["json", "cookies", "multipart"] }
 tokio-test = "0.4"
 once_cell = "1.18"
+tokio-tungstenite = "0.24"
 
 [[bin]]
 name = "rustchat"

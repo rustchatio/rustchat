@@ -9,7 +9,7 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use super::AppState;
-use crate::api::v4::calls_plugin::state::{CallState, CallStateManager, Participant};
+use crate::api::v4::calls_plugin::state::{CallState, Participant};
 use crate::auth::AuthUser;
 use crate::error::{ApiResult, AppError};
 use crate::mattermost_compat::id::encode_mm_id;
@@ -469,7 +469,7 @@ pub async fn execute_command_internal(
                     .await?;
 
             // Get call manager
-            let call_manager = get_call_manager(state);
+            let call_manager = state.call_state_manager.as_ref();
 
             // Handle end/stop command
             if args == "end" || args == "stop" {
@@ -1070,15 +1070,6 @@ pub async fn execute_command_internal(
         goto_location: None,
         attachments: None,
     })
-}
-
-/// Get or initialize the call manager from app state
-fn get_call_manager(_state: &AppState) -> &'static CallStateManager {
-    // For now, we'll use a static instance. In production, this should be in AppState
-    lazy_static::lazy_static! {
-        static ref MANAGER: CallStateManager = CallStateManager::new();
-    }
-    &MANAGER
 }
 
 // ============ Bots ============

@@ -23,7 +23,15 @@ pub enum SignalingMessage {
 
     /// ICE candidate
     #[serde(rename = "ice-candidate")]
-    IceCandidate { candidate: String },
+    IceCandidate {
+        candidate: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        sdp_mid: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        sdp_mline_index: Option<u16>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        username_fragment: Option<String>,
+    },
 
     /// ICE connection state change
     #[serde(rename = "ice-state")]
@@ -99,14 +107,6 @@ impl SignalingServer {
     pub fn parse_sdp(sdp_str: &str) -> Result<RTCSessionDescription, String> {
         // Parse the SDP string into a SessionDescription
         // This is a simplified version - production code should use proper SDP parsing
-
-        // Determine if it's an offer or answer based on content
-        let sdp_type = if sdp_str.contains("a=setup:actpass") || sdp_str.contains("a=setup:active")
-        {
-            "offer"
-        } else {
-            "answer"
-        };
 
         let sdp = RTCSessionDescription::offer(sdp_str.to_string())
             .map_err(|e| format!("Failed to parse SDP: {:?}", e))?;

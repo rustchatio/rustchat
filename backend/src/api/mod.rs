@@ -59,6 +59,7 @@ fn handle_panic(
 }
 
 use crate::api::v4::calls_plugin::sfu::SFUManager;
+use crate::api::v4::calls_plugin::state::{CallStateBackend, CallStateManager};
 use crate::config::Config;
 use crate::realtime::{ConnectionStore, WsHub};
 use crate::storage::S3Client;
@@ -77,6 +78,7 @@ pub struct AppState {
     pub start_time: std::time::Instant,
     pub config: Config,
     pub sfu_manager: Arc<SFUManager>,
+    pub call_state_manager: Arc<CallStateManager>,
 }
 
 /// Build the main application router
@@ -90,6 +92,10 @@ pub fn router(
     config: Config,
 ) -> Router {
     let sfu_manager = SFUManager::new(config.calls.clone());
+    let call_state_manager = Arc::new(CallStateManager::with_backend(
+        Some(redis.clone()),
+        CallStateBackend::parse(&config.calls.state_backend),
+    ));
     let connection_store = ConnectionStore::new();
 
     let state = AppState {
@@ -104,6 +110,7 @@ pub fn router(
         start_time: std::time::Instant::now(),
         config,
         sfu_manager,
+        call_state_manager,
     };
 
     // CORS configuration
