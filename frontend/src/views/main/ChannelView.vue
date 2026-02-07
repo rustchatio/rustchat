@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import { useChannelStore } from '../../stores/channels';
 import { useMessageStore } from '../../stores/messages';
 import { useUnreadStore } from '../../stores/unreads';
+import { useCallsStore } from '../../stores/calls';
 import { useWebSocket } from '../../composables/useWebSocket';
 import AppShell from '../../components/layout/AppShell.vue';
 import ChannelHeader from '../../components/channel/ChannelHeader.vue';
@@ -15,6 +16,8 @@ import ChannelMembersPanel from '../../components/channel/ChannelMembersPanel.vu
 import ChannelSettingsModal from '../../components/modals/ChannelSettingsModal.vue';
 import VideoCallModal from '../../components/modals/VideoCallModal.vue';
 import TypingIndicator from '../../components/channel/TypingIndicator.vue';
+import ActiveCall from '../../components/calls/ActiveCall.vue';
+import IncomingCallModal from '../../components/calls/IncomingCallModal.vue';
 import { useUIStore } from '../../stores/ui';
 import callsApi from '../../api/calls';
 import { useConfigStore } from '../../stores/config';
@@ -22,9 +25,20 @@ import { useConfigStore } from '../../stores/config';
 const channelStore = useChannelStore();
 const messageStore = useMessageStore();
 const unreadStore = useUnreadStore();
+const callsStore = useCallsStore();
 const uiStore = useUIStore();
 const configStore = useConfigStore();
 const { sendTyping, sendMessage, subscribe, unsubscribe } = useWebSocket();
+
+// Load active calls on mount
+onMounted(async () => {
+    // Check if calls plugin is enabled
+    const enabled = await callsApi.getEnabled()
+    if (enabled) {
+        await callsStore.loadConfig()
+        await callsStore.loadCalls()
+    }
+})
 
 const currentChannel = computed(() => channelStore.currentChannel);
 const channelId = computed(() => channelStore.currentChannelId);
@@ -107,6 +121,24 @@ async function onStartCall() {
         alert('Failed to start call');
     }
 }
+
+async function onStartAudioCall() {
+    if (!channelId.value) return;
+    
+    try {
+        // If there's an existing call in this channel, join it
+        const existingCall = callsStore.currentChannelCall(channelId.value)
+        if (existingCall) {
+            await callsStore.joinCall(channelId.value)
+        } else {
+            // Start a new call
+            await callsStore.startCall(channelId.value)
+        }
+    } catch (e) {
+        console.error('Failed to start audio call', e);
+        alert('Failed to start audio call');
+    }
+}
 </script>
 
 <template>
@@ -150,7 +182,12 @@ async function onStartCall() {
                   <TypingIndicator :channelId="currentChannel.id" />
 
                   <!-- Composer -->
-                  <MessageComposer @send="onSendMessage" @typing="onTyping" @startCall="onStartCall" />
+                  <MessageComposer 
+                    @send="onSendMessage" 
+                    @typing="onTyping" 
+                    @startCall="onStartCall"
+                    @startAudioCall="onStartAudioCall"
+                  />
               </template>
           </div>
 
@@ -202,5 +239,11 @@ async function onStartCall() {
         :url="uiStore.videoCallUrl"
         @close="uiStore.closeVideoCall"
       />
+
+      <!-- Active Call Widget -->
+      <ActiveCall />
+
+      <!-- Incoming Call Modal -->
+      <IncomingCallModal />
   </AppShell>
 </template>

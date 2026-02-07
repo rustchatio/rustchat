@@ -15,7 +15,7 @@ tokio = { version = "1.43", features = ["full"] }
 # Web framework
 axum = { version = "0.8", features = ["macros", "ws", "multipart"] }
 tower = "0.5"
-tower-http = { version = "0.6", features = ["cors", "trace", "request-id", "compression-gzip", "set-header"] }
+tower-http = { version = "0.6", features = ["cors", "trace", "request-id", "compression-gzip", "set-header", "catch-panic"] }
 
 # Database
 sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "uuid", "chrono", "json"] }
@@ -46,6 +46,8 @@ thiserror = "2.0"
 anyhow = "1.0"
 futures-util = "0.3"
 regex = "1.10"
+dashmap = "6.1"
+libc = "0.2"
 
 # S3 Storage
 aws-sdk-s3 = { version = "1.68", features = ["behavior-version-latest"] }
@@ -67,6 +69,18 @@ lettre = { version = "0.11", default-features = false, features = ["tokio1", "to
 magic-crypt = "3.1.13"
 base64 = "0.22.1"
 url = "2.5.8"
+
+# TURN credential generation
+hmac = "0.12"
+sha1 = "0.10"
+lazy_static = "1.5"
+
+# WebRTC for SFU
+webrtc = "0.12"
+rtp = "0.11"
+rtcp = "0.12"
+sdp = "0.6"
+interceptor = "0.12"
 
 [dev-dependencies]
 reqwest = { version = "0.12", features = ["json", "cookies", "multipart"] }

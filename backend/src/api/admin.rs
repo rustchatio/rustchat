@@ -18,7 +18,6 @@ use crate::models::{
     CreateChannel,
     CreateRetentionPolicy,
     CreateSsoConfig,
-    MiroTalkConfig,
     Permission,
     RetentionPolicy,
     ServerConfig,
@@ -29,7 +28,6 @@ use crate::models::{
     TeamMemberResponse,
     UpdateChannel,
 };
-use crate::services::mirotalk::{MiroTalkClient, MiroTalkStats};
 use sqlx::FromRow;
 
 /// Build admin routes
@@ -98,14 +96,10 @@ pub fn router() -> Router<AppState> {
         // Stats & Health
         .route("/admin/stats", get(get_stats))
         .route("/admin/health", get(get_health))
-        // Integrations - MiroTalk
+        // Plugins - RustChat Calls Plugin
         .route(
-            "/admin/integrations/mirotalk",
-            get(get_mirotalk_config).put(update_mirotalk_config),
-        )
-        .route(
-            "/admin/integrations/mirotalk/test",
-            axum::routing::post(test_mirotalk_connection),
+            "/admin/plugins/calls",
+            get(get_calls_plugin_config).put(update_calls_plugin_config),
         )
 }
 
@@ -502,83 +496,192 @@ async fn delete_retention_policy(
     Ok(Json(serde_json::json!({"status": "deleted"})))
 }
 
-// ============ MiroTalk Integration ============
+// ============ Plugins - RustChat Calls Plugin ============
 
-async fn get_mirotalk_config(
-    State(state): State<AppState>,
-    auth: AuthUser,
-) -> ApiResult<Json<MiroTalkConfig>> {
-    require_admin(&auth)?;
-
-    let config: MiroTalkConfig = sqlx::query_as("SELECT * FROM mirotalk_config WHERE is_active = true")
-        .fetch_optional(&state.db)
-        .await?
-        .unwrap_or_else(|| MiroTalkConfig {
-            is_active: true,
-            mode: crate::models::MiroTalkMode::Disabled,
-            base_url: "".to_string(),
-            api_key_secret: "".to_string(),
-            default_room_prefix: None,
-            join_behavior: crate::models::JoinBehavior::NewTab,
-            updated_at: chrono::Utc::now(),
-            updated_by: None,
-        });
-
-    Ok(Json(config))
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct CallsPluginConfig {
+    pub enabled: bool,
+    pub turn_server_enabled: bool,
+    pub turn_server_url: String,
+    pub turn_server_username: String,
+    #[serde(skip_serializing)]
+    pub turn_server_credential: String,
+    pub udp_port: u16,
+    pub tcp_port: u16,
+    pub ice_host_override: Option<String>,
+    pub stun_servers: Vec<String>,
 }
 
-async fn update_mirotalk_config(
+#[derive(Debug, serde::Deserialize)]
+pub struct UpdateCallsPluginConfig {
+    pub enabled: bool,
+    pub turn_server_enabled: bool,
+    pub turn_server_url: String,
+    pub turn_server_username: String,
+    pub turn_server_credential: Option<String>,
+    pub udp_port: u16,
+    pub tcp_port: u16,
+    pub ice_host_override: Option<String>,
+    pub stun_servers: Vec<String>,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct CallsPluginConfigResponse {
+    pub plugin_id: String,
+    pub plugin_name: String,
+    pub settings: CallsPluginConfig,
+}
+
+async fn get_calls_plugin_config(
     State(state): State<AppState>,
     auth: AuthUser,
-    Json(input): Json<MiroTalkConfig>,
-) -> ApiResult<Json<MiroTalkConfig>> {
+) -> ApiResult<Json<CallsPluginConfigResponse>> {
     require_admin(&auth)?;
 
-    // Upsert
-    let config: MiroTalkConfig = sqlx::query_as(
-        r#"
-        INSERT INTO mirotalk_config (is_active, mode, base_url, api_key_secret, default_room_prefix, join_behavior, updated_by, updated_at)
-        VALUES (true, $1, $2, $3, $4, $5, $6, NOW())
-        ON CONFLICT (is_active) DO UPDATE SET
-            mode = $1,
-            base_url = $2,
-            api_key_secret = $3,
-            default_room_prefix = $4,
-            join_behavior = $5,
-            updated_by = $6,
-            updated_at = NOW()
-        RETURNING *
-        "#,
+    // Get config from database (server_config table, plugins column)
+    let config: Option<(serde_json::Value,)> = sqlx::query_as(
+        "SELECT plugins->'calls' FROM server_config WHERE id = 'default'"
     )
-    .bind(input.mode)
-    .bind(input.base_url)
-    .bind(input.api_key_secret)
-    .bind(input.default_room_prefix)
-    .bind(input.join_behavior)
-    .bind(auth.user_id)
-    .fetch_one(&state.db)
+    .fetch_optional(&state.db)
     .await?;
 
-    Ok(Json(config))
+    let calls_config = config
+        .and_then(|(json,)| json.as_object().cloned())
+        .map(|obj| {
+            CallsPluginConfig {
+                enabled: obj.get("enabled")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(state.config.calls.enabled),
+                turn_server_enabled: obj.get("turn_server_enabled")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(state.config.calls.turn_server_enabled),
+                turn_server_url: obj.get("turn_server_url")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| state.config.calls.turn_server_url.clone()),
+                turn_server_username: obj.get("turn_server_username")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| state.config.calls.turn_server_username.clone()),
+                turn_server_credential: obj.get("turn_server_credential")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| state.config.calls.turn_server_credential.clone()),
+                udp_port: obj.get("udp_port")
+                    .and_then(|v| v.as_u64())
+                    .map(|v| v as u16)
+                    .unwrap_or(state.config.calls.udp_port),
+                tcp_port: obj.get("tcp_port")
+                    .and_then(|v| v.as_u64())
+                    .map(|v| v as u16)
+                    .unwrap_or(state.config.calls.tcp_port),
+                ice_host_override: obj.get("ice_host_override")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string()),
+                stun_servers: obj.get("stun_servers")
+                    .and_then(|v| v.as_array())
+                    .map(|arr| arr.iter().filter_map(|v| v.as_str()).map(|s| s.to_string()).collect())
+                    .unwrap_or_else(|| state.config.calls.stun_servers.clone()),
+            }
+        })
+        .unwrap_or_else(|| CallsPluginConfig {
+            enabled: state.config.calls.enabled,
+            turn_server_enabled: state.config.calls.turn_server_enabled,
+            turn_server_url: state.config.calls.turn_server_url.clone(),
+            turn_server_username: state.config.calls.turn_server_username.clone(),
+            turn_server_credential: state.config.calls.turn_server_credential.clone(),
+            udp_port: state.config.calls.udp_port,
+            tcp_port: state.config.calls.tcp_port,
+            ice_host_override: state.config.calls.ice_host_override.clone(),
+            stun_servers: state.config.calls.stun_servers.clone(),
+        });
+
+    Ok(Json(CallsPluginConfigResponse {
+        plugin_id: "com.rustchat.calls".to_string(),
+        plugin_name: "RustChat Calls Plugin".to_string(),
+        settings: calls_config,
+    }))
 }
 
-async fn test_mirotalk_connection(
+async fn update_calls_plugin_config(
     State(state): State<AppState>,
     auth: AuthUser,
-) -> ApiResult<Json<MiroTalkStats>> {
+    Json(payload): Json<serde_json::Value>,
+) -> ApiResult<Json<CallsPluginConfigResponse>> {
     require_admin(&auth)?;
 
-    // 1. Fetch current config
-    let config: MiroTalkConfig = sqlx::query_as("SELECT * FROM mirotalk_config WHERE is_active = true")
+    // Log the incoming payload for debugging
+    tracing::info!("Received Calls Plugin config update: {}", payload);
+
+    // Deserialize manually to get better error messages
+    let payload: UpdateCallsPluginConfig = serde_json::from_value(payload)
+        .map_err(|e| {
+            tracing::error!("Failed to deserialize Calls Plugin config: {}", e);
+            AppError::BadRequest(format!("Invalid configuration data: {}", e))
+        })?;
+
+    // Get existing credential if not provided in update
+    let credential = if let Some(ref cred) = payload.turn_server_credential {
+        cred.clone()
+    } else {
+        // Fetch existing credential from database
+        let existing: Option<(String,)> = sqlx::query_as(
+            "SELECT plugins->'calls'->>'turn_server_credential' FROM server_config WHERE id = 'default'"
+        )
         .fetch_optional(&state.db)
-        .await?
-        .ok_or_else(|| AppError::Config("MiroTalk config not found".to_string()))?;
+        .await?;
+        existing.map(|(s,)| s).unwrap_or_else(|| state.config.calls.turn_server_credential.clone())
+    };
 
-    // 2. Init client and call stats
-    let client = MiroTalkClient::new(config, state.http_client.clone())?;
-    let stats = client.stats().await?;
+    // Build JSON object for calls config
+    let calls_config_json = serde_json::json!({
+        "enabled": payload.enabled,
+        "turn_server_enabled": payload.turn_server_enabled,
+        "turn_server_url": payload.turn_server_url,
+        "turn_server_username": payload.turn_server_username,
+        "turn_server_credential": credential,
+        "udp_port": payload.udp_port,
+        "tcp_port": payload.tcp_port,
+        "ice_host_override": payload.ice_host_override,
+        "stun_servers": payload.stun_servers,
+    });
 
-    Ok(Json(stats))
+    // Update server_config table
+    sqlx::query(
+        r#"
+        INSERT INTO server_config (id, plugins, updated_at, updated_by)
+        VALUES ('default', jsonb_build_object('calls', $1::jsonb), NOW(), $2)
+        ON CONFLICT (id) DO UPDATE SET
+            plugins = jsonb_set(
+                COALESCE(server_config.plugins, '{}'::jsonb),
+                '{calls}',
+                $1::jsonb,
+                true
+            ),
+            updated_at = NOW(),
+            updated_by = $2
+        "#
+    )
+    .bind(calls_config_json)
+    .bind(auth.user_id)
+    .execute(&state.db)
+    .await?;
+
+    Ok(Json(CallsPluginConfigResponse {
+        plugin_id: "com.rustchat.calls".to_string(),
+        plugin_name: "RustChat Calls Plugin".to_string(),
+        settings: CallsPluginConfig {
+            enabled: payload.enabled,
+            turn_server_enabled: payload.turn_server_enabled,
+            turn_server_url: payload.turn_server_url,
+            turn_server_username: payload.turn_server_username,
+            turn_server_credential: credential,
+            udp_port: payload.udp_port,
+            tcp_port: payload.tcp_port,
+            ice_host_override: payload.ice_host_override,
+            stun_servers: payload.stun_servers,
+        },
+    }))
 }
 
 // ============ Permissions ============

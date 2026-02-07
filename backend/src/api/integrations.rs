@@ -14,14 +14,11 @@ use crate::error::{ApiResult, AppError};
 use crate::models::{
     Bot, BotToken, CommandResponse, CreateBot, CreateIncomingWebhook, CreateOutgoingWebhook,
     CreateSlashCommand, ExecuteCommand, IncomingWebhook, OutgoingWebhook, OutgoingWebhookPayload,
-    SlashCommand, WebhookPayload, MiroTalkConfig,
+    SlashCommand, WebhookPayload,
 };
 use crate::mattermost_compat::id::encode_mm_id;
-use crate::services::mirotalk::MiroTalkClient;
-use base64::engine::general_purpose::URL_SAFE_NO_PAD;
-use base64::Engine as _;
+use crate::api::v4::calls_plugin::state::{CallState, CallStateManager, Participant};
 use chrono::Utc;
-use url::Url;
 
 /// Generate a secure random token
 fn generate_token() -> String {
@@ -430,26 +427,27 @@ pub async fn execute_command_internal(
     // 2. Handle built-in commands
     match trigger {
         "call" => {
-            let config: MiroTalkConfig = sqlx::query_as(
-                "SELECT * FROM mirotalk_config WHERE is_active = true",
+            // Check if Calls Plugin is enabled (from database or env)
+            let db_value: Option<String> = sqlx::query_scalar(
+                "SELECT plugins->'calls'->>'enabled' FROM server_config WHERE id = 'default'"
             )
             .fetch_optional(&state.db)
-            .await?
-            .unwrap_or_else(|| MiroTalkConfig {
-                is_active: true,
-                mode: crate::models::MiroTalkMode::Disabled,
-                base_url: "".to_string(),
-                api_key_secret: "".to_string(),
-                default_room_prefix: None,
-                join_behavior: crate::models::JoinBehavior::NewTab,
-                updated_at: Utc::now(),
-                updated_by: None,
-            });
-
-            if !config.is_enabled() {
+            .await?;
+            
+            tracing::info!("Calls enabled - DB value: {:?}, Env value: {}", db_value, state.config.calls.enabled);
+            
+            let calls_enabled = db_value
+                .as_ref()
+                .map(|v| v.parse::<bool>().unwrap_or(false))
+                .unwrap_or(state.config.calls.enabled);
+            
+            tracing::info!("Calls enabled - Final result: {}", calls_enabled);
+            
+            if !calls_enabled {
+                let db_val_clone = db_value.clone();
                 return Ok(CommandResponse {
                     response_type: "ephemeral".to_string(),
-                    text: "MiroTalk integration is not enabled".to_string(),
+                    text: format!("Calls are not enabled (db: {:?}, env: {})", db_val_clone, state.config.calls.enabled),
                     username: None,
                     icon_url: None,
                     goto_location: None,
@@ -464,58 +462,63 @@ pub async fn execute_command_internal(
             .fetch_one(&state.db)
             .await?;
 
-            let display_name = user
-                .display_name
-                .clone()
-                .unwrap_or_else(|| user.username.clone());
+            // Get call manager
+            let call_manager = get_call_manager(state);
 
+            // Handle end/stop command
             if args == "end" || args == "stop" {
-                let existing: Option<crate::models::post::Post> = sqlx::query_as(
-                    "SELECT * FROM posts WHERE channel_id = $1 AND props->>'type' = 'custom_calls' ORDER BY created_at DESC LIMIT 1",
-                )
-                .bind(payload.channel_id)
-                .fetch_optional(&state.db)
-                .await?;
-
-                if let Some(post) = existing {
-                    let mut props = post.props.as_object().cloned().unwrap_or_default();
-                    props.insert("ended".to_string(), serde_json::Value::Bool(true));
-                    props.insert("attachments".to_string(), serde_json::Value::Array(vec![]));
-
-                    let updated: crate::models::post::PostResponse = sqlx::query_as(
-                        r#"
-                        WITH updated_post AS (
-                            UPDATE posts SET message = $1, props = $2, edited_at = NOW()
-                            WHERE id = $3
-                            RETURNING *
-                        )
-                        SELECT p.id, p.channel_id, p.user_id, p.root_post_id, p.message, p.props, p.file_ids,
-                               p.is_pinned, p.created_at, p.edited_at, p.deleted_at,
-                               p.reply_count::int8 as reply_count,
-                               p.last_reply_at, p.seq,
-                               u.username, u.avatar_url, u.email
-                        FROM updated_post p
-                        LEFT JOIN users u ON p.user_id = u.id
-                        "#,
-                    )
-                    .bind(format!("Video call ended by @{}", user.username))
-                    .bind(serde_json::Value::Object(props))
-                    .bind(post.id)
-                    .fetch_one(&state.db)
-                    .await?;
-
-                    let broadcast = crate::realtime::WsEnvelope::event(
-                        crate::realtime::EventType::MessageUpdated,
-                        updated.clone(),
-                        Some(post.channel_id),
-                    )
-                    .with_broadcast(crate::realtime::WsBroadcast {
-                        channel_id: Some(post.channel_id),
-                        team_id: None,
-                        user_id: None,
-                        exclude_user_id: None,
-                    });
-                    state.ws_hub.broadcast(broadcast).await;
+                // Find active call in channel
+                if let Some(call) = call_manager.get_call_by_channel(&payload.channel_id).await {
+                    // Remove all participants and end the call
+                    let participants = call_manager.get_participants(call.call_id).await;
+                    
+                    for participant in participants {
+                        call_manager.remove_participant(call.call_id, participant.user_id).await;
+                        
+                        // Broadcast user_left event
+                        let event = crate::realtime::WsEnvelope {
+                            msg_type: "event".to_string(),
+                            event: "custom_com.mattermost.calls_user_left".to_string(),
+                            seq: None,
+                            channel_id: Some(payload.channel_id),
+                            data: serde_json::json!({
+                                "channel_id": encode_mm_id(payload.channel_id),
+                                "user_id": encode_mm_id(participant.user_id),
+                            }),
+                            broadcast: Some(crate::realtime::WsBroadcast {
+                                channel_id: Some(payload.channel_id),
+                                team_id: None,
+                                user_id: None,
+                                exclude_user_id: None,
+                            }),
+                        };
+                        state.ws_hub.broadcast(event).await;
+                    }
+                    
+                    // Remove the call
+                    call_manager.remove_call(call.call_id).await;
+                    
+                    // Remove SFU if exists
+                    state.sfu_manager.remove_sfu(call.call_id).await;
+                    
+                    // Broadcast call_end event
+                    let event = crate::realtime::WsEnvelope {
+                        msg_type: "event".to_string(),
+                        event: "custom_com.mattermost.calls_call_end".to_string(),
+                        seq: None,
+                        channel_id: Some(payload.channel_id),
+                        data: serde_json::json!({
+                            "channel_id": encode_mm_id(payload.channel_id),
+                            "call_id": encode_mm_id(call.call_id),
+                        }),
+                        broadcast: Some(crate::realtime::WsBroadcast {
+                            channel_id: Some(payload.channel_id),
+                            team_id: None,
+                            user_id: None,
+                            exclude_user_id: None,
+                        }),
+                    };
+                    state.ws_hub.broadcast(event).await;
 
                     return Ok(CommandResponse {
                         response_type: "ephemeral".to_string(),
@@ -537,50 +540,173 @@ pub async fn execute_command_internal(
                 });
             }
 
-            let channel_id_mm = encode_mm_id(payload.channel_id);
-            let salt = if config.api_key_secret.is_empty() {
-                "rustchat".to_string()
-            } else {
-                config.api_key_secret.clone()
-            };
-            let room_seed = format!("{}:{}", channel_id_mm, salt);
-            let room_id = URL_SAFE_NO_PAD.encode(room_seed.as_bytes());
+            // Handle start/join command (default is start)
+            let now = Utc::now().timestamp_millis();
+            let channel_id = payload.channel_id;
 
-            let client = MiroTalkClient::new(config.clone(), state.http_client.clone())?;
-            let meeting_url = client
-                .create_meeting(&room_id, Some(&display_name), true, true)
-                .await?;
-
-            let mut join_url = match Url::parse(&meeting_url) {
-                Ok(url) => url,
-                Err(_) => {
-                    let mut base = Url::parse(&config.base_url)
-                        .map_err(|_| AppError::Config("Invalid MiroTalk base URL".to_string()))?;
-                    if let Ok(mut segments) = base.path_segments_mut() {
-                        segments.pop_if_empty();
-                        segments.push(meeting_url.trim_start_matches('/'));
+            // Check if there's already an active call in this channel
+            if let Some(existing_call) = call_manager.get_call_by_channel(&channel_id).await {
+                // Join existing call
+                if call_manager.get_participant(existing_call.call_id, auth.user_id).await.is_none() {
+                    let participant = Participant {
+                        user_id: auth.user_id,
+                        session_id: uuid::Uuid::new_v4(),
+                        joined_at: now,
+                        muted: true,
+                        screen_sharing: false,
+                        hand_raised: false,
+                    };
+                    
+                    call_manager.add_participant(existing_call.call_id, participant.clone()).await;
+                    
+                    // Get or create SFU
+                    if let Ok(sfu) = state.sfu_manager.get_or_create_sfu(existing_call.call_id).await {
+                        let _ = sfu.add_participant(auth.user_id, participant.session_id).await;
                     }
-                    base
+                    
+                    // Broadcast user_joined event
+                    let event = crate::realtime::WsEnvelope {
+                        msg_type: "event".to_string(),
+                        event: "custom_com.mattermost.calls_user_joined".to_string(),
+                        seq: None,
+                        channel_id: Some(channel_id),
+                        data: serde_json::json!({
+                            "channel_id": encode_mm_id(channel_id),
+                            "user_id": encode_mm_id(auth.user_id),
+                            "session_id": encode_mm_id(participant.session_id),
+                            "muted": true,
+                            "raised_hand": false,
+                        }),
+                        broadcast: Some(crate::realtime::WsBroadcast {
+                            channel_id: Some(channel_id),
+                            team_id: None,
+                            user_id: None,
+                            exclude_user_id: None,
+                        }),
+                    };
+                    state.ws_hub.broadcast(event).await;
                 }
-            };
-            if !join_url.query_pairs().any(|(k, _)| k == "name") {
-                join_url.query_pairs_mut().append_pair("name", &display_name);
+
+                let attachments = serde_json::json!([
+                    {
+                        "color": "#166de0",
+                        "title": "RustChat Call",
+                        "text": "A call is in progress. Click to join.",
+                        "actions": [
+                            {
+                                "id": "join_call",
+                                "name": "Join Call",
+                                "type": "button",
+                                "style": "primary",
+                                "integration": {
+                                    "url": format!("/plugins/com.mattermost.calls/calls/{}/join", encode_mm_id(channel_id)),
+                                    "context": { "action": "join_call" }
+                                }
+                            }
+                        ]
+                    }
+                ]);
+
+                return Ok(CommandResponse {
+                    response_type: "in_channel".to_string(),
+                    text: format!("@{} joined the call", user.username),
+                    username: None,
+                    icon_url: None,
+                    goto_location: None,
+                    attachments: Some(attachments),
+                });
             }
 
+            // Create new call
+            let call_id = uuid::Uuid::new_v4();
+            let call = CallState {
+                call_id,
+                channel_id,
+                owner_id: auth.user_id,
+                started_at: now,
+                participants: std::collections::HashMap::new(),
+                screen_sharer: None,
+                thread_id: None,
+            };
+            
+            call_manager.add_call(call).await;
+            
+            // Add owner as first participant
+            let participant = Participant {
+                user_id: auth.user_id,
+                session_id: uuid::Uuid::new_v4(),
+                joined_at: now,
+                muted: true,
+                screen_sharing: false,
+                hand_raised: false,
+            };
+            
+            call_manager.add_participant(call_id, participant.clone()).await;
+            
+            // Get or create SFU
+            if let Ok(sfu) = state.sfu_manager.get_or_create_sfu(call_id).await {
+                let _ = sfu.add_participant(auth.user_id, participant.session_id).await;
+            }
+            
+            // Broadcast call_start event
+            let event = crate::realtime::WsEnvelope {
+                msg_type: "event".to_string(),
+                event: "custom_com.mattermost.calls_call_start".to_string(),
+                seq: None,
+                channel_id: Some(channel_id),
+                data: serde_json::json!({
+                    "channel_id": encode_mm_id(channel_id),
+                    "user_id": encode_mm_id(auth.user_id),
+                    "call_id": encode_mm_id(call_id),
+                    "start_at": now.to_string(),
+                    "owner_id": encode_mm_id(auth.user_id),
+                }),
+                broadcast: Some(crate::realtime::WsBroadcast {
+                    channel_id: Some(channel_id),
+                    team_id: None,
+                    user_id: None,
+                    exclude_user_id: Some(auth.user_id),
+                }),
+            };
+            state.ws_hub.broadcast(event).await;
+            
+            // Broadcast user_joined event
+            let event = crate::realtime::WsEnvelope {
+                msg_type: "event".to_string(),
+                event: "custom_com.mattermost.calls_user_joined".to_string(),
+                seq: None,
+                channel_id: Some(channel_id),
+                data: serde_json::json!({
+                    "channel_id": encode_mm_id(channel_id),
+                    "user_id": encode_mm_id(auth.user_id),
+                    "session_id": encode_mm_id(participant.session_id),
+                    "muted": true,
+                    "raised_hand": false,
+                }),
+                broadcast: Some(crate::realtime::WsBroadcast {
+                    channel_id: Some(channel_id),
+                    team_id: None,
+                    user_id: None,
+                    exclude_user_id: None,
+                }),
+            };
+            state.ws_hub.broadcast(event).await;
+
+            // Create post in channel
             let attachments = serde_json::json!([
                 {
                     "color": "#166de0",
-                    "title": "Mirotalk Conference",
-                    "text": "The meeting is active. Tap to join.",
+                    "title": "RustChat Call",
+                    "text": "A call has started. Click to join.",
                     "actions": [
                         {
                             "id": "join_call",
-                            "name": "Join Meeting",
+                            "name": "Join Call",
                             "type": "button",
                             "style": "primary",
                             "integration": {
-                                "url": join_url.to_string(),
-                                "context": { "action": "open_url" }
+                                "url": format!("/plugins/com.mattermost.calls/calls/{}/join", encode_mm_id(channel_id)),
+                                "context": { "action": "join_call" }
                             }
                         }
                     ]
@@ -591,12 +717,13 @@ pub async fn execute_command_internal(
                 "type": "custom_calls",
                 "attachments": attachments,
                 "call": {
-                    "room_id": room_id
+                    "call_id": encode_mm_id(call_id),
+                    "channel_id": encode_mm_id(channel_id),
                 }
             });
 
             let create_post_input = crate::models::CreatePost {
-                message: format!("Video call started by @{}", user.username),
+                message: format!("Video call started by @ {}", user.username),
                 file_ids: vec![],
                 props: Some(props),
                 root_post_id: None,
@@ -605,7 +732,7 @@ pub async fn execute_command_internal(
             let _ = crate::services::posts::create_post(
                 state,
                 auth.user_id,
-                payload.channel_id,
+                channel_id,
                 create_post_input,
                 None,
             )
@@ -924,6 +1051,15 @@ pub async fn execute_command_internal(
         goto_location: None,
         attachments: None,
     })
+}
+
+/// Get or initialize the call manager from app state
+fn get_call_manager(_state: &AppState) -> &'static CallStateManager {
+    // For now, we'll use a static instance. In production, this should be in AppState
+    lazy_static::lazy_static! {
+        static ref MANAGER: CallStateManager = CallStateManager::new();
+    }
+    &MANAGER
 }
 
 // ============ Bots ============

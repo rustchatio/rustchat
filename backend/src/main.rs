@@ -81,6 +81,7 @@ async fn main() -> anyhow::Result<()> {
         config.jwt_expiry_hours,
         ws_hub,
         s3_client,
+        config.clone(),
     );
 
     // Start server

@@ -3,6 +3,7 @@ import { ref, onMounted, watch } from 'vue';
 import { useAdminStore } from '../../stores/admin';
 import { Webhook, Terminal, Bot, Save, AlertCircle, CheckCircle } from 'lucide-vue-next';
 import MiroTalkSettings from './integrations/MiroTalkSettings.vue';
+import CallsPluginSettings from './plugins/CallsPluginSettings.vue';
 
 const adminStore = useAdminStore();
 
@@ -132,6 +133,9 @@ const saveSettings = async () => {
 
             <!-- MiroTalk Integration -->
             <MiroTalkSettings />
+
+            <!-- RustChat Calls Plugin -->
+            <CallsPluginSettings />
         </div>
     </div>
 </template>

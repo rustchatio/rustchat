@@ -27,13 +27,38 @@ use std::sync::Arc;
 use axum::{extract::DefaultBodyLimit, http::Method, Router};
 use sqlx::PgPool;
 use tower_http::{
+    catch_panic::CatchPanicLayer,
     compression::CompressionLayer,
     cors::{Any, CorsLayer},
-    trace::TraceLayer,
+    trace::{TraceLayer, DefaultOnResponse, DefaultOnRequest, DefaultMakeSpan},
 };
+use tracing::Level;
 
-use crate::realtime::WsHub;
+/// Handle panics by converting them to 500 responses
+fn handle_panic(err: Box<dyn std::any::Any + Send + 'static>) -> axum::http::Response<axum::body::Body> {
+    let panic_message = if let Some(s) = err.downcast_ref::<String>() {
+        s.clone()
+    } else if let Some(s) = err.downcast_ref::<&str>() {
+        s.to_string()
+    } else {
+        "Unknown panic".to_string()
+    };
+    
+    tracing::error!("PANIC: {}", panic_message);
+    
+    axum::http::Response::builder()
+        .status(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+        .header("content-type", "application/json")
+        .body(axum::body::Body::from(format!(
+            r#"{{"error":{{"code":"PANIC","message":"Internal server error"}}}}"#
+        )))
+        .unwrap()
+}
+
+use crate::realtime::{ConnectionStore, WsHub};
 use crate::storage::S3Client;
+use crate::config::Config;
+use crate::api::v4::calls_plugin::sfu::SFUManager;
 
 /// Application state shared across handlers
 #[derive(Clone)]
@@ -43,9 +68,12 @@ pub struct AppState {
     pub jwt_secret: String,
     pub jwt_expiry_hours: u64,
     pub ws_hub: Arc<WsHub>,
+    pub connection_store: Arc<ConnectionStore>,
     pub s3_client: S3Client,
     pub http_client: reqwest::Client,
     pub start_time: std::time::Instant,
+    pub config: Config,
+    pub sfu_manager: Arc<SFUManager>,
 }
 
 /// Build the main application router
@@ -56,16 +84,23 @@ pub fn router(
     jwt_expiry_hours: u64,
     ws_hub: Arc<WsHub>,
     s3_client: S3Client,
+    config: Config,
 ) -> Router {
+    let sfu_manager = SFUManager::new(config.calls.clone());
+    let connection_store = ConnectionStore::new();
+
     let state = AppState {
         db,
         redis,
         jwt_secret,
         jwt_expiry_hours,
         ws_hub,
+        connection_store,
         s3_client,
         http_client: reqwest::Client::new(),
         start_time: std::time::Instant::now(),
+        config,
+        sfu_manager,
     };
 
     // CORS configuration
@@ -106,8 +141,14 @@ pub fn router(
     Router::new()
         .nest("/api/v1", api_v1)
         .nest("/api/v4", api_v4)
+        .layer(CatchPanicLayer::custom(handle_panic))
         .layer(CompressionLayer::new())
-        .layer(TraceLayer::new_for_http())
+        .layer(
+            TraceLayer::new_for_http()
+                .make_span_with(DefaultMakeSpan::new().include_headers(true))
+                .on_request(DefaultOnRequest::new().level(Level::DEBUG))
+                .on_response(DefaultOnResponse::new().level(Level::INFO))
+        )
         .layer(cors)
         .with_state(state)
 }

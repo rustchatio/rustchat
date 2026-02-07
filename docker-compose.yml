@@ -20,8 +20,20 @@ services:
       - RUSTCHAT_S3_SECRET_KEY=minioadmin
       - RUSTCHAT_ADMIN_USER=${RUSTCHAT_ADMIN_USER:-admin@rustchat.io}
       - RUSTCHAT_ADMIN_PASSWORD=${RUSTCHAT_ADMIN_PASSWORD:-Password123!}
+      # Calls Plugin (WebRTC) Configuration
+      - RUSTCHAT_CALLS_ENABLED=${RUSTCHAT_CALLS_ENABLED:-true}
+      - RUSTCHAT_CALLS_UDP_PORT=${RUSTCHAT_CALLS_UDP_PORT:-8443}
+      - RUSTCHAT_CALLS_TCP_PORT=${RUSTCHAT_CALLS_TCP_PORT:-8443}
+      - RUSTCHAT_CALLS_ICE_HOST_OVERRIDE=${RUSTCHAT_CALLS_ICE_HOST_OVERRIDE:-}
+      # TURN Server Configuration
+      - TURN_SERVER_ENABLED=${TURN_SERVER_ENABLED:-true}
+      - TURN_SERVER_URL=${TURN_SERVER_URL:-turn:turn.kubedo.io:3478}
+      - TURN_SERVER_USERNAME=${TURN_SERVER_USERNAME:-PtU7Uv7NdR2YcBJMC5n6EdfGoFhXLp}
+      - TURN_SERVER_CREDENTIAL=${TURN_SERVER_CREDENTIAL:-axY1ofBashEbJat9}
     ports:
       - "3000:3000"
+      - "8443:8443/tcp"  # WebRTC SFU TCP fallback
+      - "8443:8443/udp"  # WebRTC SFU UDP media transport
     depends_on:
       postgres:
         condition: service_healthy

@@ -95,11 +95,40 @@ async fn get_plugin_statuses(
 }
 
 /// GET /api/v4/plugins/webapp
+/// Returns manifests for webapp plugins that should be loaded by clients
 async fn get_webapp_plugins(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     _auth: crate::api::v4::extractors::MmAuthUser,
 ) -> ApiResult<Json<Vec<serde_json::Value>>> {
-    Ok(Json(vec![]))
+    let mut plugins = vec![];
+    
+    // Check if Calls plugin is enabled
+    let db_value: Option<String> = sqlx::query_scalar(
+        "SELECT plugins->'calls'->>'enabled' FROM server_config WHERE id = 'default'"
+    )
+    .fetch_optional(&state.db)
+    .await?;
+    
+    let calls_enabled = db_value
+        .as_ref()
+        .map(|v| v.parse::<bool>().unwrap_or(false))
+        .unwrap_or(state.config.calls.enabled);
+    
+    if calls_enabled {
+        plugins.push(json!({
+            "id": "com.mattermost.calls",
+            "name": "Calls",
+            "description": "Mattermost Calls plugin for voice and video conferencing",
+            "version": "0.28.0",
+            "min_server_version": "7.0.0",
+            "server": {},
+            "webapp": {
+                "bundle_path": "/static/plugins/com.mattermost.calls/webapp/main.js"
+            }
+        }));
+    }
+    
+    Ok(Json(plugins))
 }
 
 /// GET /api/v4/plugins/marketplace

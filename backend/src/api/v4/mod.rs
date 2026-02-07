@@ -44,6 +44,7 @@ pub mod teams;
 pub mod threads;
 pub mod uploads;
 pub mod users;
+pub mod calls_plugin;
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -87,6 +88,7 @@ pub fn router() -> Router<AppState> {
         .merge(uploads::router())
         .merge(threads::router())
         .merge(image::router())
+        .merge(calls_plugin::router()) // Mattermost Calls plugin API
         .route("/websocket", axum::routing::get(websocket::handle_websocket))
         .fallback(not_implemented)
         .layer(SetResponseHeaderLayer::overriding(
