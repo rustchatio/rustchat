@@ -14,12 +14,21 @@ pub fn router() -> Router<AppState> {
         .route("/cloud/payment", post(create_cloud_payment_info))
         .route("/cloud/payment/confirm", post(confirm_cloud_payment))
         .route("/cloud/customer", get(get_cloud_customer))
-        .route("/cloud/customer/address", put(update_cloud_customer_address))
+        .route(
+            "/cloud/customer/address",
+            put(update_cloud_customer_address),
+        )
         .route("/cloud/subscription", get(get_cloud_subscription))
         .route("/cloud/installation", get(get_cloud_installation))
-        .route("/cloud/subscription/invoices", get(get_cloud_subscription_invoices))
+        .route(
+            "/cloud/subscription/invoices",
+            get(get_cloud_subscription_invoices),
+        )
         .route("/cloud/webhook", post(cloud_webhook))
-        .route("/cloud/preview/modal_data", get(get_cloud_preview_modal_data))
+        .route(
+            "/cloud/preview/modal_data",
+            get(get_cloud_preview_modal_data),
+        )
 }
 
 /// GET /api/v4/cloud/limits

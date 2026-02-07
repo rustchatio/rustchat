@@ -1,50 +1,54 @@
 use crate::api::AppState;
-use axum::{http::{HeaderName, HeaderValue}, response::IntoResponse, Json, Router};
+use axum::{
+    http::{HeaderName, HeaderValue},
+    response::IntoResponse,
+    Json, Router,
+};
 use tower_http::set_header::SetResponseHeaderLayer;
 
-pub mod channels;
-pub mod emoji;
-pub mod commands;
-pub mod groups;
-pub mod plugins;
-pub mod categories;
-pub mod config_client;
-pub mod hooks;
-pub mod bots;
-pub mod admin;
-pub mod oauth;
-pub mod saml;
-pub mod schemes;
-pub mod cluster;
-pub mod brand;
-pub mod ldap;
 pub mod access_control;
-pub mod content_flagging;
-pub mod usage;
-pub mod data_retention;
-pub mod roles;
-pub mod cloud;
-pub mod jobs;
-pub mod recaps;
-pub mod compliance;
-pub mod shared_channels;
+pub mod admin;
 pub mod ai;
-pub mod reports;
-pub mod ip_filtering;
-pub mod imports_exports;
-pub mod terms_of_service;
+pub mod bots;
+pub mod brand;
+pub mod calls_plugin;
+pub mod categories;
+pub mod channels;
+pub mod cloud;
+pub mod cluster;
+pub mod commands;
+pub mod compliance;
+pub mod config_client;
+pub mod content_flagging;
+pub mod data_retention;
 pub mod dialogs;
-pub mod websocket;
+pub mod emoji;
 pub mod extractors;
 pub mod files;
+pub mod groups;
+pub mod hooks;
 pub mod image;
+pub mod imports_exports;
+pub mod ip_filtering;
+pub mod jobs;
+pub mod ldap;
+pub mod oauth;
+pub mod plugins;
 pub mod posts;
+pub mod recaps;
+pub mod reports;
+pub mod roles;
+pub mod saml;
+pub mod schemes;
+pub mod shared_channels;
 pub mod system;
 pub mod teams;
+pub mod terms_of_service;
 pub mod threads;
 pub mod uploads;
+pub mod usage;
 pub mod users;
-pub mod calls_plugin;
+pub mod websocket;
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -89,7 +93,10 @@ pub fn router() -> Router<AppState> {
         .merge(threads::router())
         .merge(image::router())
         .merge(calls_plugin::router()) // Mattermost Calls plugin API
-        .route("/websocket", axum::routing::get(websocket::handle_websocket))
+        .route(
+            "/websocket",
+            axum::routing::get(websocket::handle_websocket),
+        )
         .fallback(not_implemented)
         .layer(SetResponseHeaderLayer::overriding(
             HeaderName::from_static("x-mm-compat"),
@@ -104,6 +111,6 @@ async fn not_implemented() -> impl IntoResponse {
             "id": "api.not_implemented",
             "message": "Not implemented",
             "status_code": 501
-        }))
+        })),
     )
 }

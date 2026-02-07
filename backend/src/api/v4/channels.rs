@@ -12,24 +12,39 @@ use std::collections::HashMap;
 use uuid::Uuid;
 
 use super::extractors::MmAuthUser;
+use crate::api::v4::posts::reactions_for_posts;
 use crate::api::AppState;
 use crate::error::ApiResult;
-use crate::mattermost_compat::{id::{encode_mm_id, parse_mm_or_uuid}, models as mm};
-use crate::api::v4::posts::reactions_for_posts;
-use serde_json::json;
+use crate::mattermost_compat::{
+    id::{encode_mm_id, parse_mm_or_uuid},
+    models as mm,
+};
 use crate::models::post::PostResponse;
 use crate::models::Channel;
+use serde_json::json;
 
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/channels/{channel_id}/posts", get(get_posts))
-        .route("/channels/{channel_id}", get(get_channel).put(update_channel).delete(delete_channel))
+        .route(
+            "/channels/{channel_id}",
+            get(get_channel).put(update_channel).delete(delete_channel),
+        )
         .route("/channels/{channel_id}/patch", put(patch_channel))
-        .route("/channels/{channel_id}/privacy", put(update_channel_privacy))
+        .route(
+            "/channels/{channel_id}/privacy",
+            put(update_channel_privacy),
+        )
         .route("/channels/{channel_id}/restore", post(restore_channel))
         .route("/channels/{channel_id}/move", post(move_channel))
-        .route("/channels/{channel_id}/members", get(get_channel_members).post(add_channel_member))
-        .route("/channels/{channel_id}/members/me", get(get_channel_member_me))
+        .route(
+            "/channels/{channel_id}/members",
+            get(get_channel_members).post(add_channel_member),
+        )
+        .route(
+            "/channels/{channel_id}/members/me",
+            get(get_channel_member_me),
+        )
         .route(
             "/channels/{channel_id}/members/ids",
             post(get_channel_members_by_ids),
@@ -50,14 +65,23 @@ pub fn router() -> Router<AppState> {
             "/channels/{channel_id}/members/{user_id}/notify_props",
             put(update_channel_member_notify_props),
         )
-        .route("/channels/{channel_id}/timezones", get(get_channel_timezones))
+        .route(
+            "/channels/{channel_id}/timezones",
+            get(get_channel_timezones),
+        )
         .route("/channels/{channel_id}/stats", get(get_channel_stats))
         .route("/channels/{channel_id}/unread", get(get_channel_unread))
         .route("/channels/{channel_id}/pinned", get(get_pinned_posts))
         .route("/channels/{channel_id}/posts/{post_id}/pin", post(pin_post))
-        .route("/channels/{channel_id}/posts/{post_id}/unpin", post(unpin_post))
+        .route(
+            "/channels/{channel_id}/posts/{post_id}/unpin",
+            post(unpin_post),
+        )
         .route("/channels/members/me/view", post(view_channel))
-        .route("/channels/members/{user_id}/view", post(view_channel_for_user))
+        .route(
+            "/channels/members/{user_id}/view",
+            post(view_channel_for_user),
+        )
         .route("/channels/direct", post(create_direct_channel))
         .route("/channels/group", post(create_group_channel))
         .route("/channels", post(create_channel))
@@ -72,12 +96,18 @@ pub fn router() -> Router<AppState> {
             "/channels/{channel_id}/member_counts_by_group",
             get(get_channel_member_counts_by_group),
         )
-        .route("/channels/{channel_id}/moderations", get(get_channel_moderations))
+        .route(
+            "/channels/{channel_id}/moderations",
+            get(get_channel_moderations),
+        )
         .route(
             "/channels/{channel_id}/moderations/patch",
             put(patch_channel_moderations),
         )
-        .route("/channels/{channel_id}/common_teams", get(get_channel_common_teams))
+        .route(
+            "/channels/{channel_id}/common_teams",
+            get(get_channel_common_teams),
+        )
         .route("/channels/{channel_id}/groups", get(get_channel_groups))
         .route(
             "/channels/{channel_id}/bookmarks",
@@ -96,8 +126,6 @@ pub fn router() -> Router<AppState> {
             get(get_channel_access_control_attributes),
         )
 }
-
-
 
 #[derive(Deserialize)]
 struct Pagination {
@@ -149,7 +177,7 @@ async fn view_channel(
             serde_json::json!({
                 "channel_id": channel_id,
             }),
-            Some(channel_id)
+            Some(channel_id),
         );
         // We don't usually broadcast view events to EVERYONE, just to the user's other sessions.
         // But Mattermost sends 'channel_viewed' to the user.
@@ -234,16 +262,16 @@ async fn get_channel_unread(
         .ok_or_else(|| crate::error::AppError::BadRequest("Invalid channel_id".to_string()))?;
 
     // Get the member's last viewed time
-    let member: Option<crate::models::ChannelMember> = sqlx::query_as(
-        "SELECT * FROM channel_members WHERE channel_id = $1 AND user_id = $2"
-    )
-    .bind(channel_id)
-    .bind(auth.user_id)
-    .fetch_optional(&state.db)
-    .await?;
+    let member: Option<crate::models::ChannelMember> =
+        sqlx::query_as("SELECT * FROM channel_members WHERE channel_id = $1 AND user_id = $2")
+            .bind(channel_id)
+            .bind(auth.user_id)
+            .fetch_optional(&state.db)
+            .await?;
 
-    let member = member.ok_or_else(|| 
-        crate::error::AppError::Forbidden("Not a member of this channel".to_string()))?;
+    let member = member.ok_or_else(|| {
+        crate::error::AppError::Forbidden("Not a member of this channel".to_string())
+    })?;
 
     // Count messages since last viewed
     let msg_count: i64 = sqlx::query_scalar(
@@ -252,7 +280,7 @@ async fn get_channel_unread(
         WHERE channel_id = $1 
           AND deleted_at IS NULL
           AND created_at > $2
-        "#
+        "#,
     )
     .bind(channel_id)
     .bind(member.last_viewed_at)
@@ -274,7 +302,7 @@ async fn get_channel_unread(
           AND deleted_at IS NULL
           AND created_at > $2
           AND (message LIKE '%@' || $3 || '%' OR message LIKE '%@all%' OR message LIKE '%@channel%')
-        "#
+        "#,
     )
     .bind(channel_id)
     .bind(member.last_viewed_at)
@@ -345,20 +373,24 @@ async fn get_channel_member_me(
 ) -> ApiResult<Json<mm::ChannelMember>> {
     let channel_id = parse_mm_or_uuid(&channel_id)
         .ok_or_else(|| crate::error::AppError::BadRequest("Invalid channel_id".to_string()))?;
-    let member: crate::models::ChannelMember = sqlx::query_as(
-        "SELECT * FROM channel_members WHERE channel_id = $1 AND user_id = $2",
-    )
-    .bind(channel_id)
-    .bind(auth.user_id)
-    .fetch_optional(&state.db)
-    .await?
-    .ok_or_else(|| crate::error::AppError::Forbidden("Not a member of this channel".to_string()))?;
+    let member: crate::models::ChannelMember =
+        sqlx::query_as("SELECT * FROM channel_members WHERE channel_id = $1 AND user_id = $2")
+            .bind(channel_id)
+            .bind(auth.user_id)
+            .fetch_optional(&state.db)
+            .await?
+            .ok_or_else(|| {
+                crate::error::AppError::Forbidden("Not a member of this channel".to_string())
+            })?;
 
     Ok(Json(mm::ChannelMember {
         channel_id: encode_mm_id(member.channel_id),
         user_id: encode_mm_id(member.user_id),
         roles: crate::mattermost_compat::mappers::map_channel_role(&member.role),
-        last_viewed_at: member.last_viewed_at.map(|t| t.timestamp_millis()).unwrap_or(0),
+        last_viewed_at: member
+            .last_viewed_at
+            .map(|t| t.timestamp_millis())
+            .unwrap_or(0),
         msg_count: 0,
         mention_count: 0,
         notify_props: normalize_notify_props(member.notify_props),
@@ -399,15 +431,16 @@ async fn get_channel_stats(
     .await?;
 
     if !is_member {
-        return Err(crate::error::AppError::Forbidden("Not a member of this channel".to_string()));
+        return Err(crate::error::AppError::Forbidden(
+            "Not a member of this channel".to_string(),
+        ));
     }
 
-    let member_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM channel_members WHERE channel_id = $1",
-    )
-    .bind(channel_id)
-    .fetch_one(&state.db)
-    .await?;
+    let member_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM channel_members WHERE channel_id = $1")
+            .bind(channel_id)
+            .fetch_one(&state.db)
+            .await?;
 
     Ok(Json(mm::ChannelStats {
         channel_id: encode_mm_id(channel_id),
@@ -434,14 +467,15 @@ async fn create_direct_channel(
 ) -> ApiResult<Json<mm::Channel>> {
     // Mattermost sends either a plain array ["id1", "id2"] or an object {"user_ids": ["id1", "id2"]}
     // Try parsing as plain array first, then fall back to object format
-    let user_ids: Vec<String> = serde_json::from_slice::<Vec<String>>(&body)
-        .or_else(|_| {
-            parse_body::<DirectChannelRequest>(&headers, &body, "Invalid user_ids")
-                .map(|req| req.user_ids)
-        })?;
+    let user_ids: Vec<String> = serde_json::from_slice::<Vec<String>>(&body).or_else(|_| {
+        parse_body::<DirectChannelRequest>(&headers, &body, "Invalid user_ids")
+            .map(|req| req.user_ids)
+    })?;
 
     if user_ids.len() != 2 {
-        return Err(crate::error::AppError::BadRequest("Request body must contain exactly 2 user IDs".to_string()));
+        return Err(crate::error::AppError::BadRequest(
+            "Request body must contain exactly 2 user IDs".to_string(),
+        ));
     }
 
     let ids: Vec<Uuid> = user_ids
@@ -450,14 +484,22 @@ async fn create_direct_channel(
         .collect();
 
     if ids.len() != 2 {
-        return Err(crate::error::AppError::BadRequest("Invalid user IDs provided".to_string()));
+        return Err(crate::error::AppError::BadRequest(
+            "Invalid user IDs provided".to_string(),
+        ));
     }
 
     if !ids.contains(&auth.user_id) {
-        return Err(crate::error::AppError::Forbidden("Must include your user id".to_string()));
+        return Err(crate::error::AppError::Forbidden(
+            "Must include your user id".to_string(),
+        ));
     }
 
-    let other_id = if ids[0] == auth.user_id { ids[1] } else { ids[0] };
+    let other_id = if ids[0] == auth.user_id {
+        ids[1]
+    } else {
+        ids[0]
+    };
 
     let channel = create_direct_channel_internal(&state, auth.user_id, other_id).await?;
     Ok(Json(channel.into()))
@@ -518,7 +560,9 @@ async fn create_group_channel(
     let input: DirectChannelRequest = parse_body(&headers, &body, "Invalid user_ids")?;
 
     if input.user_ids.len() < 2 {
-        return Err(crate::error::AppError::BadRequest("user_ids must contain at least 2 users".to_string()));
+        return Err(crate::error::AppError::BadRequest(
+            "user_ids must contain at least 2 users".to_string(),
+        ));
     }
 
     let uuids: Vec<Uuid> = input
@@ -542,7 +586,13 @@ pub async fn create_group_channel_internal(
     }
 
     ids.sort();
-    let name = format!("gm_{}", ids.iter().map(|id| id.to_string()).collect::<Vec<_>>().join("_"));
+    let name = format!(
+        "gm_{}",
+        ids.iter()
+            .map(|id| id.to_string())
+            .collect::<Vec<_>>()
+            .join("_")
+    );
 
     let team_id: Uuid = sqlx::query_scalar(
         "SELECT team_id FROM team_members WHERE user_id = $1 ORDER BY created_at ASC LIMIT 1",
@@ -553,10 +603,11 @@ pub async fn create_group_channel_internal(
     .ok_or_else(|| crate::error::AppError::BadRequest("User has no team".to_string()))?;
 
     // Generate display name from usernames
-    let usernames: Vec<String> = sqlx::query_scalar("SELECT username FROM users WHERE id = ANY($1)")
-        .bind(&ids)
-        .fetch_all(&state.db)
-        .await?;
+    let usernames: Vec<String> =
+        sqlx::query_scalar("SELECT username FROM users WHERE id = ANY($1)")
+            .bind(&ids)
+            .fetch_all(&state.db)
+            .await?;
     let display_name = usernames.join(", ");
 
     let channel: crate::models::Channel = sqlx::query_as(
@@ -618,7 +669,7 @@ async fn create_channel(
 
     // Verify team membership
     let is_member: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM team_members WHERE team_id = $1 AND user_id = $2)"
+        "SELECT EXISTS(SELECT 1 FROM team_members WHERE team_id = $1 AND user_id = $2)",
     )
     .bind(team_id)
     .bind(auth.user_id)
@@ -626,7 +677,9 @@ async fn create_channel(
     .await?;
 
     if !is_member {
-        return Err(crate::error::AppError::Forbidden("Not a member of this team".to_string()));
+        return Err(crate::error::AppError::Forbidden(
+            "Not a member of this team".to_string(),
+        ));
     }
 
     // Map MM channel type to RustChat type
@@ -695,7 +748,9 @@ async fn update_channel(
             .bind(auth.user_id)
             .fetch_optional(&state.db)
             .await?
-            .ok_or_else(|| crate::error::AppError::Forbidden("Not a member of this channel".to_string()))?;
+            .ok_or_else(|| {
+                crate::error::AppError::Forbidden("Not a member of this channel".to_string())
+            })?;
 
     let input: UpdateChannelRequest = parse_body(&headers, &body, "Invalid channel update")?;
 
@@ -739,7 +794,9 @@ async fn delete_channel(
             .bind(auth.user_id)
             .fetch_optional(&state.db)
             .await?
-            .ok_or_else(|| crate::error::AppError::Forbidden("Not a member of this channel".to_string()))?;
+            .ok_or_else(|| {
+                crate::error::AppError::Forbidden("Not a member of this channel".to_string())
+            })?;
 
     // Soft delete the channel
     sqlx::query("UPDATE channels SET deleted_at = NOW() WHERE id = $1")
@@ -766,7 +823,9 @@ async fn get_pinned_posts(
             .bind(auth.user_id)
             .fetch_optional(&state.db)
             .await?
-            .ok_or_else(|| crate::error::AppError::Forbidden("Not a member of this channel".to_string()))?;
+            .ok_or_else(|| {
+                crate::error::AppError::Forbidden("Not a member of this channel".to_string())
+            })?;
 
     let posts: Vec<PostResponse> = sqlx::query_as(
         r#"
@@ -842,7 +901,9 @@ async fn pin_post(
             .bind(auth.user_id)
             .fetch_optional(&state.db)
             .await?
-            .ok_or_else(|| crate::error::AppError::Forbidden("Not a member of this channel".to_string()))?;
+            .ok_or_else(|| {
+                crate::error::AppError::Forbidden("Not a member of this channel".to_string())
+            })?;
 
     // Pin the post
     sqlx::query("UPDATE posts SET is_pinned = true WHERE id = $1 AND channel_id = $2")
@@ -872,7 +933,9 @@ async fn unpin_post(
             .bind(auth.user_id)
             .fetch_optional(&state.db)
             .await?
-            .ok_or_else(|| crate::error::AppError::Forbidden("Not a member of this channel".to_string()))?;
+            .ok_or_else(|| {
+                crate::error::AppError::Forbidden("Not a member of this channel".to_string())
+            })?;
 
     // Unpin the post
     sqlx::query("UPDATE posts SET is_pinned = false WHERE id = $1 AND channel_id = $2")
@@ -911,7 +974,9 @@ async fn add_channel_member(
             .bind(auth.user_id)
             .fetch_optional(&state.db)
             .await?
-            .ok_or_else(|| crate::error::AppError::Forbidden("Not a member of this channel".to_string()))?;
+            .ok_or_else(|| {
+                crate::error::AppError::Forbidden("Not a member of this channel".to_string())
+            })?;
 
     // Add the user
     sqlx::query(
@@ -956,7 +1021,10 @@ async fn add_channel_member(
         channel_id: encode_mm_id(member.channel_id),
         user_id: encode_mm_id(member.user_id),
         roles: crate::mattermost_compat::mappers::map_channel_role(&member.role),
-        last_viewed_at: member.last_viewed_at.map(|t| t.timestamp_millis()).unwrap_or(0),
+        last_viewed_at: member
+            .last_viewed_at
+            .map(|t| t.timestamp_millis())
+            .unwrap_or(0),
         msg_count: 0,
         mention_count: 0,
         notify_props: normalize_notify_props(member.notify_props),
@@ -998,7 +1066,9 @@ async fn remove_channel_member(
                 .bind(auth.user_id)
                 .fetch_optional(&state.db)
                 .await?
-                .ok_or_else(|| crate::error::AppError::Forbidden("Not a member of this channel".to_string()))?;
+                .ok_or_else(|| {
+                    crate::error::AppError::Forbidden("Not a member of this channel".to_string())
+                })?;
     }
 
     let team_id: Option<Uuid> = sqlx::query_scalar("SELECT team_id FROM channels WHERE id = $1")
@@ -1050,22 +1120,26 @@ async fn get_channel_member_by_id(
             .bind(auth.user_id)
             .fetch_optional(&state.db)
             .await?
-            .ok_or_else(|| crate::error::AppError::Forbidden("Not a member of this channel".to_string()))?;
+            .ok_or_else(|| {
+                crate::error::AppError::Forbidden("Not a member of this channel".to_string())
+            })?;
 
-    let member: crate::models::ChannelMember = sqlx::query_as(
-        "SELECT * FROM channel_members WHERE channel_id = $1 AND user_id = $2",
-    )
-    .bind(channel_id)
-    .bind(user_id)
-    .fetch_optional(&state.db)
-    .await?
-    .ok_or_else(|| crate::error::AppError::NotFound("Member not found".to_string()))?;
+    let member: crate::models::ChannelMember =
+        sqlx::query_as("SELECT * FROM channel_members WHERE channel_id = $1 AND user_id = $2")
+            .bind(channel_id)
+            .bind(user_id)
+            .fetch_optional(&state.db)
+            .await?
+            .ok_or_else(|| crate::error::AppError::NotFound("Member not found".to_string()))?;
 
     Ok(Json(mm::ChannelMember {
         channel_id: encode_mm_id(member.channel_id),
         user_id: encode_mm_id(member.user_id),
         roles: crate::mattermost_compat::mappers::map_channel_role(&member.role),
-        last_viewed_at: member.last_viewed_at.map(|t| t.timestamp_millis()).unwrap_or(0),
+        last_viewed_at: member
+            .last_viewed_at
+            .map(|t| t.timestamp_millis())
+            .unwrap_or(0),
         msg_count: 0,
         mention_count: 0,
         notify_props: normalize_notify_props(member.notify_props),
@@ -1092,7 +1166,9 @@ async fn get_channel_members_by_ids(
             .bind(auth.user_id)
             .fetch_optional(&state.db)
             .await?
-            .ok_or_else(|| crate::error::AppError::Forbidden("Not a member of this channel".to_string()))?;
+            .ok_or_else(|| {
+                crate::error::AppError::Forbidden("Not a member of this channel".to_string())
+            })?;
 
     let input: ChannelMemberIdsRequest = parse_body(&headers, &body, "Invalid ids body")?;
     if input.user_ids.is_empty() {
@@ -1106,13 +1182,12 @@ async fn get_channel_members_by_ids(
         user_ids.push(parsed);
     }
 
-    let members: Vec<crate::models::ChannelMember> = sqlx::query_as(
-        "SELECT * FROM channel_members WHERE channel_id = $1 AND user_id = ANY($2)",
-    )
-    .bind(channel_id)
-    .bind(&user_ids)
-    .fetch_all(&state.db)
-    .await?;
+    let members: Vec<crate::models::ChannelMember> =
+        sqlx::query_as("SELECT * FROM channel_members WHERE channel_id = $1 AND user_id = ANY($2)")
+            .bind(channel_id)
+            .bind(&user_ids)
+            .fetch_all(&state.db)
+            .await?;
 
     let mm_members = members
         .into_iter()
@@ -1156,7 +1231,9 @@ async fn update_channel_member_roles(
             .bind(auth.user_id)
             .fetch_optional(&state.db)
             .await?
-            .ok_or_else(|| crate::error::AppError::Forbidden("Not a member of this channel".to_string()))?;
+            .ok_or_else(|| {
+                crate::error::AppError::Forbidden("Not a member of this channel".to_string())
+            })?;
 
     let role = if input.roles.contains("channel_admin") {
         "channel_admin"
@@ -1171,14 +1248,13 @@ async fn update_channel_member_roles(
         .execute(&state.db)
         .await?;
 
-    let member: crate::models::ChannelMember = sqlx::query_as(
-        "SELECT * FROM channel_members WHERE channel_id = $1 AND user_id = $2",
-    )
-    .bind(channel_id)
-    .bind(user_id)
-    .fetch_optional(&state.db)
-    .await?
-    .ok_or_else(|| crate::error::AppError::NotFound("Member not found".to_string()))?;
+    let member: crate::models::ChannelMember =
+        sqlx::query_as("SELECT * FROM channel_members WHERE channel_id = $1 AND user_id = $2")
+            .bind(channel_id)
+            .bind(user_id)
+            .fetch_optional(&state.db)
+            .await?
+            .ok_or_else(|| crate::error::AppError::NotFound("Member not found".to_string()))?;
 
     Ok(Json(mm::ChannelMember {
         channel_id: encode_mm_id(member.channel_id),
@@ -1189,7 +1265,10 @@ async fn update_channel_member_roles(
             "channel_user"
         }
         .to_string(),
-        last_viewed_at: member.last_viewed_at.map(|t| t.timestamp_millis()).unwrap_or(0),
+        last_viewed_at: member
+            .last_viewed_at
+            .map(|t| t.timestamp_millis())
+            .unwrap_or(0),
         msg_count: 0,
         mention_count: 0,
         notify_props: normalize_notify_props(member.notify_props),
@@ -1226,14 +1305,13 @@ async fn update_channel_member_notify_props(
     .execute(&state.db)
     .await?;
 
-    let member: crate::models::ChannelMember = sqlx::query_as(
-        "SELECT * FROM channel_members WHERE channel_id = $1 AND user_id = $2",
-    )
-    .bind(channel_id)
-    .bind(user_id)
-    .fetch_optional(&state.db)
-    .await?
-    .ok_or_else(|| crate::error::AppError::NotFound("Member not found".to_string()))?;
+    let member: crate::models::ChannelMember =
+        sqlx::query_as("SELECT * FROM channel_members WHERE channel_id = $1 AND user_id = $2")
+            .bind(channel_id)
+            .bind(user_id)
+            .fetch_optional(&state.db)
+            .await?
+            .ok_or_else(|| crate::error::AppError::NotFound("Member not found".to_string()))?;
 
     Ok(Json(mm::ChannelMember {
         channel_id: encode_mm_id(member.channel_id),
@@ -1244,7 +1322,10 @@ async fn update_channel_member_notify_props(
             "channel_user"
         }
         .to_string(),
-        last_viewed_at: member.last_viewed_at.map(|t| t.timestamp_millis()).unwrap_or(0),
+        last_viewed_at: member
+            .last_viewed_at
+            .map(|t| t.timestamp_millis())
+            .unwrap_or(0),
         msg_count: 0,
         mention_count: 0,
         notify_props: normalize_notify_props(member.notify_props),
@@ -1263,7 +1344,7 @@ async fn get_posts(
 ) -> ApiResult<Json<mm::PostList>> {
     let channel_id = parse_mm_or_uuid(&channel_id)
         .ok_or_else(|| crate::error::AppError::BadRequest("Invalid channel_id".to_string()))?;
-    
+
     // Check channel membership first
     let _membership: crate::models::ChannelMember =
         sqlx::query_as("SELECT * FROM channel_members WHERE channel_id = $1 AND user_id = $2")
@@ -1280,9 +1361,9 @@ async fn get_posts(
     // Determine query type based on pagination params
     let posts: Vec<PostResponse> = if let Some(since) = pagination.since {
         // Incremental sync: get posts created or edited since timestamp
-        let since_time = chrono::DateTime::from_timestamp_millis(since)
-            .unwrap_or_else(|| chrono::Utc::now());
-        
+        let since_time =
+            chrono::DateTime::from_timestamp_millis(since).unwrap_or_else(|| chrono::Utc::now());
+
         sqlx::query_as(
             r#"
             SELECT p.id, p.channel_id, p.user_id, p.root_post_id, p.message, p.props, p.file_ids,
@@ -1305,19 +1386,19 @@ async fn get_posts(
         .await?
     } else if let Some(before) = &pagination.before {
         // Cursor pagination: get posts before a specific post
-        let before_id = parse_mm_or_uuid(before)
-            .ok_or_else(|| crate::error::AppError::BadRequest("Invalid before post_id".to_string()))?;
-        
-        // Get the created_at of the before post
-        let before_time: Option<chrono::DateTime<chrono::Utc>> = sqlx::query_scalar(
-            "SELECT created_at FROM posts WHERE id = $1"
-        )
-        .bind(before_id)
-        .fetch_optional(&state.db)
-        .await?;
+        let before_id = parse_mm_or_uuid(before).ok_or_else(|| {
+            crate::error::AppError::BadRequest("Invalid before post_id".to_string())
+        })?;
 
-        let before_time = before_time.ok_or_else(|| 
-            crate::error::AppError::NotFound("Before post not found".to_string()))?;
+        // Get the created_at of the before post
+        let before_time: Option<chrono::DateTime<chrono::Utc>> =
+            sqlx::query_scalar("SELECT created_at FROM posts WHERE id = $1")
+                .bind(before_id)
+                .fetch_optional(&state.db)
+                .await?;
+
+        let before_time = before_time
+            .ok_or_else(|| crate::error::AppError::NotFound("Before post not found".to_string()))?;
 
         sqlx::query_as(
             r#"
@@ -1342,19 +1423,19 @@ async fn get_posts(
         .await?
     } else if let Some(after) = &pagination.after {
         // Cursor pagination: get posts after a specific post
-        let after_id = parse_mm_or_uuid(after)
-            .ok_or_else(|| crate::error::AppError::BadRequest("Invalid after post_id".to_string()))?;
-        
-        // Get the created_at of the after post
-        let after_time: Option<chrono::DateTime<chrono::Utc>> = sqlx::query_scalar(
-            "SELECT created_at FROM posts WHERE id = $1"
-        )
-        .bind(after_id)
-        .fetch_optional(&state.db)
-        .await?;
+        let after_id = parse_mm_or_uuid(after).ok_or_else(|| {
+            crate::error::AppError::BadRequest("Invalid after post_id".to_string())
+        })?;
 
-        let after_time = after_time.ok_or_else(|| 
-            crate::error::AppError::NotFound("After post not found".to_string()))?;
+        // Get the created_at of the after post
+        let after_time: Option<chrono::DateTime<chrono::Utc>> =
+            sqlx::query_scalar("SELECT created_at FROM posts WHERE id = $1")
+                .bind(after_id)
+                .fetch_optional(&state.db)
+                .await?;
+
+        let after_time = after_time
+            .ok_or_else(|| crate::error::AppError::NotFound("After post not found".to_string()))?;
 
         sqlx::query_as(
             r#"
@@ -1451,7 +1532,6 @@ async fn get_posts(
     }))
 }
 
-
 async fn search_channels_compat(
     State(state): State<AppState>,
     _auth: MmAuthUser,
@@ -1459,14 +1539,14 @@ async fn search_channels_compat(
 ) -> ApiResult<Json<Vec<mm::Channel>>> {
     let term = input.get("term").cloned().unwrap_or_default();
     let team_id_str = input.get("team_id").cloned();
-    
+
     let mut sql = "SELECT * FROM channels WHERE name ILIKE $1".to_string();
     if let Some(tid_str) = team_id_str {
         if let Some(tid) = parse_mm_or_uuid(&tid_str) {
             sql.push_str(&format!(" AND team_id = '{}'", tid));
         }
     }
-    
+
     let channels: Vec<Channel> = sqlx::query_as(&sql)
         .bind(format!("%{}%", term))
         .fetch_all(&state.db)
@@ -1504,7 +1584,9 @@ async fn patch_channel(
             .bind(auth.user_id)
             .fetch_optional(&state.db)
             .await?
-            .ok_or_else(|| crate::error::AppError::Forbidden("Not a member of this channel".to_string()))?;
+            .ok_or_else(|| {
+                crate::error::AppError::Forbidden("Not a member of this channel".to_string())
+            })?;
 
     let channel: Channel = sqlx::query_as(
         r#"
@@ -1551,12 +1633,18 @@ async fn update_channel_privacy(
             .bind(auth.user_id)
             .fetch_optional(&state.db)
             .await?
-            .ok_or_else(|| crate::error::AppError::Forbidden("Not a member of this channel".to_string()))?;
+            .ok_or_else(|| {
+                crate::error::AppError::Forbidden("Not a member of this channel".to_string())
+            })?;
 
     let channel_type = match input.privacy.as_str() {
         "O" => "public",
         "P" => "private",
-        _ => return Err(crate::error::AppError::BadRequest("Invalid privacy value".to_string())),
+        _ => {
+            return Err(crate::error::AppError::BadRequest(
+                "Invalid privacy value".to_string(),
+            ))
+        }
     };
 
     let channel: Channel = sqlx::query_as(
@@ -1586,7 +1674,9 @@ async fn restore_channel(
             .bind(auth.user_id)
             .fetch_optional(&state.db)
             .await?
-            .ok_or_else(|| crate::error::AppError::Forbidden("Not a member of this channel".to_string()))?;
+            .ok_or_else(|| {
+                crate::error::AppError::Forbidden("Not a member of this channel".to_string())
+            })?;
 
     let channel: Channel = sqlx::query_as(
         r#"UPDATE channels SET deleted_at = NULL, updated_at = NOW() WHERE id = $1 RETURNING *"#,
@@ -1624,11 +1714,13 @@ async fn move_channel(
             .bind(auth.user_id)
             .fetch_optional(&state.db)
             .await?
-            .ok_or_else(|| crate::error::AppError::Forbidden("Not a member of this channel".to_string()))?;
+            .ok_or_else(|| {
+                crate::error::AppError::Forbidden("Not a member of this channel".to_string())
+            })?;
 
     // Verify membership in new team
     let is_team_member: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM team_members WHERE team_id = $1 AND user_id = $2)"
+        "SELECT EXISTS(SELECT 1 FROM team_members WHERE team_id = $1 AND user_id = $2)",
     )
     .bind(new_team_id)
     .bind(auth.user_id)
@@ -1636,7 +1728,9 @@ async fn move_channel(
     .await?;
 
     if !is_team_member {
-        return Err(crate::error::AppError::Forbidden("Not a member of the target team".to_string()));
+        return Err(crate::error::AppError::Forbidden(
+            "Not a member of the target team".to_string(),
+        ));
     }
 
     let channel: Channel = sqlx::query_as(
@@ -1677,10 +1771,16 @@ async fn update_channel_member_scheme_roles(
             .bind(auth.user_id)
             .fetch_optional(&state.db)
             .await?
-            .ok_or_else(|| crate::error::AppError::Forbidden("Not a member of this channel".to_string()))?;
+            .ok_or_else(|| {
+                crate::error::AppError::Forbidden("Not a member of this channel".to_string())
+            })?;
 
     // Update the target user's role based on scheme_admin
-    let new_role = if input.scheme_admin { "admin" } else { "member" };
+    let new_role = if input.scheme_admin {
+        "admin"
+    } else {
+        "member"
+    };
 
     sqlx::query("UPDATE channel_members SET role = $3 WHERE channel_id = $1 AND user_id = $2")
         .bind(channel_id)
@@ -1709,7 +1809,9 @@ async fn view_channel_for_user(
 
     // Only allow viewing for self
     if resolved_user_id != auth.user_id {
-        return Err(crate::error::AppError::Forbidden("Cannot view channel for other users".to_string()));
+        return Err(crate::error::AppError::Forbidden(
+            "Cannot view channel for other users".to_string(),
+        ));
     }
 
     if body.is_empty() {
@@ -1735,8 +1837,9 @@ async fn view_channel_for_user(
             serde_json::json!({
                 "channel_id": channel_id,
             }),
-            Some(channel_id)
-        ).with_broadcast(crate::realtime::WsBroadcast {
+            Some(channel_id),
+        )
+        .with_broadcast(crate::realtime::WsBroadcast {
             channel_id: None,
             team_id: None,
             user_id: Some(auth.user_id),
@@ -1747,7 +1850,6 @@ async fn view_channel_for_user(
 
     Ok(Json(serde_json::json!({"status": "OK"})))
 }
-
 
 /// POST /api/v4/channels/group/search
 async fn search_group_channels(

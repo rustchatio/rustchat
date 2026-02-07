@@ -25,10 +25,12 @@ async fn get_image(
     // Mattermost behavior:
     // 1. If image proxy is enabled, it fetches and proxies the image.
     // 2. If disabled, it returns 400 Bad Request for external images.
-    
+
     // For now, we don't have an image proxy implemented.
     // We return 400 Bad Request to indicate we don't support external image proxying yet.
     // This is safer than redirecting (which MM stopped doing for security).
-    
-    Err(crate::error::AppError::BadRequest("Image proxy is disabled".to_string()))
+
+    Err(crate::error::AppError::BadRequest(
+        "Image proxy is disabled".to_string(),
+    ))
 }

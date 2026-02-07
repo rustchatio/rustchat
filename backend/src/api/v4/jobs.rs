@@ -29,19 +29,24 @@ async fn get_jobs(
     .fetch_all(&state.db)
     .await
     .unwrap_or_default();
-    
-    let jobs_json: Vec<serde_json::Value> = jobs.into_iter().map(|(id, job_type, status, priority, data, progress, created_at)| {
-        json!({
-            "id": crate::mattermost_compat::id::encode_mm_id(id),
-            "type": job_type,
-            "status": status,
-            "priority": priority,
-            "data": data,
-            "progress": progress.unwrap_or(0),
-            "create_at": created_at.timestamp_millis(),
-        })
-    }).collect();
-    
+
+    let jobs_json: Vec<serde_json::Value> = jobs
+        .into_iter()
+        .map(
+            |(id, job_type, status, priority, data, progress, created_at)| {
+                json!({
+                    "id": crate::mattermost_compat::id::encode_mm_id(id),
+                    "type": job_type,
+                    "status": status,
+                    "priority": priority,
+                    "data": data,
+                    "progress": progress.unwrap_or(0),
+                    "create_at": created_at.timestamp_millis(),
+                })
+            },
+        )
+        .collect();
+
     Ok(Json(jobs_json))
 }
 

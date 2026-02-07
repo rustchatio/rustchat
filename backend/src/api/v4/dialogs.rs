@@ -1,10 +1,6 @@
 use crate::api::AppState;
 use crate::error::ApiResult;
-use axum::{
-    extract::State,
-    routing::post,
-    Json, Router,
-};
+use axum::{extract::State, routing::post, Json, Router};
 use serde_json::json;
 
 pub fn router() -> Router<AppState> {

@@ -1,8 +1,9 @@
+use regex::Regex;
 use std::collections::HashMap;
 use std::sync::LazyLock;
-use regex::Regex;
 
-static EMOJI_NAME_RE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[a-zA-Z0-9\-\+_]+$").unwrap());
+static EMOJI_NAME_RE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^[a-zA-Z0-9\-\+_]+$").unwrap());
 
 pub fn is_valid_emoji_name(name: &str) -> bool {
     if name.is_empty() || name.len() > 64 {
@@ -13,7 +14,8 @@ pub fn is_valid_emoji_name(name: &str) -> bool {
         return true;
     }
     // Allow literal Unicode emojis
-    name.chars().next()
+    name.chars()
+        .next()
         .map(|c| c > '\u{1F300}' || c == '❤' || c == '✅' || c == '❓' || c == '❗')
         .unwrap_or(false)
 }
@@ -57,7 +59,10 @@ pub static SYSTEM_EMOJIS: LazyLock<HashMap<&'static str, &'static str>> = LazyLo
     m.insert("hugging_face", "1f917");
     m.insert("hugs", "1f917");
     m.insert("face_with_hand_over_mouth", "1f92d");
-    m.insert("smiling_face_with_smiling_eyes_and_hand_covering_mouth", "1f92d");
+    m.insert(
+        "smiling_face_with_smiling_eyes_and_hand_covering_mouth",
+        "1f92d",
+    );
     m.insert("shushing_face", "1f92b");
     m.insert("face_with_finger_covering_closed_lips", "1f92b");
     m.insert("thinking_face", "1f914");
@@ -410,7 +415,7 @@ pub static REVERSE_SYSTEM_EMOJIS: LazyLock<HashMap<String, &'static str>> = Lazy
             }
         }
     }
-    
+
     // Also handle common literal mappings for critical emojis
     m.insert("👍".to_string(), "thumbsup");
     m.insert("👎".to_string(), "thumbsdown");
@@ -424,7 +429,7 @@ pub static REVERSE_SYSTEM_EMOJIS: LazyLock<HashMap<String, &'static str>> = Lazy
     m.insert("👀".to_string(), "eyes");
     m.insert("🎉".to_string(), "tada");
     m.insert("🤔".to_string(), "thinking");
-    
+
     m
 });
 

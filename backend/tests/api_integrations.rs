@@ -28,12 +28,22 @@ async fn test_slash_command_lifecycle() {
         "password": "Password123!"
     });
 
-    app.api_client
+    let login_res = app
+        .api_client
         .post(&format!("{}/api/v1/auth/login", &app.address))
         .json(&login_data)
         .send()
         .await
         .expect("Failed to login");
+    assert_eq!(200, login_res.status().as_u16());
+    let login_body: serde_json::Value = login_res
+        .json()
+        .await
+        .expect("Failed to parse login response");
+    let token = login_body["token"]
+        .as_str()
+        .expect("Missing auth token")
+        .to_string();
 
     // 2. Create Team
     let team_data = serde_json::json!({
@@ -45,6 +55,7 @@ async fn test_slash_command_lifecycle() {
     let team_res = app
         .api_client
         .post(&format!("{}/api/v1/teams", &app.address))
+        .header("Authorization", format!("Bearer {}", token))
         .json(&team_data)
         .send()
         .await
@@ -60,6 +71,7 @@ async fn test_slash_command_lifecycle() {
             "{}/api/v1/teams/{}/channels",
             &app.address, team.id
         ))
+        .header("Authorization", format!("Bearer {}", token))
         .send()
         .await
         .expect("Failed to list channels");
@@ -81,6 +93,7 @@ async fn test_slash_command_lifecycle() {
         let c_res = app
             .api_client
             .post(&format!("{}/api/v1/channels", &app.address))
+            .header("Authorization", format!("Bearer {}", token))
             .json(&channel_data)
             .send()
             .await
@@ -102,10 +115,8 @@ async fn test_slash_command_lifecycle() {
 
     let echo_res = app
         .api_client
-        .post(&format!(
-            "{}/api/v1/integrations/commands/execute",
-            &app.address
-        ))
+        .post(&format!("{}/api/v1/commands/execute", &app.address))
+        .header("Authorization", format!("Bearer {}", token))
         .json(&echo_cmd)
         .send()
         .await
@@ -131,9 +142,10 @@ async fn test_slash_command_lifecycle() {
     let create_res = app
         .api_client
         .post(&format!(
-            "{}/api/v1/integrations/commands?team_id={}",
+            "{}/api/v1/commands?team_id={}",
             &app.address, team.id
         ))
+        .header("Authorization", format!("Bearer {}", token))
         .json(&new_cmd)
         .send()
         .await
@@ -157,10 +169,8 @@ async fn test_slash_command_lifecycle() {
 
     let exec_res = app
         .api_client
-        .post(&format!(
-            "{}/api/v1/integrations/commands/execute",
-            &app.address
-        ))
+        .post(&format!("{}/api/v1/commands/execute", &app.address))
+        .header("Authorization", format!("Bearer {}", token))
         .json(&custom_exec)
         .send()
         .await

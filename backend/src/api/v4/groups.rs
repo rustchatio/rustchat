@@ -24,13 +24,21 @@ pub fn router() -> Router<AppState> {
             "/groups/{group_id}/{syncable_type}/{syncable_id}",
             get(get_group_syncable),
         )
-        .route("/groups/{group_id}/{syncable_type}", get(get_group_syncables))
+        .route(
+            "/groups/{group_id}/{syncable_type}",
+            get(get_group_syncables),
+        )
         .route(
             "/groups/{group_id}/{syncable_type}/{syncable_id}/patch",
             put(patch_group_syncable),
         )
         .route("/groups/{group_id}/stats", get(get_group_stats))
-        .route("/groups/{group_id}/members", get(get_group_members).post(add_group_members).delete(delete_group_members))
+        .route(
+            "/groups/{group_id}/members",
+            get(get_group_members)
+                .post(add_group_members)
+                .delete(delete_group_members),
+        )
         .route("/groups/names", post(get_groups_by_names))
 }
 
@@ -166,7 +174,10 @@ async fn add_group_members(
     Path(_group_id): Path<String>,
     Json(_members): Json<serde_json::Value>,
 ) -> ApiResult<(axum::http::StatusCode, Json<serde_json::Value>)> {
-    Ok((axum::http::StatusCode::CREATED, Json(json!({"status": "OK"}))))
+    Ok((
+        axum::http::StatusCode::CREATED,
+        Json(json!({"status": "OK"})),
+    ))
 }
 
 /// DELETE /api/v4/groups/{group_id}/members

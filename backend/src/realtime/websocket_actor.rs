@@ -111,7 +111,7 @@ pub struct WebSocketActor {
 
 impl WebSocketActor {
     /// Create a new WebSocket actor and start processing
-    /// 
+    ///
     /// # Arguments
     /// * `socket` - The WebSocket stream
     /// * `store` - Connection store for session management
@@ -128,32 +128,32 @@ impl WebSocketActor {
         remote_addr: Option<SocketAddr>,
     ) -> (Arc<Self>, Vec<mm::WebSocketMessage>) {
         // Resume or create connection state
-        let (state, is_resumed, missed_messages) = 
+        let (state, is_resumed, missed_messages) =
             store.resume_or_create(connection_id, user_id, sequence_number);
-        
+
         let conn_id = state.connection_id.clone();
-        
+
         // Create channels for actor communication
         let (cmd_tx, cmd_rx) = mpsc::unbounded_channel();
         let (event_tx, event_rx) = mpsc::unbounded_channel();
-        
+
         let last_activity = Arc::new(std::sync::atomic::AtomicU64::new(
-            Instant::now().elapsed().as_secs()
+            Instant::now().elapsed().as_secs(),
         ));
         let is_closing = Arc::new(AtomicBool::new(false));
-        
+
         // Convert missed SequencedMessages to WebSocketMessages
         let missed_ws_messages: Vec<mm::WebSocketMessage> = missed_messages
             .into_iter()
             .map(|msg| mm::WebSocketMessage {
                 seq: Some(msg.seq),
-                event: msg.message.get("event")
+                event: msg
+                    .message
+                    .get("event")
                     .and_then(|e| e.as_str())
                     .unwrap_or("unknown")
                     .to_string(),
-                data: msg.message.get("data")
-                    .cloned()
-                    .unwrap_or(json!({})),
+                data: msg.message.get("data").cloned().unwrap_or(json!({})),
                 broadcast: mm::Broadcast {
                     omit_users: None,
                     user_id: String::new(),
@@ -162,7 +162,7 @@ impl WebSocketActor {
                 },
             })
             .collect();
-        
+
         // Spawn the actor task
         let actor = ActorTask {
             socket,
@@ -175,9 +175,9 @@ impl WebSocketActor {
             user_id,
             connection_id: conn_id.clone(),
         };
-        
+
         tokio::spawn(actor.run());
-        
+
         let actor = Arc::new(Self {
             connection_id: conn_id,
             user_id,
@@ -189,7 +189,7 @@ impl WebSocketActor {
             is_closing,
             remote_addr,
         });
-        
+
         debug!(
             connection_id = %actor.connection_id,
             user_id = %user_id,
@@ -197,7 +197,7 @@ impl WebSocketActor {
             missed_count = missed_ws_messages.len(),
             "WebSocket actor created"
         );
-        
+
         (actor, missed_ws_messages)
     }
 
@@ -206,7 +206,7 @@ impl WebSocketActor {
         if self.is_closing.load(Ordering::SeqCst) {
             return Err("Connection is closing".to_string());
         }
-        
+
         self.cmd_tx
             .send(WsCommand::SendMessage(msg))
             .map_err(|e| format!("Failed to send command: {}", e))
@@ -217,7 +217,7 @@ impl WebSocketActor {
         if self.is_closing.load(Ordering::SeqCst) {
             return Err("Connection is closing".to_string());
         }
-        
+
         self.cmd_tx
             .send(WsCommand::SendRaw(data))
             .map_err(|e| format!("Failed to send command: {}", e))
@@ -237,10 +237,8 @@ impl WebSocketActor {
 
     /// Update last activity (called when any message is received)
     fn update_activity(&self) {
-        self.last_activity.store(
-            Instant::now().elapsed().as_secs(),
-            Ordering::SeqCst,
-        );
+        self.last_activity
+            .store(Instant::now().elapsed().as_secs(), Ordering::SeqCst);
         self.state.touch();
     }
 
@@ -272,26 +270,26 @@ struct ActorTask {
 impl ActorTask {
     async fn run(mut self) {
         let (mut ws_sink, mut ws_stream) = self.socket.split();
-        
+
         // Create ping interval
         let mut ping_interval = interval(PING_INTERVAL);
-        
+
         // Track last pong time
         let last_pong = Arc::new(std::sync::Mutex::new(Instant::now()));
-        
+
         // Spawn ping task
         let ping_last_pong = last_pong.clone();
         let ping_is_closing = self.is_closing.clone();
         let ping_connection_id = self.connection_id.clone();
-        
+
         let ping_task = tokio::spawn(async move {
             loop {
                 ping_interval.tick().await;
-                
+
                 if ping_is_closing.load(Ordering::SeqCst) {
                     break;
                 }
-                
+
                 // Check if we've received a pong recently
                 let last_pong_time = *ping_last_pong.lock().unwrap();
                 if Instant::now().duration_since(last_pong_time) > PONG_WAIT {
@@ -302,14 +300,14 @@ impl ActorTask {
                     ping_is_closing.store(true, Ordering::SeqCst);
                     break;
                 }
-                
+
                 // Send ping frame
                 trace!(connection_id = %ping_connection_id, "Sending Ping frame");
                 // We can't easily send from here since we don't have sink access
                 // The ping will be sent by the select! loop below
             }
         });
-        
+
         // Main event loop
         loop {
             tokio::select! {
@@ -319,14 +317,14 @@ impl ActorTask {
                         Some(Ok(Message::Text(text))) => {
                             *last_pong.lock().unwrap() = Instant::now();
                             self.state.touch();
-                            
+
                             let text_str = text.to_string();
                             trace!(
                                 connection_id = %self.connection_id,
                                 text = %text_str,
                                 "Received text message"
                             );
-                            
+
                             if let Err(_) = self.event_tx.send(WsEvent::MessageReceived(text_str)) {
                                 break;
                             }
@@ -334,7 +332,7 @@ impl ActorTask {
                         Some(Ok(Message::Binary(bin))) => {
                             *last_pong.lock().unwrap() = Instant::now();
                             self.state.touch();
-                            
+
                             // Convert binary to string if possible, otherwise ignore
                             if let Ok(text) = String::from_utf8(bin.to_vec()) {
                                 if let Err(_) = self.event_tx.send(WsEvent::MessageReceived(text)) {
@@ -346,7 +344,7 @@ impl ActorTask {
                             trace!(connection_id = %self.connection_id, "Received Pong frame");
                             *last_pong.lock().unwrap() = Instant::now();
                             self.state.touch();
-                            
+
                             if let Err(_) = self.event_tx.send(WsEvent::PongReceived) {
                                 break;
                             }
@@ -369,7 +367,7 @@ impl ActorTask {
                                 frame = ?frame,
                                 "Received Close frame"
                             );
-                            
+
                             let reason = frame.map(|f| CloseReason {
                                 code: f.code.into(),
                                 reason: f.reason.to_string(),
@@ -377,7 +375,7 @@ impl ActorTask {
                                 code: close_codes::NORMAL,
                                 reason: "Client closed".to_string(),
                             });
-                            
+
                             let _ = self.event_tx.send(WsEvent::Closed(reason));
                             break;
                         }
@@ -400,7 +398,7 @@ impl ActorTask {
                         _ => {}
                     }
                 }
-                
+
                 // Handle commands from the actor
                 cmd = self.cmd_rx.recv() => {
                     match cmd {
@@ -487,13 +485,13 @@ impl ActorTask {
                                 reason = %reason,
                                 "Closing connection"
                             );
-                            
+
                             let reason_clone = reason.clone();
                             let close_frame = CloseFrame {
                                 code: code.into(),
                                 reason: reason.into(),
                             };
-                            
+
                             let _ = ws_sink.send(Message::Close(Some(close_frame))).await;
                             let _ = self.event_tx.send(WsEvent::Closed(CloseReason { code, reason: reason_clone }));
                             break;
@@ -520,11 +518,11 @@ impl ActorTask {
                         }
                     }
                 }
-                
+
                 // Send periodic pings
                 _ = tokio::time::sleep(PING_INTERVAL) => {
                     trace!(connection_id = %self.connection_id, "Sending periodic Ping");
-                    
+
                     match timeout(
                         WRITE_WAIT,
                         ws_sink.send(Message::Ping(vec![].into()))
@@ -546,7 +544,7 @@ impl ActorTask {
                             break;
                         }
                     }
-                    
+
                     // Check for pong timeout
                     let last_pong_time = *last_pong.lock().unwrap();
                     if Instant::now().duration_since(last_pong_time) > PONG_WAIT {
@@ -559,14 +557,14 @@ impl ActorTask {
                 }
             }
         }
-        
+
         // Cleanup
         self.is_closing.store(true, Ordering::SeqCst);
         ping_task.abort();
-        
+
         // Mark connection as disconnected (but retain state for resumption)
         self.store.disconnect_connection(&self.connection_id);
-        
+
         debug!(
             connection_id = %self.connection_id,
             user_id = %self.user_id,
@@ -576,15 +574,15 @@ impl ActorTask {
 }
 
 /// Configure TCP keepalive for mobile networks
-/// 
+///
 /// This function configures socket-level keepalive to prevent
 /// mobile carriers from dropping idle connections.
 #[cfg(unix)]
 pub fn configure_tcp_keepalive(socket: &std::net::TcpStream) -> std::io::Result<()> {
     use std::os::unix::io::AsRawFd;
-    
+
     let fd = socket.as_raw_fd();
-    
+
     // Enable TCP keepalive
     let enabled: libc::c_int = 1;
     unsafe {
@@ -596,7 +594,7 @@ pub fn configure_tcp_keepalive(socket: &std::net::TcpStream) -> std::io::Result<
             std::mem::size_of::<libc::c_int>() as libc::socklen_t,
         );
     }
-    
+
     // Set keepalive interval to 15 seconds (keep under 30s carrier timeout)
     let interval: libc::c_int = 15;
     unsafe {
@@ -608,7 +606,7 @@ pub fn configure_tcp_keepalive(socket: &std::net::TcpStream) -> std::io::Result<
             std::mem::size_of::<libc::c_int>() as libc::socklen_t,
         );
     }
-    
+
     // Set probe count to 3
     let probes: libc::c_int = 3;
     unsafe {
@@ -620,7 +618,7 @@ pub fn configure_tcp_keepalive(socket: &std::net::TcpStream) -> std::io::Result<
             std::mem::size_of::<libc::c_int>() as libc::socklen_t,
         );
     }
-    
+
     Ok(())
 }
 

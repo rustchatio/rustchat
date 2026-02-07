@@ -8,8 +8,7 @@ use axum::{
 use serde_json::json;
 
 pub fn router() -> Router<AppState> {
-    Router::new()
-        .route("/terms_of_service", get(get_tos).post(create_tos))
+    Router::new().route("/terms_of_service", get(get_tos).post(create_tos))
 }
 
 async fn get_tos(

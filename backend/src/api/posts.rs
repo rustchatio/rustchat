@@ -234,11 +234,19 @@ async fn update_post(
     Path(id): Path<Uuid>,
     Json(input): Json<UpdatePost>,
 ) -> ApiResult<Json<Post>> {
-    let post: Post = sqlx::query_as("SELECT * FROM posts WHERE id = $1 AND deleted_at IS NULL")
-        .bind(id)
-        .fetch_optional(&state.db)
-        .await?
-        .ok_or_else(|| AppError::NotFound("Post not found".to_string()))?;
+    let post: Post = sqlx::query_as(
+        r#"
+        SELECT id, channel_id, user_id, root_post_id, message, props, file_ids,
+               is_pinned, created_at, edited_at, deleted_at,
+               reply_count::int8 as reply_count,
+               last_reply_at, seq
+        FROM posts WHERE id = $1 AND deleted_at IS NULL
+        "#,
+    )
+    .bind(id)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Post not found".to_string()))?;
 
     // Only author can edit
     if post.user_id != auth.user_id && auth.role != "system_admin" {

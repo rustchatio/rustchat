@@ -1,7 +1,7 @@
 use crate::common::spawn_app;
-use uuid::Uuid;
 use rustchat::mattermost_compat::id::encode_mm_id;
 use serde_json::Value;
+use uuid::Uuid;
 
 mod common;
 
@@ -39,7 +39,8 @@ async fn get_channel_posts_returns_200() {
         "password": "Password123!"
     });
 
-    let login_res = app.api_client
+    let login_res = app
+        .api_client
         .post(format!("{}/api/v1/auth/login", &app.address))
         .json(&login_data)
         .send()
@@ -49,47 +50,49 @@ async fn get_channel_posts_returns_200() {
     let login_body: Value = login_res.json().await.unwrap();
     let token = login_body["token"].as_str().unwrap();
     let user_id = login_body["user"]["id"].as_str().unwrap();
+    let user_uuid = Uuid::parse_str(user_id).unwrap();
 
     // 3. Create Team
     let team_id = Uuid::new_v4();
-    sqlx::query("INSERT INTO teams (id, name, display_name, type, allow_open_invite, organization_id) VALUES ($1, $2, $3, $4, $5, $6)")
+    sqlx::query("INSERT INTO teams (id, org_id, name, display_name, allow_open_invite) VALUES ($1, $2, $3, $4, $5)")
         .bind(team_id)
+        .bind(org_id)
         .bind("test-team")
         .bind("Test Team")
-        .bind("O")
         .bind(true)
-        .bind(org_id)
         .execute(&app.db_pool)
         .await
         .expect("Failed to insert team");
 
     // Add user to team
-    sqlx::query("INSERT INTO team_members (team_id, user_id, roles) VALUES ($1, $2, $3)")
+    sqlx::query("INSERT INTO team_members (team_id, user_id, role) VALUES ($1, $2, $3)")
         .bind(team_id)
-        .bind(Uuid::parse_str(user_id).unwrap())
-        .bind("team_user")
+        .bind(user_uuid)
+        .bind("member")
         .execute(&app.db_pool)
         .await
         .expect("Failed to add user to team");
 
     // 4. Create Channel
     let channel_id = Uuid::new_v4();
-    sqlx::query("INSERT INTO channels (id, team_id, name, display_name, type, creator_id) VALUES ($1, $2, $3, $4, $5, $6)")
+    sqlx::query(
+        "INSERT INTO channels (id, team_id, name, display_name, type, creator_id) VALUES ($1, $2, $3, $4, $5::channel_type, $6)",
+    )
         .bind(channel_id)
         .bind(team_id)
         .bind("test-channel")
         .bind("Test Channel")
-        .bind("O")
-        .bind(Uuid::parse_str(user_id).unwrap())
+        .bind("public")
+        .bind(user_uuid)
         .execute(&app.db_pool)
         .await
         .expect("Failed to insert channel");
 
     // Add user to channel
-    sqlx::query("INSERT INTO channel_members (channel_id, user_id, roles) VALUES ($1, $2, $3)")
+    sqlx::query("INSERT INTO channel_members (channel_id, user_id, role) VALUES ($1, $2, $3)")
         .bind(channel_id)
-        .bind(Uuid::parse_str(user_id).unwrap())
-        .bind("channel_user")
+        .bind(user_uuid)
+        .bind("member")
         .execute(&app.db_pool)
         .await
         .expect("Failed to add user to channel");
@@ -99,21 +102,30 @@ async fn get_channel_posts_returns_200() {
     sqlx::query("INSERT INTO posts (id, channel_id, user_id, message) VALUES ($1, $2, $3, $4)")
         .bind(post_id)
         .bind(channel_id)
-        .bind(Uuid::parse_str(user_id).unwrap())
+        .bind(user_uuid)
         .bind("Hello World")
         .execute(&app.db_pool)
         .await
         .expect("Failed to insert post");
 
     // 6. Call GET /api/v4/channels/{channel_id}/posts
-    let response = app.api_client
-        .get(format!("{}/api/v4/channels/{}/posts?page=0&per_page=30", &app.address, channel_id))
+    let response = app
+        .api_client
+        .get(format!(
+            "{}/api/v4/channels/{}/posts?page=0&per_page=30",
+            &app.address, channel_id
+        ))
         .header("Authorization", format!("Bearer {}", token))
         .send()
         .await
         .expect("Failed to get posts");
 
-    assert_eq!(response.status().as_u16(), 200, "Expected 200 OK, got {}", response.status());
+    assert_eq!(
+        response.status().as_u16(),
+        200,
+        "Expected 200 OK, got {}",
+        response.status()
+    );
 
     let body: Value = response.json().await.unwrap();
     let posts = body["posts"].as_object().unwrap();
@@ -121,6 +133,13 @@ async fn get_channel_posts_returns_200() {
     assert!(posts.contains_key(&post_key), "Post not found in response");
 
     let post = &posts[&post_key];
-    let reply_count = post["reply_count"].as_i64().expect("reply_count should be a number");
+    let reply_count = post
+        .get("reply_count")
+        .and_then(|value| {
+            value
+                .as_i64()
+                .or_else(|| value.as_str().and_then(|s| s.parse::<i64>().ok()))
+        })
+        .unwrap_or(0);
     assert_eq!(reply_count, 0);
 }

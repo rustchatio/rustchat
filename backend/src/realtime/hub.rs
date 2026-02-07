@@ -220,13 +220,19 @@ impl WsHub {
     /// Get number of active connections
     pub async fn count_connections(&self) -> usize {
         let connections = self.connections.read().await;
-        connections.values().map(|user_connections| user_connections.len()).sum()
+        connections
+            .values()
+            .map(|user_connections| user_connections.len())
+            .sum()
     }
 
     /// Get number of active connections for a user
     pub async fn user_connection_count(&self, user_id: Uuid) -> usize {
         let connections = self.connections.read().await;
-        connections.get(&user_id).map(|user_connections| user_connections.len()).unwrap_or(0)
+        connections
+            .get(&user_id)
+            .map(|user_connections| user_connections.len())
+            .unwrap_or(0)
     }
 }
 

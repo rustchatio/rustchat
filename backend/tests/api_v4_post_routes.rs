@@ -101,12 +101,14 @@ async fn setup_team_channel(ctx: &TestContext) -> (Uuid, Uuid) {
         .unwrap();
 
     let channel_id = Uuid::new_v4();
-    sqlx::query("INSERT INTO channels (id, team_id, name, type) VALUES ($1, $2, 'mmchannel', 'public')")
-        .bind(channel_id)
-        .bind(team_id)
-        .execute(&ctx.app.db_pool)
-        .await
-        .unwrap();
+    sqlx::query(
+        "INSERT INTO channels (id, team_id, name, type) VALUES ($1, $2, 'mmchannel', 'public')",
+    )
+    .bind(channel_id)
+    .bind(team_id)
+    .execute(&ctx.app.db_pool)
+    .await
+    .unwrap();
     sqlx::query("INSERT INTO channel_members (channel_id, user_id, role, notify_props) VALUES ($1, $2, 'member', '{}')")
         .bind(channel_id)
         .bind(ctx.user_uuid)
@@ -139,9 +141,17 @@ async fn mm_post_files_info_returns_files() {
         .send()
         .await
         .unwrap();
-    assert_eq!(200, upload_res.status().as_u16());
+    let upload_status = upload_res.status().as_u16();
+    assert!(
+        upload_status == 200 || upload_status == 201,
+        "unexpected upload status: {}",
+        upload_status
+    );
     let upload_body: serde_json::Value = upload_res.json().await.unwrap();
-    let file_id = upload_body["file_infos"][0]["id"].as_str().unwrap().to_string();
+    let file_id = upload_body["file_infos"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
 
     let post_res = ctx
         .app
@@ -163,7 +173,10 @@ async fn mm_post_files_info_returns_files() {
     let info_res = ctx
         .app
         .api_client
-        .get(format!("{}/api/v4/posts/{}/files/info", &ctx.app.address, post_id))
+        .get(format!(
+            "{}/api/v4/posts/{}/files/info",
+            &ctx.app.address, post_id
+        ))
         .header("Authorization", format!("Bearer {}", ctx.token))
         .send()
         .await

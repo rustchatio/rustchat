@@ -179,19 +179,21 @@ pub async fn create_post(
     // Check for outgoing webhook triggers
     if root_post_id.is_none() {
         // Get team_id for the channel
-        if let Ok(team_id) = sqlx::query_scalar::<_, Uuid>("SELECT team_id FROM channels WHERE id = $1")
-            .bind(channel_id)
-            .fetch_one(&state.db)
-            .await
-        {
-            // Get channel name and username
-            let channel_name: String = sqlx::query_scalar("SELECT name FROM channels WHERE id = $1")
+        if let Ok(team_id) =
+            sqlx::query_scalar::<_, Uuid>("SELECT team_id FROM channels WHERE id = $1")
                 .bind(channel_id)
                 .fetch_one(&state.db)
                 .await
-                .unwrap_or_default();
+        {
+            // Get channel name and username
+            let channel_name: String =
+                sqlx::query_scalar("SELECT name FROM channels WHERE id = $1")
+                    .bind(channel_id)
+                    .fetch_one(&state.db)
+                    .await
+                    .unwrap_or_default();
             let username = response.username.clone().unwrap_or_default();
-            
+
             let _ = crate::services::webhooks::check_outgoing_triggers(
                 state,
                 channel_id,
@@ -200,7 +202,8 @@ pub async fn create_post(
                 &username,
                 &channel_name,
                 &response.message,
-            ).await;
+            )
+            .await;
         }
     }
 
@@ -249,11 +252,7 @@ pub async fn create_post(
     Ok(response)
 }
 
-async fn ensure_permission(
-    state: &AppState,
-    user_id: Uuid,
-    permission: &str,
-) -> ApiResult<()> {
+async fn ensure_permission(state: &AppState, user_id: Uuid, permission: &str) -> ApiResult<()> {
     let role: String = sqlx::query_scalar("SELECT role FROM users WHERE id = $1")
         .bind(user_id)
         .fetch_one(&state.db)
@@ -402,11 +401,11 @@ pub async fn create_system_message(
     props: Option<serde_json::Value>,
 ) -> ApiResult<()> {
     // 1. Find bot user
-    let bot_user = sqlx::query!("SELECT id FROM users WHERE is_bot = true LIMIT 1")
-        .fetch_optional(&state.db)
-        .await?
-        .map(|r| r.id)
-        .unwrap_or_else(Uuid::nil);
+    let bot_user =
+        sqlx::query_scalar::<_, Uuid>("SELECT id FROM users WHERE is_bot = true LIMIT 1")
+            .fetch_optional(&state.db)
+            .await?
+            .unwrap_or_else(Uuid::nil);
 
     // 2. Prepare props
     let mut final_props = props.unwrap_or_else(|| serde_json::json!({}));
@@ -486,7 +485,8 @@ async fn check_playbook_triggers(
     message: &str,
 ) -> ApiResult<()> {
     // 1. Get team_id
-    let channel_info = sqlx::query!("SELECT team_id FROM channels WHERE id = $1", channel_id)
+    let channel_info = sqlx::query_scalar::<_, Uuid>("SELECT team_id FROM channels WHERE id = $1")
+        .bind(channel_id)
         .fetch_optional(&state.db)
         .await?;
 
@@ -495,15 +495,15 @@ async fn check_playbook_triggers(
         let playbooks = sqlx::query_as::<_, crate::models::Playbook>(
             "SELECT * FROM playbooks WHERE team_id = $1 AND is_archived = false AND keyword_triggers IS NOT NULL"
         )
-        .bind(chan.team_id)
+        .bind(chan)
         .fetch_all(&state.db)
         .await?;
 
         // 3. Find bot user (optional)
-        let bot_user = sqlx::query!("SELECT id FROM users WHERE is_bot = true LIMIT 1")
-            .fetch_optional(&state.db)
-            .await?
-            .map(|r| r.id);
+        let bot_user =
+            sqlx::query_scalar::<_, Uuid>("SELECT id FROM users WHERE is_bot = true LIMIT 1")
+                .fetch_optional(&state.db)
+                .await?;
 
         let lower_message = message.to_lowercase();
 
@@ -551,13 +551,18 @@ pub async fn get_posts(
     channel_id: Uuid,
     query: PostsQuery,
 ) -> ApiResult<(Vec<PostResponse>, i64)> {
-    let per_page = if query.per_page > 0 { query.per_page } else { 60 }.min(200);
+    let per_page = if query.per_page > 0 {
+        query.per_page
+    } else {
+        60
+    }
+    .min(200);
     let offset = query.page * per_page;
 
     let posts: Vec<PostResponse> = if let Some(since) = query.since {
-        let since_time = chrono::DateTime::from_timestamp_millis(since)
-            .unwrap_or_else(|| chrono::Utc::now());
-        
+        let since_time =
+            chrono::DateTime::from_timestamp_millis(since).unwrap_or_else(|| chrono::Utc::now());
+
         sqlx::query_as(
             r#"
             SELECT p.id, p.channel_id, p.user_id, p.root_post_id, p.message, p.props, p.file_ids,
@@ -579,14 +584,14 @@ pub async fn get_posts(
         .fetch_all(&state.db)
         .await?
     } else if let Some(before_id) = query.before {
-        let before_time: Option<chrono::DateTime<chrono::Utc>> = sqlx::query_scalar(
-            "SELECT created_at FROM posts WHERE id = $1"
-        )
-        .bind(before_id)
-        .fetch_optional(&state.db)
-        .await?;
+        let before_time: Option<chrono::DateTime<chrono::Utc>> =
+            sqlx::query_scalar("SELECT created_at FROM posts WHERE id = $1")
+                .bind(before_id)
+                .fetch_optional(&state.db)
+                .await?;
 
-        let before_time = before_time.ok_or_else(|| AppError::NotFound("Before post not found".to_string()))?;
+        let before_time =
+            before_time.ok_or_else(|| AppError::NotFound("Before post not found".to_string()))?;
 
         sqlx::query_as(
             r#"
@@ -610,14 +615,14 @@ pub async fn get_posts(
         .fetch_all(&state.db)
         .await?
     } else if let Some(after_id) = query.after {
-        let after_time: Option<chrono::DateTime<chrono::Utc>> = sqlx::query_scalar(
-            "SELECT created_at FROM posts WHERE id = $1"
-        )
-        .bind(after_id)
-        .fetch_optional(&state.db)
-        .await?;
+        let after_time: Option<chrono::DateTime<chrono::Utc>> =
+            sqlx::query_scalar("SELECT created_at FROM posts WHERE id = $1")
+                .bind(after_id)
+                .fetch_optional(&state.db)
+                .await?;
 
-        let after_time = after_time.ok_or_else(|| AppError::NotFound("After post not found".to_string()))?;
+        let after_time =
+            after_time.ok_or_else(|| AppError::NotFound("After post not found".to_string()))?;
 
         sqlx::query_as(
             r#"
@@ -663,10 +668,12 @@ pub async fn get_posts(
         .await?
     };
 
-    let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM posts WHERE channel_id = $1 AND deleted_at IS NULL")
-        .bind(channel_id)
-        .fetch_one(&state.db)
-        .await?;
+    let total: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM posts WHERE channel_id = $1 AND deleted_at IS NULL",
+    )
+    .bind(channel_id)
+    .fetch_one(&state.db)
+    .await?;
 
     Ok((posts, total))
 }

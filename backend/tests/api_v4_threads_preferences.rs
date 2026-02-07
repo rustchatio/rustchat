@@ -89,12 +89,14 @@ async fn mm_threads_endpoints_smoke() {
         .unwrap();
 
     let channel_id = Uuid::new_v4();
-    sqlx::query("INSERT INTO channels (id, team_id, name, type) VALUES ($1, $2, 'mmchannel', 'public')")
-        .bind(channel_id)
-        .bind(team_id)
-        .execute(&app.db_pool)
-        .await
-        .unwrap();
+    sqlx::query(
+        "INSERT INTO channels (id, team_id, name, type) VALUES ($1, $2, 'mmchannel', 'public')",
+    )
+    .bind(channel_id)
+    .bind(team_id)
+    .execute(&app.db_pool)
+    .await
+    .unwrap();
     sqlx::query("INSERT INTO channel_members (channel_id, user_id, role, notify_props) VALUES ($1, $2, 'member', '{}')")
         .bind(channel_id)
         .bind(user_uuid)
@@ -138,12 +140,14 @@ async fn mm_threads_endpoints_smoke() {
         .unwrap();
     assert_eq!(200, follow_res.status().as_u16());
 
-    sqlx::query("UPDATE thread_memberships SET mention_count = 2 WHERE user_id = $1 AND post_id = $2")
-        .bind(user_uuid)
-        .bind(parse_mm_or_uuid(&root_post_id).unwrap())
-        .execute(&app.db_pool)
-        .await
-        .unwrap();
+    sqlx::query(
+        "UPDATE thread_memberships SET mention_count = 2 WHERE user_id = $1 AND post_id = $2",
+    )
+    .bind(user_uuid)
+    .bind(parse_mm_or_uuid(&root_post_id).unwrap())
+    .execute(&app.db_pool)
+    .await
+    .unwrap();
 
     let list_res = app
         .api_client
@@ -159,7 +163,10 @@ async fn mm_threads_endpoints_smoke() {
     let list_body: serde_json::Value = list_res.json().await.unwrap();
     let threads = list_body["threads"].as_array().unwrap();
     assert_eq!(threads.len(), 1);
-    assert_eq!(threads[0]["id"], encode_mm_id(parse_mm_or_uuid(&root_post_id).unwrap()));
+    assert_eq!(
+        threads[0]["id"],
+        encode_mm_id(parse_mm_or_uuid(&root_post_id).unwrap())
+    );
 
     let mention_res = app
         .api_client
@@ -211,7 +218,10 @@ async fn mm_preferences_endpoints_smoke() {
 
     let pref_put = app
         .api_client
-        .put(format!("{}/api/v4/users/{}/preferences", &app.address, user_id))
+        .put(format!(
+            "{}/api/v4/users/{}/preferences",
+            &app.address, user_id
+        ))
         .header("Authorization", format!("Bearer {}", token))
         .json(&json!([
             { "user_id": user_id, "category": "display", "name": "theme", "value": "dark" },
@@ -224,7 +234,10 @@ async fn mm_preferences_endpoints_smoke() {
 
     let pref_get = app
         .api_client
-        .get(format!("{}/api/v4/users/{}/preferences", &app.address, user_id))
+        .get(format!(
+            "{}/api/v4/users/{}/preferences",
+            &app.address, user_id
+        ))
         .header("Authorization", format!("Bearer {}", token))
         .send()
         .await
@@ -261,7 +274,10 @@ async fn mm_preferences_endpoints_smoke() {
 
     let pref_delete = app
         .api_client
-        .post(format!("{}/api/v4/users/{}/preferences/delete", &app.address, user_id))
+        .post(format!(
+            "{}/api/v4/users/{}/preferences/delete",
+            &app.address, user_id
+        ))
         .header("Authorization", format!("Bearer {}", token))
         .json(&json!([
             { "user_id": user_id, "category": "display", "name": "theme", "value": "dark" }
@@ -273,7 +289,10 @@ async fn mm_preferences_endpoints_smoke() {
 
     let pref_get_after = app
         .api_client
-        .get(format!("{}/api/v4/users/{}/preferences", &app.address, user_id))
+        .get(format!(
+            "{}/api/v4/users/{}/preferences",
+            &app.address, user_id
+        ))
         .header("Authorization", format!("Bearer {}", token))
         .send()
         .await

@@ -10,9 +10,18 @@ use serde_json::json;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/sharedchannels/{team_id}", get(get_shared_channels))
-        .route("/sharedchannels/remote_info/{remote_id}", get(get_remote_cluster_info))
-        .route("/sharedchannels/{channel_id}/remotes", get(get_channel_remotes))
-        .route("/sharedchannels/users/{user_id}/can_dm/{other_user_id}", get(can_dm_user))
+        .route(
+            "/sharedchannels/remote_info/{remote_id}",
+            get(get_remote_cluster_info),
+        )
+        .route(
+            "/sharedchannels/{channel_id}/remotes",
+            get(get_channel_remotes),
+        )
+        .route(
+            "/sharedchannels/users/{user_id}/can_dm/{other_user_id}",
+            get(can_dm_user),
+        )
 }
 
 async fn get_shared_channels(

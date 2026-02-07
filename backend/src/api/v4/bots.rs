@@ -11,15 +11,21 @@ pub fn router() -> Router<AppState> {
         .route("/bots/{bot_user_id}/disable", post(disable_bot))
         .route("/bots/{bot_user_id}/enable", post(enable_bot))
         .route("/bots/{bot_user_id}/assign/{user_id}", post(assign_bot))
-        .route("/bots/{bot_user_id}/icon", get(get_bot_icon).post(set_bot_icon).delete(delete_bot_icon))
-        .route("/bots/{bot_user_id}/convert_to_user", post(convert_bot_to_user))
+        .route(
+            "/bots/{bot_user_id}/icon",
+            get(get_bot_icon).post(set_bot_icon).delete(delete_bot_icon),
+        )
+        .route(
+            "/bots/{bot_user_id}/convert_to_user",
+            post(convert_bot_to_user),
+        )
 }
-use axum::extract::Path;
-use crate::api::AppState;
 use crate::api::v4::extractors::MmAuthUser;
-use crate::error::{ApiResult};
-use crate::mattermost_compat::{id::{encode_mm_id}, models as mm};
-use crate::models::{Bot};
+use crate::api::AppState;
+use crate::error::ApiResult;
+use crate::mattermost_compat::{id::encode_mm_id, models as mm};
+use crate::models::Bot;
+use axum::extract::Path;
 use uuid::Uuid;
 
 #[derive(serde::Deserialize)]
@@ -53,7 +59,7 @@ pub async fn create_bot(
         INSERT INTO users (id, username, email, password_hash, display_name, is_bot, role)
         VALUES ($1, $2, $3, $4, $5, $6, $7)
         RETURNING id
-        "#
+        "#,
     )
     .bind(user_id)
     .bind(&input.username)
@@ -71,7 +77,7 @@ pub async fn create_bot(
         INSERT INTO bots (user_id, owner_id, display_name, description, is_active)
         VALUES ($1, $2, $3, $4, $5)
         RETURNING *
-        "#
+        "#,
     )
     .bind(user_id)
     .bind(auth.user_id)
@@ -103,16 +109,19 @@ pub async fn list_bots(
     .fetch_all(&state.db)
     .await?;
 
-    let mm_bots = rows.into_iter().map(|r| mm::Bot {
-        user_id: encode_mm_id(r.0),
-        username: r.1,
-        display_name: r.2,
-        description: r.3.unwrap_or_default(),
-        owner_id: encode_mm_id(r.4),
-        create_at: r.5.timestamp_millis(),
-        update_at: r.6.timestamp_millis(),
-        delete_at: 0,
-    }).collect();
+    let mm_bots = rows
+        .into_iter()
+        .map(|r| mm::Bot {
+            user_id: encode_mm_id(r.0),
+            username: r.1,
+            display_name: r.2,
+            description: r.3.unwrap_or_default(),
+            owner_id: encode_mm_id(r.4),
+            create_at: r.5.timestamp_millis(),
+            update_at: r.6.timestamp_millis(),
+            delete_at: 0,
+        })
+        .collect();
 
     Ok(Json(mm_bots))
 }
@@ -201,4 +210,3 @@ async fn convert_bot_to_user(
 ) -> ApiResult<Json<serde_json::Value>> {
     Ok(Json(serde_json::json!({"status": "OK"})))
 }
-

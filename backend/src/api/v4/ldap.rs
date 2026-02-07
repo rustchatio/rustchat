@@ -17,7 +17,7 @@ fn enterprise_required() -> ApiResult<(StatusCode, Json<serde_json::Value>)> {
             "message": "This feature requires an Enterprise license.",
             "detailed_error": "LDAP authentication is an enterprise feature. Please upgrade your license.",
             "status_code": 501
-        }))
+        })),
     ))
 }
 

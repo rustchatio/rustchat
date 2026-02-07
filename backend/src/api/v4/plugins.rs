@@ -39,7 +39,10 @@ async fn upload_plugin(
     State(_state): State<AppState>,
     _auth: crate::api::v4::extractors::MmAuthUser,
 ) -> ApiResult<(axum::http::StatusCode, Json<serde_json::Value>)> {
-    Ok((axum::http::StatusCode::CREATED, Json(json!({"status": "OK"}))))
+    Ok((
+        axum::http::StatusCode::CREATED,
+        Json(json!({"status": "OK"})),
+    ))
 }
 
 /// POST /api/v4/plugins/install_from_url
@@ -47,7 +50,10 @@ async fn install_plugin_from_url(
     State(_state): State<AppState>,
     _auth: crate::api::v4::extractors::MmAuthUser,
 ) -> ApiResult<(axum::http::StatusCode, Json<serde_json::Value>)> {
-    Ok((axum::http::StatusCode::CREATED, Json(json!({"status": "OK"}))))
+    Ok((
+        axum::http::StatusCode::CREATED,
+        Json(json!({"status": "OK"})),
+    ))
 }
 
 /// GET /api/v4/plugins/{plugin_id}
@@ -101,19 +107,19 @@ async fn get_webapp_plugins(
     _auth: crate::api::v4::extractors::MmAuthUser,
 ) -> ApiResult<Json<Vec<serde_json::Value>>> {
     let mut plugins = vec![];
-    
+
     // Check if Calls plugin is enabled
     let db_value: Option<String> = sqlx::query_scalar(
-        "SELECT plugins->'calls'->>'enabled' FROM server_config WHERE id = 'default'"
+        "SELECT plugins->'calls'->>'enabled' FROM server_config WHERE id = 'default'",
     )
     .fetch_optional(&state.db)
     .await?;
-    
+
     let calls_enabled = db_value
         .as_ref()
         .map(|v| v.parse::<bool>().unwrap_or(false))
         .unwrap_or(state.config.calls.enabled);
-    
+
     if calls_enabled {
         plugins.push(json!({
             "id": "com.mattermost.calls",
@@ -127,7 +133,7 @@ async fn get_webapp_plugins(
             }
         }));
     }
-    
+
     Ok(Json(plugins))
 }
 

@@ -12,7 +12,10 @@ pub fn router() -> Router<AppState> {
         .route("/imports", get(list_imports).post(create_import))
         .route("/imports/{import_name}", get(get_import))
         .route("/exports", get(list_exports).post(create_export))
-        .route("/exports/{export_name}", get(get_export).delete(delete_export))
+        .route(
+            "/exports/{export_name}",
+            get(get_export).delete(delete_export),
+        )
 }
 
 async fn list_imports(

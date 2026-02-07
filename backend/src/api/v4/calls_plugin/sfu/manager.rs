@@ -1,5 +1,5 @@
 //! SFU Manager
-//! 
+//!
 //! Manages SFU instances for active calls. Each call has its own SFU
 //! to isolate media traffic between different calls.
 
@@ -8,8 +8,8 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 use uuid::Uuid;
 
-use crate::config::CallsConfig;
 use super::SFU;
+use crate::config::CallsConfig;
 
 /// Manages SFU instances for all active calls
 pub struct SFUManager {
@@ -27,7 +27,7 @@ impl SFUManager {
             config,
         })
     }
-    
+
     /// Create or get an SFU for a call
     pub async fn get_or_create_sfu(
         &self,
@@ -40,41 +40,41 @@ impl SFUManager {
                 return Ok(sfu.clone());
             }
         }
-        
+
         // Create new SFU
         let sfu = SFU::new(self.config.clone()).await?;
-        
+
         // Store it
         self.sfus.write().await.insert(call_id, sfu.clone());
-        
+
         Ok(sfu)
     }
-    
+
     /// Get an existing SFU for a call
     pub async fn get_sfu(&self, call_id: Uuid) -> Option<Arc<SFU>> {
         self.sfus.read().await.get(&call_id).cloned()
     }
-    
+
     /// Remove an SFU (when call ends)
     pub async fn remove_sfu(&self, call_id: Uuid) {
         self.sfus.write().await.remove(&call_id);
     }
-    
+
     /// Check if an SFU exists for a call
     pub async fn has_sfu(&self, call_id: Uuid) -> bool {
         self.sfus.read().await.contains_key(&call_id)
     }
-    
+
     /// Get count of active SFUs
     pub async fn active_sfu_count(&self) -> usize {
         self.sfus.read().await.len()
     }
-    
+
     /// Get all active call IDs
     pub async fn active_call_ids(&self) -> Vec<Uuid> {
         self.sfus.read().await.keys().cloned().collect()
     }
-    
+
     /// Clean up all SFUs (for shutdown)
     pub async fn cleanup_all(&self) {
         self.sfus.write().await.clear();

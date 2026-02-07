@@ -101,12 +101,14 @@ async fn setup_team_channel(ctx: &TestContext) -> (Uuid, Uuid) {
         .unwrap();
 
     let channel_id = Uuid::new_v4();
-    sqlx::query("INSERT INTO channels (id, team_id, name, type) VALUES ($1, $2, 'mmchannel', 'public')")
-        .bind(channel_id)
-        .bind(team_id)
-        .execute(&ctx.app.db_pool)
-        .await
-        .unwrap();
+    sqlx::query(
+        "INSERT INTO channels (id, team_id, name, type) VALUES ($1, $2, 'mmchannel', 'public')",
+    )
+    .bind(channel_id)
+    .bind(team_id)
+    .execute(&ctx.app.db_pool)
+    .await
+    .unwrap();
     sqlx::query("INSERT INTO channel_members (channel_id, user_id, role, notify_props) VALUES ($1, $2, 'member', '{}')")
         .bind(channel_id)
         .bind(ctx.user_uuid)
@@ -195,7 +197,10 @@ async fn mm_posts_extra_routes() {
     let unpin_res = ctx
         .app
         .api_client
-        .post(format!("{}/api/v4/posts/{}/unpin", &ctx.app.address, post_id))
+        .post(format!(
+            "{}/api/v4/posts/{}/unpin",
+            &ctx.app.address, post_id
+        ))
         .header("Authorization", format!("Bearer {}", ctx.token))
         .send()
         .await

@@ -5,7 +5,7 @@
 
 use crate::api::AppState;
 use crate::error::{ApiResult, AppError};
-use crate::models::{IncomingWebhook, OutgoingWebhook, WebhookPayload, OutgoingWebhookPayload};
+use crate::models::{IncomingWebhook, OutgoingWebhook, OutgoingWebhookPayload, WebhookPayload};
 use crate::services::posts;
 use uuid::Uuid;
 
@@ -16,21 +16,19 @@ pub async fn execute_incoming_webhook(
     payload: WebhookPayload,
 ) -> ApiResult<()> {
     // 1. Find the webhook by token
-    let hook: IncomingWebhook = sqlx::query_as(
-        "SELECT * FROM incoming_webhooks WHERE token = $1 AND is_active = true"
-    )
-    .bind(token)
-    .fetch_optional(&state.db)
-    .await?
-    .ok_or_else(|| AppError::NotFound("Webhook not found or inactive".to_string()))?;
+    let hook: IncomingWebhook =
+        sqlx::query_as("SELECT * FROM incoming_webhooks WHERE token = $1 AND is_active = true")
+            .bind(token)
+            .fetch_optional(&state.db)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Webhook not found or inactive".to_string()))?;
 
     // 2. Get the bot user or creator as the poster
-    let poster_id = sqlx::query_scalar::<_, Uuid>(
-        "SELECT id FROM users WHERE is_bot = true LIMIT 1"
-    )
-    .fetch_optional(&state.db)
-    .await?
-    .unwrap_or(hook.creator_id);
+    let poster_id =
+        sqlx::query_scalar::<_, Uuid>("SELECT id FROM users WHERE is_bot = true LIMIT 1")
+            .fetch_optional(&state.db)
+            .await?
+            .unwrap_or(hook.creator_id);
 
     // 3. Build props with override info
     let mut props = payload.props.as_object().cloned().unwrap_or_default();
@@ -41,7 +39,10 @@ pub async fn execute_incoming_webhook(
         props.insert("override_icon_url".to_string(), serde_json::json!(icon));
     }
     props.insert("from_webhook".to_string(), serde_json::json!(true));
-    props.insert("webhook_display_name".to_string(), serde_json::json!(hook.display_name));
+    props.insert(
+        "webhook_display_name".to_string(),
+        serde_json::json!(hook.display_name),
+    );
 
     // 4. Create the post
     let input = crate::models::CreatePost {
@@ -77,7 +78,7 @@ pub async fn check_outgoing_triggers(
         WHERE is_active = true 
           AND team_id = $1
           AND (channel_id IS NULL OR channel_id = $2)
-        "#
+        "#,
     )
     .bind(team_id)
     .bind(channel_id)
@@ -110,8 +111,11 @@ pub async fn check_outgoing_triggers(
             for url in &hook.callback_urls {
                 let url = url.clone();
                 let payload = payload.clone();
-                let content_type = hook.content_type.clone().unwrap_or_else(|| "application/json".to_string());
-                
+                let content_type = hook
+                    .content_type
+                    .clone()
+                    .unwrap_or_else(|| "application/json".to_string());
+
                 tokio::spawn(async move {
                     let client = reqwest::Client::new();
                     let result = client
@@ -121,13 +125,13 @@ pub async fn check_outgoing_triggers(
                         .timeout(std::time::Duration::from_secs(30))
                         .send()
                         .await;
-                    
+
                     if let Err(e) = result {
                         tracing::warn!("Outgoing webhook to {} failed: {}", url, e);
                     }
                 });
             }
-            
+
             // Only trigger once per message
             break;
         }

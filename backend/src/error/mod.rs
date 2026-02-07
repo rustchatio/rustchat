@@ -101,10 +101,10 @@ impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         let status = self.status_code();
         let message = self.to_string();
-        
+
         // Log the error for debugging
         tracing::error!(error = %message, code = %self.code(), status = %status, "API error");
-        
+
         let body = ErrorResponse {
             error: ErrorBody {
                 code: self.code().to_string(),

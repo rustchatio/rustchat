@@ -9,7 +9,10 @@ use serde_json::json;
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/content_flagging/flag/config", get(get_content_flagging_flag_config))
+        .route(
+            "/content_flagging/flag/config",
+            get(get_content_flagging_flag_config),
+        )
         .route(
             "/content_flagging/team/{team_id}/status",
             get(get_content_flagging_team_status),
@@ -23,7 +26,10 @@ pub fn router() -> Router<AppState> {
             "/content_flagging/post/{post_id}/field_values",
             get(get_content_flagging_post_field_values),
         )
-        .route("/content_flagging/post/{post_id}", get(get_content_flagging_post))
+        .route(
+            "/content_flagging/post/{post_id}",
+            get(get_content_flagging_post),
+        )
         .route(
             "/content_flagging/post/{post_id}/remove",
             post(remove_content_flagging_post),

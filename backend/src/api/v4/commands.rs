@@ -6,9 +6,9 @@ use axum::{
 };
 use serde::Deserialize;
 
-use crate::api::AppState;
 use crate::api::integrations::{execute_command_internal, CommandAuth};
 use crate::api::v4::extractors::MmAuthUser;
+use crate::api::AppState;
 use crate::error::{ApiResult, AppError};
 use crate::mattermost_compat::id::parse_mm_or_uuid;
 use crate::models::{CommandResponse, ExecuteCommand};
@@ -22,7 +22,10 @@ pub fn router() -> Router<AppState> {
             get(get_command).put(update_command).delete(delete_command),
         )
         .route("/commands/{command_id}/move", put(move_command))
-        .route("/commands/{command_id}/regen_token", post(regenerate_command_token))
+        .route(
+            "/commands/{command_id}/regen_token",
+            post(regenerate_command_token),
+        )
         .route(
             "/teams/{team_id}/commands/autocomplete_suggestions",
             get(autocomplete_suggestions),
@@ -53,7 +56,9 @@ struct TeamPath {
     team_id: String,
 }
 
-async fn list_commands(Query(_query): Query<CommandsQuery>) -> ApiResult<Json<Vec<serde_json::Value>>> {
+async fn list_commands(
+    Query(_query): Query<CommandsQuery>,
+) -> ApiResult<Json<Vec<serde_json::Value>>> {
     let commands = vec![serde_json::json!({
         "id": "builtin-call",
         "trigger": "call",

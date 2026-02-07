@@ -19,9 +19,15 @@ pub fn router() -> Router<AppState> {
         .route("/logs", post(post_logs))
         .route("/database/recycle", post(recycle_database))
         .route("/system/notices/{team_id}", get(get_product_notices))
-        .route("/system/notices/view", axum::routing::put(update_viewed_notices))
+        .route(
+            "/system/notices/view",
+            axum::routing::put(update_viewed_notices),
+        )
         .route("/system/support_packet", get(get_support_packet))
-        .route("/system/onboarding/complete", get(get_onboarding_status).post(complete_onboarding))
+        .route(
+            "/system/onboarding/complete",
+            get(get_onboarding_status).post(complete_onboarding),
+        )
         .route("/system/schema/version", get(get_schema_version))
         .route("/email/test", post(test_email))
         .route("/notifications/test", post(test_notifications))
@@ -37,12 +43,23 @@ pub fn router() -> Router<AppState> {
         .route("/trial-license/prev", get(get_prev_trial_license))
         .route("/license/load_metric", get(get_client_license_load_metric))
         .route("/analytics/old", get(get_analytics_old))
-        .route("/server_busy", get(get_server_busy).post(set_server_busy).delete(clear_server_busy))
+        .route(
+            "/server_busy",
+            get(get_server_busy)
+                .post(set_server_busy)
+                .delete(clear_server_busy),
+        )
         .route("/notifications/ack", post(ack_notification))
         .route("/redirect_location", get(get_redirect_location))
         .route("/upgrade_to_enterprise", post(upgrade_to_enterprise))
-        .route("/upgrade_to_enterprise/status", get(get_upgrade_to_enterprise_status))
-        .route("/upgrade_to_enterprise/allowed", get(get_upgrade_to_enterprise_allowed))
+        .route(
+            "/upgrade_to_enterprise/status",
+            get(get_upgrade_to_enterprise_status),
+        )
+        .route(
+            "/upgrade_to_enterprise/allowed",
+            get(get_upgrade_to_enterprise_allowed),
+        )
         .route("/restart", post(restart_server))
         .route("/integrity", post(check_integrity))
 }
@@ -75,7 +92,9 @@ async fn get_support_packet(
 ) -> ApiResult<axum::response::Response> {
     // Return a dummy zip file or 403 if no license as per MM behavior
     // For now, just return a 403 indicating no license
-    Err(crate::error::AppError::Forbidden("Support packets require a license".to_string()))
+    Err(crate::error::AppError::Forbidden(
+        "Support packets require a license".to_string(),
+    ))
 }
 
 /// GET /system/onboarding/complete
@@ -146,12 +165,11 @@ async fn get_config(
     _auth: crate::api::v4::extractors::MmAuthUser,
 ) -> ApiResult<Json<serde_json::Value>> {
     // Fetch config from DB
-    let config: crate::models::ServerConfig = sqlx::query_as(
-        "SELECT * FROM server_config WHERE id = 'default'"
-    )
-    .fetch_one(&state.db)
-    .await
-    .map_err(|_| crate::error::AppError::NotFound("Config not found".to_string()))?;
+    let config: crate::models::ServerConfig =
+        sqlx::query_as("SELECT * FROM server_config WHERE id = 'default'")
+            .fetch_one(&state.db)
+            .await
+            .map_err(|_| crate::error::AppError::NotFound("Config not found".to_string()))?;
 
     // Convert to Mattermost-compatible format
     let response = serde_json::json!({
@@ -301,7 +319,7 @@ async fn patch_config(
 ) -> ApiResult<Json<serde_json::Value>> {
     // Parse and apply patches to the relevant config sections
     // The patch format is { "SectionName": { "key": "value" } }
-    
+
     // Handle TeamSettings -> site.site_name
     if let Some(team_settings) = patch.get("TeamSettings").and_then(|v| v.as_object()) {
         if let Some(site_name) = team_settings.get("SiteName").and_then(|v| v.as_str()) {
@@ -314,21 +332,30 @@ async fn patch_config(
             .await?;
         }
     }
-    
+
     // Handle EmailSettings
     if let Some(email_settings) = patch.get("EmailSettings").and_then(|v| v.as_object()) {
         let mut updates = vec![];
-        
+
         if let Some(host) = email_settings.get("SMTPServer").and_then(|v| v.as_str()) {
-            updates.push(format!("email = jsonb_set(email, '{{smtp_host}}', '\"{}\"', true)", host));
+            updates.push(format!(
+                "email = jsonb_set(email, '{{smtp_host}}', '\"{}\"', true)",
+                host
+            ));
         }
         if let Some(port) = email_settings.get("SMTPPort").and_then(|v| v.as_str()) {
-            updates.push(format!("email = jsonb_set(email, '{{smtp_port}}', '{}', true)", port));
+            updates.push(format!(
+                "email = jsonb_set(email, '{{smtp_port}}', '{}', true)",
+                port
+            ));
         }
         if let Some(from) = email_settings.get("FeedbackEmail").and_then(|v| v.as_str()) {
-            updates.push(format!("email = jsonb_set(email, '{{from_address}}', '\"{}\"', true)", from));
+            updates.push(format!(
+                "email = jsonb_set(email, '{{from_address}}', '\"{}\"', true)",
+                from
+            ));
         }
-        
+
         if !updates.is_empty() {
             let query = format!(
                 "UPDATE server_config SET {}, updated_at = NOW(), updated_by = $1 WHERE id = 'default'",
@@ -340,10 +367,13 @@ async fn patch_config(
                 .await?;
         }
     }
-    
+
     // Handle IntegrationSettings -> integrations
     if let Some(int_settings) = patch.get("IntegrationSettings").and_then(|v| v.as_object()) {
-        if let Some(enable_webhooks) = int_settings.get("EnableIncomingWebhooks").and_then(|v| v.as_bool()) {
+        if let Some(enable_webhooks) = int_settings
+            .get("EnableIncomingWebhooks")
+            .and_then(|v| v.as_bool())
+        {
             sqlx::query(
                 "UPDATE server_config SET integrations = jsonb_set(integrations, '{enable_webhooks}', $1, true), updated_at = NOW(), updated_by = $2 WHERE id = 'default'"
             )
@@ -352,7 +382,8 @@ async fn patch_config(
             .execute(&state.db)
             .await?;
         }
-        if let Some(enable_commands) = int_settings.get("EnableCommands").and_then(|v| v.as_bool()) {
+        if let Some(enable_commands) = int_settings.get("EnableCommands").and_then(|v| v.as_bool())
+        {
             sqlx::query(
                 "UPDATE server_config SET integrations = jsonb_set(integrations, '{enable_slash_commands}', $1, true), updated_at = NOW(), updated_by = $2 WHERE id = 'default'"
             )
@@ -362,10 +393,16 @@ async fn patch_config(
             .await?;
         }
     }
-    
+
     // Handle DataRetentionSettings -> compliance
-    if let Some(retention) = patch.get("DataRetentionSettings").and_then(|v| v.as_object()) {
-        if let Some(days) = retention.get("MessageRetentionDays").and_then(|v| v.as_i64()) {
+    if let Some(retention) = patch
+        .get("DataRetentionSettings")
+        .and_then(|v| v.as_object())
+    {
+        if let Some(days) = retention
+            .get("MessageRetentionDays")
+            .and_then(|v| v.as_i64())
+        {
             sqlx::query(
                 "UPDATE server_config SET compliance = jsonb_set(compliance, '{message_retention_days}', $1, true), updated_at = NOW(), updated_by = $2 WHERE id = 'default'"
             )
@@ -384,7 +421,7 @@ async fn patch_config(
             .await?;
         }
     }
-    
+
     // Return updated config
     get_config(State(state), auth).await
 }
@@ -475,11 +512,9 @@ async fn client_perf(
             .and_then(|v| v.to_str().ok())
             .unwrap_or("");
         if content_type.starts_with("application/json") {
-            serde_json::from_slice(&body)
-                .unwrap_or_else(|_| serde_json::json!({}))
+            serde_json::from_slice(&body).unwrap_or_else(|_| serde_json::json!({}))
         } else if content_type.starts_with("application/x-www-form-urlencoded") {
-            serde_urlencoded::from_bytes(&body)
-                .unwrap_or_else(|_| serde_json::json!({}))
+            serde_urlencoded::from_bytes(&body).unwrap_or_else(|_| serde_json::json!({}))
         } else {
             serde_json::from_slice(&body)
                 .or_else(|_| serde_urlencoded::from_bytes(&body))
@@ -491,9 +526,12 @@ async fn client_perf(
 }
 
 async fn version() -> ApiResult<impl IntoResponse> {
-     Ok((
-        [(axum::http::header::CONTENT_TYPE, "text/plain; charset=utf-8")],
-        MM_VERSION.to_string()
+    Ok((
+        [(
+            axum::http::header::CONTENT_TYPE,
+            "text/plain; charset=utf-8",
+        )],
+        MM_VERSION.to_string(),
     ))
 }
 
@@ -549,7 +587,10 @@ async fn get_timezones() -> ApiResult<Json<Vec<String>>> {
         "Australia/Sydney",
         "Pacific/Auckland",
         "UTC",
-    ].into_iter().map(String::from).collect();
+    ]
+    .into_iter()
+    .map(String::from)
+    .collect();
 
     Ok(Json(timezones))
 }
@@ -644,4 +685,3 @@ async fn check_integrity(
 ) -> ApiResult<Json<serde_json::Value>> {
     Ok(Json(serde_json::json!({})))
 }
-

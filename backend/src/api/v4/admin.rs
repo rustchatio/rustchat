@@ -1,17 +1,12 @@
-use axum::{
-    extract::State,
-    routing::get,
-    Json, Router,
-};
+use axum::{extract::State, routing::get, Json, Router};
 
 pub fn router() -> Router<AppState> {
-    Router::new()
-        .route("/audits", get(get_audits))
+    Router::new().route("/audits", get(get_audits))
 }
-use crate::api::AppState;
 use crate::api::v4::extractors::MmAuthUser;
-use crate::error::{ApiResult};
-use crate::mattermost_compat::{models as mm};
+use crate::api::AppState;
+use crate::error::ApiResult;
+use crate::mattermost_compat::models as mm;
 
 pub async fn get_audits(
     State(state): State<AppState>,
@@ -29,7 +24,7 @@ pub async fn get_audits(
         FROM audit_logs
         ORDER BY created_at DESC
         LIMIT 100
-        "#
+        "#,
     )
     .fetch_all(&state.db)
     .await?;

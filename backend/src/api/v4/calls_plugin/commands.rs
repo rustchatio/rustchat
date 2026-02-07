@@ -1,9 +1,9 @@
 //! Calls Plugin Slash Commands
-//! 
+//!
 //! Implements /call commands for starting, joining, and managing calls via slash commands.
 
-use crate::api::AppState;
 use crate::api::v4::extractors::MmAuthUser;
+use crate::api::AppState;
 use crate::error::{ApiResult, AppError};
 use axum::{
     extract::{Path, State},
@@ -16,8 +16,7 @@ use uuid::Uuid;
 
 /// Build slash command routes
 pub fn router() -> Router<AppState> {
-    Router::new()
-        .route("/commands/call", post(handle_call_command))
+    Router::new().route("/commands/call", post(handle_call_command))
 }
 
 // ============ Command Request/Response Types ============
@@ -40,7 +39,7 @@ pub struct SlashCommandResponse {
 // ============ Command Handlers ============
 
 /// Handle /call slash command
-/// 
+///
 /// Supported commands:
 /// - /call start - Start a new call in the current channel
 /// - /call join - Join the active call in the current channel  
@@ -55,11 +54,11 @@ async fn handle_call_command(
 ) -> ApiResult<Json<SlashCommandResponse>> {
     let channel_uuid = Uuid::parse_str(&payload.channel_id)
         .map_err(|_| AppError::BadRequest("Invalid channel_id".to_string()))?;
-    
+
     // Parse command text
     let args: Vec<&str> = payload.text.trim().split_whitespace().collect();
     let subcommand = args.get(0).map(|s| *s).unwrap_or("start");
-    
+
     match subcommand {
         "start" => handle_start_command(&state, auth.user_id, channel_uuid).await,
         "join" => handle_join_command(&state, auth.user_id, channel_uuid).await,
@@ -92,7 +91,7 @@ async fn handle_start_command(
 ) -> ApiResult<Json<SlashCommandResponse>> {
     // Check if user is channel member
     check_channel_permission(state, user_id, channel_id).await?;
-    
+
     // Use the same logic as the HTTP endpoint
     // For now, return a message directing user to use the UI
     Ok(Json(SlashCommandResponse {
@@ -121,7 +120,7 @@ async fn handle_join_command(
     channel_id: Uuid,
 ) -> ApiResult<Json<SlashCommandResponse>> {
     check_channel_permission(state, user_id, channel_id).await?;
-    
+
     Ok(Json(SlashCommandResponse {
         text: "Joining the call...".to_string(),
         response_type: "ephemeral".to_string(),
@@ -188,17 +187,19 @@ async fn check_channel_permission(
     channel_id: Uuid,
 ) -> ApiResult<()> {
     let member: Option<(Uuid,)> = sqlx::query_as(
-        "SELECT user_id FROM channel_members WHERE channel_id = $1 AND user_id = $2"
+        "SELECT user_id FROM channel_members WHERE channel_id = $1 AND user_id = $2",
     )
     .bind(channel_id)
     .bind(user_id)
     .fetch_optional(&state.db)
     .await
     .map_err(|e| AppError::Internal(format!("Database error: {}", e)))?;
-    
+
     if member.is_none() {
-        return Err(AppError::Forbidden("You are not a member of this channel".to_string()));
+        return Err(AppError::Forbidden(
+            "You are not a member of this channel".to_string(),
+        ));
     }
-    
+
     Ok(())
 }

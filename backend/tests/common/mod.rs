@@ -1,5 +1,5 @@
 use once_cell::sync::Lazy;
-use rustchat::{api, realtime::WsHub, storage::S3Client};
+use rustchat::{api, config::Config, realtime::WsHub, storage::S3Client};
 use sqlx::{Connection, Executor, PgConnection, PgPool};
 use uuid::Uuid;
 
@@ -68,6 +68,7 @@ pub async fn spawn_app() -> TestApp {
         jwt_expiry_hours,
         ws_hub,
         s3_client,
+        test_config(),
     );
 
     let server = axum::serve(listener, app);
@@ -83,6 +84,28 @@ pub async fn spawn_app() -> TestApp {
             .cookie_store(true)
             .build()
             .unwrap(),
+    }
+}
+
+fn test_config() -> Config {
+    Config {
+        server_host: "127.0.0.1".to_string(),
+        server_port: 0,
+        database_url: "postgres://rustchat:rustchat@localhost:5432/rustchat".to_string(),
+        redis_url: "redis://localhost:6379/".to_string(),
+        jwt_secret: "test-secret".to_string(),
+        encryption_key: "test-encryption-key".to_string(),
+        jwt_expiry_hours: 1,
+        log_level: "info".to_string(),
+        s3_endpoint: Some("http://localhost:9000".to_string()),
+        s3_public_endpoint: None,
+        s3_bucket: "test-bucket".to_string(),
+        s3_access_key: Some("minioadmin".to_string()),
+        s3_secret_key: Some("minioadmin".to_string()),
+        s3_region: "us-east-1".to_string(),
+        admin_user: None,
+        admin_password: None,
+        calls: Default::default(),
     }
 }
 

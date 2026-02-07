@@ -11,9 +11,12 @@ use std::collections::HashMap;
 use super::extractors::MmAuthUser;
 use crate::api::AppState;
 use crate::error::ApiResult;
-use crate::mattermost_compat::{id::{encode_mm_id, parse_mm_or_uuid}, models as mm};
-use crate::models::{Team, Channel, TeamMember};
+use crate::mattermost_compat::{
+    id::{encode_mm_id, parse_mm_or_uuid},
+    models as mm,
+};
 use crate::models::channel::ChannelType;
+use crate::models::{Channel, Team, TeamMember};
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -24,16 +27,25 @@ pub fn router() -> Router<AppState> {
         .route("/teams/{team_id}/restore", post(restore_team))
         .route("/teams/name/{name}", get(get_team_by_name))
         .route("/teams/name/{name}/exists", get(team_name_exists))
-        .route("/teams/{team_id}/members", get(get_team_members).post(add_team_member))
+        .route(
+            "/teams/{team_id}/members",
+            get(get_team_members).post(add_team_member),
+        )
         .route("/teams/members/invite", post(add_team_member_by_invite))
-        .route("/teams/{team_id}/members/batch", post(add_team_members_batch))
+        .route(
+            "/teams/{team_id}/members/batch",
+            post(add_team_members_batch),
+        )
         .route(
             "/teams/{team_id}/members/{user_id}",
             get(get_team_member).delete(remove_team_member),
         )
         .route("/teams/{team_id}/members/ids", get(get_team_member_ids))
         .route("/teams/{team_id}/stats", get(get_team_stats))
-        .route("/teams/{team_id}/regenerate_invite_id", post(regenerate_team_invite_id))
+        .route(
+            "/teams/{team_id}/regenerate_invite_id",
+            post(regenerate_team_invite_id),
+        )
         .route(
             "/teams/{team_id}/members/{user_id}/roles",
             put(update_team_member_roles),
@@ -45,20 +57,35 @@ pub fn router() -> Router<AppState> {
         .route("/teams/{team_id}/image", get(get_team_image))
         .route("/teams/{team_id}/members/me", get(get_team_member_me))
         .route("/teams/{team_id}/invite/email", post(invite_users_to_team))
-        .route("/teams/{team_id}/invite-guests/email", post(invite_guests_to_team))
+        .route(
+            "/teams/{team_id}/invite-guests/email",
+            post(invite_guests_to_team),
+        )
         .route("/teams/invites/email", post(invite_users_to_team_by_email))
         .route("/teams/{team_id}/import", post(import_team))
         .route("/teams/invite/{invite_id}", get(get_team_by_invite))
-        .route("/teams/{team_id}/scheme", get(get_team_scheme).put(update_team_scheme))
+        .route(
+            "/teams/{team_id}/scheme",
+            get(get_team_scheme).put(update_team_scheme),
+        )
         .route(
             "/teams/{team_id}/members_minus_group_members",
             get(get_team_members_minus_group_members),
         )
         .route("/teams/{team_id}/channels", get(get_team_channels))
         .route("/teams/{team_id}/channels/ids", get(get_team_channel_ids))
-        .route("/teams/{team_id}/channels/private", get(get_team_private_channels))
-        .route("/teams/{team_id}/channels/deleted", get(get_team_deleted_channels))
-        .route("/teams/{team_id}/channels/autocomplete", get(autocomplete_team_channels))
+        .route(
+            "/teams/{team_id}/channels/private",
+            get(get_team_private_channels),
+        )
+        .route(
+            "/teams/{team_id}/channels/deleted",
+            get(get_team_deleted_channels),
+        )
+        .route(
+            "/teams/{team_id}/channels/autocomplete",
+            get(autocomplete_team_channels),
+        )
         .route(
             "/teams/{team_id}/channels/search_autocomplete",
             get(search_autocomplete_team_channels),
@@ -73,9 +100,15 @@ pub fn router() -> Router<AppState> {
         )
         .route("/teams/{team_id}/channels/search", post(search_channels))
         .route("/teams/search", post(search_teams))
-        .route("/teams/{team_id}/commands/autocomplete", get(autocomplete_team_commands))
+        .route(
+            "/teams/{team_id}/commands/autocomplete",
+            get(autocomplete_team_commands),
+        )
         .route("/teams/{team_id}/groups", get(get_team_groups))
-        .route("/teams/{team_id}/groups_by_channels", get(get_team_groups_by_channels))
+        .route(
+            "/teams/{team_id}/groups_by_channels",
+            get(get_team_groups_by_channels),
+        )
 }
 
 async fn get_teams(
@@ -294,14 +327,13 @@ async fn get_team_member(
     let user_id = parse_mm_or_uuid(&user_id)
         .ok_or_else(|| crate::error::AppError::BadRequest("Invalid user_id".to_string()))?;
     ensure_team_member(&state, team_id, auth.user_id).await?;
-    let member: TeamMember = sqlx::query_as(
-        "SELECT * FROM team_members WHERE team_id = $1 AND user_id = $2",
-    )
-    .bind(team_id)
-    .bind(user_id)
-    .fetch_optional(&state.db)
-    .await?
-    .ok_or_else(|| crate::error::AppError::NotFound("Team member not found".to_string()))?;
+    let member: TeamMember =
+        sqlx::query_as("SELECT * FROM team_members WHERE team_id = $1 AND user_id = $2")
+            .bind(team_id)
+            .bind(user_id)
+            .fetch_optional(&state.db)
+            .await?
+            .ok_or_else(|| crate::error::AppError::NotFound("Team member not found".to_string()))?;
 
     Ok(Json(map_team_member(member)))
 }
@@ -331,12 +363,11 @@ async fn get_team_member_ids(
     let team_id = parse_mm_or_uuid(&team_id)
         .ok_or_else(|| crate::error::AppError::BadRequest("Invalid team_id".to_string()))?;
     ensure_team_member(&state, team_id, auth.user_id).await?;
-    let ids: Vec<uuid::Uuid> = sqlx::query_scalar(
-        "SELECT user_id FROM team_members WHERE team_id = $1",
-    )
-    .bind(team_id)
-    .fetch_all(&state.db)
-    .await?;
+    let ids: Vec<uuid::Uuid> =
+        sqlx::query_scalar("SELECT user_id FROM team_members WHERE team_id = $1")
+            .bind(team_id)
+            .fetch_all(&state.db)
+            .await?;
     Ok(Json(ids.into_iter().map(encode_mm_id).collect()))
 }
 
@@ -348,12 +379,11 @@ async fn get_team_stats(
     let team_id = parse_mm_or_uuid(&team_id)
         .ok_or_else(|| crate::error::AppError::BadRequest("Invalid team_id".to_string()))?;
     ensure_team_member(&state, team_id, auth.user_id).await?;
-    let total_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM team_members WHERE team_id = $1",
-    )
-    .bind(team_id)
-    .fetch_one(&state.db)
-    .await?;
+    let total_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM team_members WHERE team_id = $1")
+            .bind(team_id)
+            .fetch_one(&state.db)
+            .await?;
     let active_count: i64 = sqlx::query_scalar(
         r#"
         SELECT COUNT(*)
@@ -396,7 +426,11 @@ async fn update_team_member_roles(
         .ok_or_else(|| crate::error::AppError::BadRequest("Invalid team_id".to_string()))?;
     let user_id = parse_mm_or_uuid(&user_id)
         .ok_or_else(|| crate::error::AppError::BadRequest("Invalid user_id".to_string()))?;
-    let role = if input.roles.contains("team_admin") { "admin" } else { "member" };
+    let role = if input.roles.contains("team_admin") {
+        "admin"
+    } else {
+        "member"
+    };
     sqlx::query("UPDATE team_members SET role = $1 WHERE team_id = $2 AND user_id = $3")
         .bind(role)
         .bind(team_id)
@@ -505,12 +539,11 @@ async fn get_team_deleted_channels(
     let team_id = parse_mm_or_uuid(&team_id)
         .ok_or_else(|| crate::error::AppError::BadRequest("Invalid team_id".to_string()))?;
     ensure_team_member(&state, team_id, auth.user_id).await?;
-    let channels: Vec<Channel> = sqlx::query_as(
-        "SELECT * FROM channels WHERE team_id = $1 AND is_archived = true",
-    )
-    .bind(team_id)
-    .fetch_all(&state.db)
-    .await?;
+    let channels: Vec<Channel> =
+        sqlx::query_as("SELECT * FROM channels WHERE team_id = $1 AND is_archived = true")
+            .bind(team_id)
+            .fetch_all(&state.db)
+            .await?;
     Ok(Json(channels.into_iter().map(|c| c.into()).collect()))
 }
 
@@ -561,14 +594,13 @@ async fn get_team_channel_by_name(
 ) -> ApiResult<Json<mm::Channel>> {
     let team_id = parse_mm_or_uuid(&team_id)
         .ok_or_else(|| crate::error::AppError::BadRequest("Invalid team_id".to_string()))?;
-    let channel: Channel = sqlx::query_as(
-        "SELECT * FROM channels WHERE team_id = $1 AND name = $2",
-    )
-    .bind(team_id)
-    .bind(&channel_name)
-    .fetch_optional(&state.db)
-    .await?
-    .ok_or_else(|| crate::error::AppError::NotFound("Channel not found".to_string()))?;
+    let channel: Channel =
+        sqlx::query_as("SELECT * FROM channels WHERE team_id = $1 AND name = $2")
+            .bind(team_id)
+            .bind(&channel_name)
+            .fetch_optional(&state.db)
+            .await?
+            .ok_or_else(|| crate::error::AppError::NotFound("Channel not found".to_string()))?;
 
     if channel.channel_type == ChannelType::Private {
         let is_member: bool = sqlx::query_scalar(
@@ -579,7 +611,9 @@ async fn get_team_channel_by_name(
         .fetch_one(&state.db)
         .await?;
         if !is_member {
-            return Err(crate::error::AppError::Forbidden("Not a member of this channel".to_string()));
+            return Err(crate::error::AppError::Forbidden(
+                "Not a member of this channel".to_string(),
+            ));
         }
     }
 
@@ -611,14 +645,15 @@ async fn get_team_member_me(
 ) -> ApiResult<Json<mm::TeamMember>> {
     let team_id = parse_mm_or_uuid(&team_id)
         .ok_or_else(|| crate::error::AppError::BadRequest("Invalid team_id".to_string()))?;
-    let member: crate::models::TeamMember = sqlx::query_as(
-        "SELECT * FROM team_members WHERE team_id = $1 AND user_id = $2",
-    )
-    .bind(team_id)
-    .bind(auth.user_id)
-    .fetch_optional(&state.db)
-    .await?
-    .ok_or_else(|| crate::error::AppError::Forbidden("Not a member of this team".to_string()))?;
+    let member: crate::models::TeamMember =
+        sqlx::query_as("SELECT * FROM team_members WHERE team_id = $1 AND user_id = $2")
+            .bind(team_id)
+            .bind(auth.user_id)
+            .fetch_optional(&state.db)
+            .await?
+            .ok_or_else(|| {
+                crate::error::AppError::Forbidden("Not a member of this team".to_string())
+            })?;
 
     Ok(Json(mm::TeamMember {
         team_id: encode_mm_id(member.team_id),
@@ -678,9 +713,7 @@ async fn get_team_by_invite(
     Ok(Json(team.into()))
 }
 
-async fn get_team_scheme(
-    Path(team_id): Path<String>,
-) -> ApiResult<Json<serde_json::Value>> {
+async fn get_team_scheme(Path(team_id): Path<String>) -> ApiResult<Json<serde_json::Value>> {
     let team_id = parse_mm_or_uuid(&team_id)
         .ok_or_else(|| crate::error::AppError::BadRequest("Invalid team_id".to_string()))?;
     Ok(Json(serde_json::json!({
@@ -714,16 +747,12 @@ async fn get_team_image(
         .ok_or_else(|| crate::error::AppError::BadRequest("Invalid team_id".to_string()))?;
 
     const PNG_1X1: &[u8] = &[
-        137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0,
-        0, 0, 1, 8, 6, 0, 0, 0, 31, 21, 196, 137, 0, 0, 0, 10, 73, 68, 65, 84, 120,
-        156, 99, 0, 1, 0, 0, 5, 0, 1, 13, 10, 45, 180, 0, 0, 0, 0, 73, 69, 78, 68,
-        174, 66, 96, 130,
+        137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1, 8, 6,
+        0, 0, 0, 31, 21, 196, 137, 0, 0, 0, 10, 73, 68, 65, 84, 120, 156, 99, 0, 1, 0, 0, 5, 0, 1,
+        13, 10, 45, 180, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130,
     ];
 
-    Ok((
-        [(axum::http::header::CONTENT_TYPE, "image/png")],
-        PNG_1X1,
-    ))
+    Ok(([(axum::http::header::CONTENT_TYPE, "image/png")], PNG_1X1))
 }
 
 /// POST /teams/{team_id}/channels/search - Search channels in a team
@@ -769,7 +798,9 @@ async fn ensure_team_member(
     .fetch_one(&state.db)
     .await?;
     if !is_member {
-        return Err(crate::error::AppError::Forbidden("Not a member of this team".to_string()));
+        return Err(crate::error::AppError::Forbidden(
+            "Not a member of this team".to_string(),
+        ));
     }
     Ok(())
 }
@@ -853,20 +884,18 @@ async fn search_channels(
     Ok(Json(mm_channels))
 }
 
-
 async fn search_teams(
     State(state): State<AppState>,
     _auth: MmAuthUser,
     Json(input): Json<HashMap<String, String>>,
 ) -> ApiResult<Json<Vec<mm::Team>>> {
     let term = input.get("term").map(|s| s.as_str()).unwrap_or_default();
-    
-    let teams: Vec<Team> = sqlx::query_as(
-        "SELECT * FROM teams WHERE name ILIKE $1 OR display_name ILIKE $1"
-    )
-    .bind(format!("%{}%", term))
-    .fetch_all(&state.db)
-    .await?;
+
+    let teams: Vec<Team> =
+        sqlx::query_as("SELECT * FROM teams WHERE name ILIKE $1 OR display_name ILIKE $1")
+            .bind(format!("%{}%", term))
+            .fetch_all(&state.db)
+            .await?;
 
     Ok(Json(teams.into_iter().map(|t| t.into()).collect()))
 }

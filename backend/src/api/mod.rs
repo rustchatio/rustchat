@@ -30,12 +30,14 @@ use tower_http::{
     catch_panic::CatchPanicLayer,
     compression::CompressionLayer,
     cors::{Any, CorsLayer},
-    trace::{TraceLayer, DefaultOnResponse, DefaultOnRequest, DefaultMakeSpan},
+    trace::{DefaultMakeSpan, DefaultOnRequest, DefaultOnResponse, TraceLayer},
 };
 use tracing::Level;
 
 /// Handle panics by converting them to 500 responses
-fn handle_panic(err: Box<dyn std::any::Any + Send + 'static>) -> axum::http::Response<axum::body::Body> {
+fn handle_panic(
+    err: Box<dyn std::any::Any + Send + 'static>,
+) -> axum::http::Response<axum::body::Body> {
     let panic_message = if let Some(s) = err.downcast_ref::<String>() {
         s.clone()
     } else if let Some(s) = err.downcast_ref::<&str>() {
@@ -43,9 +45,9 @@ fn handle_panic(err: Box<dyn std::any::Any + Send + 'static>) -> axum::http::Res
     } else {
         "Unknown panic".to_string()
     };
-    
+
     tracing::error!("PANIC: {}", panic_message);
-    
+
     axum::http::Response::builder()
         .status(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         .header("content-type", "application/json")
@@ -55,10 +57,10 @@ fn handle_panic(err: Box<dyn std::any::Any + Send + 'static>) -> axum::http::Res
         .unwrap()
 }
 
+use crate::api::v4::calls_plugin::sfu::SFUManager;
+use crate::config::Config;
 use crate::realtime::{ConnectionStore, WsHub};
 use crate::storage::S3Client;
-use crate::config::Config;
-use crate::api::v4::calls_plugin::sfu::SFUManager;
 
 /// Application state shared across handlers
 #[derive(Clone)]
@@ -147,7 +149,7 @@ pub fn router(
             TraceLayer::new_for_http()
                 .make_span_with(DefaultMakeSpan::new().include_headers(true))
                 .on_request(DefaultOnRequest::new().level(Level::DEBUG))
-                .on_response(DefaultOnResponse::new().level(Level::INFO))
+                .on_response(DefaultOnResponse::new().level(Level::INFO)),
         )
         .layer(cors)
         .with_state(state)

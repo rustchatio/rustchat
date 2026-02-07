@@ -31,7 +31,7 @@ use crate::mattermost_compat::{
 };
 use crate::realtime::{
     websocket_actor::{close_codes, WebSocketActor, WsEvent},
-    WsEnvelope, WsBroadcast,
+    WsBroadcast, WsEnvelope,
 };
 
 /// WebSocket query parameters
@@ -90,7 +90,9 @@ pub async fn handle_websocket(
 
     // Validate token
     let user_id = if let Some(ref t) = token {
-        validate_token(t, &state.jwt_secret).ok().map(|c| c.claims.sub)
+        validate_token(t, &state.jwt_secret)
+            .ok()
+            .map(|c| c.claims.sub)
     } else {
         None
     };
@@ -126,7 +128,8 @@ async fn handle_socket(
             match authenticate_via_websocket(socket, &state).await {
                 Some((id, sock)) => {
                     // Continue with authenticated socket
-                    return run_connection(sock, state, id, connection_id, sequence_number, addr).await;
+                    return run_connection(sock, state, id, connection_id, sequence_number, addr)
+                        .await;
                 }
                 None => {
                     warn!(addr = %addr, "WebSocket authentication failed");
@@ -146,7 +149,7 @@ async fn authenticate_via_websocket(
 ) -> Option<(Uuid, WebSocket)> {
     // Wait for authentication challenge
     let timeout_duration = Duration::from_secs(30);
-    
+
     loop {
         match timeout(timeout_duration, socket.recv()).await {
             Ok(Some(Ok(Message::Text(text)))) => {
@@ -155,17 +158,15 @@ async fn authenticate_via_websocket(
                         if let Some(token) = value["data"]["token"].as_str() {
                             if let Ok(claims) = validate_token(token, &state.jwt_secret) {
                                 let user_id = claims.claims.sub;
-                                
+
                                 // Send OK response
                                 let resp = json!({
                                     "status": "OK",
                                     "seq_reply": value["seq"]
                                 });
-                                
-                                let _ = socket
-                                    .send(Message::Text(resp.to_string().into()))
-                                    .await;
-                                
+
+                                let _ = socket.send(Message::Text(resp.to_string().into())).await;
+
                                 return Some((user_id, socket));
                             } else {
                                 // Send error response
@@ -174,9 +175,7 @@ async fn authenticate_via_websocket(
                                     "seq_reply": value["seq"],
                                     "error": "Invalid token"
                                 });
-                                let _ = socket
-                                    .send(Message::Text(resp.to_string().into()))
-                                    .await;
+                                let _ = socket.send(Message::Text(resp.to_string().into())).await;
                             }
                         }
                     }
@@ -209,7 +208,7 @@ async fn run_connection(
     // Check connection limits
     let max_connections = get_max_simultaneous_connections(&state).await;
     let current_connections = state.ws_hub.user_connection_count(user_id).await;
-    
+
     if current_connections >= max_connections {
         warn!(
             user_id = %user_id,
@@ -217,7 +216,7 @@ async fn run_connection(
             max = max_connections,
             "Too many connections for user"
         );
-        
+
         // Send close frame and return
         // Note: In axum 0.8, we can't easily split the socket, so we just drop it
         // The client will see the connection close
@@ -229,7 +228,7 @@ async fn run_connection(
 
     // Check if this is a resumption attempt before moving connection_id
     let is_resumption_attempt = connection_id.is_some();
-    
+
     // Create WebSocket actor with session resumption
     let (actor, missed_messages) = WebSocketActor::new(
         socket,
@@ -271,12 +270,13 @@ async fn run_connection(
     let (hub_conn_id, mut hub_rx) = state.ws_hub.add_connection(user_id, username.clone()).await;
 
     // Subscribe to teams and channels
-    let teams = sqlx::query_scalar::<_, Uuid>("SELECT team_id FROM team_members WHERE user_id = $1")
-        .bind(user_id)
-        .fetch_all(&state.db)
-        .await
-        .unwrap_or_default();
-    
+    let teams =
+        sqlx::query_scalar::<_, Uuid>("SELECT team_id FROM team_members WHERE user_id = $1")
+            .bind(user_id)
+            .fetch_all(&state.db)
+            .await
+            .unwrap_or_default();
+
     for team_id in teams {
         state.ws_hub.subscribe_team(user_id, team_id).await;
     }
@@ -287,7 +287,7 @@ async fn run_connection(
             .fetch_all(&state.db)
             .await
             .unwrap_or_default();
-    
+
     for channel_id in channels {
         state.ws_hub.subscribe_channel(user_id, channel_id).await;
     }
@@ -404,7 +404,7 @@ async fn run_connection(
                     }
                 }
             }
-            
+
             // If hub forward task ends, we should also close
             _ = &mut hub_forward_task => {
                 debug!(connection_id = %actor_connection_id, "Hub forward task ended");
@@ -415,10 +415,10 @@ async fn run_connection(
 
     // Cleanup
     hub_forward_task.abort();
-    
+
     // Mark connection as disconnected (for potential resumption)
     actor.disconnect();
-    
+
     // Remove from hub
     state.ws_hub.remove_connection(user_id, hub_conn_id).await;
 
@@ -448,12 +448,7 @@ async fn run_connection(
 }
 
 /// Handle a message from the client
-async fn handle_client_message(
-    state: &AppState,
-    user_id: Uuid,
-    username: &str,
-    text: &str,
-) {
+async fn handle_client_message(state: &AppState, user_id: Uuid, username: &str, text: &str) {
     trace!(
         user_id = %user_id,
         text = %text,
@@ -466,7 +461,9 @@ async fn handle_client_message(
             match action {
                 "user_typing" => {
                     if let Some(data) = value.get("data") {
-                        if let Some(channel_id_str) = data.get("channel_id").and_then(|v| v.as_str()) {
+                        if let Some(channel_id_str) =
+                            data.get("channel_id").and_then(|v| v.as_str())
+                        {
                             if let Some(channel_id) = parse_mm_or_uuid(channel_id_str) {
                                 let broadcast = WsEnvelope::event(
                                     crate::realtime::EventType::UserTyping,
@@ -496,7 +493,7 @@ async fn handle_client_message(
                 }
             }
         }
-        
+
         // Handle envelope-style messages (our internal format)
         if let Ok(envelope) = serde_json::from_str::<crate::realtime::ClientEnvelope>(text) {
             match envelope.event.as_str() {
@@ -594,11 +591,10 @@ fn map_envelope_to_mm(env: &WsEnvelope) -> Option<mm::WebSocketMessage> {
             }
         }
         "user_typing" => {
-            if let Ok(typing) = serde_json::from_value::<crate::realtime::TypingEvent>(env.data.clone()) {
-                let parent_id = typing
-                    .thread_root_id
-                    .map(encode_mm_id)
-                    .unwrap_or_default();
+            if let Ok(typing) =
+                serde_json::from_value::<crate::realtime::TypingEvent>(env.data.clone())
+            {
+                let parent_id = typing.thread_root_id.map(encode_mm_id).unwrap_or_default();
                 Some(mm::WebSocketMessage {
                     seq,
                     event: "typing".to_string(),
@@ -651,7 +647,9 @@ fn map_envelope_to_mm(env: &WsEnvelope) -> Option<mm::WebSocketMessage> {
                 let mm_reaction = mm::Reaction {
                     user_id: encode_mm_id(reaction.user_id),
                     post_id: encode_mm_id(reaction.post_id),
-                    emoji_name: crate::mattermost_compat::emoji_data::get_short_name_for_emoji(&reaction.emoji_name),
+                    emoji_name: crate::mattermost_compat::emoji_data::get_short_name_for_emoji(
+                        &reaction.emoji_name,
+                    ),
                     create_at: reaction.created_at.timestamp_millis(),
                     update_at: reaction.created_at.timestamp_millis(),
                     delete_at: 0,
@@ -676,7 +674,9 @@ fn map_envelope_to_mm(env: &WsEnvelope) -> Option<mm::WebSocketMessage> {
                 let mm_reaction = mm::Reaction {
                     user_id: encode_mm_id(reaction.user_id),
                     post_id: encode_mm_id(reaction.post_id),
-                    emoji_name: crate::mattermost_compat::emoji_data::get_short_name_for_emoji(&reaction.emoji_name),
+                    emoji_name: crate::mattermost_compat::emoji_data::get_short_name_for_emoji(
+                        &reaction.emoji_name,
+                    ),
                     create_at: reaction.created_at.timestamp_millis(),
                     update_at: reaction.created_at.timestamp_millis(),
                     delete_at: 0,

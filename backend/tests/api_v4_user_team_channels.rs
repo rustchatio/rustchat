@@ -100,12 +100,14 @@ async fn setup_team_channel(ctx: &TestContext) -> (Uuid, Uuid) {
         .unwrap();
 
     let channel_id = Uuid::new_v4();
-    sqlx::query("INSERT INTO channels (id, team_id, name, type) VALUES ($1, $2, 'mmchannel', 'public')")
-        .bind(channel_id)
-        .bind(team_id)
-        .execute(&ctx.app.db_pool)
-        .await
-        .unwrap();
+    sqlx::query(
+        "INSERT INTO channels (id, team_id, name, type) VALUES ($1, $2, 'mmchannel', 'public')",
+    )
+    .bind(channel_id)
+    .bind(team_id)
+    .execute(&ctx.app.db_pool)
+    .await
+    .unwrap();
     sqlx::query("INSERT INTO channel_members (channel_id, user_id, role, notify_props) VALUES ($1, $2, 'member', '{}')")
         .bind(channel_id)
         .bind(ctx.user_uuid)
@@ -124,7 +126,10 @@ async fn mm_user_team_and_channel_routes() {
     let teams_res = ctx
         .app
         .api_client
-        .get(format!("{}/api/v4/users/{}/teams", &ctx.app.address, ctx.user_id))
+        .get(format!(
+            "{}/api/v4/users/{}/teams",
+            &ctx.app.address, ctx.user_id
+        ))
         .header("Authorization", format!("Bearer {}", ctx.token))
         .send()
         .await
@@ -137,7 +142,10 @@ async fn mm_user_team_and_channel_routes() {
     let channels_res = ctx
         .app
         .api_client
-        .get(format!("{}/api/v4/users/{}/channels", &ctx.app.address, ctx.user_id))
+        .get(format!(
+            "{}/api/v4/users/{}/channels",
+            &ctx.app.address, ctx.user_id
+        ))
         .header("Authorization", format!("Bearer {}", ctx.token))
         .send()
         .await

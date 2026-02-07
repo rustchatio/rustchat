@@ -101,12 +101,14 @@ async fn setup_team_channel(ctx: &TestContext) -> (Uuid, Uuid) {
         .unwrap();
 
     let channel_id = Uuid::new_v4();
-    sqlx::query("INSERT INTO channels (id, team_id, name, type) VALUES ($1, $2, 'mmchannel', 'public')")
-        .bind(channel_id)
-        .bind(team_id)
-        .execute(&ctx.app.db_pool)
-        .await
-        .unwrap();
+    sqlx::query(
+        "INSERT INTO channels (id, team_id, name, type) VALUES ($1, $2, 'mmchannel', 'public')",
+    )
+    .bind(channel_id)
+    .bind(team_id)
+    .execute(&ctx.app.db_pool)
+    .await
+    .unwrap();
     sqlx::query("INSERT INTO channel_members (channel_id, user_id, role, notify_props) VALUES ($1, $2, 'member', '{}')")
         .bind(channel_id)
         .bind(ctx.user_uuid)
@@ -167,7 +169,10 @@ async fn mm_channel_member_routes() {
         .unwrap();
     assert_eq!(200, roles_res.status().as_u16());
     let roles_body: serde_json::Value = roles_res.json().await.unwrap();
-    assert!(roles_body["roles"].as_str().unwrap().contains("channel_admin"));
+    assert!(roles_body["roles"]
+        .as_str()
+        .unwrap()
+        .contains("channel_admin"));
 
     let notify_res = ctx
         .app

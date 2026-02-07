@@ -12,7 +12,9 @@ pub fn router() -> Router<AppState> {
         .route("/oauth/apps", get(get_oauth_apps).post(create_oauth_app))
         .route(
             "/oauth/apps/{app_id}",
-            get(get_oauth_app).put(update_oauth_app).delete(delete_oauth_app),
+            get(get_oauth_app)
+                .put(update_oauth_app)
+                .delete(delete_oauth_app),
         )
         .route("/oauth/apps/{app_id}/info", get(get_oauth_app_info))
         .route(

@@ -1,12 +1,15 @@
+use crate::api::v4::extractors::MmAuthUser;
+use crate::api::AppState;
+use crate::error::{ApiResult, AppError};
+use crate::mattermost_compat::{
+    id::{encode_mm_id, parse_mm_or_uuid},
+    models as mm,
+};
 use axum::{
     extract::{Path, State},
     routing::{get, post},
     Json, Router,
 };
-use crate::api::AppState;
-use crate::api::v4::extractors::MmAuthUser;
-use crate::error::{ApiResult, AppError};
-use crate::mattermost_compat::{id::{encode_mm_id, parse_mm_or_uuid}, models as mm};
 use uuid::Uuid;
 
 pub fn router() -> Router<AppState> {
@@ -15,10 +18,7 @@ pub fn router() -> Router<AppState> {
         .route("/emoji/search", post(search_emoji))
         .route("/emoji/autocomplete", get(get_emoji_autocomplete))
         .route("/emoji/names", post(get_emojis_by_names))
-        .route(
-            "/emoji/{emoji_id}",
-            get(get_emoji).delete(delete_emoji),
-        )
+        .route("/emoji/{emoji_id}", get(get_emoji).delete(delete_emoji))
         .route("/emoji/{emoji_id}/image", get(get_emoji_image))
         .route("/emoji/name/{name}", get(get_emoji_by_name))
 }
@@ -47,7 +47,7 @@ pub async fn list_emoji(
                 (extract(epoch from create_at)*1000)::bigint as create_at, 
                 (extract(epoch from update_at)*1000)::bigint as update_at, 
                 COALESCE((extract(epoch from delete_at)*1000)::bigint, 0) as delete_at 
-         FROM custom_emojis WHERE delete_at IS NULL"
+         FROM custom_emojis WHERE delete_at IS NULL",
     )
     .fetch_all(&state.db)
     .await?;
@@ -68,7 +68,7 @@ pub async fn search_emoji(
                 (extract(epoch from update_at)*1000)::bigint as update_at, 
                 COALESCE((extract(epoch from delete_at)*1000)::bigint, 0) as delete_at 
          FROM custom_emojis 
-         WHERE name ILIKE $1 AND delete_at IS NULL"
+         WHERE name ILIKE $1 AND delete_at IS NULL",
     )
     .bind(term)
     .fetch_all(&state.db)
@@ -91,7 +91,7 @@ pub async fn get_emoji(
                 (extract(epoch from create_at)*1000)::bigint as create_at, 
                 (extract(epoch from update_at)*1000)::bigint as update_at, 
                 COALESCE((extract(epoch from delete_at)*1000)::bigint, 0) as delete_at 
-         FROM custom_emojis WHERE id = $1 AND delete_at IS NULL"
+         FROM custom_emojis WHERE id = $1 AND delete_at IS NULL",
     )
     .bind(emoji_id)
     .fetch_optional(&state.db)
@@ -110,15 +110,17 @@ pub async fn get_emoji_by_name(
 ) -> ApiResult<Json<mm::Emoji>> {
     // First check if it's a Unicode emoji (starts with emoji codepoints)
     // Mobile client sends actual emoji characters like 👍 instead of "thumbsup"
-    let is_unicode_emoji = name.chars().next()
+    let is_unicode_emoji = name
+        .chars()
+        .next()
         .map(|c| c > '\u{1F300}' || c == '❤' || c == '✅' || c == '❓' || c == '❗')
         .unwrap_or(false);
-    
+
     if is_unicode_emoji {
         // For Unicode emojis, return a synthetic "system emoji" response
         // Convert Unicode character to short name if possible
         let normalized_name = crate::mattermost_compat::emoji_data::get_short_name_for_emoji(&name);
-        
+
         return Ok(Json(mm::Emoji {
             id: "system".to_string(),
             name: normalized_name,
@@ -128,7 +130,7 @@ pub async fn get_emoji_by_name(
             delete_at: 0,
         }));
     }
-    
+
     // Check if it's a known system emoji name
     if crate::mattermost_compat::emoji_data::is_system_emoji(&name) {
         return Ok(Json(mm::Emoji {
@@ -140,14 +142,14 @@ pub async fn get_emoji_by_name(
             delete_at: 0,
         }));
     }
-    
+
     // Check custom emojis in DB
     let emoji: Option<DbEmoji> = sqlx::query_as(
         "SELECT id, name, creator_id, 
                 (extract(epoch from create_at)*1000)::bigint as create_at, 
                 (extract(epoch from update_at)*1000)::bigint as update_at, 
                 COALESCE((extract(epoch from delete_at)*1000)::bigint, 0) as delete_at 
-         FROM custom_emojis WHERE name = $1 AND delete_at IS NULL"
+         FROM custom_emojis WHERE name = $1 AND delete_at IS NULL",
     )
     .bind(&name)
     .fetch_optional(&state.db)
@@ -177,7 +179,9 @@ pub async fn get_emoji_image(
     // Handle special "system" emoji ID - system emojis don't have server-stored images
     // The client renders them from its own emoji font/assets
     if emoji_id_str == "system" {
-        return Err(AppError::NotFound("System emojis use client-side rendering".to_string()));
+        return Err(AppError::NotFound(
+            "System emojis use client-side rendering".to_string(),
+        ));
     }
 
     let emoji_id = parse_mm_or_uuid(&emoji_id_str)
@@ -262,7 +266,9 @@ pub async fn create_emoji(
     .fetch_one(&state.db)
     .await?;
     if exists {
-        return Err(AppError::BadRequest("Emoji name already exists".to_string()));
+        return Err(AppError::BadRequest(
+            "Emoji name already exists".to_string(),
+        ));
     }
 
     if image_data.is_empty() {
@@ -373,7 +379,7 @@ pub async fn get_emojis_by_names(
                COALESCE((extract(epoch from delete_at)*1000)::bigint, 0) as delete_at 
         FROM custom_emojis 
         WHERE name = ANY($1) AND delete_at IS NULL
-        "#
+        "#,
     )
     .bind(&input)
     .fetch_all(&state.db)
@@ -393,4 +399,3 @@ fn map_emoji(emoji: DbEmoji) -> mm::Emoji {
         name: emoji.name,
     }
 }
-

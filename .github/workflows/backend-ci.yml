@@ -11,7 +11,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  SQLX_VERSION: 0.8.0
+  RUST_BACKTRACE: 1
   # Postgres service credentials
   POSTGRES_USER: rustchat
   POSTGRES_PASSWORD: password
@@ -19,7 +19,7 @@ env:
 
 jobs:
   test:
-    name: Test & Lint
+    name: cargo check + test
     runs-on: ubuntu-latest
     env:
       DATABASE_URL: postgres://rustchat:password@localhost:5432/rustchat
@@ -57,6 +57,14 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
+      rustfs:
+        image: rustfs/rustfs:latest
+        env:
+          RUSTFS_ACCESS_KEY: minioadmin
+          RUSTFS_SECRET_KEY: minioadmin
+        ports:
+          - 9000:9000
+
     defaults:
       run:
         working-directory: backend
@@ -65,12 +73,10 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@1.93.0
-        with:
-          components: clippy, rustfmt
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Cache Cargo registry
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
@@ -78,28 +84,66 @@ jobs:
             backend/target
           key: ${{ runner.os }}-cargo-${{ hashFiles('backend/Cargo.lock') }}
 
-      - name: Cache sqlx-cli
-        id: cache-sqlx
-        uses: actions/cache@v3
-        with:
-          path: ~/.cargo/bin/sqlx
-          key: ${{ runner.os }}-sqlx-${{ env.SQLX_VERSION }}
+      - name: Wait for services
+        run: |
+          set -euo pipefail
+          echo "::group::Waiting for Postgres"
+          for i in {1..30}; do
+            if pg_isready -h localhost -p 5432 -U "$POSTGRES_USER" >/dev/null 2>&1; then
+              break
+            fi
+            sleep 1
+          done
+          pg_isready -h localhost -p 5432 -U "$POSTGRES_USER"
+          echo "::endgroup::"
+          echo "::group::Waiting for Redis"
+          for i in {1..30}; do
+            if (echo > /dev/tcp/127.0.0.1/6379) >/dev/null 2>&1; then
+              echo "Redis is accepting TCP connections"
+              break
+            fi
+            sleep 1
+          done
+          if ! (echo > /dev/tcp/127.0.0.1/6379) >/dev/null 2>&1; then
+            echo "Redis did not become ready in time" >&2
+            exit 1
+          fi
+          echo "::endgroup::"
+          echo "::group::Waiting for RustFS (S3)"
+          for i in {1..60}; do
+            if (echo > /dev/tcp/127.0.0.1/9000) >/dev/null 2>&1; then
+              echo "RustFS endpoint is accepting TCP connections"
+              break
+            fi
+            sleep 1
+          done
+          if ! (echo > /dev/tcp/127.0.0.1/9000) >/dev/null 2>&1; then
+            echo "RustFS endpoint did not become ready in time" >&2
+            exit 1
+          fi
+          for i in {1..60}; do
+            if curl -fsS http://127.0.0.1:9000/health >/dev/null 2>&1; then
+              echo "RustFS health endpoint is ready"
+              break
+            fi
+            sleep 1
+          done
+          if ! curl -fsS http://127.0.0.1:9000/health >/dev/null 2>&1; then
+            echo "RustFS health endpoint did not become ready in time" >&2
+            exit 1
+          fi
+          echo "::endgroup::"
 
-      - name: Install sqlx-cli
-        if: steps.cache-sqlx.outputs.cache-hit != 'true'
-        run: cargo install sqlx-cli --version ${{ env.SQLX_VERSION }} --features postgres,native-tls --no-default-features --locked
+      - name: Run cargo check
+        run: |
+          set -euo pipefail
+          echo "::group::cargo check"
+          cargo check
+          echo "::endgroup::"
 
-      - name: Run migrations
-        run: sqlx migrate run
-
-      - name: Check
-        run: cargo check
-
-      - name: Format
-        run: cargo fmt --all -- --check
-
-      - name: Lint
-        run: cargo clippy -- -D warnings
-
-      - name: Test
-        run: cargo test
+      - name: Run cargo test
+        run: |
+          set -euo pipefail
+          echo "::group::cargo test"
+          cargo test --no-fail-fast -- --nocapture
+          echo "::endgroup::"

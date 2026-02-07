@@ -1,25 +1,47 @@
 use axum::{
-    extract::{State, Query},
+    extract::{Query, State},
     routing::{get, post},
     Json, Router,
 };
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/hooks/incoming", get(list_incoming_hooks).post(create_incoming_hook))
-        .route("/hooks/incoming/{hook_id}", get(get_incoming_hook).put(update_incoming_hook).delete(delete_incoming_hook))
-        .route("/hooks/outgoing", get(list_outgoing_hooks).post(create_outgoing_hook))
-        .route("/hooks/outgoing/{hook_id}", get(get_outgoing_hook).put(update_outgoing_hook).delete(delete_outgoing_hook))
-        .route("/hooks/outgoing/{hook_id}/regen_token", post(regen_outgoing_hook_token))
+        .route(
+            "/hooks/incoming",
+            get(list_incoming_hooks).post(create_incoming_hook),
+        )
+        .route(
+            "/hooks/incoming/{hook_id}",
+            get(get_incoming_hook)
+                .put(update_incoming_hook)
+                .delete(delete_incoming_hook),
+        )
+        .route(
+            "/hooks/outgoing",
+            get(list_outgoing_hooks).post(create_outgoing_hook),
+        )
+        .route(
+            "/hooks/outgoing/{hook_id}",
+            get(get_outgoing_hook)
+                .put(update_outgoing_hook)
+                .delete(delete_outgoing_hook),
+        )
+        .route(
+            "/hooks/outgoing/{hook_id}/regen_token",
+            post(regen_outgoing_hook_token),
+        )
         // Public incoming webhook endpoint (no auth required)
         .route("/hooks/{token}", post(execute_incoming_hook))
 }
-use axum::extract::Path;
-use crate::api::AppState;
 use crate::api::v4::extractors::MmAuthUser;
+use crate::api::AppState;
 use crate::error::{ApiResult, AppError};
-use crate::mattermost_compat::{id::{encode_mm_id, parse_mm_or_uuid}, models as mm};
+use crate::mattermost_compat::{
+    id::{encode_mm_id, parse_mm_or_uuid},
+    models as mm,
+};
 use crate::models::{IncomingWebhook, OutgoingWebhook};
+use axum::extract::Path;
 use uuid::Uuid;
 
 #[derive(serde::Deserialize)]
@@ -100,12 +122,14 @@ pub async fn list_incoming_hooks(
             sql.push_str(&format!(" AND team_id = '{}'", tid));
         }
     }
-    
-    sql.push_str(&format!(" LIMIT {} OFFSET {}", query.per_page, query.page * query.per_page));
 
-    let hooks: Vec<IncomingWebhook> = sqlx::query_as(&sql)
-        .fetch_all(&state.db)
-        .await?;
+    sql.push_str(&format!(
+        " LIMIT {} OFFSET {}",
+        query.per_page,
+        query.page * query.per_page
+    ));
+
+    let hooks: Vec<IncomingWebhook> = sqlx::query_as(&sql).fetch_all(&state.db).await?;
 
     Ok(Json(hooks.into_iter().map(map_incoming_hook).collect()))
 }
@@ -155,12 +179,14 @@ pub async fn list_outgoing_hooks(
             sql.push_str(&format!(" AND team_id = '{}'", tid));
         }
     }
-    
-    sql.push_str(&format!(" LIMIT {} OFFSET {}", query.per_page, query.page * query.per_page));
 
-    let hooks: Vec<OutgoingWebhook> = sqlx::query_as(&sql)
-        .fetch_all(&state.db)
-        .await?;
+    sql.push_str(&format!(
+        " LIMIT {} OFFSET {}",
+        query.per_page,
+        query.page * query.per_page
+    ));
+
+    let hooks: Vec<OutgoingWebhook> = sqlx::query_as(&sql).fetch_all(&state.db).await?;
 
     Ok(Json(hooks.into_iter().map(map_outgoing_hook).collect()))
 }
@@ -204,13 +230,13 @@ async fn get_incoming_hook(
 ) -> ApiResult<Json<mm::IncomingWebhook>> {
     let id = parse_mm_or_uuid(&hook_id)
         .ok_or_else(|| AppError::Validation("Invalid hook_id".to_string()))?;
-    
+
     let hook: IncomingWebhook = sqlx::query_as("SELECT * FROM incoming_webhooks WHERE id = $1")
         .bind(id)
         .fetch_one(&state.db)
         .await
         .map_err(|_| AppError::NotFound("Webhook not found".to_string()))?;
-    
+
     Ok(Json(map_incoming_hook(hook)))
 }
 
@@ -229,13 +255,13 @@ async fn update_incoming_hook(
 ) -> ApiResult<Json<mm::IncomingWebhook>> {
     let id = parse_mm_or_uuid(&hook_id)
         .ok_or_else(|| AppError::Validation("Invalid hook_id".to_string()))?;
-    
+
     let hook: IncomingWebhook = sqlx::query_as(
         r#"UPDATE incoming_webhooks SET
             display_name = COALESCE($2, display_name),
             description = COALESCE($3, description),
             updated_at = NOW()
-           WHERE id = $1 RETURNING *"#
+           WHERE id = $1 RETURNING *"#,
     )
     .bind(id)
     .bind(&input.display_name)
@@ -243,7 +269,7 @@ async fn update_incoming_hook(
     .fetch_one(&state.db)
     .await
     .map_err(|_| AppError::NotFound("Webhook not found".to_string()))?;
-    
+
     Ok(Json(map_incoming_hook(hook)))
 }
 
@@ -254,12 +280,12 @@ async fn delete_incoming_hook(
 ) -> ApiResult<Json<serde_json::Value>> {
     let id = parse_mm_or_uuid(&hook_id)
         .ok_or_else(|| AppError::Validation("Invalid hook_id".to_string()))?;
-    
+
     sqlx::query("DELETE FROM incoming_webhooks WHERE id = $1")
         .bind(id)
         .execute(&state.db)
         .await?;
-    
+
     Ok(Json(serde_json::json!({"status": "OK"})))
 }
 
@@ -270,13 +296,13 @@ async fn get_outgoing_hook(
 ) -> ApiResult<Json<mm::OutgoingWebhook>> {
     let id = parse_mm_or_uuid(&hook_id)
         .ok_or_else(|| AppError::Validation("Invalid hook_id".to_string()))?;
-    
+
     let hook: OutgoingWebhook = sqlx::query_as("SELECT * FROM outgoing_webhooks WHERE id = $1")
         .bind(id)
         .fetch_one(&state.db)
         .await
         .map_err(|_| AppError::NotFound("Webhook not found".to_string()))?;
-    
+
     Ok(Json(map_outgoing_hook(hook)))
 }
 
@@ -296,7 +322,7 @@ async fn update_outgoing_hook(
 ) -> ApiResult<Json<mm::OutgoingWebhook>> {
     let id = parse_mm_or_uuid(&hook_id)
         .ok_or_else(|| AppError::Validation("Invalid hook_id".to_string()))?;
-    
+
     let hook: OutgoingWebhook = sqlx::query_as(
         r#"UPDATE outgoing_webhooks SET
             display_name = COALESCE($2, display_name),
@@ -304,7 +330,7 @@ async fn update_outgoing_hook(
             trigger_words = COALESCE($4, trigger_words),
             callback_urls = COALESCE($5, callback_urls),
             updated_at = NOW()
-           WHERE id = $1 RETURNING *"#
+           WHERE id = $1 RETURNING *"#,
     )
     .bind(id)
     .bind(&input.display_name)
@@ -314,7 +340,7 @@ async fn update_outgoing_hook(
     .fetch_one(&state.db)
     .await
     .map_err(|_| AppError::NotFound("Webhook not found".to_string()))?;
-    
+
     Ok(Json(map_outgoing_hook(hook)))
 }
 
@@ -325,12 +351,12 @@ async fn delete_outgoing_hook(
 ) -> ApiResult<Json<serde_json::Value>> {
     let id = parse_mm_or_uuid(&hook_id)
         .ok_or_else(|| AppError::Validation("Invalid hook_id".to_string()))?;
-    
+
     sqlx::query("DELETE FROM outgoing_webhooks WHERE id = $1")
         .bind(id)
         .execute(&state.db)
         .await?;
-    
+
     Ok(Json(serde_json::json!({"status": "OK"})))
 }
 
@@ -341,18 +367,18 @@ async fn regen_outgoing_hook_token(
 ) -> ApiResult<Json<mm::OutgoingWebhook>> {
     let id = parse_mm_or_uuid(&hook_id)
         .ok_or_else(|| AppError::Validation("Invalid hook_id".to_string()))?;
-    
+
     let new_token = Uuid::new_v4().to_string().replace("-", "");
-    
+
     let hook: OutgoingWebhook = sqlx::query_as(
-        "UPDATE outgoing_webhooks SET token = $2, updated_at = NOW() WHERE id = $1 RETURNING *"
+        "UPDATE outgoing_webhooks SET token = $2, updated_at = NOW() WHERE id = $1 RETURNING *",
     )
     .bind(id)
     .bind(&new_token)
     .fetch_one(&state.db)
     .await
     .map_err(|_| AppError::NotFound("Webhook not found".to_string()))?;
-    
+
     Ok(Json(map_outgoing_hook(hook)))
 }
 

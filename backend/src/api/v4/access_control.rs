@@ -22,12 +22,18 @@ pub fn router() -> Router<AppState> {
             "/access_control_policies/cel/test",
             post(test_access_control_cel),
         )
-        .route("/access_control_policies/search", post(search_access_control_policies))
+        .route(
+            "/access_control_policies/search",
+            post(search_access_control_policies),
+        )
         .route(
             "/access_control_policies/cel/autocomplete/fields",
             get(get_access_control_cel_autocomplete_fields),
         )
-        .route("/access_control_policies/{policy_id}", get(get_access_control_policy))
+        .route(
+            "/access_control_policies/{policy_id}",
+            get(get_access_control_policy),
+        )
         .route(
             "/access_control_policies/{policy_id}/activate",
             post(activate_access_control_policy),
@@ -52,7 +58,10 @@ pub fn router() -> Router<AppState> {
             "/access_control_policies/cel/visual_ast",
             get(get_access_control_cel_visual_ast),
         )
-        .route("/access_control_policies/activate", post(activate_access_control_policies))
+        .route(
+            "/access_control_policies/activate",
+            post(activate_access_control_policies),
+        )
 }
 
 /// GET /api/v4/access_control_policies

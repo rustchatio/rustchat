@@ -184,7 +184,8 @@ fn parse_body<T: serde::de::DeserializeOwned>(
         .unwrap_or("");
 
     if content_type.starts_with("application/json") {
-        serde_json::from_slice(body).map_err(|_| crate::error::AppError::BadRequest(message.to_string()))
+        serde_json::from_slice(body)
+            .map_err(|_| crate::error::AppError::BadRequest(message.to_string()))
     } else if content_type.starts_with("application/x-www-form-urlencoded") {
         serde_urlencoded::from_bytes(body)
             .map_err(|_| crate::error::AppError::BadRequest(message.to_string()))
@@ -213,7 +214,9 @@ async fn get_role(
     if let Some(role) = get_hardcoded_role(role_name) {
         Ok(Json(role))
     } else {
-        Err(crate::error::AppError::NotFound("Role not found".to_string()))
+        Err(crate::error::AppError::NotFound(
+            "Role not found".to_string(),
+        ))
     }
 }
 
@@ -226,7 +229,9 @@ async fn get_role_by_name(
     if let Some(role) = get_hardcoded_role(&role_name) {
         Ok(Json(role))
     } else {
-        Err(crate::error::AppError::NotFound("Role not found".to_string()))
+        Err(crate::error::AppError::NotFound(
+            "Role not found".to_string(),
+        ))
     }
 }
 

@@ -9,15 +9,15 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use super::AppState;
+use crate::api::v4::calls_plugin::state::{CallState, CallStateManager, Participant};
 use crate::auth::AuthUser;
 use crate::error::{ApiResult, AppError};
+use crate::mattermost_compat::id::encode_mm_id;
 use crate::models::{
     Bot, BotToken, CommandResponse, CreateBot, CreateIncomingWebhook, CreateOutgoingWebhook,
     CreateSlashCommand, ExecuteCommand, IncomingWebhook, OutgoingWebhook, OutgoingWebhookPayload,
     SlashCommand, WebhookPayload,
 };
-use crate::mattermost_compat::id::encode_mm_id;
-use crate::api::v4::calls_plugin::state::{CallState, CallStateManager, Participant};
 use chrono::Utc;
 
 /// Generate a secure random token
@@ -429,25 +429,32 @@ pub async fn execute_command_internal(
         "call" => {
             // Check if Calls Plugin is enabled (from database or env)
             let db_value: Option<String> = sqlx::query_scalar(
-                "SELECT plugins->'calls'->>'enabled' FROM server_config WHERE id = 'default'"
+                "SELECT plugins->'calls'->>'enabled' FROM server_config WHERE id = 'default'",
             )
             .fetch_optional(&state.db)
             .await?;
-            
-            tracing::info!("Calls enabled - DB value: {:?}, Env value: {}", db_value, state.config.calls.enabled);
-            
+
+            tracing::info!(
+                "Calls enabled - DB value: {:?}, Env value: {}",
+                db_value,
+                state.config.calls.enabled
+            );
+
             let calls_enabled = db_value
                 .as_ref()
                 .map(|v| v.parse::<bool>().unwrap_or(false))
                 .unwrap_or(state.config.calls.enabled);
-            
+
             tracing::info!("Calls enabled - Final result: {}", calls_enabled);
-            
+
             if !calls_enabled {
                 let db_val_clone = db_value.clone();
                 return Ok(CommandResponse {
                     response_type: "ephemeral".to_string(),
-                    text: format!("Calls are not enabled (db: {:?}, env: {})", db_val_clone, state.config.calls.enabled),
+                    text: format!(
+                        "Calls are not enabled (db: {:?}, env: {})",
+                        db_val_clone, state.config.calls.enabled
+                    ),
                     username: None,
                     icon_url: None,
                     goto_location: None,
@@ -455,12 +462,11 @@ pub async fn execute_command_internal(
                 });
             }
 
-            let user = sqlx::query_as::<_, crate::models::User>(
-                "SELECT * FROM users WHERE id = $1",
-            )
-            .bind(auth.user_id)
-            .fetch_one(&state.db)
-            .await?;
+            let user =
+                sqlx::query_as::<_, crate::models::User>("SELECT * FROM users WHERE id = $1")
+                    .bind(auth.user_id)
+                    .fetch_one(&state.db)
+                    .await?;
 
             // Get call manager
             let call_manager = get_call_manager(state);
@@ -471,10 +477,12 @@ pub async fn execute_command_internal(
                 if let Some(call) = call_manager.get_call_by_channel(&payload.channel_id).await {
                     // Remove all participants and end the call
                     let participants = call_manager.get_participants(call.call_id).await;
-                    
+
                     for participant in participants {
-                        call_manager.remove_participant(call.call_id, participant.user_id).await;
-                        
+                        call_manager
+                            .remove_participant(call.call_id, participant.user_id)
+                            .await;
+
                         // Broadcast user_left event
                         let event = crate::realtime::WsEnvelope {
                             msg_type: "event".to_string(),
@@ -494,13 +502,13 @@ pub async fn execute_command_internal(
                         };
                         state.ws_hub.broadcast(event).await;
                     }
-                    
+
                     // Remove the call
                     call_manager.remove_call(call.call_id).await;
-                    
+
                     // Remove SFU if exists
                     state.sfu_manager.remove_sfu(call.call_id).await;
-                    
+
                     // Broadcast call_end event
                     let event = crate::realtime::WsEnvelope {
                         msg_type: "event".to_string(),
@@ -547,7 +555,11 @@ pub async fn execute_command_internal(
             // Check if there's already an active call in this channel
             if let Some(existing_call) = call_manager.get_call_by_channel(&channel_id).await {
                 // Join existing call
-                if call_manager.get_participant(existing_call.call_id, auth.user_id).await.is_none() {
+                if call_manager
+                    .get_participant(existing_call.call_id, auth.user_id)
+                    .await
+                    .is_none()
+                {
                     let participant = Participant {
                         user_id: auth.user_id,
                         session_id: uuid::Uuid::new_v4(),
@@ -556,14 +568,22 @@ pub async fn execute_command_internal(
                         screen_sharing: false,
                         hand_raised: false,
                     };
-                    
-                    call_manager.add_participant(existing_call.call_id, participant.clone()).await;
-                    
+
+                    call_manager
+                        .add_participant(existing_call.call_id, participant.clone())
+                        .await;
+
                     // Get or create SFU
-                    if let Ok(sfu) = state.sfu_manager.get_or_create_sfu(existing_call.call_id).await {
-                        let _ = sfu.add_participant(auth.user_id, participant.session_id).await;
+                    if let Ok(sfu) = state
+                        .sfu_manager
+                        .get_or_create_sfu(existing_call.call_id)
+                        .await
+                    {
+                        let _ = sfu
+                            .add_participant(auth.user_id, participant.session_id)
+                            .await;
                     }
-                    
+
                     // Broadcast user_joined event
                     let event = crate::realtime::WsEnvelope {
                         msg_type: "event".to_string(),
@@ -628,9 +648,9 @@ pub async fn execute_command_internal(
                 screen_sharer: None,
                 thread_id: None,
             };
-            
+
             call_manager.add_call(call).await;
-            
+
             // Add owner as first participant
             let participant = Participant {
                 user_id: auth.user_id,
@@ -640,14 +660,18 @@ pub async fn execute_command_internal(
                 screen_sharing: false,
                 hand_raised: false,
             };
-            
-            call_manager.add_participant(call_id, participant.clone()).await;
-            
+
+            call_manager
+                .add_participant(call_id, participant.clone())
+                .await;
+
             // Get or create SFU
             if let Ok(sfu) = state.sfu_manager.get_or_create_sfu(call_id).await {
-                let _ = sfu.add_participant(auth.user_id, participant.session_id).await;
+                let _ = sfu
+                    .add_participant(auth.user_id, participant.session_id)
+                    .await;
             }
-            
+
             // Broadcast call_start event
             let event = crate::realtime::WsEnvelope {
                 msg_type: "event".to_string(),
@@ -669,7 +693,7 @@ pub async fn execute_command_internal(
                 }),
             };
             state.ws_hub.broadcast(event).await;
-            
+
             // Broadcast user_joined event
             let event = crate::realtime::WsEnvelope {
                 msg_type: "event".to_string(),
@@ -790,24 +814,24 @@ pub async fn execute_command_internal(
                     attachments: None,
                 });
             }
-            
+
             let channel_name = args.trim().trim_start_matches('~');
-            
+
             // Get team_id from current channel
-            let current_team_id: Uuid = sqlx::query_scalar("SELECT team_id FROM channels WHERE id = $1")
-                .bind(payload.channel_id)
-                .fetch_one(&state.db)
-                .await?;
-            
+            let current_team_id: Uuid =
+                sqlx::query_scalar("SELECT team_id FROM channels WHERE id = $1")
+                    .bind(payload.channel_id)
+                    .fetch_one(&state.db)
+                    .await?;
+
             // Find channel
-            let target_channel: Option<crate::models::Channel> = sqlx::query_as(
-                "SELECT * FROM channels WHERE team_id = $1 AND name = $2"
-            )
-            .bind(current_team_id)
-            .bind(channel_name)
-            .fetch_optional(&state.db)
-            .await?;
-            
+            let target_channel: Option<crate::models::Channel> =
+                sqlx::query_as("SELECT * FROM channels WHERE team_id = $1 AND name = $2")
+                    .bind(current_team_id)
+                    .bind(channel_name)
+                    .fetch_optional(&state.db)
+                    .await?;
+
             if let Some(ch) = target_channel {
                 // Add user to channel
                 sqlx::query(
@@ -817,7 +841,7 @@ pub async fn execute_command_internal(
                 .bind(auth.user_id)
                 .execute(&state.db)
                 .await?;
-                
+
                 return Ok(CommandResponse {
                     response_type: "ephemeral".to_string(),
                     text: format!("You have joined ~{}", ch.name),
@@ -839,13 +863,12 @@ pub async fn execute_command_internal(
         }
         "leave" => {
             // Leave current channel
-            let channel = sqlx::query_as::<_, crate::models::Channel>(
-                "SELECT * FROM channels WHERE id = $1"
-            )
-            .bind(payload.channel_id)
-            .fetch_optional(&state.db)
-            .await?;
-            
+            let channel =
+                sqlx::query_as::<_, crate::models::Channel>("SELECT * FROM channels WHERE id = $1")
+                    .bind(payload.channel_id)
+                    .fetch_optional(&state.db)
+                    .await?;
+
             if let Some(ch) = channel {
                 if ch.channel_type == crate::models::ChannelType::Direct {
                     return Ok(CommandResponse {
@@ -857,15 +880,13 @@ pub async fn execute_command_internal(
                         attachments: None,
                     });
                 }
-                
-                sqlx::query(
-                    "DELETE FROM channel_members WHERE channel_id = $1 AND user_id = $2"
-                )
-                .bind(payload.channel_id)
-                .bind(auth.user_id)
-                .execute(&state.db)
-                .await?;
-                
+
+                sqlx::query("DELETE FROM channel_members WHERE channel_id = $1 AND user_id = $2")
+                    .bind(payload.channel_id)
+                    .bind(auth.user_id)
+                    .execute(&state.db)
+                    .await?;
+
                 // Broadcast member left
                 let event = crate::realtime::WsEnvelope::event(
                     crate::realtime::EventType::MemberRemoved,
@@ -882,7 +903,7 @@ pub async fn execute_command_internal(
                     exclude_user_id: None,
                 });
                 state.ws_hub.broadcast(event).await;
-                
+
                 return Ok(CommandResponse {
                     response_type: "ephemeral".to_string(),
                     text: format!("You have left ~{}", ch.name),
@@ -892,7 +913,7 @@ pub async fn execute_command_internal(
                     attachments: None,
                 });
             }
-            
+
             return Ok(CommandResponse {
                 response_type: "ephemeral".to_string(),
                 text: "Channel not found".to_string(),
@@ -904,21 +925,22 @@ pub async fn execute_command_internal(
         }
         "me" => {
             // /me action - creates an italic-style action message
-            let user_name = sqlx::query_scalar::<_, String>("SELECT username FROM users WHERE id = $1")
-                .bind(auth.user_id)
-                .fetch_one(&state.db)
-                .await
-                .unwrap_or_else(|_| "someone".to_string());
-            
+            let user_name =
+                sqlx::query_scalar::<_, String>("SELECT username FROM users WHERE id = $1")
+                    .bind(auth.user_id)
+                    .fetch_one(&state.db)
+                    .await
+                    .unwrap_or_else(|_| "someone".to_string());
+
             let message = format!("*{} {}*", user_name, args);
-            
+
             let create_post_input = crate::models::CreatePost {
                 message,
                 file_ids: vec![],
                 props: Some(serde_json::json!({"from_command": "/me"})),
                 root_post_id: None,
             };
-            
+
             let _ = crate::services::posts::create_post(
                 state,
                 auth.user_id,
@@ -927,7 +949,7 @@ pub async fn execute_command_internal(
                 None,
             )
             .await?;
-            
+
             return Ok(CommandResponse {
                 response_type: "ephemeral".to_string(),
                 text: String::new(),
@@ -963,14 +985,11 @@ pub async fn execute_command_internal(
     let team_id = if let Some(tid) = payload.team_id {
         tid
     } else {
-        let channel = sqlx::query!(
-            "SELECT team_id FROM channels WHERE id = $1",
-            payload.channel_id
-        )
-        .fetch_optional(&state.db)
-        .await?
-        .ok_or_else(|| AppError::NotFound("Channel not found".to_string()))?;
-        channel.team_id
+        sqlx::query_scalar::<_, Uuid>("SELECT team_id FROM channels WHERE id = $1")
+            .bind(payload.channel_id)
+            .fetch_optional(&state.db)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Channel not found".to_string()))?
     };
 
     let command = sqlx::query_as::<_, SlashCommand>(
@@ -1030,8 +1049,8 @@ pub async fn execute_command_internal(
                         goto_location: None,
                         attachments: None,
                     });
-                return Ok(resp_body);
-            } else {
+            return Ok(resp_body);
+        } else {
             return Ok(CommandResponse {
                 response_type: "ephemeral".to_string(),
                 text: format!("Command failed with status: {}", res.status()),

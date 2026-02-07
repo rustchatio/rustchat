@@ -1,5 +1,5 @@
 //! SFU (Selective Forwarding Unit) for RustChat Calls
-//! 
+//!
 //! Routes audio/video tracks between participants in a call.
 //! Each participant sends one stream and receives streams from all other participants.
 
@@ -15,21 +15,21 @@ use webrtc::interceptor::registry::Registry;
 use webrtc::peer_connection::configuration::RTCConfiguration;
 use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
 use webrtc::peer_connection::RTCPeerConnection;
+use webrtc::rtp_transceiver::rtp_receiver::RTCRtpReceiver;
+use webrtc::rtp_transceiver::RTCRtpTransceiver;
 use webrtc::track::track_local::track_local_static_rtp::TrackLocalStaticRTP;
 use webrtc::track::track_local::TrackLocalWriter;
 use webrtc::track::track_remote::TrackRemote;
-use webrtc::rtp_transceiver::RTCRtpTransceiver;
-use webrtc::rtp_transceiver::rtp_receiver::RTCRtpReceiver;
 
 use crate::config::CallsConfig;
 
+pub mod manager;
 pub mod signaling;
 pub mod tracks;
-pub mod manager;
 
+pub use manager::SFUManager;
 use signaling::{SignalingMessage, SignalingServer};
 use tracks::TrackManager;
-pub use manager::SFUManager;
 
 /// Represents a participant in the SFU
 pub struct Participant {
@@ -52,7 +52,9 @@ pub struct SFU {
 
 impl SFU {
     /// Create a new SFU instance
-    pub async fn new(config: CallsConfig) -> Result<Arc<Self>, Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn new(
+        config: CallsConfig,
+    ) -> Result<Arc<Self>, Box<dyn std::error::Error + Send + Sync>> {
         let participants = Arc::new(RwLock::new(HashMap::new()));
         let track_manager = Arc::new(TrackManager::new());
         let signaling = Arc::new(SignalingServer::new());
@@ -70,7 +72,13 @@ impl SFU {
         &self,
         user_id: Uuid,
         session_id: Uuid,
-    ) -> Result<(Arc<RTCPeerConnection>, mpsc::UnboundedReceiver<SignalingMessage>), Box<dyn std::error::Error + Send + Sync>> {
+    ) -> Result<
+        (
+            Arc<RTCPeerConnection>,
+            mpsc::UnboundedReceiver<SignalingMessage>,
+        ),
+        Box<dyn std::error::Error + Send + Sync>,
+    > {
         // Create media engine with codec support
         let mut m = MediaEngine::default();
         m.register_default_codecs()?;
@@ -101,10 +109,12 @@ impl SFU {
         let (signaling_tx, signaling_rx) = mpsc::unbounded_channel();
 
         // Set up track handling
-        self.setup_track_handlers(&peer_connection, user_id, session_id).await?;
+        self.setup_track_handlers(&peer_connection, user_id, session_id)
+            .await?;
 
         // Set up ICE handling
-        self.setup_ice_handlers(&peer_connection, user_id, signaling_tx.clone()).await?;
+        self.setup_ice_handlers(&peer_connection, user_id, signaling_tx.clone())
+            .await?;
 
         // Store participant
         let participant = Participant {
@@ -117,21 +127,29 @@ impl SFU {
             signaling_tx,
         };
 
-        self.participants.write().await.insert(session_id, participant);
+        self.participants
+            .write()
+            .await
+            .insert(session_id, participant);
 
         Ok((peer_connection, signaling_rx))
     }
 
     /// Remove a participant from the SFU
-    pub async fn remove_participant(&self, session_id: Uuid) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn remove_participant(
+        &self,
+        session_id: Uuid,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let mut participants = self.participants.write().await;
-        
+
         if let Some(participant) = participants.remove(&session_id) {
             // Close peer connection
             participant.peer_connection.close().await?;
-            
+
             // Remove tracks from manager
-            self.track_manager.remove_participant_tracks(session_id).await;
+            self.track_manager
+                .remove_participant_tracks(session_id)
+                .await;
         }
 
         Ok(())
@@ -144,19 +162,25 @@ impl SFU {
         offer: RTCSessionDescription,
     ) -> Result<RTCSessionDescription, Box<dyn std::error::Error + Send + Sync>> {
         let participants = self.participants.read().await;
-        
+
         let participant = participants
             .get(&session_id)
             .ok_or("Participant not found")?;
 
         // Set remote description (the offer)
-        participant.peer_connection.set_remote_description(offer).await?;
+        participant
+            .peer_connection
+            .set_remote_description(offer)
+            .await?;
 
         // Create answer
         let answer = participant.peer_connection.create_answer(None).await?;
 
         // Set local description
-        participant.peer_connection.set_local_description(answer.clone()).await?;
+        participant
+            .peer_connection
+            .set_local_description(answer.clone())
+            .await?;
 
         // Wait for ICE gathering to complete (or timeout)
         // In production, you'd want to handle trickle ICE instead
@@ -179,7 +203,7 @@ impl SFU {
         candidate: String,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let participants = self.participants.read().await;
-        
+
         let participant = participants
             .get(&session_id)
             .ok_or("Participant not found")?;
@@ -228,21 +252,27 @@ impl SFU {
         let participants = self.participants.clone();
 
         // Handle incoming tracks
-        peer_connection.on_track(Box::new(move |track: Arc<TrackRemote>, _receiver: Arc<RTCRtpReceiver>, _transceiver: Arc<RTCRtpTransceiver>| {
-            let track_manager = track_manager.clone();
-            let participants = participants.clone();
-            let session_id = session_id;
+        peer_connection.on_track(Box::new(
+            move |track: Arc<TrackRemote>,
+                  _receiver: Arc<RTCRtpReceiver>,
+                  _transceiver: Arc<RTCRtpTransceiver>| {
+                let track_manager = track_manager.clone();
+                let participants = participants.clone();
+                let session_id = session_id;
 
-            tokio::spawn(async move {
-                // Register the track
-                track_manager.register_track(session_id, track.clone()).await;
+                tokio::spawn(async move {
+                    // Register the track
+                    track_manager
+                        .register_track(session_id, track.clone())
+                        .await;
 
-                // Forward track to other participants
-                Self::forward_track(track, track_manager, participants, session_id).await;
-            });
+                    // Forward track to other participants
+                    Self::forward_track(track, track_manager, participants, session_id).await;
+                });
 
-            Box::pin(async {})
-        }));
+                Box::pin(async {})
+            },
+        ));
 
         Ok(())
     }
@@ -269,7 +299,7 @@ impl SFU {
 
                     // Forward to other participants
                     let participants_guard = participants.read().await;
-                    
+
                     for (session_id, participant) in participants_guard.iter() {
                         if *session_id == sender_session_id {
                             continue; // Don't send back to sender
@@ -302,7 +332,9 @@ impl SFU {
         }
 
         // Unregister track when done
-        track_manager.unregister_track(sender_session_id, &track.id()).await;
+        track_manager
+            .unregister_track(sender_session_id, &track.id())
+            .await;
     }
 
     /// Set up ICE handlers for a peer connection
@@ -318,28 +350,42 @@ impl SFU {
         let signaling_tx_conn_state = signaling_tx;
 
         // Handle ICE candidates
-        peer_connection.on_ice_candidate(Box::new(move |candidate: Option<webrtc::ice_transport::ice_candidate::RTCIceCandidate>| {
-            if let Some(candidate) = candidate {
-                // Send ICE candidate to client via signaling
-                let _ = signaling_tx_ice.send(SignalingMessage::IceCandidate {
-                    candidate: candidate.to_json().ok().map(|j| j.candidate).unwrap_or_default(),
-                });
-            }
+        peer_connection.on_ice_candidate(Box::new(
+            move |candidate: Option<webrtc::ice_transport::ice_candidate::RTCIceCandidate>| {
+                if let Some(candidate) = candidate {
+                    // Send ICE candidate to client via signaling
+                    let _ = signaling_tx_ice.send(SignalingMessage::IceCandidate {
+                        candidate: candidate
+                            .to_json()
+                            .ok()
+                            .map(|j| j.candidate)
+                            .unwrap_or_default(),
+                    });
+                }
 
-            Box::pin(async {})
-        }));
+                Box::pin(async {})
+            },
+        ));
 
         // Handle ICE connection state changes
-        peer_connection.on_ice_connection_state_change(Box::new(move |state: webrtc::ice_transport::ice_connection_state::RTCIceConnectionState| {
-            let _ = signaling_tx_ice_state.send(SignalingMessage::IceConnectionState { state: format!("{:?}", state) });
-            Box::pin(async {})
-        }));
+        peer_connection.on_ice_connection_state_change(Box::new(
+            move |state: webrtc::ice_transport::ice_connection_state::RTCIceConnectionState| {
+                let _ = signaling_tx_ice_state.send(SignalingMessage::IceConnectionState {
+                    state: format!("{:?}", state),
+                });
+                Box::pin(async {})
+            },
+        ));
 
         // Handle peer connection state changes (using ICE connection state as proxy)
-        peer_connection.on_peer_connection_state_change(Box::new(move |state: webrtc::peer_connection::peer_connection_state::RTCPeerConnectionState| {
-            let _ = signaling_tx_conn_state.send(SignalingMessage::ConnectionState { state: format!("{:?}", state) });
-            Box::pin(async {})
-        }));
+        peer_connection.on_peer_connection_state_change(Box::new(
+            move |state: webrtc::peer_connection::peer_connection_state::RTCPeerConnectionState| {
+                let _ = signaling_tx_conn_state.send(SignalingMessage::ConnectionState {
+                    state: format!("{:?}", state),
+                });
+                Box::pin(async {})
+            },
+        ));
 
         Ok(())
     }

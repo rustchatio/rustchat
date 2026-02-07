@@ -28,7 +28,10 @@ pub fn router() -> Router<AppState> {
             "/remotecluster/{remote_id}/generate_invite",
             post(generate_remote_cluster_invite),
         )
-        .route("/remotecluster/accept_invite", post(accept_remote_cluster_invite))
+        .route(
+            "/remotecluster/accept_invite",
+            post(accept_remote_cluster_invite),
+        )
         .route(
             "/remotecluster/{remote_id}/sharedchannelremotes",
             get(get_remote_cluster_shared_channels),

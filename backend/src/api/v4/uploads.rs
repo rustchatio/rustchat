@@ -18,7 +18,10 @@ use uuid::Uuid;
 use super::extractors::MmAuthUser;
 use crate::api::AppState;
 use crate::error::{ApiResult, AppError};
-use crate::mattermost_compat::{id::{encode_mm_id, parse_mm_or_uuid}, models as mm};
+use crate::mattermost_compat::{
+    id::{encode_mm_id, parse_mm_or_uuid},
+    models as mm,
+};
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -210,10 +213,13 @@ async fn upload_data(
         let hash = hex::encode(hasher.finalize());
 
         // Upload to S3
-        state.s3_client.upload(&key, file_data.clone(), &mime_type).await?;
+        state
+            .s3_client
+            .upload(&key, file_data.clone(), &mime_type)
+            .await?;
 
         // Image processing for thumbnails (blocking operation offloaded)
-        let (width, height, thumbnail_data): (Option<i32>, Option<i32>, Option<(Vec<u8>, String)>) = 
+        let (width, height, thumbnail_data): (Option<i32>, Option<i32>, Option<(Vec<u8>, String)>) =
             if mime_type.starts_with("image/") {
                 let data_clone = file_data.clone();
                 let user_id = auth.user_id;
@@ -227,8 +233,14 @@ async fn upload_data(
                         let thumb = if w > 400 || h > 400 {
                             let thumb_img = img.thumbnail(400, 400);
                             let mut buf = Vec::new();
-                            if thumb_img.write_to(&mut Cursor::new(&mut buf), ImageFormat::WebP).is_ok() {
-                                Some((buf, format!("thumbnails/{}/{}.webp", user_id, file_id_clone)))
+                            if thumb_img
+                                .write_to(&mut Cursor::new(&mut buf), ImageFormat::WebP)
+                                .is_ok()
+                            {
+                                Some((
+                                    buf,
+                                    format!("thumbnails/{}/{}.webp", user_id, file_id_clone),
+                                ))
                             } else {
                                 None
                             }
@@ -249,7 +261,12 @@ async fn upload_data(
 
         // Upload thumbnail to S3 if generated
         let thumbnail_key: Option<String> = if let Some((thumb_data, thumb_key)) = thumbnail_data {
-            if state.s3_client.upload(&thumb_key, thumb_data, "image/webp").await.is_ok() {
+            if state
+                .s3_client
+                .upload(&thumb_key, thumb_data, "image/webp")
+                .await
+                .is_ok()
+            {
                 Some(thumb_key)
             } else {
                 None
@@ -308,7 +325,11 @@ async fn upload_data(
             mini_preview: None,
         };
 
-        Ok((StatusCode::CREATED, Json(serde_json::to_value(file_info).unwrap())).into_response())
+        Ok((
+            StatusCode::CREATED,
+            Json(serde_json::to_value(file_info).unwrap()),
+        )
+            .into_response())
     } else {
         // Upload incomplete
         Ok(StatusCode::NO_CONTENT.into_response())

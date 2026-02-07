@@ -9,14 +9,17 @@ use axum::{
 use chrono::{DateTime, Utc};
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
-use uuid::Uuid;
 use serde_json::json;
+use uuid::Uuid;
 
 use super::extractors::MmAuthUser;
 use crate::api::AppState;
 use crate::auth::{create_token, hash_password, verify_password};
 use crate::error::{ApiResult, AppError};
-use crate::mattermost_compat::{id::{encode_mm_id, parse_mm_or_uuid}, models as mm};
+use crate::mattermost_compat::{
+    id::{encode_mm_id, parse_mm_or_uuid},
+    models as mm,
+};
 use crate::models::{channel::Channel, channel::ChannelMember, Team, TeamMember, User};
 
 const MAX_UPDATE_PREFERENCES: usize = 100;
@@ -26,7 +29,10 @@ pub fn router() -> Router<AppState> {
         .route("/users/login", post(login))
         .route("/users/login/type", post(login_type))
         .route("/users/login/cws", post(login_cws))
-        .route("/users/login/sso/code-exchange", post(login_sso_code_exchange))
+        .route(
+            "/users/login/sso/code-exchange",
+            post(login_sso_code_exchange),
+        )
         .route("/users/login/switch", post(login_switch))
         .route("/users/me", get(me))
         .route("/users/me/teams", get(my_teams))
@@ -35,7 +41,10 @@ pub fn router() -> Router<AppState> {
         .route("/users/me/teams/{team_id}/channels", get(my_team_channels))
         .route("/users/me/channels", get(my_channels))
         .route("/users/{user_id}/teams", get(get_teams_for_user))
-        .route("/users/{user_id}/teams/members", get(get_team_members_for_user))
+        .route(
+            "/users/{user_id}/teams/members",
+            get(get_team_members_for_user),
+        )
         .route(
             "/users/{user_id}/teams/{team_id}/channels",
             get(get_team_channels_for_user),
@@ -84,12 +93,24 @@ pub fn router() -> Router<AppState> {
         )
         .route("/users/status/ids", post(get_statuses_by_ids))
         .route("/users/ids", post(get_users_by_ids))
-        .route("/users/{user_id}/status", get(get_status).put(update_status))
+        .route(
+            "/users/{user_id}/status",
+            get(get_status).put(update_status),
+        )
         .route("/users/me/status", get(get_my_status).put(update_status))
-        .route("/users/{user_id}/channels/{channel_id}/typing", post(user_typing))
+        .route(
+            "/users/{user_id}/channels/{channel_id}/typing",
+            post(user_typing),
+        )
         .route("/users/me/patch", put(patch_me))
-        .route("/users/{user_id}/image", get(get_user_image).post(upload_user_image))
-        .route("/users/notifications", get(get_notifications).put(update_notifications))
+        .route(
+            "/users/{user_id}/image",
+            get(get_user_image).post(upload_user_image),
+        )
+        .route(
+            "/users/notifications",
+            get(get_notifications).put(update_notifications),
+        )
         .route("/users/me/sessions", get(get_sessions))
         .route("/users/logout", get(logout).post(logout))
         .route("/users/autocomplete", get(autocomplete_users))
@@ -112,12 +133,21 @@ pub fn router() -> Router<AppState> {
         )
         .route("/users/usernames", post(get_users_by_usernames))
         .route("/users/email/{email}", get(get_user_by_email))
-        .route("/custom_profile_attributes/fields", get(get_custom_profile_attributes))
-        .route("/users/{user_id}/custom_profile_attributes", get(get_user_custom_profile_attributes))
+        .route(
+            "/custom_profile_attributes/fields",
+            get(get_custom_profile_attributes),
+        )
+        .route(
+            "/users/{user_id}/custom_profile_attributes",
+            get(get_user_custom_profile_attributes),
+        )
         .route("/users/{user_id}/patch", put(patch_user))
         .route("/users/{user_id}/roles", put(update_user_roles))
         .route("/users/{user_id}/active", put(update_user_active))
-        .route("/users/{user_id}/image/default", get(get_user_image_default))
+        .route(
+            "/users/{user_id}/image/default",
+            get(get_user_image_default),
+        )
         .route("/users/password/reset", post(reset_password))
         .route("/users/password/reset/send", post(send_password_reset))
         .route("/users/mfa", post(check_user_mfa))
@@ -128,11 +158,20 @@ pub fn router() -> Router<AppState> {
         .route("/users/{user_id}/convert_to_bot", post(convert_user_to_bot))
         .route("/users/{user_id}/password", put(update_user_password))
         .route("/users/{user_id}/sessions", get(get_user_sessions))
-        .route("/users/{user_id}/sessions/revoke", post(revoke_user_session))
-        .route("/users/{user_id}/sessions/revoke/all", post(revoke_user_sessions))
+        .route(
+            "/users/{user_id}/sessions/revoke",
+            post(revoke_user_session),
+        )
+        .route(
+            "/users/{user_id}/sessions/revoke/all",
+            post(revoke_user_sessions),
+        )
         .route("/users/sessions/revoke/all", post(revoke_all_sessions))
         .route("/users/{user_id}/audits", get(get_user_audits))
-        .route("/users/{user_id}/email/verify/member", post(verify_member_email))
+        .route(
+            "/users/{user_id}/email/verify/member",
+            post(verify_member_email),
+        )
         .route("/users/email/verify", post(verify_email))
         .route("/users/email/verify/send", post(send_email_verification))
         .route("/users/{user_id}/tokens", get(get_user_tokens))
@@ -143,20 +182,40 @@ pub fn router() -> Router<AppState> {
         .route("/users/tokens/enable", post(enable_token))
         .route("/users/tokens/search", post(search_tokens))
         .route("/users/{user_id}/auth", put(update_user_auth))
-        .route("/users/{user_id}/terms_of_service", post(accept_terms_of_service))
+        .route(
+            "/users/{user_id}/terms_of_service",
+            post(accept_terms_of_service),
+        )
         .route("/users/{user_id}/typing", post(set_user_typing))
         .route("/users/{user_id}/uploads", get(get_user_uploads))
-        .route("/users/{user_id}/channel_members", get(get_user_channel_members))
+        .route(
+            "/users/{user_id}/channel_members",
+            get(get_user_channel_members),
+        )
         .route("/users/migrate_auth/ldap", post(migrate_auth_ldap))
         .route("/users/migrate_auth/saml", post(migrate_auth_saml))
         .route("/users/invalid_emails", get(get_invalid_emails))
-        .route("/users/{user_id}/reset_failed_attempts", post(reset_failed_attempts))
-        .route("/users/{user_id}/status/custom", put(update_custom_status).delete(clear_custom_status))
-        .route("/users/{user_id}/status/custom/recent", get(get_recent_custom_status))
-        .route("/users/{user_id}/status/custom/recent/delete", post(delete_recent_custom_status))
+        .route(
+            "/users/{user_id}/reset_failed_attempts",
+            post(reset_failed_attempts),
+        )
+        .route(
+            "/users/{user_id}/status/custom",
+            put(update_custom_status).delete(clear_custom_status),
+        )
+        .route(
+            "/users/{user_id}/status/custom/recent",
+            get(get_recent_custom_status),
+        )
+        .route(
+            "/users/{user_id}/status/custom/recent/delete",
+            post(delete_recent_custom_status),
+        )
         .route(
             "/users/{user_id}/sidebar/categories",
-            get(get_categories).post(create_category).put(update_categories),
+            get(get_categories)
+                .post(create_category)
+                .put(update_categories),
         )
         .route(
             "/users/{user_id}/sidebar/categories/order",
@@ -177,7 +236,9 @@ async fn get_categories(
     Query(query): Query<std::collections::HashMap<String, String>>,
 ) -> ApiResult<Json<mm::SidebarCategories>> {
     let user_id = resolve_user_id(&params.user_id, &auth)?;
-    let team_id_str = query.get("team_id").ok_or_else(|| AppError::BadRequest("Missing team_id".to_string()))?;
+    let team_id_str = query
+        .get("team_id")
+        .ok_or_else(|| AppError::BadRequest("Missing team_id".to_string()))?;
     let team_id = parse_mm_or_uuid(team_id_str)
         .ok_or_else(|| AppError::BadRequest("Invalid team_id".to_string()))?;
     get_categories_internal(state, user_id, team_id).await
@@ -188,7 +249,9 @@ async fn get_my_categories(
     auth: MmAuthUser,
     Query(query): Query<std::collections::HashMap<String, String>>,
 ) -> ApiResult<Json<mm::SidebarCategories>> {
-    let team_id_str = query.get("team_id").ok_or_else(|| AppError::BadRequest("Missing team_id".to_string()))?;
+    let team_id_str = query
+        .get("team_id")
+        .ok_or_else(|| AppError::BadRequest("Missing team_id".to_string()))?;
     let team_id = parse_mm_or_uuid(team_id_str)
         .ok_or_else(|| AppError::BadRequest("Invalid team_id".to_string()))?;
     get_categories_internal(state, auth.user_id, team_id).await
@@ -202,7 +265,9 @@ async fn create_category(
     Json(input): Json<CreateCategoryRequest>,
 ) -> ApiResult<Json<mm::SidebarCategory>> {
     let user_id = resolve_user_id(&params.user_id, &auth)?;
-    let team_id_str = query.get("team_id").ok_or_else(|| AppError::BadRequest("Missing team_id".to_string()))?;
+    let team_id_str = query
+        .get("team_id")
+        .ok_or_else(|| AppError::BadRequest("Missing team_id".to_string()))?;
     let team_id = parse_mm_or_uuid(team_id_str)
         .ok_or_else(|| AppError::BadRequest("Invalid team_id".to_string()))?;
     create_category_internal(state, user_id, team_id, input).await
@@ -216,7 +281,9 @@ async fn update_categories(
     Json(input): Json<UpdateCategoriesRequest>,
 ) -> ApiResult<Json<Vec<mm::SidebarCategory>>> {
     let user_id = resolve_user_id(&params.user_id, &auth)?;
-    let team_id_str = query.get("team_id").ok_or_else(|| AppError::BadRequest("Missing team_id".to_string()))?;
+    let team_id_str = query
+        .get("team_id")
+        .ok_or_else(|| AppError::BadRequest("Missing team_id".to_string()))?;
     let team_id = parse_mm_or_uuid(team_id_str)
         .ok_or_else(|| AppError::BadRequest("Invalid team_id".to_string()))?;
     update_categories_internal(state, user_id, team_id, input).await
@@ -230,7 +297,9 @@ async fn update_category_order(
     Json(order): Json<Vec<String>>,
 ) -> ApiResult<Json<Vec<String>>> {
     let user_id = resolve_user_id(&params.user_id, &auth)?;
-    let team_id_str = query.get("team_id").ok_or_else(|| AppError::BadRequest("Missing team_id".to_string()))?;
+    let team_id_str = query
+        .get("team_id")
+        .ok_or_else(|| AppError::BadRequest("Missing team_id".to_string()))?;
     let team_id = parse_mm_or_uuid(team_id_str)
         .ok_or_else(|| AppError::BadRequest("Invalid team_id".to_string()))?;
     update_category_order_internal(state, user_id, team_id, order).await
@@ -245,7 +314,9 @@ pub(crate) fn resolve_user_id(user_id_str: &str, auth: &MmAuthUser) -> ApiResult
         .ok_or_else(|| AppError::BadRequest("Invalid user ID".to_string()))?;
 
     if user_id != auth.user_id && auth.role != "system_admin" && auth.role != "org_admin" {
-        return Err(AppError::Forbidden("Cannot access another user's categories".to_string()));
+        return Err(AppError::Forbidden(
+            "Cannot access another user's categories".to_string(),
+        ));
     }
 
     Ok(user_id)
@@ -261,7 +332,7 @@ pub(crate) async fn get_categories_internal(
 
     // Fetch categories
     let categories_rows: Vec<CategoryRow> = sqlx::query_as(
-        "SELECT * FROM channel_categories WHERE user_id = $1 AND team_id = $2 AND delete_at = 0"
+        "SELECT * FROM channel_categories WHERE user_id = $1 AND team_id = $2 AND delete_at = 0",
     )
     .bind(user_id)
     .bind(team_id)
@@ -269,7 +340,9 @@ pub(crate) async fn get_categories_internal(
     .await?;
 
     if categories_rows.is_empty() {
-        return Ok(Json(get_default_categories(&state, user_id, team_id).await?));
+        return Ok(Json(
+            get_default_categories(&state, user_id, team_id).await?,
+        ));
     }
 
     let mut categories = Vec::new();
@@ -330,12 +403,18 @@ fn sort_category_rows(rows: &mut [CategoryRow]) {
 
     if has_custom_order {
         rows.sort_by(|a, b| {
-            a.sort_order
-                .cmp(&b.sort_order)
-                .then_with(|| a.display_name.to_ascii_lowercase().cmp(&b.display_name.to_ascii_lowercase()))
+            a.sort_order.cmp(&b.sort_order).then_with(|| {
+                a.display_name
+                    .to_ascii_lowercase()
+                    .cmp(&b.display_name.to_ascii_lowercase())
+            })
         });
     } else {
-        rows.sort_by(|a, b| a.display_name.to_ascii_lowercase().cmp(&b.display_name.to_ascii_lowercase()));
+        rows.sort_by(|a, b| {
+            a.display_name
+                .to_ascii_lowercase()
+                .cmp(&b.display_name.to_ascii_lowercase())
+        });
     }
 }
 
@@ -362,7 +441,9 @@ async fn ensure_team_member(state: &AppState, user_id: Uuid, team_id: Uuid) -> A
     .await?;
 
     if !is_member {
-        return Err(AppError::Forbidden("User is not a member of the team".to_string()));
+        return Err(AppError::Forbidden(
+            "User is not a member of the team".to_string(),
+        ));
     }
 
     Ok(())
@@ -396,14 +477,18 @@ fn build_default_categories(
     }
 }
 
-async fn get_default_categories(state: &AppState, user_id: Uuid, team_id: Uuid) -> ApiResult<mm::SidebarCategories> {
+async fn get_default_categories(
+    state: &AppState,
+    user_id: Uuid,
+    team_id: Uuid,
+) -> ApiResult<mm::SidebarCategories> {
     let channels: Vec<Uuid> = sqlx::query_scalar(
         r#"
         SELECT c.id FROM channels c
         JOIN channel_members cm ON c.id = cm.channel_id
         WHERE cm.user_id = $1 AND c.team_id = $2
         ORDER BY COALESCE(c.display_name, c.name) ASC
-        "#
+        "#,
     )
     .bind(user_id)
     .bind(team_id)
@@ -441,7 +526,9 @@ pub(crate) async fn create_category_internal(
         let parsed = parse_mm_or_uuid(input_user_id)
             .ok_or_else(|| AppError::BadRequest("Invalid user_id".to_string()))?;
         if parsed != user_id {
-            return Err(AppError::BadRequest("user_id does not match path".to_string()));
+            return Err(AppError::BadRequest(
+                "user_id does not match path".to_string(),
+            ));
         }
     }
 
@@ -449,7 +536,9 @@ pub(crate) async fn create_category_internal(
         let parsed = parse_mm_or_uuid(input_team_id)
             .ok_or_else(|| AppError::BadRequest("Invalid team_id".to_string()))?;
         if parsed != team_id {
-            return Err(AppError::BadRequest("team_id does not match path".to_string()));
+            return Err(AppError::BadRequest(
+                "team_id does not match path".to_string(),
+            ));
         }
     }
 
@@ -524,13 +613,17 @@ pub(crate) async fn update_categories_internal(
         let cat_user_id = parse_mm_or_uuid(&cat.user_id)
             .ok_or_else(|| AppError::BadRequest("Invalid category user_id".to_string()))?;
         if cat_user_id != user_id {
-            return Err(AppError::BadRequest("category user_id does not match path".to_string()));
+            return Err(AppError::BadRequest(
+                "category user_id does not match path".to_string(),
+            ));
         }
 
         let cat_team_id = parse_mm_or_uuid(&cat.team_id)
             .ok_or_else(|| AppError::BadRequest("Invalid category team_id".to_string()))?;
         if cat_team_id != team_id {
-            return Err(AppError::BadRequest("category team_id does not match path".to_string()));
+            return Err(AppError::BadRequest(
+                "category team_id does not match path".to_string(),
+            ));
         }
 
         sqlx::query(
@@ -803,10 +896,7 @@ async fn login(
     Ok((headers, Json(mm_user)))
 }
 
-async fn login_type(
-    headers: HeaderMap,
-    body: Bytes,
-) -> ApiResult<Json<serde_json::Value>> {
+async fn login_type(headers: HeaderMap, body: Bytes) -> ApiResult<Json<serde_json::Value>> {
     let _input: LoginTypeRequest = parse_request_body(&headers, &body)?;
 
     Ok(Json(serde_json::json!({
@@ -814,13 +904,12 @@ async fn login_type(
     })))
 }
 
-async fn login_cws(
-    headers: HeaderMap,
-    body: Bytes,
-) -> ApiResult<Json<serde_json::Value>> {
+async fn login_cws(headers: HeaderMap, body: Bytes) -> ApiResult<Json<serde_json::Value>> {
     let _input: LoginCwsRequest = parse_request_body(&headers, &body)?;
 
-    Err(AppError::BadRequest("CWS login is not supported".to_string()))
+    Err(AppError::BadRequest(
+        "CWS login is not supported".to_string(),
+    ))
 }
 
 async fn login_sso_code_exchange(
@@ -834,10 +923,7 @@ async fn login_sso_code_exchange(
     ))
 }
 
-async fn login_switch(
-    headers: HeaderMap,
-    body: Bytes,
-) -> ApiResult<Json<serde_json::Value>> {
+async fn login_switch(headers: HeaderMap, body: Bytes) -> ApiResult<Json<serde_json::Value>> {
     let _input: LoginSwitchRequest = parse_request_body(&headers, &body)?;
 
     Err(AppError::BadRequest(
@@ -914,7 +1000,6 @@ async fn get_user_by_username(
 
     Ok(Json(user.into()))
 }
-
 
 async fn my_teams(
     State(state): State<AppState>,
@@ -1271,7 +1356,7 @@ async fn attach_device(
             return Ok(Json(serde_json::json!({"status": "OK"})));
         }
     };
-    
+
     // Only insert if we have device_id
     if let Some(device_id) = input.device_id {
         let _ = sqlx::query(
@@ -1543,7 +1628,9 @@ async fn autocomplete_users(
         .await?;
 
         if !is_member {
-            return Err(AppError::Forbidden("Not a member of this channel".to_string()));
+            return Err(AppError::Forbidden(
+                "Not a member of this channel".to_string(),
+            ));
         }
 
         sqlx::query_as(
@@ -1644,7 +1731,9 @@ async fn search_users(
         .await?;
 
         if !is_member {
-            return Err(AppError::Forbidden("Not a member of this channel".to_string()));
+            return Err(AppError::Forbidden(
+                "Not a member of this channel".to_string(),
+            ));
         }
 
         sqlx::query_as(
@@ -1723,21 +1812,25 @@ async fn get_statuses_by_ids(
         return Ok(Json(vec![]));
     }
 
-    let users: Vec<(Uuid, String, Option<DateTime<Utc>>)> = sqlx::query_as(
-        "SELECT id, presence, last_login_at FROM users WHERE id = ANY($1)",
-    )
-    .bind(&uuids)
-    .fetch_all(&state.db)
-    .await?;
+    let users: Vec<(Uuid, String, Option<DateTime<Utc>>)> =
+        sqlx::query_as("SELECT id, presence, last_login_at FROM users WHERE id = ANY($1)")
+            .bind(&uuids)
+            .fetch_all(&state.db)
+            .await?;
 
-    let statuses = users.into_iter().map(|(id, presence, last_login)| {
-        mm::Status {
+    let statuses = users
+        .into_iter()
+        .map(|(id, presence, last_login)| mm::Status {
             user_id: encode_mm_id(id),
-            status: if presence.is_empty() { "offline".to_string() } else { presence },
+            status: if presence.is_empty() {
+                "offline".to_string()
+            } else {
+                presence
+            },
             manual: false,
             last_activity_at: last_login.map(|t| t.timestamp_millis()).unwrap_or(0),
-        }
-    }).collect();
+        })
+        .collect();
 
     Ok(Json(statuses))
 }
@@ -1755,11 +1848,12 @@ async fn get_users_by_ids(
     Query(_query): Query<std::collections::HashMap<String, String>>,
     body: Bytes,
 ) -> ApiResult<Json<Vec<mm::User>>> {
-    let ids = parse_body::<UsersByIdsRequest>(&headers, &body, "Invalid users/ids body")
-        .map(|parsed| match parsed {
+    let ids = parse_body::<UsersByIdsRequest>(&headers, &body, "Invalid users/ids body").map(
+        |parsed| match parsed {
             UsersByIdsRequest::Ids(ids) => ids,
             UsersByIdsRequest::Wrapped { user_ids } => user_ids,
-        })?;
+        },
+    )?;
 
     let uuids: Vec<Uuid> = ids.iter().filter_map(|id| parse_mm_or_uuid(id)).collect();
 
@@ -1767,10 +1861,11 @@ async fn get_users_by_ids(
         return Ok(Json(vec![]));
     }
 
-    let users: Vec<User> = sqlx::query_as("SELECT * FROM users WHERE id = ANY($1) AND is_active = true")
-        .bind(&uuids)
-        .fetch_all(&state.db)
-        .await?;
+    let users: Vec<User> =
+        sqlx::query_as("SELECT * FROM users WHERE id = ANY($1) AND is_active = true")
+            .bind(&uuids)
+            .fetch_all(&state.db)
+            .await?;
 
     let mm_users: Vec<mm::User> = users.into_iter().map(|u| u.into()).collect();
     Ok(Json(mm_users))
@@ -1789,8 +1884,7 @@ fn parse_body<T: DeserializeOwned>(
     if content_type.starts_with("application/json") {
         serde_json::from_slice(body).map_err(|_| AppError::BadRequest(message.to_string()))
     } else if content_type.starts_with("application/x-www-form-urlencoded") {
-        serde_urlencoded::from_bytes(body)
-            .map_err(|_| AppError::BadRequest(message.to_string()))
+        serde_urlencoded::from_bytes(body).map_err(|_| AppError::BadRequest(message.to_string()))
     } else {
         serde_json::from_slice(body)
             .or_else(|_| serde_urlencoded::from_bytes(body))
@@ -1804,16 +1898,19 @@ async fn get_status(
 ) -> ApiResult<Json<mm::Status>> {
     let user_id = parse_mm_or_uuid(&user_id)
         .ok_or_else(|| AppError::BadRequest("Invalid user ID".to_string()))?;
-    let (presence, last_login): (String, Option<DateTime<Utc>>) = sqlx::query_as(
-        "SELECT presence, last_login_at FROM users WHERE id = $1",
-    )
-    .bind(user_id)
-    .fetch_one(&state.db)
-    .await?;
+    let (presence, last_login): (String, Option<DateTime<Utc>>) =
+        sqlx::query_as("SELECT presence, last_login_at FROM users WHERE id = $1")
+            .bind(user_id)
+            .fetch_one(&state.db)
+            .await?;
 
     Ok(Json(mm::Status {
         user_id: encode_mm_id(user_id),
-        status: if presence.is_empty() { "offline".to_string() } else { presence },
+        status: if presence.is_empty() {
+            "offline".to_string()
+        } else {
+            presence
+        },
         manual: false,
         last_activity_at: last_login.map(|t| t.timestamp_millis()).unwrap_or(0),
     }))
@@ -1823,16 +1920,19 @@ async fn get_my_status(
     State(state): State<AppState>,
     auth: MmAuthUser,
 ) -> ApiResult<Json<mm::Status>> {
-    let (presence, last_login): (String, Option<DateTime<Utc>>) = sqlx::query_as(
-        "SELECT presence, last_login_at FROM users WHERE id = $1",
-    )
-    .bind(auth.user_id)
-    .fetch_one(&state.db)
-    .await?;
+    let (presence, last_login): (String, Option<DateTime<Utc>>) =
+        sqlx::query_as("SELECT presence, last_login_at FROM users WHERE id = $1")
+            .bind(auth.user_id)
+            .fetch_one(&state.db)
+            .await?;
 
     Ok(Json(mm::Status {
         user_id: encode_mm_id(auth.user_id),
-        status: if presence.is_empty() { "offline".to_string() } else { presence },
+        status: if presence.is_empty() {
+            "offline".to_string()
+        } else {
+            presence
+        },
         manual: false,
         last_activity_at: last_login.map(|t| t.timestamp_millis()).unwrap_or(0),
     }))
@@ -1863,11 +1963,13 @@ async fn update_status(
     body: Bytes,
 ) -> ApiResult<Json<mm::Status>> {
     let input: UpdateStatusRequest = parse_body(&headers, &body, "Invalid status update request")?;
-    
+
     let input_user_id = parse_mm_or_uuid(&input.user_id)
         .ok_or_else(|| AppError::BadRequest("Invalid user ID".to_string()))?;
     if input_user_id != auth.user_id {
-        return Err(AppError::Forbidden("Cannot update other user's status".to_string()));
+        return Err(AppError::Forbidden(
+            "Cannot update other user's status".to_string(),
+        ));
     }
 
     sqlx::query("UPDATE users SET presence = $1 WHERE id = $2")
@@ -1914,8 +2016,6 @@ async fn patch_me(
     Ok(Json(user.into()))
 }
 
-
-
 #[derive(Deserialize)]
 struct UsersQuery {
     in_channel: Option<String>,
@@ -1947,7 +2047,9 @@ async fn list_users(
     .await?;
 
     if !is_member {
-        return Err(AppError::Forbidden("Not a member of this channel".to_string()));
+        return Err(AppError::Forbidden(
+            "Not a member of this channel".to_string(),
+        ));
     }
 
     let users: Vec<User> = sqlx::query_as(
@@ -1978,16 +2080,12 @@ async fn get_user_image(
         .ok_or_else(|| AppError::BadRequest("Invalid user ID".to_string()))?;
 
     const PNG_1X1: &[u8] = &[
-        137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0,
-        0, 0, 1, 8, 6, 0, 0, 0, 31, 21, 196, 137, 0, 0, 0, 10, 73, 68, 65, 84, 120,
-        156, 99, 0, 1, 0, 0, 5, 0, 1, 13, 10, 45, 180, 0, 0, 0, 0, 73, 69, 78, 68,
-        174, 66, 96, 130,
+        137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1, 8, 6,
+        0, 0, 0, 31, 21, 196, 137, 0, 0, 0, 10, 73, 68, 65, 84, 120, 156, 99, 0, 1, 0, 0, 5, 0, 1,
+        13, 10, 45, 180, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130,
     ];
 
-    Ok((
-        [(axum::http::header::CONTENT_TYPE, "image/png")],
-        PNG_1X1,
-    ))
+    Ok(([(axum::http::header::CONTENT_TYPE, "image/png")], PNG_1X1))
 }
 
 /// POST /users/{user_id}/image - Upload user profile image
@@ -1999,9 +2097,11 @@ async fn upload_user_image(
 ) -> ApiResult<Json<serde_json::Value>> {
     let user_uuid = parse_mm_or_uuid(&user_id)
         .ok_or_else(|| AppError::BadRequest("Invalid user ID".to_string()))?;
-    
+
     if user_uuid != auth.user_id {
-        return Err(AppError::Forbidden("Cannot update other user's image".to_string()));
+        return Err(AppError::Forbidden(
+            "Cannot update other user's image".to_string(),
+        ));
     }
 
     // Process multipart upload
@@ -2016,14 +2116,18 @@ async fn upload_user_image(
             .content_type()
             .unwrap_or("application/octet-stream")
             .to_string();
-        
+
         // Accept field named "image", "file", "picture", "avatar", or any field with:
         // - image content type
         // - a filename present (indicates it's a file upload)
-        let is_image_field = name == "image" || name == "file" || name == "picture" || name == "avatar" || name.is_empty();
+        let is_image_field = name == "image"
+            || name == "file"
+            || name == "picture"
+            || name == "avatar"
+            || name.is_empty();
         let is_image_type = content_type.starts_with("image/");
         let has_filename = filename.is_some();
-        
+
         if is_image_field && (is_image_type || has_filename) {
             let data = field
                 .bytes()
@@ -2055,7 +2159,10 @@ async fn upload_user_image(
 
             // Upload to S3
             let key = format!("avatars/{}.png", user_uuid);
-            state.s3_client.upload(&key, data, &final_content_type).await?;
+            state
+                .s3_client
+                .upload(&key, data, &final_content_type)
+                .await?;
 
             // Update user avatar_url
             let avatar_url = format!("/api/v4/users/{}/image", encode_mm_id(user_uuid));
@@ -2069,7 +2176,9 @@ async fn upload_user_image(
         }
     }
 
-    Err(AppError::BadRequest("No image field found in upload".to_string()))
+    Err(AppError::BadRequest(
+        "No image field found in upload".to_string(),
+    ))
 }
 
 async fn user_typing(
@@ -2082,7 +2191,7 @@ async fn user_typing(
     let channel_id = parse_mm_or_uuid(&channel_id)
         .ok_or_else(|| AppError::BadRequest("Invalid channel ID".to_string()))?;
     if user_id != auth.user_id {
-         return Err(AppError::Forbidden("Mismatch user_id".to_string()));
+        return Err(AppError::Forbidden("Mismatch user_id".to_string()));
     }
 
     let broadcast = crate::realtime::WsEnvelope::event(
@@ -2093,7 +2202,8 @@ async fn user_typing(
             thread_root_id: None,
         },
         Some(channel_id),
-    ).with_broadcast(crate::realtime::WsBroadcast {
+    )
+    .with_broadcast(crate::realtime::WsBroadcast {
         channel_id: Some(channel_id),
         team_id: None,
         user_id: None,
@@ -2289,10 +2399,7 @@ async fn get_user_image_default(
     get_user_image(State(state), Path(user_id)).await
 }
 
-async fn reset_password(
-    headers: HeaderMap,
-    body: Bytes,
-) -> ApiResult<Json<serde_json::Value>> {
+async fn reset_password(headers: HeaderMap, body: Bytes) -> ApiResult<Json<serde_json::Value>> {
     let _value: serde_json::Value = parse_body(&headers, &body, "Invalid reset body")?;
     Ok(status_ok())
 }
@@ -2310,10 +2417,7 @@ struct CheckMfaRequest {
     login_id: String,
 }
 
-async fn check_user_mfa(
-    headers: HeaderMap,
-    body: Bytes,
-) -> ApiResult<Json<serde_json::Value>> {
+async fn check_user_mfa(headers: HeaderMap, body: Bytes) -> ApiResult<Json<serde_json::Value>> {
     let _input: CheckMfaRequest = parse_body(&headers, &body, "Invalid mfa body")?;
     Ok(Json(serde_json::json!({"mfa_required": false})))
 }
@@ -2413,7 +2517,9 @@ async fn update_user_password(
         .await?;
 
     if user_id != auth.user_id {
-        return Err(AppError::Forbidden("Cannot change another user's password".to_string()));
+        return Err(AppError::Forbidden(
+            "Cannot change another user's password".to_string(),
+        ));
     }
 
     if let Some(current) = input.current_password.as_deref() {
@@ -2495,40 +2601,26 @@ async fn get_tokens() -> ApiResult<Json<Vec<serde_json::Value>>> {
     Ok(Json(vec![]))
 }
 
-async fn revoke_token(
-    headers: HeaderMap,
-    body: Bytes,
-) -> ApiResult<Json<serde_json::Value>> {
+async fn revoke_token(headers: HeaderMap, body: Bytes) -> ApiResult<Json<serde_json::Value>> {
     let _value: serde_json::Value = parse_body(&headers, &body, "Invalid revoke body")?;
     Ok(status_ok())
 }
 
-async fn get_token(
-    Path(_token_id): Path<String>,
-) -> ApiResult<Json<serde_json::Value>> {
+async fn get_token(Path(_token_id): Path<String>) -> ApiResult<Json<serde_json::Value>> {
     Ok(Json(serde_json::json!({})))
 }
 
-async fn disable_token(
-    headers: HeaderMap,
-    body: Bytes,
-) -> ApiResult<Json<serde_json::Value>> {
+async fn disable_token(headers: HeaderMap, body: Bytes) -> ApiResult<Json<serde_json::Value>> {
     let _value: serde_json::Value = parse_body(&headers, &body, "Invalid disable body")?;
     Ok(status_ok())
 }
 
-async fn enable_token(
-    headers: HeaderMap,
-    body: Bytes,
-) -> ApiResult<Json<serde_json::Value>> {
+async fn enable_token(headers: HeaderMap, body: Bytes) -> ApiResult<Json<serde_json::Value>> {
     let _value: serde_json::Value = parse_body(&headers, &body, "Invalid enable body")?;
     Ok(status_ok())
 }
 
-async fn search_tokens(
-    headers: HeaderMap,
-    body: Bytes,
-) -> ApiResult<Json<Vec<serde_json::Value>>> {
+async fn search_tokens(headers: HeaderMap, body: Bytes) -> ApiResult<Json<Vec<serde_json::Value>>> {
     let _value: serde_json::Value = parse_body(&headers, &body, "Invalid search body")?;
     Ok(Json(vec![]))
 }
@@ -2577,12 +2669,11 @@ async fn get_user_channel_members(
     Path(user_id): Path<String>,
 ) -> ApiResult<Json<Vec<mm::ChannelMember>>> {
     let user_id = resolve_user_id(&user_id, &auth)?;
-    let members: Vec<ChannelMember> = sqlx::query_as(
-        "SELECT * FROM channel_members WHERE user_id = $1",
-    )
-    .bind(user_id)
-    .fetch_all(&state.db)
-    .await?;
+    let members: Vec<ChannelMember> =
+        sqlx::query_as("SELECT * FROM channel_members WHERE user_id = $1")
+            .bind(user_id)
+            .fetch_all(&state.db)
+            .await?;
 
     let mm_members = members
         .into_iter()
@@ -2604,18 +2695,12 @@ async fn get_user_channel_members(
     Ok(Json(mm_members))
 }
 
-async fn migrate_auth_ldap(
-    headers: HeaderMap,
-    body: Bytes,
-) -> ApiResult<Json<serde_json::Value>> {
+async fn migrate_auth_ldap(headers: HeaderMap, body: Bytes) -> ApiResult<Json<serde_json::Value>> {
     let _value: serde_json::Value = parse_body(&headers, &body, "Invalid migrate body")?;
     Ok(status_ok())
 }
 
-async fn migrate_auth_saml(
-    headers: HeaderMap,
-    body: Bytes,
-) -> ApiResult<Json<serde_json::Value>> {
+async fn migrate_auth_saml(headers: HeaderMap, body: Bytes) -> ApiResult<Json<serde_json::Value>> {
     let _value: serde_json::Value = parse_body(&headers, &body, "Invalid migrate body")?;
     Ok(status_ok())
 }
@@ -2703,8 +2788,8 @@ async fn get_user_groups(
     Path(user_id): Path<String>,
 ) -> ApiResult<Json<Vec<serde_json::Value>>> {
     let _user_uuid = if user_id == "me" {
-        uuid::Uuid::new_v4() 
-     } else {
+        uuid::Uuid::new_v4()
+    } else {
         parse_mm_or_uuid(&user_id)
             .ok_or_else(|| AppError::BadRequest("Invalid user_id".to_string()))?
     };

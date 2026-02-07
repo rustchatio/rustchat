@@ -9,9 +9,18 @@ use serde_json::json;
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/compliance/reports", get(get_compliance_reports).post(create_compliance_report))
-        .route("/compliance/reports/{report_id}", get(get_compliance_report))
-        .route("/compliance/reports/{report_id}/download", get(download_compliance_report))
+        .route(
+            "/compliance/reports",
+            get(get_compliance_reports).post(create_compliance_report),
+        )
+        .route(
+            "/compliance/reports/{report_id}",
+            get(get_compliance_report),
+        )
+        .route(
+            "/compliance/reports/{report_id}/download",
+            get(download_compliance_report),
+        )
 }
 
 async fn get_compliance_reports(

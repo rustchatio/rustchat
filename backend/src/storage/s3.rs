@@ -1,14 +1,14 @@
 //! S3-compatible storage client
 
 use aws_config::Region;
+use aws_sdk_s3::error::ProvideErrorMetadata;
+use aws_sdk_s3::error::SdkError;
 use aws_sdk_s3::{
     config::{Credentials, SharedCredentialsProvider},
     presigning::PresigningConfig,
     primitives::ByteStream,
     Client, Config,
 };
-use aws_sdk_s3::error::ProvideErrorMetadata;
-use aws_sdk_s3::error::SdkError;
 use std::time::Duration;
 use tracing::error;
 
@@ -137,10 +137,7 @@ impl S3Client {
             }
             Err(e) => {
                 error!(error = ?e, bucket = %self.bucket, "S3 create bucket failed");
-                Err(AppError::Internal(format!(
-                    "S3 create bucket error: {}",
-                    e
-                )))
+                Err(AppError::Internal(format!("S3 create bucket error: {}", e)))
             }
         }
     }

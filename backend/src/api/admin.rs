@@ -539,50 +539,61 @@ async fn get_calls_plugin_config(
     require_admin(&auth)?;
 
     // Get config from database (server_config table, plugins column)
-    let config: Option<(serde_json::Value,)> = sqlx::query_as(
-        "SELECT plugins->'calls' FROM server_config WHERE id = 'default'"
-    )
-    .fetch_optional(&state.db)
-    .await?;
+    let config: Option<(serde_json::Value,)> =
+        sqlx::query_as("SELECT plugins->'calls' FROM server_config WHERE id = 'default'")
+            .fetch_optional(&state.db)
+            .await?;
 
     let calls_config = config
         .and_then(|(json,)| json.as_object().cloned())
-        .map(|obj| {
-            CallsPluginConfig {
-                enabled: obj.get("enabled")
-                    .and_then(|v| v.as_bool())
-                    .unwrap_or(state.config.calls.enabled),
-                turn_server_enabled: obj.get("turn_server_enabled")
-                    .and_then(|v| v.as_bool())
-                    .unwrap_or(state.config.calls.turn_server_enabled),
-                turn_server_url: obj.get("turn_server_url")
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_string())
-                    .unwrap_or_else(|| state.config.calls.turn_server_url.clone()),
-                turn_server_username: obj.get("turn_server_username")
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_string())
-                    .unwrap_or_else(|| state.config.calls.turn_server_username.clone()),
-                turn_server_credential: obj.get("turn_server_credential")
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_string())
-                    .unwrap_or_else(|| state.config.calls.turn_server_credential.clone()),
-                udp_port: obj.get("udp_port")
-                    .and_then(|v| v.as_u64())
-                    .map(|v| v as u16)
-                    .unwrap_or(state.config.calls.udp_port),
-                tcp_port: obj.get("tcp_port")
-                    .and_then(|v| v.as_u64())
-                    .map(|v| v as u16)
-                    .unwrap_or(state.config.calls.tcp_port),
-                ice_host_override: obj.get("ice_host_override")
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_string()),
-                stun_servers: obj.get("stun_servers")
-                    .and_then(|v| v.as_array())
-                    .map(|arr| arr.iter().filter_map(|v| v.as_str()).map(|s| s.to_string()).collect())
-                    .unwrap_or_else(|| state.config.calls.stun_servers.clone()),
-            }
+        .map(|obj| CallsPluginConfig {
+            enabled: obj
+                .get("enabled")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(state.config.calls.enabled),
+            turn_server_enabled: obj
+                .get("turn_server_enabled")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(state.config.calls.turn_server_enabled),
+            turn_server_url: obj
+                .get("turn_server_url")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| state.config.calls.turn_server_url.clone()),
+            turn_server_username: obj
+                .get("turn_server_username")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| state.config.calls.turn_server_username.clone()),
+            turn_server_credential: obj
+                .get("turn_server_credential")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| state.config.calls.turn_server_credential.clone()),
+            udp_port: obj
+                .get("udp_port")
+                .and_then(|v| v.as_u64())
+                .map(|v| v as u16)
+                .unwrap_or(state.config.calls.udp_port),
+            tcp_port: obj
+                .get("tcp_port")
+                .and_then(|v| v.as_u64())
+                .map(|v| v as u16)
+                .unwrap_or(state.config.calls.tcp_port),
+            ice_host_override: obj
+                .get("ice_host_override")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string()),
+            stun_servers: obj
+                .get("stun_servers")
+                .and_then(|v| v.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str())
+                        .map(|s| s.to_string())
+                        .collect()
+                })
+                .unwrap_or_else(|| state.config.calls.stun_servers.clone()),
         })
         .unwrap_or_else(|| CallsPluginConfig {
             enabled: state.config.calls.enabled,
@@ -614,11 +625,10 @@ async fn update_calls_plugin_config(
     tracing::info!("Received Calls Plugin config update: {}", payload);
 
     // Deserialize manually to get better error messages
-    let payload: UpdateCallsPluginConfig = serde_json::from_value(payload)
-        .map_err(|e| {
-            tracing::error!("Failed to deserialize Calls Plugin config: {}", e);
-            AppError::BadRequest(format!("Invalid configuration data: {}", e))
-        })?;
+    let payload: UpdateCallsPluginConfig = serde_json::from_value(payload).map_err(|e| {
+        tracing::error!("Failed to deserialize Calls Plugin config: {}", e);
+        AppError::BadRequest(format!("Invalid configuration data: {}", e))
+    })?;
 
     // Get existing credential if not provided in update
     let credential = if let Some(ref cred) = payload.turn_server_credential {
@@ -630,7 +640,9 @@ async fn update_calls_plugin_config(
         )
         .fetch_optional(&state.db)
         .await?;
-        existing.map(|(s,)| s).unwrap_or_else(|| state.config.calls.turn_server_credential.clone())
+        existing
+            .map(|(s,)| s)
+            .unwrap_or_else(|| state.config.calls.turn_server_credential.clone())
     };
 
     // Build JSON object for calls config
@@ -660,7 +672,7 @@ async fn update_calls_plugin_config(
             ),
             updated_at = NOW(),
             updated_by = $2
-        "#
+        "#,
     )
     .bind(calls_config_json)
     .bind(auth.user_id)
@@ -729,12 +741,11 @@ async fn update_role_permissions(
 ) -> ApiResult<Json<Vec<String>>> {
     require_admin(&auth)?;
 
-    let valid_permissions: Vec<(String,)> = sqlx::query_as(
-        "SELECT id FROM permissions WHERE id = ANY($1)",
-    )
-    .bind(&input.permissions)
-    .fetch_all(&state.db)
-    .await?;
+    let valid_permissions: Vec<(String,)> =
+        sqlx::query_as("SELECT id FROM permissions WHERE id = ANY($1)")
+            .bind(&input.permissions)
+            .fetch_all(&state.db)
+            .await?;
 
     let valid_ids: Vec<String> = valid_permissions.into_iter().map(|p| p.0).collect();
 

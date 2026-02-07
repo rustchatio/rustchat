@@ -2,7 +2,7 @@ use axum::{
     body::Body,
     http::{Request, StatusCode},
 };
-use rustchat::{api::router, realtime::WsHub, storage::S3Client};
+use rustchat::{api::router, config::Config, realtime::WsHub, storage::S3Client};
 use sqlx::postgres::PgPoolOptions;
 use tower::ServiceExt;
 
@@ -14,7 +14,9 @@ async fn config_client_returns_diagnostic_id() {
         .expect("Failed to create lazy pool");
 
     let redis_cfg = deadpool_redis::Config::default();
-    let redis = redis_cfg.create_pool(Some(deadpool_redis::Runtime::Tokio1)).unwrap();
+    let redis = redis_cfg
+        .create_pool(Some(deadpool_redis::Runtime::Tokio1))
+        .unwrap();
 
     let ws_hub = WsHub::new();
 
@@ -34,14 +36,15 @@ async fn config_client_returns_diagnostic_id() {
         "secret".to_string(),
         1,
         ws_hub,
-        s3_client
+        s3_client,
+        test_config(),
     );
 
     // 3. Make request
     let response = app
         .oneshot(
             Request::builder()
-                .uri("/api/v4/config/client")
+                .uri("/api/v4/config/client?format=old")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -50,7 +53,9 @@ async fn config_client_returns_diagnostic_id() {
 
     assert_eq!(response.status(), StatusCode::OK);
 
-    let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let body: serde_json::Value = serde_json::from_slice(&body_bytes).unwrap();
 
     // Check for DiagnosticId
@@ -58,7 +63,10 @@ async fn config_client_returns_diagnostic_id() {
     assert!(diagnostic_id.is_some(), "DiagnosticId field is missing");
     let diagnostic_id_str = diagnostic_id.unwrap().as_str();
     assert!(diagnostic_id_str.is_some(), "DiagnosticId is not a string");
-    assert!(!diagnostic_id_str.unwrap().is_empty(), "DiagnosticId is empty");
+    assert!(
+        !diagnostic_id_str.unwrap().is_empty(),
+        "DiagnosticId is empty"
+    );
 }
 
 #[tokio::test]
@@ -69,7 +77,9 @@ async fn license_client_returns_boolean() {
         .expect("Failed to create lazy pool");
 
     let redis_cfg = deadpool_redis::Config::default();
-    let redis = redis_cfg.create_pool(Some(deadpool_redis::Runtime::Tokio1)).unwrap();
+    let redis = redis_cfg
+        .create_pool(Some(deadpool_redis::Runtime::Tokio1))
+        .unwrap();
 
     let ws_hub = WsHub::new();
 
@@ -89,7 +99,8 @@ async fn license_client_returns_boolean() {
         "secret".to_string(),
         1,
         ws_hub,
-        s3_client
+        s3_client,
+        test_config(),
     );
 
     // 3. Make request
@@ -105,7 +116,9 @@ async fn license_client_returns_boolean() {
 
     assert_eq!(response.status(), StatusCode::OK);
 
-    let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let body_bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
     let body: serde_json::Value = serde_json::from_slice(&body_bytes).unwrap();
 
     // Check for IsLicensed
@@ -113,6 +126,36 @@ async fn license_client_returns_boolean() {
     assert!(is_licensed.is_some(), "IsLicensed field is missing");
 
     // This assertion should fail if it returns a string
-    assert!(is_licensed.unwrap().is_boolean(), "IsLicensed is not a boolean: {:?}", is_licensed.unwrap());
-    assert_eq!(is_licensed.unwrap().as_bool(), Some(false), "IsLicensed is not false");
+    assert!(
+        is_licensed.unwrap().is_boolean(),
+        "IsLicensed is not a boolean: {:?}",
+        is_licensed.unwrap()
+    );
+    assert_eq!(
+        is_licensed.unwrap().as_bool(),
+        Some(false),
+        "IsLicensed is not false"
+    );
+}
+
+fn test_config() -> Config {
+    Config {
+        server_host: "127.0.0.1".to_string(),
+        server_port: 3000,
+        database_url: "postgres://fake:fake@localhost:5432/fake".to_string(),
+        redis_url: "redis://localhost:6379/".to_string(),
+        jwt_secret: "secret".to_string(),
+        encryption_key: "test-encryption-key".to_string(),
+        jwt_expiry_hours: 1,
+        log_level: "info".to_string(),
+        s3_endpoint: Some("http://localhost:9000".to_string()),
+        s3_public_endpoint: None,
+        s3_bucket: "test".to_string(),
+        s3_access_key: Some("a".to_string()),
+        s3_secret_key: Some("s".to_string()),
+        s3_region: "us-east-1".to_string(),
+        admin_user: None,
+        admin_password: None,
+        calls: Default::default(),
+    }
 }

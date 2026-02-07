@@ -16,7 +16,7 @@ async fn test_user_custom_status() {
         "display_name": "Status User"
     });
 
-    let reg_res = app
+    let _reg_res = app
         .api_client
         .post(&format!("{}/api/v1/auth/register", &app.address))
         .json(&user_data)
@@ -47,6 +47,10 @@ async fn test_user_custom_status() {
         .json()
         .await
         .expect("Failed to parse login response");
+    let token = body["token"]
+        .as_str()
+        .expect("Missing auth token")
+        .to_string();
     let user_id = body["user"]["id"].as_str().unwrap().to_string();
 
     // 2. Update Custom Status
@@ -66,6 +70,7 @@ async fn test_user_custom_status() {
     let update_res = app
         .api_client
         .put(&format!("{}/api/v1/users/{}", &app.address, user_id))
+        .header("Authorization", format!("Bearer {}", token))
         .json(&update_data)
         .send()
         .await
@@ -83,6 +88,7 @@ async fn test_user_custom_status() {
     let get_res = app
         .api_client
         .get(&format!("{}/api/v1/users/{}", &app.address, user_id))
+        .header("Authorization", format!("Bearer {}", token))
         .send()
         .await
         .expect("Failed to get user");

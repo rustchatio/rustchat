@@ -89,17 +89,17 @@ impl ConnectionState {
         };
 
         let mut buffer = self.message_buffer.lock().unwrap();
-        
+
         // If buffer is full, remove oldest message (FIFO)
         if buffer.len() >= MESSAGE_BUFFER_SIZE {
             buffer.pop_front();
         }
-        
+
         buffer.push_back(msg);
-        
+
         // Update last activity
         *self.last_activity.lock().unwrap() = Instant::now();
-        
+
         trace!(
             connection_id = %self.connection_id,
             seq = seq,
@@ -194,12 +194,12 @@ impl ConnectionStore {
     }
 
     /// Create a new connection or resume an existing one
-    /// 
+    ///
     /// # Arguments
     /// * `connection_id` - Optional existing connection ID for resumption
     /// * `user_id` - The user ID
     /// * `requested_seq` - Last sequence number received by client (for resumption)
-    /// 
+    ///
     /// # Returns
     /// Tuple of (connection_state, is_resumed, missed_messages)
     pub fn resume_or_create(
@@ -215,11 +215,11 @@ impl ConnectionStore {
                 if existing.user_id == user_id {
                     // Mark as active again
                     existing.mark_active();
-                    
+
                     // Get missed messages
                     let since_seq = requested_seq.unwrap_or(-1);
                     let missed = existing.get_missed_messages(since_seq);
-                    
+
                     debug!(
                         connection_id = %conn_id,
                         user_id = %user_id,
@@ -227,7 +227,7 @@ impl ConnectionStore {
                         since_seq = since_seq,
                         "Connection resumed"
                     );
-                    
+
                     return (existing.clone(), true, missed);
                 } else {
                     warn!(
@@ -243,23 +243,23 @@ impl ConnectionStore {
         // Create new connection
         let new_conn_id = connection_id.unwrap_or_else(|| Uuid::new_v4().to_string());
         let initial_seq = requested_seq.unwrap_or(0);
-        
+
         let state = ConnectionState::new(new_conn_id.clone(), user_id, initial_seq);
-        
+
         self.connections.insert(new_conn_id.clone(), state.clone());
-        
+
         // Add to user index
         self.user_connections
             .entry(user_id)
             .and_modify(|conns| conns.push(new_conn_id.clone()))
             .or_insert_with(|| vec![new_conn_id.clone()]);
-        
+
         debug!(
             connection_id = %new_conn_id,
             user_id = %user_id,
             "New connection created"
         );
-        
+
         (state, false, Vec::new())
     }
 
@@ -272,14 +272,14 @@ impl ConnectionStore {
     pub fn remove_connection(&self, connection_id: &str) {
         if let Some((_, state)) = self.connections.remove(connection_id) {
             state.mark_inactive();
-            
+
             // Remove from user index
             self.user_connections
                 .entry(state.user_id)
                 .and_modify(|conns| {
                     conns.retain(|id| id != connection_id);
                 });
-            
+
             debug!(
                 connection_id = %connection_id,
                 user_id = %state.user_id,
@@ -342,13 +342,13 @@ impl ConnectionStore {
     /// Clean up expired connections
     async fn cleanup_expired(&self) {
         let mut expired = Vec::new();
-        
+
         for entry in self.connections.iter() {
             if entry.value().is_expired() {
                 expired.push(entry.key().clone());
             }
         }
-        
+
         for conn_id in &expired {
             if let Some((_, state)) = self.connections.remove(conn_id) {
                 // Remove from user index
@@ -357,7 +357,7 @@ impl ConnectionStore {
                     .and_modify(|conns| {
                         conns.retain(|id| id != conn_id);
                     });
-                
+
                 debug!(
                     connection_id = %conn_id,
                     user_id = %state.user_id,
@@ -365,7 +365,7 @@ impl ConnectionStore {
                 );
             }
         }
-        
+
         if !expired.is_empty() {
             trace!(count = expired.len(), "Expired connections cleaned up");
         }
@@ -417,7 +417,7 @@ mod tests {
     #[test]
     fn test_connection_state_sequence() {
         let state = ConnectionState::new("test-123".to_string(), Uuid::new_v4(), 0);
-        
+
         assert_eq!(state.current_sequence(), 0);
         assert_eq!(state.next_sequence(), 0);
         assert_eq!(state.current_sequence(), 1);
@@ -428,12 +428,12 @@ mod tests {
     #[test]
     fn test_message_buffering() {
         let state = ConnectionState::new("test-123".to_string(), Uuid::new_v4(), 0);
-        
+
         // Add some messages
         for i in 0..10 {
             state.buffer_message(i, json!({"test": i}));
         }
-        
+
         // Get missed messages
         let missed = state.get_missed_messages(5);
         assert_eq!(missed.len(), 4); // seq 6, 7, 8, 9
@@ -444,12 +444,12 @@ mod tests {
     #[test]
     fn test_buffer_size_limit() {
         let state = ConnectionState::new("test-123".to_string(), Uuid::new_v4(), 0);
-        
+
         // Add more messages than buffer size
         for i in 0..(MESSAGE_BUFFER_SIZE + 10) as i64 {
             state.buffer_message(i, json!({"test": i}));
         }
-        
+
         let buffer = state.message_buffer.lock().unwrap();
         assert_eq!(buffer.len(), MESSAGE_BUFFER_SIZE);
     }
@@ -458,26 +458,26 @@ mod tests {
     async fn test_resume_or_create() {
         let store = ConnectionStore::new();
         let user_id = Uuid::new_v4();
-        
+
         // Create new connection
         let (state, is_resumed, missed) = store.resume_or_create(None, user_id, None);
         assert!(!is_resumed);
         assert!(missed.is_empty());
-        
+
         let conn_id = state.connection_id.clone();
-        
+
         // Add some messages
         for i in 0..5 {
             store.queue_message(&conn_id, json!({"msg": i}));
         }
-        
+
         // Disconnect
         store.disconnect_connection(&conn_id);
-        
+
         // Resume
-        let (resumed_state, is_resumed, missed) = 
+        let (resumed_state, is_resumed, missed) =
             store.resume_or_create(Some(conn_id.clone()), user_id, Some(2));
-        
+
         assert!(is_resumed);
         assert_eq!(missed.len(), 2); // seq 3 and 4
         assert_eq!(resumed_state.connection_id, conn_id);

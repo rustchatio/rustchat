@@ -18,7 +18,7 @@ fn enterprise_required() -> ApiResult<(StatusCode, Json<serde_json::Value>)> {
             "message": "This feature requires an Enterprise license.",
             "detailed_error": "SAML authentication is an enterprise feature. Please upgrade your license.",
             "status_code": 501
-        }))
+        })),
     ))
 }
 
@@ -43,9 +43,7 @@ pub fn router() -> Router<AppState> {
 }
 
 /// GET /api/v4/saml/metadata - returns empty XML indicating SAML not configured
-async fn get_saml_metadata(
-    State(_state): State<AppState>,
-) -> ApiResult<impl IntoResponse> {
+async fn get_saml_metadata(State(_state): State<AppState>) -> ApiResult<impl IntoResponse> {
     Ok((
         [(axum::http::header::CONTENT_TYPE, "application/xml")],
         "<?xml version=\"1.0\"?><EntityDescriptor xmlns=\"urn:oasis:names:tc:SAML:2.0:metadata\"><Error>SAML not configured - Enterprise license required</Error></EntityDescriptor>",

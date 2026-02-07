@@ -14,7 +14,10 @@ use uuid::Uuid;
 use super::extractors::MmAuthUser;
 use crate::api::AppState;
 use crate::error::{ApiResult, AppError};
-use crate::mattermost_compat::{id::{encode_mm_id, parse_mm_or_uuid}, models as mm};
+use crate::mattermost_compat::{
+    id::{encode_mm_id, parse_mm_or_uuid},
+    models as mm,
+};
 use crate::models::{CreatePost, FileInfo};
 use crate::realtime::{EventType, WsBroadcast, WsEnvelope};
 use crate::services::posts;
@@ -24,15 +27,15 @@ pub fn router() -> Router<AppState> {
         .route("/posts", post(create_post_handler))
         .route("/posts/ids", post(get_posts_by_ids))
         .route("/posts/ids/reactions", post(get_reactions_by_post_ids))
-        .route(
-            "/posts/{post_id}",
-            get(get_post).delete(delete_post),
-        )
+        .route("/posts/{post_id}", get(get_post).delete(delete_post))
         .route("/posts/{post_id}/files/info", get(get_post_files_info))
         .route("/posts/{post_id}/pin", post(pin_post))
         .route("/posts/{post_id}/unpin", post(unpin_post))
         .route("/posts/{post_id}/patch", put(patch_post))
-        .route("/posts/{post_id}/actions/{action_id}", post(handle_post_action))
+        .route(
+            "/posts/{post_id}/actions/{action_id}",
+            post(handle_post_action),
+        )
         .route("/posts/{post_id}/move", post(move_post))
         .route(
             "/posts/{post_id}/restore/{restore_version_id}",
@@ -48,7 +51,10 @@ pub fn router() -> Router<AppState> {
         .route("/users/{user_id}/posts/flagged", get(get_flagged_posts))
         .route("/posts/{post_id}/ack", post(ack_post))
         .route("/reactions", post(add_reaction))
-        .route("/users/me/posts/{post_id}/reactions/{emoji_name}", delete(remove_reaction))
+        .route(
+            "/users/me/posts/{post_id}/reactions/{emoji_name}",
+            delete(remove_reaction),
+        )
         .route(
             "/users/{user_id}/posts/{post_id}/reactions/{emoji_name}",
             delete(remove_reaction_for_user),
@@ -62,7 +68,10 @@ pub fn router() -> Router<AppState> {
             put(update_scheduled_post),
         )
         .route("/posts/scheduled/team/{team_id}", get(list_scheduled_posts))
-        .route("/users/{user_id}/posts/{post_id}/reminder", post(set_post_reminder))
+        .route(
+            "/users/{user_id}/posts/{post_id}/reminder",
+            post(set_post_reminder),
+        )
         .route("/posts/search", post(search_posts_all_teams))
         .route("/teams/{team_id}/posts/search", post(search_team_posts))
         .route(
@@ -332,11 +341,10 @@ async fn get_post_files_info(
         return Ok(Json(Vec::new()));
     }
 
-    let files: Vec<FileInfo> =
-        sqlx::query_as("SELECT * FROM files WHERE id = ANY($1)")
-            .bind(&post.file_ids)
-            .fetch_all(&state.db)
-            .await?;
+    let files: Vec<FileInfo> = sqlx::query_as("SELECT * FROM files WHERE id = ANY($1)")
+        .bind(&post.file_ids)
+        .fetch_all(&state.db)
+        .await?;
 
     let mm_files: Vec<mm::FileInfo> = files.into_iter().map(|f| f.into()).collect();
     Ok(Json(mm_files))
@@ -704,9 +712,7 @@ async fn set_post_unread(
         channel_id: encode_mm_id(channel_id),
         msg_count: last_read_id,
         mention_count: 0,
-        last_viewed_at: last_viewed_at
-            .map(|t| t.timestamp_millis())
-            .unwrap_or(0),
+        last_viewed_at: last_viewed_at.map(|t| t.timestamp_millis()).unwrap_or(0),
     }))
 }
 
@@ -721,7 +727,9 @@ async fn get_flagged_posts(
         let parsed = parse_mm_or_uuid(&user_id)
             .ok_or_else(|| AppError::BadRequest("Invalid user_id".to_string()))?;
         if parsed != auth.user_id && auth.role != "system_admin" && auth.role != "org_admin" {
-            return Err(AppError::Forbidden("Cannot access another user's posts".to_string()));
+            return Err(AppError::Forbidden(
+                "Cannot access another user's posts".to_string(),
+            ));
         }
         parsed
     };
@@ -784,13 +792,17 @@ async fn delete_post(
 ) -> ApiResult<impl IntoResponse> {
     let post_id = parse_mm_or_uuid(&post_id)
         .ok_or_else(|| AppError::BadRequest("Invalid post_id".to_string()))?;
-    let post: crate::models::post::Post = sqlx::query_as("SELECT * FROM posts WHERE id = $1")
-        .bind(post_id)
-        .fetch_one(&state.db)
-        .await?;
+    let (post_user_id, post_channel_id): (Uuid, Uuid) =
+        sqlx::query_as("SELECT user_id, channel_id FROM posts WHERE id = $1")
+            .bind(post_id)
+            .fetch_optional(&state.db)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Post not found".to_string()))?;
 
-    if post.user_id != auth.user_id {
-        return Err(AppError::Forbidden("Cannot delete others' posts".to_string()));
+    if post_user_id != auth.user_id {
+        return Err(AppError::Forbidden(
+            "Cannot delete others' posts".to_string(),
+        ));
     }
 
     let deleted_post: crate::models::post::PostResponse = sqlx::query_as(
@@ -815,17 +827,19 @@ async fn delete_post(
     let broadcast = WsEnvelope::event(
         EventType::MessageDeleted,
         deleted_post,
-        Some(post.channel_id),
+        Some(post_channel_id),
     )
     .with_broadcast(WsBroadcast {
-        channel_id: Some(post.channel_id),
+        channel_id: Some(post_channel_id),
         team_id: None,
         user_id: None,
         exclude_user_id: None,
     });
     state.ws_hub.broadcast(broadcast).await;
 
-    Ok(Json(serde_json::json!({"status": "OK", "id": encode_mm_id(post_id)})))
+    Ok(Json(
+        serde_json::json!({"status": "OK", "id": encode_mm_id(post_id)}),
+    ))
 }
 
 #[derive(Deserialize)]
@@ -841,12 +855,14 @@ async fn patch_post(
 ) -> ApiResult<Json<mm::Post>> {
     let post_id = parse_mm_or_uuid(&post_id)
         .ok_or_else(|| AppError::BadRequest("Invalid post_id".to_string()))?;
-    let post: crate::models::post::Post = sqlx::query_as("SELECT * FROM posts WHERE id = $1")
-        .bind(post_id)
-        .fetch_one(&state.db)
-        .await?;
+    let (post_user_id, post_channel_id): (Uuid, Uuid) =
+        sqlx::query_as("SELECT user_id, channel_id FROM posts WHERE id = $1")
+            .bind(post_id)
+            .fetch_optional(&state.db)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Post not found".to_string()))?;
 
-    if post.user_id != auth.user_id {
+    if post_user_id != auth.user_id {
         return Err(AppError::Forbidden("Cannot edit others' posts".to_string()));
     }
 
@@ -874,10 +890,10 @@ async fn patch_post(
     let broadcast = WsEnvelope::event(
         EventType::MessageUpdated,
         updated.clone(),
-        Some(post.channel_id),
+        Some(post_channel_id),
     )
     .with_broadcast(WsBroadcast {
-        channel_id: Some(post.channel_id),
+        channel_id: Some(post_channel_id),
         team_id: None,
         user_id: None,
         exclude_user_id: None,
@@ -904,14 +920,17 @@ async fn add_reaction(
     let input_user_id = parse_mm_or_uuid(&input.user_id)
         .ok_or_else(|| AppError::Validation("Invalid user_id".to_string()))?;
     if input_user_id != auth.user_id {
-        return Err(AppError::Forbidden("Cannot react for other user".to_string()));
+        return Err(AppError::Forbidden(
+            "Cannot react for other user".to_string(),
+        ));
     }
 
     let post_id = parse_mm_or_uuid(&input.post_id)
         .ok_or_else(|| AppError::Validation("Invalid post_id".to_string()))?;
 
     // Normalize emoji name (e.g., convert Unicode character to short name)
-    let emoji_name = crate::mattermost_compat::emoji_data::get_short_name_for_emoji(&input.emoji_name);
+    let emoji_name =
+        crate::mattermost_compat::emoji_data::get_short_name_for_emoji(&input.emoji_name);
 
     // Validate emoji name
     if !crate::mattermost_compat::emoji_data::is_valid_emoji_name(&emoji_name) {
@@ -965,17 +984,13 @@ async fn add_reaction(
     let reaction_json = serde_json::to_string(&mm_reaction).unwrap();
     let data = serde_json::json!({ "reaction": reaction_json });
 
-    let broadcast = WsEnvelope::event(
-        EventType::ReactionAdded,
-        data,
-        Some(channel_id),
-    )
-    .with_broadcast(WsBroadcast {
-        channel_id: Some(channel_id),
-        team_id: None,
-        user_id: None,
-        exclude_user_id: None,
-    });
+    let broadcast = WsEnvelope::event(EventType::ReactionAdded, data, Some(channel_id))
+        .with_broadcast(WsBroadcast {
+            channel_id: Some(channel_id),
+            team_id: None,
+            user_id: None,
+            exclude_user_id: None,
+        });
     state.ws_hub.broadcast(broadcast).await;
 
     Ok((StatusCode::CREATED, Json(mm_reaction)))
@@ -1005,18 +1020,16 @@ pub(crate) async fn reactions_for_posts(
 
     let mut map: HashMap<Uuid, Vec<mm::Reaction>> = HashMap::new();
     for (post_id, user_id, emoji_name, created_at, channel_id) in reactions {
-        map.entry(post_id)
-            .or_default()
-            .push(mm::Reaction {
-                user_id: encode_mm_id(user_id),
-                post_id: encode_mm_id(post_id),
-                emoji_name: crate::mattermost_compat::emoji_data::get_short_name_for_emoji(&emoji_name),
-                create_at: created_at.timestamp_millis(),
-                update_at: created_at.timestamp_millis(),
-                delete_at: 0,
-                channel_id: encode_mm_id(channel_id),
-                remote_id: "".to_string(),
-            });
+        map.entry(post_id).or_default().push(mm::Reaction {
+            user_id: encode_mm_id(user_id),
+            post_id: encode_mm_id(post_id),
+            emoji_name: crate::mattermost_compat::emoji_data::get_short_name_for_emoji(&emoji_name),
+            create_at: created_at.timestamp_millis(),
+            update_at: created_at.timestamp_millis(),
+            delete_at: 0,
+            channel_id: encode_mm_id(channel_id),
+            remote_id: "".to_string(),
+        });
     }
 
     Ok(map)
@@ -1080,12 +1093,14 @@ async fn remove_reaction_internal(
     .await?;
 
     if let Some(r) = reaction {
-        sqlx::query("DELETE FROM reactions WHERE user_id = $1 AND post_id = $2 AND emoji_name = $3")
-            .bind(user_id)
-            .bind(post_id)
-            .bind(&emoji_name)
-            .execute(&state.db)
-            .await?;
+        sqlx::query(
+            "DELETE FROM reactions WHERE user_id = $1 AND post_id = $2 AND emoji_name = $3",
+        )
+        .bind(user_id)
+        .bind(post_id)
+        .bind(&emoji_name)
+        .execute(&state.db)
+        .await?;
 
         let channel_id: Uuid = sqlx::query_scalar("SELECT channel_id FROM posts WHERE id = $1")
             .bind(post_id)
@@ -1137,16 +1152,23 @@ async fn get_reactions(
     .fetch_all(&state.db)
     .await?;
 
-    let mm_reactions = reactions.into_iter().map(|(user_id, post_id, emoji_name, created_at, channel_id)| mm::Reaction {
-        user_id: encode_mm_id(user_id),
-        post_id: encode_mm_id(post_id),
-        emoji_name: crate::mattermost_compat::emoji_data::get_short_name_for_emoji(&emoji_name),
-        create_at: created_at.timestamp_millis(),
-        update_at: created_at.timestamp_millis(),
-        delete_at: 0,
-        channel_id: encode_mm_id(channel_id),
-        remote_id: "".to_string(),
-    }).collect();
+    let mm_reactions = reactions
+        .into_iter()
+        .map(
+            |(user_id, post_id, emoji_name, created_at, channel_id)| mm::Reaction {
+                user_id: encode_mm_id(user_id),
+                post_id: encode_mm_id(post_id),
+                emoji_name: crate::mattermost_compat::emoji_data::get_short_name_for_emoji(
+                    &emoji_name,
+                ),
+                create_at: created_at.timestamp_millis(),
+                update_at: created_at.timestamp_millis(),
+                delete_at: 0,
+                channel_id: encode_mm_id(channel_id),
+                remote_id: "".to_string(),
+            },
+        )
+        .collect();
 
     Ok(Json(mm_reactions))
 }
@@ -1210,18 +1232,21 @@ async fn list_scheduled_posts(
     .fetch_all(&state.db)
     .await?;
 
-    let posts = rows.into_iter().map(|r| mm::ScheduledPost {
-        id: encode_mm_id(r.0),
-        user_id: encode_mm_id(r.1),
-        channel_id: encode_mm_id(r.2),
-        root_id: r.3.map(encode_mm_id).unwrap_or_default(),
-        message: r.4,
-        props: r.5,
-        file_ids: r.6.into_iter().map(encode_mm_id).collect(),
-        scheduled_at: r.7.timestamp_millis(),
-        create_at: r.8.timestamp_millis(),
-        update_at: r.9.timestamp_millis(),
-    }).collect();
+    let posts = rows
+        .into_iter()
+        .map(|r| mm::ScheduledPost {
+            id: encode_mm_id(r.0),
+            user_id: encode_mm_id(r.1),
+            channel_id: encode_mm_id(r.2),
+            root_id: r.3.map(encode_mm_id).unwrap_or_default(),
+            message: r.4,
+            props: r.5,
+            file_ids: r.6.into_iter().map(encode_mm_id).collect(),
+            scheduled_at: r.7.timestamp_millis(),
+            create_at: r.8.timestamp_millis(),
+            update_at: r.9.timestamp_millis(),
+        })
+        .collect();
 
     Ok(Json(posts))
 }
@@ -1235,13 +1260,19 @@ async fn create_scheduled_post(
         .ok_or_else(|| AppError::Validation("Invalid channel_id".to_string()))?;
 
     let root_id = if !input.root_id.is_empty() {
-        Some(parse_mm_or_uuid(&input.root_id)
-            .ok_or_else(|| AppError::Validation("Invalid root_id".to_string()))?)
+        Some(
+            parse_mm_or_uuid(&input.root_id)
+                .ok_or_else(|| AppError::Validation("Invalid root_id".to_string()))?,
+        )
     } else {
         None
     };
 
-    let file_ids = input.file_ids.iter().filter_map(|id| parse_mm_or_uuid(id)).collect::<Vec<_>>();
+    let file_ids = input
+        .file_ids
+        .iter()
+        .filter_map(|id| parse_mm_or_uuid(id))
+        .collect::<Vec<_>>();
     let scheduled_at = chrono::DateTime::from_timestamp_millis(input.scheduled_at)
         .ok_or_else(|| AppError::Validation("Invalid scheduled_at".to_string()))?;
 
@@ -1298,7 +1329,9 @@ async fn update_scheduled_post(
     Json(input): Json<UpdateScheduledPostRequest>,
 ) -> ApiResult<Json<mm::ScheduledPost>> {
     if input.id != scheduled_post_id {
-        return Err(AppError::BadRequest("Scheduled post id mismatch".to_string()));
+        return Err(AppError::BadRequest(
+            "Scheduled post id mismatch".to_string(),
+        ));
     }
 
     let scheduled_id = parse_mm_or_uuid(&scheduled_post_id)
@@ -1309,17 +1342,25 @@ async fn update_scheduled_post(
         .ok_or_else(|| AppError::Validation("Invalid user_id".to_string()))?;
 
     if user_id != auth.user_id {
-        return Err(AppError::Forbidden("Cannot update another user's scheduled post".to_string()));
+        return Err(AppError::Forbidden(
+            "Cannot update another user's scheduled post".to_string(),
+        ));
     }
 
     let root_id = if !input.root_id.is_empty() {
-        Some(parse_mm_or_uuid(&input.root_id)
-            .ok_or_else(|| AppError::Validation("Invalid root_id".to_string()))?)
+        Some(
+            parse_mm_or_uuid(&input.root_id)
+                .ok_or_else(|| AppError::Validation("Invalid root_id".to_string()))?,
+        )
     } else {
         None
     };
 
-    let file_ids = input.file_ids.iter().filter_map(|id| parse_mm_or_uuid(id)).collect::<Vec<_>>();
+    let file_ids = input
+        .file_ids
+        .iter()
+        .filter_map(|id| parse_mm_or_uuid(id))
+        .collect::<Vec<_>>();
     let scheduled_at = chrono::DateTime::from_timestamp_millis(input.scheduled_at)
         .ok_or_else(|| AppError::Validation("Invalid scheduled_at".to_string()))?;
 
@@ -1378,7 +1419,9 @@ async fn create_ephemeral_post(
         .ok_or_else(|| AppError::Validation("Invalid user_id".to_string()))?;
 
     if target_user_id != auth.user_id && input.user_id != "me" {
-        return Err(AppError::Forbidden("Cannot send ephemeral post to others".to_string()));
+        return Err(AppError::Forbidden(
+            "Cannot send ephemeral post to others".to_string(),
+        ));
     }
 
     let channel_id = parse_mm_or_uuid(&input.post.channel_id)
@@ -1386,7 +1429,7 @@ async fn create_ephemeral_post(
 
     let post_id = Uuid::new_v4();
     let now = chrono::Utc::now().timestamp_millis();
-    
+
     let ephemeral_post = mm::Post {
         id: encode_mm_id(post_id),
         create_at: now,
@@ -1437,7 +1480,9 @@ async fn set_post_reminder(
         .ok_or_else(|| AppError::Validation("Invalid user_id".to_string()))?;
 
     if target_user_id != auth.user_id && user_id_str != "me" {
-        return Err(AppError::Forbidden("Cannot set reminder for others".to_string()));
+        return Err(AppError::Forbidden(
+            "Cannot set reminder for others".to_string(),
+        ));
     }
 
     let post_id = parse_mm_or_uuid(&post_id_str)
@@ -1451,7 +1496,7 @@ async fn set_post_reminder(
         INSERT INTO post_reminders (user_id, post_id, target_at)
         VALUES ($1, $2, $3)
         ON CONFLICT (user_id, post_id) DO UPDATE SET target_at = $3
-        "#
+        "#,
     )
     .bind(auth.user_id)
     .bind(post_id)
@@ -1539,8 +1584,10 @@ async fn search_team_posts(
     .await?;
 
     let mut order = Vec::new();
-    let mut posts_map: std::collections::HashMap<String, mm::Post> = std::collections::HashMap::new();
-    let mut matches_map: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
+    let mut posts_map: std::collections::HashMap<String, mm::Post> =
+        std::collections::HashMap::new();
+    let mut matches_map: std::collections::HashMap<String, Vec<String>> =
+        std::collections::HashMap::new();
     let mut post_ids = Vec::new();
     let mut id_map = Vec::new();
 
@@ -1612,8 +1659,10 @@ async fn search_posts_all_teams(
     .await?;
 
     let mut order = Vec::new();
-    let mut posts_map: std::collections::HashMap<String, mm::Post> = std::collections::HashMap::new();
-    let mut matches_map: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
+    let mut posts_map: std::collections::HashMap<String, mm::Post> =
+        std::collections::HashMap::new();
+    let mut matches_map: std::collections::HashMap<String, Vec<String>> =
+        std::collections::HashMap::new();
     let mut post_ids = Vec::new();
     let mut id_map = Vec::new();
 
@@ -1750,7 +1799,8 @@ async fn get_posts_around_unread(
     .await?;
 
     let mut order = Vec::new();
-    let mut posts_map: std::collections::HashMap<String, mm::Post> = std::collections::HashMap::new();
+    let mut posts_map: std::collections::HashMap<String, mm::Post> =
+        std::collections::HashMap::new();
     let mut post_ids = Vec::new();
     let mut id_map = Vec::new();
 
@@ -1804,11 +1854,12 @@ async fn save_acknowledgement_for_post(
         .ok_or_else(|| AppError::BadRequest("Invalid post_id".to_string()))?;
 
     // Verify user can access the post
-    let channel_id: Uuid = sqlx::query_scalar("SELECT channel_id FROM posts WHERE id = $1 AND deleted_at IS NULL")
-        .bind(post_id)
-        .fetch_optional(&state.db)
-        .await?
-        .ok_or_else(|| AppError::NotFound("Post not found".to_string()))?;
+    let channel_id: Uuid =
+        sqlx::query_scalar("SELECT channel_id FROM posts WHERE id = $1 AND deleted_at IS NULL")
+            .bind(post_id)
+            .fetch_optional(&state.db)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Post not found".to_string()))?;
 
     let _: crate::models::ChannelMember =
         sqlx::query_as("SELECT * FROM channel_members WHERE channel_id = $1 AND user_id = $2")
@@ -1846,8 +1897,9 @@ async fn delete_acknowledgement_for_post(
     auth: MmAuthUser,
     Path(path): Path<AckPath>,
 ) -> ApiResult<impl IntoResponse> {
-    let user_id = super::users::resolve_user_id(&path.user_id, &auth)
-        .map_err(|_| AppError::Forbidden("Cannot delete acknowledgement for another user".to_string()))?;
+    let user_id = super::users::resolve_user_id(&path.user_id, &auth).map_err(|_| {
+        AppError::Forbidden("Cannot delete acknowledgement for another user".to_string())
+    })?;
 
     let post_id = parse_mm_or_uuid(&path.post_id)
         .ok_or_else(|| AppError::BadRequest("Invalid post_id".to_string()))?;

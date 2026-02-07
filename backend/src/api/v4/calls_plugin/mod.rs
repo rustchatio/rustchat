@@ -1,5 +1,5 @@
 //! Mattermost Calls Plugin API
-//! 
+//!
 //! Implements the com.mattermost.calls plugin interface for Mattermost Mobile compatibility.
 //! Routes are mounted under /plugins/com.mattermost.calls/
 
@@ -8,26 +8,26 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use uuid::Uuid;
-use chrono::Utc;
 
-use crate::api::AppState;
 use crate::api::v4::extractors::MmAuthUser;
+use crate::api::AppState;
 use crate::error::{ApiResult, AppError};
 use crate::mattermost_compat::id::{encode_mm_id, parse_mm_or_uuid};
 use crate::realtime::WsEnvelope;
 
 pub mod commands;
+pub mod sfu;
 pub mod state;
 mod turn;
-pub mod sfu;
 
+use sfu::signaling::{parse_websocket_message, serialize_websocket_message, SignalingMessage};
 use state::{CallState, CallStateManager, Participant};
 use turn::{TurnCredentialGenerator, TurnServerConfig};
-use sfu::signaling::{SignalingMessage, parse_websocket_message, serialize_websocket_message};
 use webrtc::peer_connection::sdp::session_description::RTCSessionDescription;
 
 /// Build the calls plugin router
@@ -39,21 +39,57 @@ pub fn router() -> Router<AppState> {
         // Channels with calls enabled
         .route("/plugins/com.mattermost.calls/channels", get(get_channels))
         // Call management endpoints
-        .route("/plugins/com.mattermost.calls/calls/{channel_id}/start", post(start_call))
-        .route("/plugins/com.mattermost.calls/calls/{channel_id}/join", post(join_call))
-        .route("/plugins/com.mattermost.calls/calls/{channel_id}/leave", post(leave_call))
-        .route("/plugins/com.mattermost.calls/calls/{channel_id}", get(get_call_state))
-        .route("/plugins/com.mattermost.calls/calls/{channel_id}/react", post(send_reaction))
-        .route("/plugins/com.mattermost.calls/calls/{channel_id}/screen-share", post(toggle_screen_share))
+        .route(
+            "/plugins/com.mattermost.calls/calls/{channel_id}/start",
+            post(start_call),
+        )
+        .route(
+            "/plugins/com.mattermost.calls/calls/{channel_id}/join",
+            post(join_call),
+        )
+        .route(
+            "/plugins/com.mattermost.calls/calls/{channel_id}/leave",
+            post(leave_call),
+        )
+        .route(
+            "/plugins/com.mattermost.calls/calls/{channel_id}",
+            get(get_call_state),
+        )
+        .route(
+            "/plugins/com.mattermost.calls/calls/{channel_id}/react",
+            post(send_reaction),
+        )
+        .route(
+            "/plugins/com.mattermost.calls/calls/{channel_id}/screen-share",
+            post(toggle_screen_share),
+        )
         // Mute/unmute endpoints
-        .route("/plugins/com.mattermost.calls/calls/{channel_id}/mute", post(mute_user))
-        .route("/plugins/com.mattermost.calls/calls/{channel_id}/unmute", post(unmute_user))
+        .route(
+            "/plugins/com.mattermost.calls/calls/{channel_id}/mute",
+            post(mute_user),
+        )
+        .route(
+            "/plugins/com.mattermost.calls/calls/{channel_id}/unmute",
+            post(unmute_user),
+        )
         // Raise/lower hand endpoints
-        .route("/plugins/com.mattermost.calls/calls/{channel_id}/raise-hand", post(raise_hand))
-        .route("/plugins/com.mattermost.calls/calls/{channel_id}/lower-hand", post(lower_hand))
+        .route(
+            "/plugins/com.mattermost.calls/calls/{channel_id}/raise-hand",
+            post(raise_hand),
+        )
+        .route(
+            "/plugins/com.mattermost.calls/calls/{channel_id}/lower-hand",
+            post(lower_hand),
+        )
         // WebRTC signaling endpoints
-        .route("/plugins/com.mattermost.calls/calls/{channel_id}/offer", post(handle_offer))
-        .route("/plugins/com.mattermost.calls/calls/{channel_id}/ice", post(handle_ice_candidate))
+        .route(
+            "/plugins/com.mattermost.calls/calls/{channel_id}/offer",
+            post(handle_offer),
+        )
+        .route(
+            "/plugins/com.mattermost.calls/calls/{channel_id}/ice",
+            post(handle_ice_candidate),
+        )
         // Slash commands
         .merge(commands::router())
 }
@@ -149,7 +185,7 @@ async fn get_config(
 ) -> ApiResult<Json<ConfigResponse>> {
     // Build ice servers list
     let mut ice_servers = vec![];
-    
+
     // Add STUN servers if configured
     for stun_url in &state.config.calls.stun_servers {
         ice_servers.push(IceServer {
@@ -158,7 +194,7 @@ async fn get_config(
             credential: None,
         });
     }
-    
+
     // Add TURN server if enabled
     if state.config.calls.turn_server_enabled {
         // Configure TURN server with static credentials
@@ -168,10 +204,10 @@ async fn get_config(
             username: state.config.calls.turn_server_username.clone(),
             credential: state.config.calls.turn_server_credential.clone(),
         };
-        
+
         let turn_generator = TurnCredentialGenerator::with_static_credentials(turn_config);
         let credentials = turn_generator.generate_credentials(&auth.user_id.to_string());
-        
+
         // Add TURN server with credentials
         if let Some(turn_url) = turn_generator.get_turn_url() {
             ice_servers.push(IceServer {
@@ -181,7 +217,7 @@ async fn get_config(
             });
         }
     }
-    
+
     Ok(Json(ConfigResponse { ice_servers }))
 }
 
@@ -193,26 +229,26 @@ async fn get_channels(
 ) -> ApiResult<Json<Vec<CallChannelInfo>>> {
     // Get call manager
     let call_manager = get_call_manager(&state);
-    
+
     // Get all active calls
     let active_calls = call_manager.get_all_calls().await;
-    
+
     // Build response with channels that have active calls
     let mut channels = Vec::new();
     for call in active_calls {
         // Check if user is a member of this channel
         let is_member: bool = sqlx::query_scalar(
-            "SELECT EXISTS(SELECT 1 FROM channel_members WHERE channel_id = $1 AND user_id = $2)"
+            "SELECT EXISTS(SELECT 1 FROM channel_members WHERE channel_id = $1 AND user_id = $2)",
         )
         .bind(call.channel_id)
         .bind(auth.user_id)
         .fetch_one(&state.db)
         .await
         .unwrap_or(false);
-        
+
         if is_member {
             let participant_count = call_manager.get_participant_count(call.call_id).await;
-            
+
             channels.push(CallChannelInfo {
                 channel_id: encode_mm_id(call.channel_id),
                 call_id: Some(encode_mm_id(call.call_id)),
@@ -222,7 +258,7 @@ async fn get_channels(
             });
         }
     }
-    
+
     Ok(Json(channels))
 }
 
@@ -246,13 +282,13 @@ async fn start_call(
 ) -> ApiResult<Json<StartCallResponse>> {
     let channel_uuid = parse_mm_or_uuid(&channel_id)
         .ok_or_else(|| AppError::BadRequest("Invalid channel_id".to_string()))?;
-    
+
     // Check channel permissions
     check_channel_permission(&state, auth.user_id, channel_uuid).await?;
-    
+
     // Get or initialize call state manager
     let call_manager = get_call_manager(&state);
-    
+
     // Check if call already exists
     if let Some(call) = call_manager.get_call_by_channel(&channel_uuid).await {
         return Ok(Json(StartCallResponse {
@@ -262,11 +298,11 @@ async fn start_call(
             owner_id: encode_mm_id(call.owner_id),
         }));
     }
-    
+
     // Create new call
     let call_id = Uuid::new_v4();
     let now = Utc::now().timestamp_millis();
-    
+
     let call = CallState {
         call_id,
         channel_id: channel_uuid,
@@ -276,9 +312,9 @@ async fn start_call(
         screen_sharer: None,
         thread_id: None,
     };
-    
+
     call_manager.add_call(call.clone()).await;
-    
+
     // Add owner as first participant (muted by default)
     let participant = Participant {
         user_id: auth.user_id,
@@ -288,17 +324,23 @@ async fn start_call(
         screen_sharing: false,
         hand_raised: false,
     };
-    
-    call_manager.add_participant(call_id, participant.clone()).await;
-    
+
+    call_manager
+        .add_participant(call_id, participant.clone())
+        .await;
+
     // Get or create SFU for this call
-    let sfu = state.sfu_manager.get_or_create_sfu(call_id).await
+    let sfu = state
+        .sfu_manager
+        .get_or_create_sfu(call_id)
+        .await
         .map_err(|e| AppError::Internal(format!("Failed to create SFU: {}", e)))?;
-    
+
     // Add owner as participant in the SFU
-    sfu.add_participant(auth.user_id, participant.session_id).await
+    sfu.add_participant(auth.user_id, participant.session_id)
+        .await
         .map_err(|e| AppError::Internal(format!("Failed to add participant to SFU: {}", e)))?;
-    
+
     // Broadcast call_start event
     broadcast_call_event(
         &state,
@@ -312,8 +354,9 @@ async fn start_call(
             "owner_id": encode_mm_id(auth.user_id),
         }),
         Some(auth.user_id), // Exclude sender
-    ).await;
-    
+    )
+    .await;
+
     // Broadcast user_joined event
     broadcast_call_event(
         &state,
@@ -327,8 +370,9 @@ async fn start_call(
             "raised_hand": false,
         }),
         None,
-    ).await;
-    
+    )
+    .await;
+
     Ok(Json(StartCallResponse {
         id: encode_mm_id(call_id),
         channel_id: channel_id.clone(),
@@ -346,24 +390,30 @@ async fn join_call(
 ) -> ApiResult<Json<StatusResponse>> {
     let channel_uuid = parse_mm_or_uuid(&channel_id)
         .ok_or_else(|| AppError::BadRequest("Invalid channel_id".to_string()))?;
-    
+
     // Check channel permissions
     check_channel_permission(&state, auth.user_id, channel_uuid).await?;
-    
+
     // Get call manager
     let call_manager = get_call_manager(&state);
-    
+
     // Find active call in channel
     let call = call_manager
         .get_call_by_channel(&channel_uuid)
         .await
         .ok_or_else(|| AppError::NotFound("No active call in this channel".to_string()))?;
-    
+
     // Check if user already in call
-    if call_manager.get_participant(call.call_id, auth.user_id).await.is_some() {
-        return Ok(Json(StatusResponse { status: "OK".to_string() }));
+    if call_manager
+        .get_participant(call.call_id, auth.user_id)
+        .await
+        .is_some()
+    {
+        return Ok(Json(StatusResponse {
+            status: "OK".to_string(),
+        }));
     }
-    
+
     // Add participant
     let now = Utc::now().timestamp_millis();
     let participant = Participant {
@@ -374,17 +424,23 @@ async fn join_call(
         screen_sharing: false,
         hand_raised: false,
     };
-    
-    call_manager.add_participant(call.call_id, participant.clone()).await;
-    
+
+    call_manager
+        .add_participant(call.call_id, participant.clone())
+        .await;
+
     // Get or create SFU for this call
-    let sfu = state.sfu_manager.get_or_create_sfu(call.call_id).await
+    let sfu = state
+        .sfu_manager
+        .get_or_create_sfu(call.call_id)
+        .await
         .map_err(|e| AppError::Internal(format!("Failed to get or create SFU: {}", e)))?;
-    
+
     // Add participant to the SFU
-    sfu.add_participant(auth.user_id, participant.session_id).await
+    sfu.add_participant(auth.user_id, participant.session_id)
+        .await
         .map_err(|e| AppError::Internal(format!("Failed to add participant to SFU: {}", e)))?;
-    
+
     // Broadcast user_joined event
     broadcast_call_event(
         &state,
@@ -398,9 +454,12 @@ async fn join_call(
             "raised_hand": false,
         }),
         None,
-    ).await;
-    
-    Ok(Json(StatusResponse { status: "OK".to_string() }))
+    )
+    .await;
+
+    Ok(Json(StatusResponse {
+        status: "OK".to_string(),
+    }))
 }
 
 /// POST /plugins/com.mattermost.calls/calls/{channel_id}/leave
@@ -412,29 +471,33 @@ async fn leave_call(
 ) -> ApiResult<Json<StatusResponse>> {
     let channel_uuid = parse_mm_or_uuid(&channel_id)
         .ok_or_else(|| AppError::BadRequest("Invalid channel_id".to_string()))?;
-    
+
     // Get call manager
     let call_manager = get_call_manager(&state);
-    
+
     // Find call
     let call = call_manager
         .get_call_by_channel(&channel_uuid)
         .await
         .ok_or_else(|| AppError::NotFound("No active call in this channel".to_string()))?;
-    
+
     // Get participant info before removing (for session_id)
-    let participant = call_manager.get_participant(call.call_id, auth.user_id).await;
-    
+    let participant = call_manager
+        .get_participant(call.call_id, auth.user_id)
+        .await;
+
     // Remove participant from call manager
-    call_manager.remove_participant(call.call_id, auth.user_id).await;
-    
+    call_manager
+        .remove_participant(call.call_id, auth.user_id)
+        .await;
+
     // Remove participant from SFU if exists
     if let Some(participant) = participant {
         if let Some(sfu) = state.sfu_manager.get_sfu(call.call_id).await {
             let _ = sfu.remove_participant(participant.session_id).await;
         }
     }
-    
+
     // Broadcast user_left event
     broadcast_call_event(
         &state,
@@ -445,16 +508,17 @@ async fn leave_call(
             "user_id": encode_mm_id(auth.user_id),
         }),
         None,
-    ).await;
-    
+    )
+    .await;
+
     // If no participants left, end the call
     let participants = call_manager.get_participants(call.call_id).await;
     if participants.is_empty() {
         call_manager.remove_call(call.call_id).await;
-        
+
         // Remove the SFU for this call
         state.sfu_manager.remove_sfu(call.call_id).await;
-        
+
         // Broadcast call_end event
         broadcast_call_event(
             &state,
@@ -465,10 +529,13 @@ async fn leave_call(
                 "call_id": encode_mm_id(call.call_id),
             }),
             None,
-        ).await;
+        )
+        .await;
     }
-    
-    Ok(Json(StatusResponse { status: "OK".to_string() }))
+
+    Ok(Json(StatusResponse {
+        status: "OK".to_string(),
+    }))
 }
 
 /// GET /plugins/com.mattermost.calls/calls/{channel_id}
@@ -480,23 +547,23 @@ async fn get_call_state(
 ) -> ApiResult<Json<CallStateResponse>> {
     let channel_uuid = parse_mm_or_uuid(&channel_id)
         .ok_or_else(|| AppError::BadRequest("Invalid channel_id".to_string()))?;
-    
+
     // Get call manager
     let call_manager = get_call_manager(&state);
-    
+
     // Find call
     let call = call_manager
         .get_call_by_channel(&channel_uuid)
         .await
         .ok_or_else(|| AppError::NotFound("No active call in this channel".to_string()))?;
-    
+
     let participants: Vec<String> = call_manager
         .get_participants(call.call_id)
         .await
         .iter()
         .map(|p| encode_mm_id(p.user_id))
         .collect();
-    
+
     Ok(Json(CallStateResponse {
         id: encode_mm_id(call.call_id),
         channel_id: channel_id.clone(),
@@ -518,7 +585,7 @@ async fn send_reaction(
 ) -> ApiResult<Json<StatusResponse>> {
     let channel_uuid = parse_mm_or_uuid(&channel_id)
         .ok_or_else(|| AppError::BadRequest("Invalid channel_id".to_string()))?;
-    
+
     // Broadcast reaction event
     broadcast_call_event(
         &state,
@@ -530,9 +597,12 @@ async fn send_reaction(
             "emoji": payload.emoji,
         }),
         None,
-    ).await;
-    
-    Ok(Json(StatusResponse { status: "OK".to_string() }))
+    )
+    .await;
+
+    Ok(Json(StatusResponse {
+        status: "OK".to_string(),
+    }))
 }
 
 /// POST /plugins/com.mattermost.calls/calls/{channel_id}/screen-share
@@ -544,40 +614,44 @@ async fn toggle_screen_share(
 ) -> ApiResult<Json<StatusResponse>> {
     let channel_uuid = parse_mm_or_uuid(&channel_id)
         .ok_or_else(|| AppError::BadRequest("Invalid channel_id".to_string()))?;
-    
+
     // Get call manager
     let call_manager = get_call_manager(&state);
-    
+
     // Find call
     let call = call_manager
         .get_call_by_channel(&channel_uuid)
         .await
         .ok_or_else(|| AppError::NotFound("No active call in this channel".to_string()))?;
-    
+
     // Check if user is in call
     let participant = call_manager
         .get_participant(call.call_id, auth.user_id)
         .await
         .ok_or_else(|| AppError::Forbidden("You are not in this call".to_string()))?;
-    
+
     // Toggle screen sharing
     let is_sharing = !participant.screen_sharing;
-    call_manager.set_screen_sharing(call.call_id, auth.user_id, is_sharing).await;
-    
+    call_manager
+        .set_screen_sharing(call.call_id, auth.user_id, is_sharing)
+        .await;
+
     // Update global screen sharer
     if is_sharing {
-        call_manager.set_screen_sharer(call.call_id, Some(auth.user_id)).await;
+        call_manager
+            .set_screen_sharer(call.call_id, Some(auth.user_id))
+            .await;
     } else if call.screen_sharer == Some(auth.user_id) {
         call_manager.set_screen_sharer(call.call_id, None).await;
     }
-    
+
     // Broadcast event
     let event_name = if is_sharing {
         "custom_com.mattermost.calls_screen_on"
     } else {
         "custom_com.mattermost.calls_screen_off"
     };
-    
+
     broadcast_call_event(
         &state,
         event_name,
@@ -587,9 +661,12 @@ async fn toggle_screen_share(
             "user_id": encode_mm_id(auth.user_id),
         }),
         None,
-    ).await;
-    
-    Ok(Json(StatusResponse { status: "OK".to_string() }))
+    )
+    .await;
+
+    Ok(Json(StatusResponse {
+        status: "OK".to_string(),
+    }))
 }
 
 /// POST /plugins/com.mattermost.calls/calls/{channel_id}/mute
@@ -601,19 +678,21 @@ async fn mute_user(
 ) -> ApiResult<Json<StatusResponse>> {
     let channel_uuid = parse_mm_or_uuid(&channel_id)
         .ok_or_else(|| AppError::BadRequest("Invalid channel_id".to_string()))?;
-    
+
     // Get call manager
     let call_manager = get_call_manager(&state);
-    
+
     // Find call
     let call = call_manager
         .get_call_by_channel(&channel_uuid)
         .await
         .ok_or_else(|| AppError::NotFound("No active call in this channel".to_string()))?;
-    
+
     // Set muted
-    call_manager.set_muted(call.call_id, auth.user_id, true).await;
-    
+    call_manager
+        .set_muted(call.call_id, auth.user_id, true)
+        .await;
+
     // Broadcast user_muted event
     broadcast_call_event(
         &state,
@@ -625,9 +704,12 @@ async fn mute_user(
             "muted": true,
         }),
         None,
-    ).await;
-    
-    Ok(Json(StatusResponse { status: "OK".to_string() }))
+    )
+    .await;
+
+    Ok(Json(StatusResponse {
+        status: "OK".to_string(),
+    }))
 }
 
 /// POST /plugins/com.mattermost.calls/calls/{channel_id}/unmute
@@ -639,19 +721,21 @@ async fn unmute_user(
 ) -> ApiResult<Json<StatusResponse>> {
     let channel_uuid = parse_mm_or_uuid(&channel_id)
         .ok_or_else(|| AppError::BadRequest("Invalid channel_id".to_string()))?;
-    
+
     // Get call manager
     let call_manager = get_call_manager(&state);
-    
+
     // Find call
     let call = call_manager
         .get_call_by_channel(&channel_uuid)
         .await
         .ok_or_else(|| AppError::NotFound("No active call in this channel".to_string()))?;
-    
+
     // Set unmuted
-    call_manager.set_muted(call.call_id, auth.user_id, false).await;
-    
+    call_manager
+        .set_muted(call.call_id, auth.user_id, false)
+        .await;
+
     // Broadcast user_unmuted event
     broadcast_call_event(
         &state,
@@ -663,9 +747,12 @@ async fn unmute_user(
             "muted": false,
         }),
         None,
-    ).await;
-    
-    Ok(Json(StatusResponse { status: "OK".to_string() }))
+    )
+    .await;
+
+    Ok(Json(StatusResponse {
+        status: "OK".to_string(),
+    }))
 }
 
 /// POST /plugins/com.mattermost.calls/calls/{channel_id}/raise-hand
@@ -677,19 +764,21 @@ async fn raise_hand(
 ) -> ApiResult<Json<StatusResponse>> {
     let channel_uuid = parse_mm_or_uuid(&channel_id)
         .ok_or_else(|| AppError::BadRequest("Invalid channel_id".to_string()))?;
-    
+
     // Get call manager
     let call_manager = get_call_manager(&state);
-    
+
     // Find call
     let call = call_manager
         .get_call_by_channel(&channel_uuid)
         .await
         .ok_or_else(|| AppError::NotFound("No active call in this channel".to_string()))?;
-    
+
     // Set hand raised
-    call_manager.set_hand_raised(call.call_id, auth.user_id, true).await;
-    
+    call_manager
+        .set_hand_raised(call.call_id, auth.user_id, true)
+        .await;
+
     // Broadcast raise_hand event
     broadcast_call_event(
         &state,
@@ -701,9 +790,12 @@ async fn raise_hand(
             "raised": true,
         }),
         None,
-    ).await;
-    
-    Ok(Json(StatusResponse { status: "OK".to_string() }))
+    )
+    .await;
+
+    Ok(Json(StatusResponse {
+        status: "OK".to_string(),
+    }))
 }
 
 /// POST /plugins/com.mattermost.calls/calls/{channel_id}/lower-hand
@@ -715,19 +807,21 @@ async fn lower_hand(
 ) -> ApiResult<Json<StatusResponse>> {
     let channel_uuid = parse_mm_or_uuid(&channel_id)
         .ok_or_else(|| AppError::BadRequest("Invalid channel_id".to_string()))?;
-    
+
     // Get call manager
     let call_manager = get_call_manager(&state);
-    
+
     // Find call
     let call = call_manager
         .get_call_by_channel(&channel_uuid)
         .await
         .ok_or_else(|| AppError::NotFound("No active call in this channel".to_string()))?;
-    
+
     // Set hand lowered
-    call_manager.set_hand_raised(call.call_id, auth.user_id, false).await;
-    
+    call_manager
+        .set_hand_raised(call.call_id, auth.user_id, false)
+        .await;
+
     // Broadcast lower_hand event
     broadcast_call_event(
         &state,
@@ -739,9 +833,12 @@ async fn lower_hand(
             "raised": false,
         }),
         None,
-    ).await;
-    
-    Ok(Json(StatusResponse { status: "OK".to_string() }))
+    )
+    .await;
+
+    Ok(Json(StatusResponse {
+        status: "OK".to_string(),
+    }))
 }
 
 /// POST /plugins/com.mattermost.calls/calls/{channel_id}/offer
@@ -771,7 +868,10 @@ async fn handle_offer(
         .ok_or_else(|| AppError::Forbidden("You are not in this call".to_string()))?;
 
     // Get SFU for this call
-    let sfu = state.sfu_manager.get_sfu(call.call_id).await
+    let sfu = state
+        .sfu_manager
+        .get_sfu(call.call_id)
+        .await
         .ok_or_else(|| AppError::NotFound("SFU not found for this call".to_string()))?;
 
     // Parse the offer SDP
@@ -779,7 +879,9 @@ async fn handle_offer(
         .map_err(|e| AppError::BadRequest(format!("Invalid SDP offer: {}", e)))?;
 
     // Handle the offer and get answer
-    let answer = sfu.handle_offer(participant.session_id, offer).await
+    let answer = sfu
+        .handle_offer(participant.session_id, offer)
+        .await
         .map_err(|e| AppError::Internal(format!("Failed to handle offer: {}", e)))?;
 
     // Extract SDP from answer
@@ -818,14 +920,20 @@ async fn handle_ice_candidate(
         .ok_or_else(|| AppError::Forbidden("You are not in this call".to_string()))?;
 
     // Get SFU for this call
-    let sfu = state.sfu_manager.get_sfu(call.call_id).await
+    let sfu = state
+        .sfu_manager
+        .get_sfu(call.call_id)
+        .await
         .ok_or_else(|| AppError::NotFound("SFU not found for this call".to_string()))?;
 
     // Handle the ICE candidate
-    sfu.handle_ice_candidate(participant.session_id, payload.candidate).await
+    sfu.handle_ice_candidate(participant.session_id, payload.candidate)
+        .await
         .map_err(|e| AppError::Internal(format!("Failed to handle ICE candidate: {}", e)))?;
 
-    Ok(Json(StatusResponse { status: "OK".to_string() }))
+    Ok(Json(StatusResponse {
+        status: "OK".to_string(),
+    }))
 }
 
 // ============ Helper Functions ============
@@ -848,18 +956,20 @@ async fn check_channel_permission(
 ) -> ApiResult<()> {
     // Check if user is channel member
     let member: Option<(Uuid,)> = sqlx::query_as(
-        "SELECT user_id FROM channel_members WHERE channel_id = $1 AND user_id = $2"
+        "SELECT user_id FROM channel_members WHERE channel_id = $1 AND user_id = $2",
     )
     .bind(channel_id)
     .bind(user_id)
     .fetch_optional(&state.db)
     .await
     .map_err(|e| AppError::Internal(format!("Database error: {}", e)))?;
-    
+
     if member.is_none() {
-        return Err(AppError::Forbidden("You are not a member of this channel".to_string()));
+        return Err(AppError::Forbidden(
+            "You are not a member of this channel".to_string(),
+        ));
     }
-    
+
     Ok(())
 }
 
@@ -884,6 +994,6 @@ async fn broadcast_call_event(
             exclude_user_id,
         }),
     };
-    
+
     state.ws_hub.broadcast(envelope).await;
 }

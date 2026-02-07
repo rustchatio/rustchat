@@ -28,7 +28,9 @@ pub fn router() -> Router<AppState> {
         )
         .route(
             "/users/{user_id}/teams/{team_id}/channels/categories/{category_id}",
-            get(get_category).put(update_category).delete(delete_category),
+            get(get_category)
+                .put(update_category)
+                .delete(delete_category),
         )
 }
 
@@ -132,8 +134,8 @@ async fn get_category(
     .fetch_optional(&state.db)
     .await?;
 
-    let category = category.ok_or_else(|| 
-        crate::error::AppError::NotFound("Category not found".to_string()))?;
+    let category = category
+        .ok_or_else(|| crate::error::AppError::NotFound("Category not found".to_string()))?;
 
     // Get channels for this category
     let channel_ids: Vec<uuid::Uuid> = sqlx::query_scalar(
@@ -144,7 +146,8 @@ async fn get_category(
     .await
     .unwrap_or_default();
 
-    let channel_ids: Vec<String> = channel_ids.into_iter()
+    let channel_ids: Vec<String> = channel_ids
+        .into_iter()
         .map(crate::mattermost_compat::id::encode_mm_id)
         .collect();
 
@@ -203,7 +206,7 @@ async fn update_category(
             collapsed = COALESCE($7, collapsed),
             update_at = $8
         WHERE id = $1 AND user_id = $2 AND team_id = $3 AND delete_at = 0
-        RETURNING *"#
+        RETURNING *"#,
     )
     .bind(category_id)
     .bind(user_id)
@@ -248,7 +251,8 @@ async fn update_category(
     .await
     .unwrap_or_default();
 
-    let channel_ids: Vec<String> = channel_ids.into_iter()
+    let channel_ids: Vec<String> = channel_ids
+        .into_iter()
         .map(crate::mattermost_compat::id::encode_mm_id)
         .collect();
 
@@ -291,12 +295,17 @@ async fn delete_category(
     .fetch_optional(&state.db)
     .await?;
 
-    let category = category.ok_or_else(|| 
-        crate::error::AppError::NotFound("Category not found".to_string()))?;
+    let category = category
+        .ok_or_else(|| crate::error::AppError::NotFound("Category not found".to_string()))?;
 
     // Don't allow deleting default categories
-    if matches!(category.type_field.as_str(), "channels" | "direct_messages" | "favorites") {
-        return Err(crate::error::AppError::BadRequest("Cannot delete default category".to_string()));
+    if matches!(
+        category.type_field.as_str(),
+        "channels" | "direct_messages" | "favorites"
+    ) {
+        return Err(crate::error::AppError::BadRequest(
+            "Cannot delete default category".to_string(),
+        ));
     }
 
     let now = chrono::Utc::now().timestamp_millis();
@@ -312,13 +321,11 @@ async fn delete_category(
 
     // Move channels to default category if it exists
     if let Some(default_id) = default_category_id {
-        sqlx::query(
-            "UPDATE channel_category_channels SET category_id = $1 WHERE category_id = $2"
-        )
-        .bind(default_id)
-        .bind(category_id)
-        .execute(&state.db)
-        .await?;
+        sqlx::query("UPDATE channel_category_channels SET category_id = $1 WHERE category_id = $2")
+            .bind(default_id)
+            .bind(category_id)
+            .execute(&state.db)
+            .await?;
     } else {
         // If no default category, just delete the channel associations
         sqlx::query("DELETE FROM channel_category_channels WHERE category_id = $1")
@@ -336,5 +343,3 @@ async fn delete_category(
 
     Ok(Json(serde_json::json!({"status": "OK"})))
 }
-
-
