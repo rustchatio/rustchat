@@ -57,6 +57,17 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
+      minio:
+        image: localstack/localstack:latest
+        env:
+          SERVICES: s3
+          EDGE_PORT: "4566"
+          AWS_DEFAULT_REGION: us-east-1
+          AWS_ACCESS_KEY_ID: minioadmin
+          AWS_SECRET_ACCESS_KEY: minioadmin
+        ports:
+          - 9000:4566
+
     defaults:
       run:
         working-directory: backend
@@ -98,6 +109,30 @@ jobs:
           done
           if ! (echo > /dev/tcp/127.0.0.1/6379) >/dev/null 2>&1; then
             echo "Redis did not become ready in time" >&2
+            exit 1
+          fi
+          echo "::endgroup::"
+          echo "::group::Waiting for S3 service"
+          for i in {1..60}; do
+            if (echo > /dev/tcp/127.0.0.1/9000) >/dev/null 2>&1; then
+              echo "S3 endpoint is accepting TCP connections"
+              break
+            fi
+            sleep 1
+          done
+          if ! (echo > /dev/tcp/127.0.0.1/9000) >/dev/null 2>&1; then
+            echo "S3 endpoint did not become ready in time" >&2
+            exit 1
+          fi
+          for i in {1..60}; do
+            if curl -fsS http://127.0.0.1:9000/_localstack/health | grep -Eq '"s3"[[:space:]]*:[[:space:]]*"running"'; then
+              echo "S3 API reports running"
+              break
+            fi
+            sleep 1
+          done
+          if ! curl -fsS http://127.0.0.1:9000/_localstack/health | grep -Eq '"s3"[[:space:]]*:[[:space:]]*"running"'; then
+            echo "S3 API did not report running in time" >&2
             exit 1
           fi
           echo "::endgroup::"
