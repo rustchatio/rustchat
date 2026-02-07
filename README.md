@@ -141,6 +141,11 @@ cp .env.example .env
 docker compose up -d --build
 ```
 
+Important:
+- `docker-compose.yml` no longer ships fallback JWT/encryption secrets.
+- Set `RUSTCHAT_JWT_SECRET` and `RUSTCHAT_ENCRYPTION_KEY` in `.env` before startup.
+- For production, set `RUSTCHAT_ENVIRONMENT=production` and define `RUSTCHAT_CORS_ALLOWED_ORIGINS`.
+
 Default services:
 - Web UI / reverse proxy: `http://localhost:8080`
 - Backend API: `http://localhost:3000`
@@ -174,6 +179,12 @@ rustchat/
 ## Calls Deployment Modes
 
 See `docs/calls_deployment_modes.md` for single-node vs multi-node behavior, fallback semantics, and current limits.
+
+## Security Mode Notes
+
+- `RUSTCHAT_ENVIRONMENT=development` keeps developer-friendly CORS defaults.
+- `RUSTCHAT_ENVIRONMENT=production` makes CORS restricted by default unless `RUSTCHAT_CORS_ALLOWED_ORIGINS` is configured.
+- OAuth login now enforces Redis-backed CSRF `state` validation and decrypts stored SSO client secrets.
 
 ## Documentation
 

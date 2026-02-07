@@ -89,6 +89,7 @@ pub async fn spawn_app() -> TestApp {
 
 fn test_config() -> Config {
     Config {
+        environment: "test".to_string(),
         server_host: "127.0.0.1".to_string(),
         server_port: 0,
         database_url: "postgres://rustchat:rustchat@localhost:5432/rustchat".to_string(),
@@ -105,6 +106,7 @@ fn test_config() -> Config {
         s3_region: "us-east-1".to_string(),
         admin_user: None,
         admin_password: None,
+        cors_allowed_origins: None,
         calls: Default::default(),
     }
 }

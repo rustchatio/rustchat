@@ -7,6 +7,10 @@ use serde::Deserialize;
 /// Application configuration
 #[derive(Debug, Clone, Deserialize)]
 pub struct Config {
+    /// Runtime environment (development, staging, production)
+    #[serde(default = "default_environment")]
+    pub environment: String,
+
     /// Server host address
     #[serde(default = "default_host")]
     pub server_host: String,
@@ -67,6 +71,11 @@ pub struct Config {
     /// Initial admin password
     #[serde(default)]
     pub admin_password: Option<String>,
+
+    /// Comma-separated CORS origin allowlist.
+    /// Example: "https://chat.example.com,https://admin.example.com"
+    #[serde(default)]
+    pub cors_allowed_origins: Option<String>,
 
     /// Calls plugin configuration
     #[serde(default)]
@@ -175,6 +184,10 @@ fn default_host() -> String {
     "0.0.0.0".to_string()
 }
 
+fn default_environment() -> String {
+    "development".to_string()
+}
+
 fn default_port() -> u16 {
     3000
 }
@@ -222,6 +235,13 @@ impl Config {
         let config = builder.build()?;
         let settings: Config = config.try_deserialize()?;
         Ok(settings)
+    }
+
+    pub fn is_production(&self) -> bool {
+        matches!(
+            self.environment.trim().to_ascii_lowercase().as_str(),
+            "prod" | "production"
+        )
     }
 }
 

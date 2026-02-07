@@ -100,7 +100,16 @@ UPDATE users SET role = 'system_admin' WHERE email = 'your@email.com';
 2. Enable "Allow SSO Login"
 3. Configure your identity provider in the database:
    ```sql
-   INSERT INTO sso_configs (provider, display_name, issuer_url, client_id, client_secret_encrypted, enabled)
-   VALUES ('google', 'Google', 'https://accounts.google.com', 'your-client-id', 'your-secret', true);
+   INSERT INTO sso_configs (org_id, provider, display_name, issuer_url, client_id, client_secret_encrypted, is_active)
+   VALUES (
+     'your-org-uuid',
+     'oidc',
+     'Google',
+     'https://accounts.google.com',
+     'your-client-id',
+     'encrypted-client-secret',
+     true
+   );
    ```
+   Store `client_secret_encrypted` as encrypted data (the backend encrypts this automatically when saved via Admin API/UI).
 4. SSO buttons will appear on the login page automatically

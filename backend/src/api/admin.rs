@@ -369,6 +369,10 @@ async fn create_sso_config(
             "email".to_string(),
         ]
     });
+    let encrypted_client_secret = input
+        .client_secret
+        .as_deref()
+        .map(|secret| crate::crypto::encrypt(secret, &state.config.encryption_key));
 
     let config: SsoConfig = sqlx::query_as(
         r#"
@@ -385,7 +389,7 @@ async fn create_sso_config(
     .bind(&input.display_name)
     .bind(&input.issuer_url)
     .bind(&input.client_id)
-    .bind(&input.client_secret) // Should be encrypted in production
+    .bind(&encrypted_client_secret)
     .bind(&scopes)
     .fetch_one(&state.db)
     .await?;

@@ -61,6 +61,21 @@ You can run the backend locally while keeping infrastructure services (DB, Redis
     ```
     *Access at [http://localhost:5173](http://localhost:5173).*
 
+## Security Modes (Dev vs Prod)
+
+RustChat changes behavior based on `RUSTCHAT_ENVIRONMENT`.
+
+- `development` (default): CORS is permissive unless you set `RUSTCHAT_CORS_ALLOWED_ORIGINS`.
+- `production`: CORS is deny-by-default unless `RUSTCHAT_CORS_ALLOWED_ORIGINS` is explicitly set.
+
+Recommended production settings:
+
+- Set `RUSTCHAT_ENVIRONMENT=production`
+- Set `RUSTCHAT_CORS_ALLOWED_ORIGINS` to your exact frontend origins (comma-separated)
+- Use strong secrets for `RUSTCHAT_JWT_SECRET` and `RUSTCHAT_ENCRYPTION_KEY`
+- Use encrypted SSO client secrets (stored via Admin UI/API)
+- Set TURN credentials explicitly if `TURN_SERVER_ENABLED=true`
+
 ## Troubleshooting
 
 - **Database Connection Errors:** Ensure the `postgres` container is healthy (`docker compose ps`).

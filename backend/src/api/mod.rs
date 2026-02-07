@@ -25,7 +25,11 @@ mod ws;
 
 use std::sync::Arc;
 
-use axum::{extract::DefaultBodyLimit, http::Method, Router};
+use axum::{
+    extract::DefaultBodyLimit,
+    http::{HeaderValue, Method},
+    Router,
+};
 use sqlx::PgPool;
 use tower_http::{
     catch_panic::CatchPanicLayer,
@@ -63,6 +67,52 @@ use crate::api::v4::calls_plugin::state::{CallStateBackend, CallStateManager};
 use crate::config::Config;
 use crate::realtime::{ConnectionStore, WsHub};
 use crate::storage::S3Client;
+
+fn parse_cors_allowed_origins(raw: &str) -> Vec<HeaderValue> {
+    raw.split(',')
+        .filter_map(|origin| {
+            let trimmed = origin.trim();
+            if trimmed.is_empty() {
+                return None;
+            }
+            HeaderValue::from_str(trimmed).ok()
+        })
+        .collect()
+}
+
+fn build_cors_layer(config: &Config) -> CorsLayer {
+    let cors = CorsLayer::new().allow_methods([
+        Method::GET,
+        Method::POST,
+        Method::PUT,
+        Method::DELETE,
+        Method::PATCH,
+        Method::OPTIONS,
+    ]);
+
+    if let Some(raw_origins) = config.cors_allowed_origins.as_deref() {
+        let origins = parse_cors_allowed_origins(raw_origins);
+        if !origins.is_empty() {
+            return cors.allow_origin(origins).allow_headers(Any);
+        }
+
+        if config.is_production() {
+            tracing::warn!(
+                "RUSTCHAT_CORS_ALLOWED_ORIGINS is set but no valid origins were parsed; CORS is restricted"
+            );
+            return cors;
+        }
+    }
+
+    if config.is_production() {
+        tracing::warn!(
+            "No CORS allowlist configured in production mode; cross-origin browser requests are blocked"
+        );
+        return cors;
+    }
+
+    cors.allow_origin(Any).allow_headers(Any)
+}
 
 /// Application state shared across handlers
 #[derive(Clone)]
@@ -114,16 +164,7 @@ pub fn router(
     };
 
     // CORS configuration
-    let cors = CorsLayer::new()
-        .allow_origin(Any)
-        .allow_methods([
-            Method::GET,
-            Method::POST,
-            Method::PUT,
-            Method::DELETE,
-            Method::PATCH,
-        ])
-        .allow_headers(Any);
+    let cors = build_cors_layer(&state.config);
 
     // API v1 routes
     let api_v1 = Router::new()

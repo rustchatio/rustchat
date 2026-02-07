@@ -76,10 +76,18 @@ RustChat is configured primarily via environment variables with the `RUSTCHAT_` 
 |----------|-------------|
 | `RUSTCHAT_DATABASE_URL` | PostgreSQL connection string. |
 | `RUSTCHAT_REDIS_URL` | Redis connection string. |
+| `RUSTCHAT_ENVIRONMENT` | Runtime mode (`development` or `production`). |
+| `RUSTCHAT_CORS_ALLOWED_ORIGINS` | Comma-separated browser origin allowlist for CORS. |
 | `RUSTCHAT_S3_ENDPOINT` | URL for your S3-compatible service. |
 | `RUSTCHAT_S3_BUCKET` | The bucket name for file storage. |
 | `RUSTCHAT_JWT_SECRET` | Secret key for signing session tokens. |
+| `RUSTCHAT_ENCRYPTION_KEY` | Key used to encrypt/decrypt stored sensitive config values (for example OAuth client secrets). |
 | `RUSTCHAT_SMTP_HOST` | Host for outgoing email notifications. |
+
+Production guidance:
+- Set `RUSTCHAT_ENVIRONMENT=production`.
+- Set `RUSTCHAT_CORS_ALLOWED_ORIGINS` explicitly (no wildcards).
+- Use long random values for `RUSTCHAT_JWT_SECRET` and `RUSTCHAT_ENCRYPTION_KEY`.
 
 ---
 

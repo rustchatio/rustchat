@@ -6,11 +6,16 @@ use axum::{
     routing::get,
     Json, Router,
 };
+use deadpool_redis::redis::AsyncCommands;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::AppState;
 use crate::error::{ApiResult, AppError};
+
+const OAUTH_STATE_PREFIX: &str = "rustchat:oauth:state:";
+const OAUTH_STATE_TTL_SECONDS: u64 = 300;
+const DEFAULT_OAUTH_REDIRECT_PATH: &str = "/oauth/callback";
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -54,14 +59,36 @@ struct SsoConfigRow {
     provider: String,
     display_name: Option<String>,
     issuer_url: Option<String>,
-    client_id: String,
-    client_secret_encrypted: String,
+    client_id: Option<String>,
+    client_secret_encrypted: Option<String>,
     is_active: bool,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct OAuthLoginQuery {
     pub redirect_uri: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct OAuthStatePayload {
+    provider: String,
+    redirect_after: String,
+}
+
+fn oauth_state_key(state: &str) -> String {
+    format!("{}{}", OAUTH_STATE_PREFIX, state)
+}
+
+fn sanitize_redirect_path(redirect_uri: Option<String>) -> String {
+    match redirect_uri {
+        Some(path) if path.starts_with('/') && !path.starts_with("//") => path,
+        _ => DEFAULT_OAUTH_REDIRECT_PATH.to_string(),
+    }
+}
+
+fn append_token_query(path: &str, token: &str) -> String {
+    let separator = if path.contains('?') { '&' } else { '?' };
+    format!("{}{}token={}", path, separator, urlencoding::encode(token))
 }
 
 /// Initiate OAuth login - redirects to provider
@@ -83,18 +110,33 @@ async fn oauth_login(
                 ))
             })?;
 
-    // Generate state parameter for CSRF protection
+    let issuer = config.issuer_url.clone().ok_or_else(|| {
+        AppError::BadRequest("OAuth provider issuer_url is not configured".to_string())
+    })?;
+    let client_id = config.client_id.clone().ok_or_else(|| {
+        AppError::BadRequest("OAuth provider client_id is not configured".to_string())
+    })?;
+
+    // Generate and persist state parameter for CSRF protection
     let oauth_state = Uuid::new_v4().to_string();
-    let _redirect_after = query.redirect_uri.unwrap_or_else(|| "/".to_string());
+    let oauth_state_payload = OAuthStatePayload {
+        provider: provider.clone(),
+        redirect_after: sanitize_redirect_path(query.redirect_uri),
+    };
+    let serialized_state = serde_json::to_string(&oauth_state_payload)
+        .map_err(|e| AppError::Internal(format!("Failed to serialize OAuth state: {}", e)))?;
 
-    // Store state in Redis with short TTL (5 min)
-    // TODO: Implement Redis state storage
-    // For now, we'll use a simple in-memory approach via query params
-
-    // Build authorization URL
-    let issuer = config
-        .issuer_url
-        .unwrap_or_else(|| format!("https://{}.example.com", provider));
+    let mut redis_conn =
+        state.redis.get().await.map_err(|e| {
+            AppError::Internal(format!("Failed to acquire Redis connection: {}", e))
+        })?;
+    let _: () = redis_conn
+        .set_ex(
+            oauth_state_key(&oauth_state),
+            serialized_state,
+            OAUTH_STATE_TTL_SECONDS,
+        )
+        .await?;
 
     let callback_url = format!(
         "{}/api/v1/oauth2/{}/callback",
@@ -105,7 +147,7 @@ async fn oauth_login(
     let auth_url = format!(
         "{}/authorize?client_id={}&redirect_uri={}&response_type=code&scope=openid%20profile%20email&state={}",
         issuer,
-        urlencoding::encode(&config.client_id),
+        urlencoding::encode(&client_id),
         urlencoding::encode(&callback_url),
         oauth_state
     );
@@ -116,7 +158,8 @@ async fn oauth_login(
 #[derive(Debug, Deserialize)]
 pub struct OAuthCallbackQuery {
     pub code: Option<String>,
-    pub _state: Option<String>,
+    #[serde(alias = "_state")]
+    pub state: Option<String>,
     pub error: Option<String>,
     pub error_description: Option<String>,
 }
@@ -157,6 +200,27 @@ async fn oauth_callback(
     let code = query
         .code
         .ok_or_else(|| AppError::BadRequest("Missing authorization code".to_string()))?;
+    let oauth_state = query
+        .state
+        .ok_or_else(|| AppError::BadRequest("Missing OAuth state parameter".to_string()))?;
+
+    // Validate and consume OAuth state to prevent CSRF/replay.
+    let mut redis_conn =
+        state.redis.get().await.map_err(|e| {
+            AppError::Internal(format!("Failed to acquire Redis connection: {}", e))
+        })?;
+    let state_key = oauth_state_key(&oauth_state);
+    let stored_state_json: Option<String> = redis_conn.get(&state_key).await?;
+    let _: usize = redis_conn.del(&state_key).await?;
+    let stored_state_json = stored_state_json
+        .ok_or_else(|| AppError::BadRequest("Invalid or expired OAuth state".to_string()))?;
+    let stored_state: OAuthStatePayload = serde_json::from_str(&stored_state_json)
+        .map_err(|e| AppError::Internal(format!("Invalid OAuth state payload: {}", e)))?;
+    if stored_state.provider != provider {
+        return Err(AppError::BadRequest(
+            "OAuth state provider mismatch".to_string(),
+        ));
+    }
 
     // Get SSO config
     let config: SsoConfigRow =
@@ -168,9 +232,30 @@ async fn oauth_callback(
                 AppError::NotFound(format!("OAuth provider '{}' not found", provider))
             })?;
 
-    let issuer = config
-        .issuer_url
-        .unwrap_or_else(|| format!("https://{}.example.com", provider));
+    let issuer = config.issuer_url.clone().ok_or_else(|| {
+        AppError::BadRequest("OAuth provider issuer_url is not configured".to_string())
+    })?;
+    let client_id = config.client_id.clone().ok_or_else(|| {
+        AppError::BadRequest("OAuth provider client_id is not configured".to_string())
+    })?;
+    let secret_raw = config.client_secret_encrypted.clone().ok_or_else(|| {
+        AppError::BadRequest("OAuth provider client_secret is not configured".to_string())
+    })?;
+    let client_secret = match crate::crypto::decrypt(&secret_raw, &state.config.encryption_key) {
+        Ok(secret) => secret,
+        Err(_) if state.config.is_production() => {
+            return Err(AppError::Internal(
+                "Failed to decrypt OAuth client secret in production mode".to_string(),
+            ));
+        }
+        Err(_) => {
+            tracing::warn!(
+                provider = %provider,
+                "Using non-encrypted OAuth client secret fallback (development mode)"
+            );
+            secret_raw
+        }
+    };
 
     let callback_url = format!(
         "{}/api/v1/oauth2/{}/callback",
@@ -188,8 +273,8 @@ async fn oauth_callback(
             ("grant_type", "authorization_code"),
             ("code", &code),
             ("redirect_uri", &callback_url),
-            ("client_id", &config.client_id),
-            ("client_secret", &config.client_secret_encrypted), // TODO: decrypt
+            ("client_id", &client_id),
+            ("client_secret", &client_secret),
         ])
         .send()
         .await
@@ -275,8 +360,8 @@ async fn oauth_callback(
     )?;
 
     // Redirect to frontend with token
-    Ok(Redirect::temporary(&format!(
-        "/oauth/callback?token={}",
-        token
+    Ok(Redirect::temporary(&append_token_query(
+        &stored_state.redirect_after,
+        &token,
     )))
 }
