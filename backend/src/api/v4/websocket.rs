@@ -272,6 +272,7 @@ async fn run_connection(
                     let replay_payload = json!({
                         "event": mm_msg.event.clone(),
                         "data": mm_msg.data.clone(),
+                        "broadcast": mm_msg.broadcast.clone(),
                     });
 
                     if let Some(seq) =

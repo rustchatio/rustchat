@@ -145,22 +145,7 @@ impl WebSocketActor {
         // Convert missed SequencedMessages to WebSocketMessages
         let missed_ws_messages: Vec<mm::WebSocketMessage> = missed_messages
             .into_iter()
-            .map(|msg| mm::WebSocketMessage {
-                seq: Some(msg.seq),
-                event: msg
-                    .message
-                    .get("event")
-                    .and_then(|e| e.as_str())
-                    .unwrap_or("unknown")
-                    .to_string(),
-                data: msg.message.get("data").cloned().unwrap_or(json!({})),
-                broadcast: mm::Broadcast {
-                    omit_users: None,
-                    user_id: String::new(),
-                    channel_id: String::new(),
-                    team_id: String::new(),
-                },
-            })
+            .map(|msg| replay_message_to_ws_message(msg.seq, &msg.message))
             .collect();
 
         // Spawn the actor task
@@ -251,6 +236,34 @@ impl WebSocketActor {
     pub fn disconnect(&self) {
         self.is_closing.store(true, Ordering::SeqCst);
         self.store.disconnect_connection(&self.connection_id);
+    }
+}
+
+fn replay_message_to_ws_message(seq: i64, message: &serde_json::Value) -> mm::WebSocketMessage {
+    let broadcast = message
+        .get("broadcast")
+        .cloned()
+        .and_then(|value| serde_json::from_value::<mm::Broadcast>(value).ok())
+        .unwrap_or_else(default_broadcast);
+
+    mm::WebSocketMessage {
+        seq: Some(seq),
+        event: message
+            .get("event")
+            .and_then(|e| e.as_str())
+            .unwrap_or("unknown")
+            .to_string(),
+        data: message.get("data").cloned().unwrap_or(json!({})),
+        broadcast,
+    }
+}
+
+fn default_broadcast() -> mm::Broadcast {
+    mm::Broadcast {
+        omit_users: None,
+        user_id: String::new(),
+        channel_id: String::new(),
+        team_id: String::new(),
     }
 }
 
@@ -631,6 +644,7 @@ pub fn configure_tcp_keepalive(_socket: &std::net::TcpStream) -> std::io::Result
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
 
     #[test]
     fn test_close_codes() {
@@ -638,5 +652,40 @@ mod tests {
         assert_eq!(close_codes::GOING_AWAY, 1001);
         assert_eq!(close_codes::POLICY_VIOLATION, 1008);
         assert_eq!(close_codes::INTERNAL_ERROR, 1011);
+    }
+
+    #[test]
+    fn replay_message_preserves_broadcast() {
+        let payload = json!({
+            "event": "typing",
+            "data": { "user_id": "abc" },
+            "broadcast": {
+                "omit_users": null,
+                "user_id": "u1",
+                "channel_id": "c1",
+                "team_id": "t1"
+            }
+        });
+
+        let msg = replay_message_to_ws_message(42, &payload);
+        assert_eq!(msg.seq, Some(42));
+        assert_eq!(msg.event, "typing");
+        assert_eq!(msg.broadcast.user_id, "u1");
+        assert_eq!(msg.broadcast.channel_id, "c1");
+        assert_eq!(msg.broadcast.team_id, "t1");
+    }
+
+    #[test]
+    fn replay_message_defaults_broadcast_when_missing() {
+        let payload = json!({
+            "event": "posted",
+            "data": { "post": "{}" }
+        });
+
+        let msg = replay_message_to_ws_message(7, &payload);
+        assert_eq!(msg.seq, Some(7));
+        assert_eq!(msg.broadcast.user_id, "");
+        assert_eq!(msg.broadcast.channel_id, "");
+        assert_eq!(msg.broadcast.team_id, "");
     }
 }
