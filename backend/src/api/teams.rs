@@ -149,7 +149,7 @@ async fn get_members(
     let members = sqlx::query_as::<_, TeamMemberResponse>(
         r#"
         SELECT tm.team_id, tm.user_id, tm.role, tm.created_at,
-               u.username, u.display_name, u.avatar_url
+               u.username, u.display_name, u.avatar_url, u.presence
         FROM team_members tm
         JOIN users u ON tm.user_id = u.id
         WHERE tm.team_id = $1

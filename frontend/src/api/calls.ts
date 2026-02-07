@@ -92,6 +92,121 @@ export interface CreateMeetingResponse {
 
 const CALLS_ROUTE = '/plugins/com.mattermost.calls'
 
+interface CallsConfigWire {
+    ICEServersConfigs?: RTCIceServer[]
+    ice_servers?: Array<{
+        urls?: string[]
+        username?: string
+        credential?: string
+    }>
+}
+
+interface CallStateWire {
+    id?: string
+    id_raw?: string
+    channel_id?: string
+    channel_id_raw?: string
+    start_at?: number
+    owner_id?: string
+    owner_id_raw?: string
+    participants?: string[]
+    participants_raw?: string[]
+    sessions?: Record<string, CallSession>
+    thread_id?: string
+    screen_sharing_id?: string
+    screen_sharing_session_id?: string
+}
+
+interface ChannelStateWire {
+    channel_id?: string
+    channel_id_raw?: string
+    enabled?: boolean
+    call?: CallStateWire
+    call_id?: string
+    call_id_raw?: string
+    has_call?: boolean
+}
+
+function normalizeIceServers(raw: CallsConfigWire): RTCIceServer[] {
+    if (Array.isArray(raw.ICEServersConfigs) && raw.ICEServersConfigs.length > 0) {
+        return raw.ICEServersConfigs
+    }
+
+    if (!Array.isArray(raw.ice_servers)) {
+        return []
+    }
+
+    return raw.ice_servers.map((entry) => ({
+        urls: entry.urls || [],
+        username: entry.username,
+        credential: entry.credential,
+    }))
+}
+
+function normalizeConfig(raw: CallsConfigWire): CallsConfig {
+    return {
+        ICEServersConfigs: normalizeIceServers(raw),
+        AllowEnableCalls: true,
+        DefaultEnabled: true,
+        NeedsTURNCredentials: false,
+        MaxCallParticipants: 0,
+        AllowScreenSharing: true,
+        EnableSimulcast: false,
+        EnableRinging: true,
+        EnableLiveCaptions: false,
+        HostControlsAllowed: true,
+        EnableRecordings: false,
+        MaxRecordingDuration: 0,
+        GroupCallsAllowed: true,
+    }
+}
+
+function normalizeCallState(channelId: string, raw: CallStateWire): CallState {
+    if (raw.sessions && typeof raw.sessions === 'object') {
+        return {
+            id: raw.id_raw || raw.id || '',
+            channel_id: channelId,
+            start_at: raw.start_at || Date.now(),
+            owner_id: raw.owner_id_raw || raw.owner_id || '',
+            host_id: raw.owner_id_raw || raw.owner_id || '',
+            thread_id: raw.thread_id,
+            screen_sharing_session_id: raw.screen_sharing_session_id || raw.screen_sharing_id,
+            sessions: raw.sessions,
+        }
+    }
+
+    const participants = raw.participants_raw || raw.participants || []
+    const sessions: Record<string, CallSession> = {}
+    for (const participantId of participants) {
+        sessions[participantId] = {
+            session_id: participantId,
+            user_id: participantId,
+            unmuted: false,
+            raised_hand: 0,
+        }
+    }
+
+    return {
+        id: raw.id_raw || raw.id || '',
+        channel_id: channelId,
+        start_at: raw.start_at || Date.now(),
+        owner_id: raw.owner_id_raw || raw.owner_id || '',
+        host_id: raw.owner_id_raw || raw.owner_id || '',
+        thread_id: raw.thread_id,
+        screen_sharing_session_id: raw.screen_sharing_session_id || raw.screen_sharing_id,
+        sessions,
+    }
+}
+
+async function fetchCallForChannel(channelId: string): Promise<CallChannelState> {
+    const response = await apiClient.get<CallStateWire>(`${CALLS_ROUTE}/calls/${channelId}?mobilev2=true`)
+    return {
+        channel_id: channelId,
+        enabled: true,
+        call: normalizeCallState(channelId, response.data),
+    }
+}
+
 export default {
     // Check if calls plugin is enabled
     async getEnabled(): Promise<boolean> {
@@ -109,18 +224,59 @@ export default {
     },
 
     // Get calls config (ICE servers, etc)
-    getConfig() {
-        return apiClient.get<CallsConfig>(`${CALLS_ROUTE}/config`)
+    async getConfig() {
+        const response = await apiClient.get<CallsConfigWire>(`${CALLS_ROUTE}/config`)
+        return {
+            ...response,
+            data: normalizeConfig(response.data),
+        }
     },
 
     // Get all active calls
-    getCalls() {
-        return apiClient.get<CallChannelState[]>(`${CALLS_ROUTE}/channels?mobilev2=true`)
+    async getCalls() {
+        const response = await apiClient.get<ChannelStateWire[]>(`${CALLS_ROUTE}/channels?mobilev2=true`)
+        const channels: CallChannelState[] = []
+
+        for (const channel of response.data || []) {
+            const channelId = channel.channel_id_raw || channel.channel_id
+            if (!channelId) {
+                continue
+            }
+
+            if (channel.call) {
+                channels.push({
+                    channel_id: channelId,
+                    enabled: channel.enabled !== false,
+                    call: normalizeCallState(channelId, channel.call),
+                })
+                continue
+            }
+
+            if (channel.has_call || channel.call_id || channel.call_id_raw) {
+                try {
+                    channels.push(await fetchCallForChannel(channelId))
+                    continue
+                } catch (error) {
+                    // Fall back to channel-only state when call details are unavailable
+                }
+            }
+
+            channels.push({
+                channel_id: channelId,
+                enabled: channel.enabled !== false,
+            })
+        }
+
+        return {
+            ...response,
+            data: channels,
+        }
     },
 
     // Get call for specific channel
-    getCallForChannel(channelId: string) {
-        return apiClient.get<CallChannelState>(`${CALLS_ROUTE}/${channelId}?mobilev2=true`)
+    async getCallForChannel(channelId: string) {
+        const response = await fetchCallForChannel(channelId)
+        return { data: response }
     },
 
     // Start a new call in a channel

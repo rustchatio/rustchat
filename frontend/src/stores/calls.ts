@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import callsApi, { type CallState, type CallsConfig } from '../api/calls'
 import { useWebSocket } from '../composables/useWebSocket'
 import { useToast } from '../composables/useToast'
+import { useAuthStore } from './auth'
 
 export interface CurrentCall {
     channelId: string
@@ -16,6 +17,7 @@ export interface CurrentCall {
 export const useCallsStore = defineStore('calls', () => {
     const { onEvent } = useWebSocket()
     const toast = useToast()
+    const authStore = useAuthStore()
     
     // State
     const callsConfig = ref<CallsConfig | null>(null)
@@ -47,24 +49,29 @@ export const useCallsStore = defineStore('calls', () => {
 
     onEvent('custom_com.mattermost.calls_call_end', (data) => {
         console.log('Call ended:', data)
-        if (currentCall.value?.channelId === data.channel_id) {
+        const eventChannelId = data.channel_id_raw || data.channel_id
+        if (currentCall.value?.channelId === eventChannelId) {
             leaveCall()
         }
-        activeCalls.value.delete(data.channel_id)
+        if (eventChannelId) {
+            activeCalls.value.delete(eventChannelId)
+        }
     })
 
     onEvent('custom_com.mattermost.calls_user_joined', (data) => {
         console.log('User joined call:', data)
-        if (currentCall.value?.channelId === data.channel_id) {
+        const eventChannelId = data.channel_id_raw || data.channel_id
+        if (currentCall.value?.channelId === eventChannelId) {
             // Update current call sessions
-            loadCallForChannel(data.channel_id)
+            loadCallForChannel(eventChannelId)
         }
     })
 
     onEvent('custom_com.mattermost.calls_user_left', (data) => {
         console.log('User left call:', data)
-        if (currentCall.value?.channelId === data.channel_id) {
-            loadCallForChannel(data.channel_id)
+        const eventChannelId = data.channel_id_raw || data.channel_id
+        if (currentCall.value?.channelId === eventChannelId) {
+            loadCallForChannel(eventChannelId)
         }
     })
 
@@ -86,14 +93,16 @@ export const useCallsStore = defineStore('calls', () => {
 
     onEvent('custom_com.mattermost.calls_screen_on', (data) => {
         console.log('Screen share on:', data)
-        if (currentCall.value?.channelId === data.channel_id) {
+        const eventChannelId = data.channel_id_raw || data.channel_id
+        if (currentCall.value?.channelId === eventChannelId) {
             isScreenSharing.value = true
         }
     })
 
     onEvent('custom_com.mattermost.calls_screen_off', (data) => {
         console.log('Screen share off:', data)
-        if (currentCall.value?.channelId === data.channel_id) {
+        const eventChannelId = data.channel_id_raw || data.channel_id
+        if (currentCall.value?.channelId === eventChannelId) {
             isScreenSharing.value = false
         }
     })
@@ -177,11 +186,9 @@ export const useCallsStore = defineStore('calls', () => {
 
             // Start the call on the server
             const { data: callData } = await callsApi.startCall(channelId)
-            
-            // Initialize WebRTC
-            await initializeWebRTC(channelId, config.ICEServersConfigs)
-            
-            // Set current call
+
+            const selfId = authStore.user?.id || crypto.randomUUID()
+            const mySessionId = crypto.randomUUID()
             currentCall.value = {
                 channelId,
                 call: {
@@ -190,12 +197,26 @@ export const useCallsStore = defineStore('calls', () => {
                     start_at: callData.start_at,
                     owner_id: callData.owner_id,
                     host_id: callData.owner_id,
-                    sessions: {}
+                    sessions: {
+                        [mySessionId]: {
+                            session_id: mySessionId,
+                            user_id: selfId,
+                            unmuted: false,
+                            raised_hand: 0,
+                        },
+                    }
                 },
-                mySessionId: '', // Will be set when we get the session ID
+                mySessionId,
                 peerConnection: null,
                 localStream: null,
                 remoteStreams: new Map()
+            }
+
+            // Initialize WebRTC
+            const rtc = await initializeWebRTC(channelId, config.ICEServersConfigs)
+            if (currentCall.value) {
+                currentCall.value.peerConnection = rtc.peerConnection
+                currentCall.value.localStream = rtc.localStream
             }
             
             isExpanded.value = true
@@ -203,6 +224,8 @@ export const useCallsStore = defineStore('calls', () => {
             
             return callData
         } catch (error: any) {
+            cleanupWebRTC()
+            currentCall.value = null
             console.error('Failed to start call', error)
             toast.error('Failed to start call', error.message || 'Unknown error')
             throw error
@@ -225,24 +248,39 @@ export const useCallsStore = defineStore('calls', () => {
 
             // Join the call on the server
             await callsApi.joinCall(channelId)
-            
-            // Initialize WebRTC
-            await initializeWebRTC(channelId, config.ICEServersConfigs)
-            
-            // Set current call
+
+            const mySessionId = crypto.randomUUID()
             currentCall.value = {
                 channelId,
                 call: channelState.call,
-                mySessionId: '',
+                mySessionId,
                 peerConnection: null,
                 localStream: null,
                 remoteStreams: new Map()
+            }
+
+            if (!currentCall.value.call.sessions[mySessionId]) {
+                currentCall.value.call.sessions[mySessionId] = {
+                    session_id: mySessionId,
+                    user_id: authStore.user?.id || mySessionId,
+                    unmuted: false,
+                    raised_hand: 0,
+                }
+            }
+
+            // Initialize WebRTC
+            const rtc = await initializeWebRTC(channelId, config.ICEServersConfigs)
+            if (currentCall.value) {
+                currentCall.value.peerConnection = rtc.peerConnection
+                currentCall.value.localStream = rtc.localStream
             }
             
             isExpanded.value = true
             toast.success('Joined call', 'You are now in the call')
             
         } catch (error: any) {
+            cleanupWebRTC()
+            currentCall.value = null
             console.error('Failed to join call', error)
             toast.error('Failed to join call', error.message || 'Unknown error')
             throw error
@@ -304,10 +342,14 @@ export const useCallsStore = defineStore('calls', () => {
                 audio: true, 
                 video: false // Audio only for now
             })
+            // Calls start muted server-side, keep local tracks consistent.
+            stream.getAudioTracks().forEach(track => {
+                track.enabled = false
+            })
             
             // Create peer connection
             const pc = new RTCPeerConnection({
-                iceServers: iceServers.length > 0 ? iceServers : [
+                iceServers: (iceServers || []).length > 0 ? iceServers : [
                     { urls: 'stun:stun.l.google.com:19302' }
                 ]
             })
@@ -340,10 +382,10 @@ export const useCallsStore = defineStore('calls', () => {
                 type: 'answer',
                 sdp: answer.sdp
             }))
-            
-            if (currentCall.value) {
-                currentCall.value.peerConnection = pc
-                currentCall.value.localStream = stream
+
+            return {
+                peerConnection: pc,
+                localStream: stream,
             }
             
         } catch (error) {

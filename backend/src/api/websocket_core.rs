@@ -292,16 +292,7 @@ pub async fn handle_client_envelope(
         }
         "presence" => {
             if let Some(status) = envelope.data.get("status").and_then(|v| v.as_str()) {
-                state.ws_hub.set_presence(user_id, status.to_string()).await;
-                let event = WsEnvelope::event(
-                    EventType::UserPresence,
-                    PresenceEvent {
-                        user_id,
-                        status: status.to_string(),
-                    },
-                    None,
-                );
-                state.ws_hub.broadcast(event).await;
+                persist_presence_and_broadcast(state, user_id, status).await;
             }
         }
         "ping" => {

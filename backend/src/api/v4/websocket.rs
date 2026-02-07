@@ -564,7 +564,7 @@ fn map_envelope_to_mm(env: &WsEnvelope) -> Option<mm::WebSocketMessage> {
                 None
             }
         }
-        "user_updated" => {
+        "user_updated" | "user_presence" => {
             if let Some(status_str) = env.data.get("status").and_then(|v| v.as_str()) {
                 let user_id = env
                     .data

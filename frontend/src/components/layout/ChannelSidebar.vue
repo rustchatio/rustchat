@@ -95,8 +95,13 @@ const categories = computed(() => {
                     }
                 }
                 
-                // Get status from presence store
-                const status = otherId ? (presenceStore.presenceMap.get(otherId)?.presence || 'offline') : 'offline';
+                // Prefer live WS presence, then fallback to team member snapshot from API.
+                const memberPresence = otherId
+                    ? teamStore.members.find(m => m.user_id === otherId)?.presence
+                    : undefined;
+                const status = otherId
+                    ? (presenceStore.presenceMap.get(otherId)?.presence || memberPresence || 'offline')
+                    : 'offline';
                 
                 return {
                     id: c.id,

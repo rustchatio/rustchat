@@ -217,6 +217,15 @@ export function useWebSocket() {
                 }
                 break
 
+            case 'status_change':
+                if (envelope.data) {
+                    presenceStore.updatePresenceFromEvent(
+                        envelope.data.user_id,
+                        envelope.data.status || 'online'
+                    )
+                }
+                break
+
             case 'channel_created': {
                 if (envelope.data) {
                     channelStore.addChannel(envelope.data)

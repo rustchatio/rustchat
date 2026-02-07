@@ -122,18 +122,25 @@ struct IceServer {
 #[derive(Debug, Serialize)]
 struct StartCallResponse {
     id: String,
+    id_raw: String,
     channel_id: String,
+    channel_id_raw: String,
     start_at: i64,
     owner_id: String,
+    owner_id_raw: String,
 }
 
 #[derive(Debug, Serialize)]
 struct CallStateResponse {
     id: String,
+    id_raw: String,
     channel_id: String,
+    channel_id_raw: String,
     start_at: i64,
     owner_id: String,
+    owner_id_raw: String,
     participants: Vec<String>,
+    participants_raw: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     screen_sharing_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -254,7 +261,9 @@ async fn get_channels(
 
             channels.push(CallChannelInfo {
                 channel_id: encode_mm_id(call.channel_id),
+                channel_id_raw: call.channel_id.to_string(),
                 call_id: Some(encode_mm_id(call.call_id)),
+                call_id_raw: Some(call.call_id.to_string()),
                 enabled: true,
                 has_call: participant_count > 0,
                 participant_count: participant_count as i32,
@@ -269,8 +278,11 @@ async fn get_channels(
 #[derive(Debug, Serialize)]
 struct CallChannelInfo {
     channel_id: String,
+    channel_id_raw: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     call_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    call_id_raw: Option<String>,
     enabled: bool,
     has_call: bool,
     participant_count: i32,
@@ -296,9 +308,12 @@ async fn start_call(
     if let Some(call) = call_manager.get_call_by_channel(&channel_uuid).await {
         return Ok(Json(StartCallResponse {
             id: encode_mm_id(call.call_id),
+            id_raw: call.call_id.to_string(),
             channel_id: channel_id.clone(),
+            channel_id_raw: channel_uuid.to_string(),
             start_at: call.started_at,
             owner_id: encode_mm_id(call.owner_id),
+            owner_id_raw: call.owner_id.to_string(),
         }));
     }
 
@@ -386,9 +401,12 @@ async fn start_call(
 
     Ok(Json(StartCallResponse {
         id: encode_mm_id(call_id),
+        id_raw: call_id.to_string(),
         channel_id: channel_id.clone(),
+        channel_id_raw: channel_uuid.to_string(),
         start_at: now,
         owner_id: encode_mm_id(auth.user_id),
+        owner_id_raw: auth.user_id.to_string(),
     }))
 }
 
@@ -576,19 +594,26 @@ async fn get_call_state(
         .await
         .ok_or_else(|| AppError::NotFound("No active call in this channel".to_string()))?;
 
-    let participants: Vec<String> = call_manager
-        .get_participants(call.call_id)
-        .await
+    let call_participants = call_manager.get_participants(call.call_id).await;
+    let participants: Vec<String> = call_participants
         .iter()
         .map(|p| encode_mm_id(p.user_id))
+        .collect();
+    let participants_raw: Vec<String> = call_participants
+        .iter()
+        .map(|p| p.user_id.to_string())
         .collect();
 
     Ok(Json(CallStateResponse {
         id: encode_mm_id(call.call_id),
+        id_raw: call.call_id.to_string(),
         channel_id: channel_id.clone(),
+        channel_id_raw: channel_uuid.to_string(),
         start_at: call.started_at,
         owner_id: encode_mm_id(call.owner_id),
+        owner_id_raw: call.owner_id.to_string(),
         participants,
+        participants_raw,
         screen_sharing_id: call.screen_sharer.map(encode_mm_id),
         thread_id: call.thread_id.map(encode_mm_id),
     }))
