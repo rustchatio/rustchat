@@ -1,469 +1,66 @@
 # Mattermost API v4 Comparison
 
-This compares RustChat v4 routes implemented in code against the upstream Mattermost v4 OpenAPI path list.
+This document summarizes RustChat's current `/api/v4` compatibility position relative to Mattermost v4 and avoids stale per-endpoint claims that drift quickly.
 
-## Summary
+## Last Verified
 
-- Mattermost v4 endpoints (OpenAPI): 418
-- Implemented in RustChat (code routes): 390
-- Missing in RustChat: 57
-- RustChat-only endpoints (not in OpenAPI list): 28
+- Date: **2026-02-07**
+- Verified artifacts:
+  - `backend/src/api/v4/mod.rs`
+  - `docs/api_v4_compatibility_report.md`
+  - `tools/mm-compat/output/endpoints_baseline.json`
+  - `tools/mm-compat/output/endpoints_final.json`
+  - `tools/mm-compat/output/priority_report.md`
 
-## Status (Mattermost OpenAPI paths)
+## Comparison Scope
 
-| Endpoint | Status | RustChat Source |
-| --- | --- | --- |
-| `/api/v4/users/login` | Implemented | users.rs |
-| `/api/v4/users/login/cws` | Implemented | users.rs |
-| `/api/v4/users/login/sso/code-exchange` | Implemented | users.rs |
-| `/api/v4/users/logout` | Implemented | users.rs |
-| `/api/v4/users` | Implemented | users.rs |
-| `/api/v4/users/ids` | Implemented | users.rs |
-| `/api/v4/users/group_channels` | Implemented | users.rs |
-| `/api/v4/users/usernames` | Implemented | users.rs |
-| `/api/v4/users/search` | Implemented | users.rs |
-| `/api/v4/users/autocomplete` | Implemented | users.rs |
-| `/api/v4/users/known` | Implemented | users.rs |
-| `/api/v4/users/stats` | Implemented | users.rs |
-| `/api/v4/users/stats/filtered` | Implemented | users.rs |
-| `/api/v4/users/{user_id}` | Implemented | users.rs |
-| `/api/v4/users/{user_id}/patch` | Implemented | users.rs |
-| `/api/v4/users/{user_id}/roles` | Implemented | users.rs |
-| `/api/v4/users/{user_id}/active` | Implemented | users.rs |
-| `/api/v4/users/{user_id}/image` | Implemented | users.rs |
-| `/api/v4/users/{user_id}/image/default` | Implemented | users.rs |
-| `/api/v4/users/username/{username}` | Implemented | users.rs |
-| `/api/v4/users/password/reset` | Implemented | users.rs |
-| `/api/v4/users/{user_id}/mfa` | Implemented | users.rs |
-| `/api/v4/users/{user_id}/mfa/generate` | Implemented | users.rs |
-| `/api/v4/users/{user_id}/demote` | Implemented | users.rs |
-| `/api/v4/users/{user_id}/promote` | Implemented | users.rs |
-| `/api/v4/users/{user_id}/convert_to_bot` | Implemented | users.rs |
-| `/api/v4/users/mfa` | Implemented | users.rs |
-| `/api/v4/users/{user_id}/password` | Implemented | users.rs |
-| `/api/v4/users/password/reset/send` | Implemented | users.rs |
-| `/api/v4/users/email/{email}` | Implemented | users.rs |
-| `/api/v4/users/{user_id}/sessions` | Implemented | users.rs |
-| `/api/v4/users/{user_id}/sessions/revoke` | Implemented | users.rs |
-| `/api/v4/users/{user_id}/sessions/revoke/all` | Implemented | users.rs |
-| `/api/v4/users/sessions/device` | Implemented | users.rs |
-| `/api/v4/users/{user_id}/audits` | Implemented | users.rs |
-| `/api/v4/users/{user_id}/email/verify/member` | Implemented | users.rs |
-| `/api/v4/users/email/verify` | Implemented | users.rs |
-| `/api/v4/users/email/verify/send` | Implemented | users.rs |
-| `/api/v4/users/login/switch` | Implemented | users.rs |
-| `/api/v4/users/login/type` | Implemented | users.rs |
-| `/api/v4/users/{user_id}/tokens` | Implemented | users.rs |
-| `/api/v4/users/tokens` | Implemented | users.rs |
-| `/api/v4/users/tokens/revoke` | Implemented | users.rs |
-| `/api/v4/users/tokens/{token_id}` | Implemented | users.rs |
-| `/api/v4/users/tokens/disable` | Implemented | users.rs |
-| `/api/v4/users/tokens/enable` | Implemented | users.rs |
-| `/api/v4/users/tokens/search` | Implemented | users.rs |
-| `/api/v4/users/{user_id}/auth` | Implemented | users.rs |
-| `/api/v4/users/{user_id}/terms_of_service` | Implemented | users.rs |
-| `/api/v4/users/sessions/revoke/all` | Implemented | users.rs |
-| `/api/v4/users/{user_id}/typing` | Implemented | users.rs |
-| `/api/v4/users/{user_id}/uploads` | Implemented | users.rs |
-| `/api/v4/users/{user_id}/channel_members` | Implemented | users.rs |
-| `/api/v4/users/migrate_auth/ldap` | Implemented | users.rs |
-| `/api/v4/users/migrate_auth/saml` | Implemented | users.rs |
-| `/api/v4/users/{user_id}/teams/{team_id}/threads` | Implemented | threads.rs |
-| `/api/v4/users/{user_id}/teams/{team_id}/threads/mention_counts` | Implemented | threads.rs |
-| `/api/v4/users/{user_id}/teams/{team_id}/threads/read` | Implemented | threads.rs |
-| `/api/v4/users/{user_id}/teams/{team_id}/threads/{thread_id}/read/{timestamp}` | Implemented | threads.rs |
-| `/api/v4/users/{user_id}/teams/{team_id}/threads/{thread_id}/set_unread/{post_id}` | Implemented | threads.rs |
-| `/api/v4/users/{user_id}/teams/{team_id}/threads/{thread_id}/following` | Implemented | threads.rs |
-| `/api/v4/users/{user_id}/teams/{team_id}/threads/{thread_id}` | Implemented | threads.rs |
-| `/api/v4/users/{user_id}/data_retention/team_policies` | Implemented | users.rs |
-| `/api/v4/users/{user_id}/data_retention/channel_policies` | Implemented | users.rs |
-| `/api/v4/users/invalid_emails` | Implemented | users.rs |
-| `/api/v4/users/{user_id}/reset_failed_attempts` | Implemented | users.rs |
-| `/api/v4/users/{user_id}/status` | Implemented | users.rs |
-| `/api/v4/users/status/ids` | Implemented | users.rs |
-| `/api/v4/users/{user_id}/status/custom` | Implemented | users.rs |
-| `/api/v4/users/{user_id}/status/custom/recent` | Implemented | users.rs |
-| `/api/v4/users/{user_id}/status/custom/recent/delete` | Implemented | users.rs |
-| `/api/v4/teams` | Implemented | teams.rs |
-| `/api/v4/teams/{team_id}` | Implemented | teams.rs |
-| `/api/v4/teams/{team_id}/patch` | Implemented | teams.rs |
-| `/api/v4/teams/{team_id}/privacy` | Implemented | teams.rs |
-| `/api/v4/teams/{team_id}/restore` | Implemented | teams.rs |
-| `/api/v4/teams/name/{name}` | Implemented | teams.rs |
-| `/api/v4/teams/search` | Implemented | teams.rs |
-| `/api/v4/teams/name/{name}/exists` | Implemented | teams.rs |
-| `/api/v4/users/{user_id}/teams` | Implemented | users.rs |
-| `/api/v4/teams/{team_id}/members` | Implemented | teams.rs |
-| `/api/v4/teams/members/invite` | Implemented | teams.rs |
-| `/api/v4/teams/{team_id}/members/batch` | Implemented | teams.rs |
-| `/api/v4/users/{user_id}/teams/members` | Implemented | users.rs |
-| `/api/v4/teams/{team_id}/members/{user_id}` | Implemented | teams.rs |
-| `/api/v4/teams/{team_id}/members/ids` | Implemented | teams.rs |
-| `/api/v4/teams/{team_id}/stats` | Implemented | teams.rs |
-| `/api/v4/teams/{team_id}/regenerate_invite_id` | Implemented | teams.rs |
-| `/api/v4/teams/{team_id}/image` | Implemented | teams.rs |
-| `/api/v4/teams/{team_id}/members/{user_id}/roles` | Implemented | teams.rs |
-| `/api/v4/teams/{team_id}/members/{user_id}/schemeRoles` | Implemented | teams.rs |
-| `/api/v4/users/{user_id}/teams/unread` | Implemented | users.rs |
-| `/api/v4/users/{user_id}/teams/{team_id}/unread` | Implemented | users.rs |
-| `/api/v4/teams/{team_id}/invite/email` | Implemented | teams.rs |
-| `/api/v4/teams/{team_id}/invite-guests/email` | Implemented | teams.rs |
-| `/api/v4/teams/invites/email` | Implemented | teams.rs |
-| `/api/v4/teams/{team_id}/import` | Implemented | teams.rs |
-| `/api/v4/teams/invite/{invite_id}` | Implemented | teams.rs |
-| `/api/v4/teams/{team_id}/scheme` | Implemented | teams.rs |
-| `/api/v4/teams/{team_id}/members_minus_group_members` | Implemented | teams.rs |
-| `/api/v4/channels` | Implemented | channels.rs |
-| `/api/v4/channels/direct` | Implemented | channels.rs |
-| `/api/v4/channels/group` | Implemented | channels.rs |
-| `/api/v4/channels/search` | Implemented | channels.rs |
-| `/api/v4/channels/group/search` | Implemented | channels.rs |
-| `/api/v4/teams/{team_id}/channels/ids` | Implemented | teams.rs |
-| `/api/v4/channels/{channel_id}/timezones` | Implemented | channels.rs |
-| `/api/v4/channels/{channel_id}` | Implemented | channels.rs |
-| `/api/v4/channels/{channel_id}/patch` | Implemented | channels.rs |
-| `/api/v4/channels/{channel_id}/privacy` | Implemented | channels.rs |
-| `/api/v4/channels/{channel_id}/restore` | Implemented | channels.rs |
-| `/api/v4/channels/{channel_id}/move` | Implemented | channels.rs |
-| `/api/v4/channels/{channel_id}/stats` | Implemented | channels.rs |
-| `/api/v4/channels/{channel_id}/pinned` | Implemented | channels.rs |
-| `/api/v4/teams/{team_id}/channels` | Implemented | teams.rs |
-| `/api/v4/teams/{team_id}/channels/private` | Implemented | teams.rs |
-| `/api/v4/teams/{team_id}/channels/deleted` | Implemented | teams.rs |
-| `/api/v4/teams/{team_id}/channels/autocomplete` | Implemented | teams.rs |
-| `/api/v4/teams/{team_id}/channels/search_autocomplete` | Implemented | teams.rs |
-| `/api/v4/teams/{team_id}/channels/search` | Implemented | teams.rs |
-| `/api/v4/teams/{team_id}/channels/name/{channel_name}` | Implemented | teams.rs |
-| `/api/v4/teams/name/{team_name}/channels/name/{channel_name}` | Implemented | teams.rs |
-| `/api/v4/channels/{channel_id}/members` | Implemented | channels.rs |
-| `/api/v4/channels/{channel_id}/members/ids` | Implemented | channels.rs |
-| `/api/v4/channels/{channel_id}/members/{user_id}` | Implemented | channels.rs |
-| `/api/v4/channels/{channel_id}/members/{user_id}/roles` | Implemented | channels.rs |
-| `/api/v4/channels/{channel_id}/members/{user_id}/schemeRoles` | Implemented | channels.rs |
-| `/api/v4/channels/{channel_id}/members/{user_id}/notify_props` | Implemented | channels.rs |
-| `/api/v4/channels/members/{user_id}/view` | Implemented | channels.rs |
-| `/api/v4/users/{user_id}/teams/{team_id}/channels/members` | Implemented | channels.rs |
-| `/api/v4/users/{user_id}/teams/{team_id}/channels` | Implemented | users.rs |
-| `/api/v4/users/{user_id}/channels` | Implemented | users.rs |
-| `/api/v4/users/{user_id}/channels/{channel_id}/unread` | Implemented | channels.rs |
-| `/api/v4/channels/{channel_id}/scheme` | Implemented | channels.rs |
-| `/api/v4/channels/{channel_id}/members_minus_group_members` | Implemented | channels.rs |
-| `/api/v4/channels/{channel_id}/member_counts_by_group` | Implemented | channels.rs |
-| `/api/v4/channels/{channel_id}/moderations` | Implemented | channels.rs |
-| `/api/v4/channels/{channel_id}/moderations/patch` | Implemented | channels.rs |
-| `/api/v4/users/{user_id}/teams/{team_id}/channels/categories` | Implemented | categories.rs |
-| `/api/v4/users/{user_id}/teams/{team_id}/channels/categories/order` | Implemented | categories.rs |
-| `/api/v4/users/{user_id}/teams/{team_id}/channels/categories/{category_id}` | Implemented | categories.rs |
-| `/api/v4/channels/{channel_id}/common_teams` | Implemented | channels.rs |
-| `/api/v4/posts` | Implemented | posts.rs |
-| `/api/v4/posts/ephemeral` | Implemented | posts.rs |
-| `/api/v4/posts/{post_id}` | Implemented | posts.rs |
-| `/api/v4/users/{user_id}/posts/{post_id}/set_unread` | Implemented | posts.rs |
-| `/api/v4/posts/{post_id}/patch` | Implemented | posts.rs |
-| `/api/v4/posts/{post_id}/thread` | Implemented | posts.rs |
-| `/api/v4/users/{user_id}/posts/flagged` | Implemented | posts.rs |
-| `/api/v4/posts/{post_id}/files/info` | Implemented | posts.rs |
-| `/api/v4/channels/{channel_id}/posts` | Implemented | channels.rs |
-| `/api/v4/users/{user_id}/channels/{channel_id}/posts/unread` | Implemented | posts.rs |
-| `/api/v4/teams/{team_id}/posts/search` | Implemented | posts.rs |
-| `/api/v4/posts/search` | Implemented | posts.rs |
-| `/api/v4/posts/{post_id}/pin` | Implemented | posts.rs |
-| `/api/v4/posts/{post_id}/unpin` | Implemented | posts.rs |
-| `/api/v4/posts/{post_id}/actions/{action_id}` | Implemented | posts.rs |
-| `/api/v4/posts/ids` | Implemented | posts.rs |
-| `/api/v4/users/{user_id}/posts/{post_id}/reminder` | Implemented | posts.rs |
-| `/api/v4/users/{user_id}/posts/{post_id}/ack` | Implemented | posts.rs |
-| `/api/v4/posts/{post_id}/move` | Implemented | posts.rs |
-| `/api/v4/posts/{post_id}/restore/{restore_version_id}` | Implemented | posts.rs |
-| `/api/v4/posts/{post_id}/reveal` | Implemented | posts.rs |
-| `/api/v4/posts/{post_id}/burn` | Implemented | posts.rs |
-| `/api/v4/posts/rewrite` | Implemented | posts.rs |
-| `/api/v4/users/{user_id}/preferences` | Implemented | users.rs |
-| `/api/v4/users/{user_id}/preferences/delete` | Implemented | users.rs |
-| `/api/v4/users/{user_id}/preferences/{category}` | Implemented | users.rs |
-| `/api/v4/users/{user_id}/preferences/{category}/name/{preference_name}` | Implemented | users.rs |
-| `/api/v4/files` | Implemented | files.rs |
-| `/api/v4/files/{file_id}` | Implemented | files.rs |
-| `/api/v4/files/{file_id}/thumbnail` | Implemented | files.rs |
-| `/api/v4/files/{file_id}/preview` | Implemented | files.rs |
-| `/api/v4/files/{file_id}/link` | Implemented | files.rs |
-| `/api/v4/files/{file_id}/info` | Implemented | files.rs |
-| `/api/v4/teams/{team_id}/files/search` | Implemented | - |
-| `/api/v4/files/search` | Implemented | - |
-| `/api/v4/recaps` | Implemented | recaps.rs |
-| `/api/v4/recaps/{recap_id}` | Implemented | recaps.rs |
-| `/api/v4/recaps/{recap_id}/read` | Implemented | recaps.rs |
-| `/api/v4/recaps/{recap_id}/regenerate` | Implemented | recaps.rs |
-| `/api/v4/ai/agents` | Implemented | - |
-| `/api/v4/ai/services` | Implemented | - |
-| `/api/v4/uploads` | Implemented | uploads.rs |
-| `/api/v4/uploads/{upload_id}` | Implemented | uploads.rs |
-| `/api/v4/jobs` | Implemented | jobs.rs |
-| `/api/v4/jobs/{job_id}` | Implemented | jobs.rs |
-| `/api/v4/jobs/{job_id}/download` | Implemented | jobs.rs |
-| `/api/v4/jobs/{job_id}/cancel` | Implemented | jobs.rs |
-| `/api/v4/jobs/type/{type}` | Implemented | jobs.rs |
-| `/api/v4/jobs/{job_status_id}/status` | Implemented | jobs.rs |
-| `/api/v4/system/timezones` | Implemented | system.rs |
-| `/api/v4/system/ping` | Implemented | system.rs |
-| `/api/v4/system/notices/{teamId}` | Implemented | system.rs |
-| `/api/v4/system/notices/view` | Implemented | system.rs |
-| `/api/v4/database/recycle` | Implemented | system.rs |
-| `/api/v4/email/test` | Implemented | system.rs |
-| `/api/v4/notifications/test` | Implemented | system.rs |
-| `/api/v4/site_url/test` | Implemented | system.rs |
-| `/api/v4/file/s3_test` | Implemented | system.rs |
-| `/api/v4/config` | Implemented | system.rs |
-| `/api/v4/config/reload` | Implemented | system.rs |
-| `/api/v4/config/client` | Implemented | config_client.rs |
-| `/api/v4/config/environment` | Implemented | system.rs |
-| `/api/v4/config/patch` | Implemented | system.rs |
-| `/api/v4/license` | Implemented | system.rs |
-| `/api/v4/license/client` | Implemented | config_client.rs |
-| `/api/v4/license/load_metric` | Implemented | - |
-| `/api/v4/license/renewal` | Implemented | system.rs |
-| `/api/v4/trial-license` | Implemented | system.rs |
-| `/api/v4/trial-license/prev` | Implemented | - |
-| `/api/v4/audits` | Implemented | admin.rs |
-| `/api/v4/caches/invalidate` | Implemented | system.rs |
-| `/api/v4/logs` | Implemented | system.rs |
-| `/api/v4/analytics/old` | Implemented | - |
-| `/api/v4/server_busy` | Implemented | - |
-| `/api/v4/notifications/ack` | Implemented | - |
-| `/api/v4/redirect_location` | Implemented | - |
-| `/api/v4/image` | Implemented | image.rs |
-| `/api/v4/upgrade_to_enterprise` | Implemented | - |
-| `/api/v4/upgrade_to_enterprise/status` | Implemented | - |
-| `/api/v4/upgrade_to_enterprise/allowed` | Implemented | - |
-| `/api/v4/restart` | Implemented | - |
-| `/api/v4/integrity` | Implemented | - |
-| `/api/v4/system/support_packet` | Implemented | system.rs |
-| `/api/v4/system/onboarding/complete` | Implemented | system.rs |
-| `/api/v4/system/schema/version` | Implemented | system.rs |
-| `/api/v4/emoji` | Implemented | emoji.rs |
-| `/api/v4/emoji/{emoji_id}` | Implemented | emoji.rs |
-| `/api/v4/emoji/name/{emoji_name}` | Implemented | emoji.rs |
-| `/api/v4/emoji/{emoji_id}/image` | Implemented | emoji.rs |
-| `/api/v4/emoji/search` | Implemented | emoji.rs |
-| `/api/v4/emoji/autocomplete` | Implemented | emoji.rs |
-| `/api/v4/emoji/names` | Implemented | emoji.rs |
-| `/api/v4/hooks/incoming` | Implemented | hooks.rs |
-| `/api/v4/hooks/incoming/{hook_id}` | Implemented | - |
-| `/api/v4/hooks/outgoing` | Implemented | hooks.rs |
-| `/api/v4/hooks/outgoing/{hook_id}` | Implemented | - |
-| `/api/v4/hooks/outgoing/{hook_id}/regen_token` | Implemented | - |
-| `/api/v4/saml/metadata` | Implemented | saml.rs |
-| `/api/v4/saml/metadatafromidp` | Implemented | saml.rs |
-| `/api/v4/saml/certificate/idp` | Implemented | saml.rs |
-| `/api/v4/saml/certificate/public` | Implemented | saml.rs |
-| `/api/v4/saml/certificate/private` | Implemented | saml.rs |
-| `/api/v4/saml/certificate/status` | Implemented | saml.rs |
-| `/api/v4/saml/reset_auth_data` | Implemented | saml.rs |
-| `/api/v4/compliance/reports` | Implemented | - |
-| `/api/v4/compliance/reports/{report_id}` | Implemented | - |
-| `/api/v4/compliance/reports/{report_id}/download` | Implemented | - |
-| `/api/v4/ldap/sync` | Implemented | ldap.rs |
-| `/api/v4/ldap/test` | Implemented | ldap.rs |
-| `/api/v4/ldap/test_connection` | Implemented | ldap.rs |
-| `/api/v4/ldap/test_diagnostics` | Implemented | ldap.rs |
-| `/api/v4/ldap/groups` | Implemented | ldap.rs |
-| `/api/v4/ldap/groups/{remote_id}/link` | Implemented | ldap.rs |
-| `/api/v4/ldap/migrateid` | Implemented | ldap.rs |
-| `/api/v4/ldap/certificate/public` | Implemented | ldap.rs |
-| `/api/v4/ldap/certificate/private` | Implemented | ldap.rs |
-| `/api/v4/ldap/users/{user_id}/group_sync_memberships` | Implemented | ldap.rs |
-| `/api/v4/groups` | Implemented | groups.rs |
-| `/api/v4/groups/{group_id}` | Implemented | groups.rs |
-| `/api/v4/groups/{group_id}/patch` | Implemented | groups.rs |
-| `/api/v4/groups/{group_id}/restore` | Implemented | groups.rs |
-| `/api/v4/groups/{group_id}/teams/{team_id}/link` | Implemented | groups.rs |
-| `/api/v4/groups/{group_id}/channels/{channel_id}/link` | Implemented | groups.rs |
-| `/api/v4/groups/{group_id}/teams/{team_id}` | Implemented | groups.rs |
-| `/api/v4/groups/{group_id}/channels/{channel_id}` | Implemented | groups.rs |
-| `/api/v4/groups/{group_id}/teams` | Implemented | groups.rs |
-| `/api/v4/groups/{group_id}/channels` | Implemented | groups.rs |
-| `/api/v4/groups/{group_id}/teams/{team_id}/patch` | Implemented | groups.rs |
-| `/api/v4/groups/{group_id}/channels/{channel_id}/patch` | Implemented | groups.rs |
-| `/api/v4/groups/{group_id}/members` | Implemented | groups.rs |
-| `/api/v4/groups/{group_id}/stats` | Implemented | groups.rs |
-| `/api/v4/channels/{channel_id}/groups` | Implemented | channels.rs |
-| `/api/v4/teams/{team_id}/groups` | Implemented | - |
-| `/api/v4/teams/{team_id}/groups_by_channels` | Implemented | - |
-| `/api/v4/users/{user_id}/groups` | Implemented | - |
-| `/api/v4/groups/names` | Implemented | groups.rs |
-| `/api/v4/cluster/status` | Implemented | - |
-| `/api/v4/brand/image` | Implemented | - |
-| `/api/v4/commands` | Implemented | commands.rs |
-| `/api/v4/teams/{team_id}/commands/autocomplete` | Implemented | teams.rs |
-| `/api/v4/teams/{team_id}/commands/autocomplete_suggestions` | Implemented | commands.rs |
-| `/api/v4/commands/{command_id}` | Implemented | commands.rs |
-| `/api/v4/commands/{command_id}/move` | Implemented | commands.rs |
-| `/api/v4/commands/{command_id}/regen_token` | Implemented | commands.rs |
-| `/api/v4/commands/execute` | Implemented | commands.rs |
-| `/api/v4/oauth/apps` | Implemented | oauth.rs |
-| `/api/v4/oauth/apps/{app_id}` | Implemented | oauth.rs |
-| `/api/v4/oauth/apps/{app_id}/regen_secret` | Implemented | oauth.rs |
-| `/api/v4/oauth/apps/{app_id}/info` | Implemented | oauth.rs |
-| `/api/v4/oauth/apps/register` | Implemented | oauth.rs |
-| `/api/v4/users/{user_id}/oauth/apps/authorized` | Implemented | users.rs |
-| `/api/v4/elasticsearch/test` | Implemented | - |
-| `/api/v4/elasticsearch/purge_indexes` | Implemented | - |
-| `/api/v4/bleve/purge_indexes` | Implemented | - |
-| `/api/v4/data_retention/policy` | Implemented | data_retention.rs |
-| `/api/v4/data_retention/policies_count` | Implemented | data_retention.rs |
-| `/api/v4/data_retention/policies` | Implemented | data_retention.rs |
-| `/api/v4/data_retention/policies/{policy_id}` | Implemented | data_retention.rs |
-| `/api/v4/data_retention/policies/{policy_id}/teams` | Implemented | data_retention.rs |
-| `/api/v4/data_retention/policies/{policy_id}/teams/search` | Implemented | data_retention.rs |
-| `/api/v4/data_retention/policies/{policy_id}/channels` | Implemented | data_retention.rs |
-| `/api/v4/data_retention/policies/{policy_id}/channels/search` | Implemented | data_retention.rs |
-| `/api/v4/plugins` | Implemented | plugins.rs |
-| `/api/v4/plugins/install_from_url` | Implemented | plugins.rs |
-| `/api/v4/plugins/{plugin_id}` | Implemented | plugins.rs |
-| `/api/v4/plugins/{plugin_id}/enable` | Implemented | plugins.rs |
-| `/api/v4/plugins/{plugin_id}/disable` | Implemented | plugins.rs |
-| `/api/v4/plugins/webapp` | Implemented | plugins.rs |
-| `/api/v4/plugins/statuses` | Implemented | plugins.rs |
-| `/api/v4/plugins/marketplace` | Implemented | plugins.rs |
-| `/api/v4/plugins/marketplace/first_admin_visit` | Implemented | plugins.rs |
-| `/api/v4/roles` | Implemented | roles.rs |
-| `/api/v4/roles/{role_id}` | Implemented | roles.rs |
-| `/api/v4/roles/name/{role_name}` | Implemented | roles.rs |
-| `/api/v4/roles/{role_id}/patch` | Implemented | roles.rs |
-| `/api/v4/roles/names` | Implemented | users.rs |
-| `/api/v4/schemes` | Implemented | schemes.rs |
-| `/api/v4/schemes/{scheme_id}` | Implemented | schemes.rs |
-| `/api/v4/schemes/{scheme_id}/patch` | Implemented | schemes.rs |
-| `/api/v4/schemes/{scheme_id}/teams` | Implemented | schemes.rs |
-| `/api/v4/schemes/{scheme_id}/channels` | Implemented | schemes.rs |
-| `/api/v4/terms_of_service` | Implemented | - |
-| `/api/v4/remotecluster` | Implemented | cluster.rs |
-| `/api/v4/remotecluster/{remote_id}` | Implemented | cluster.rs |
-| `/api/v4/remotecluster/{remote_id}/generate_invite` | Implemented | cluster.rs |
-| `/api/v4/remotecluster/accept_invite` | Implemented | cluster.rs |
-| `/api/v4/sharedchannels/{team_id}` | Implemented | - |
-| `/api/v4/remotecluster/{remote_id}/sharedchannelremotes` | Implemented | cluster.rs |
-| `/api/v4/sharedchannels/remote_info/{remote_id}` | Implemented | - |
-| `/api/v4/remotecluster/{remote_id}/channels/{channel_id}/invite` | Implemented | cluster.rs |
-| `/api/v4/remotecluster/{remote_id}/channels/{channel_id}/uninvite` | Implemented | cluster.rs |
-| `/api/v4/sharedchannels/{channel_id}/remotes` | Implemented | - |
-| `/api/v4/sharedchannels/users/{user_id}/can_dm/{other_user_id}` | Implemented | - |
-| `/api/v4/reactions` | Implemented | posts.rs |
-| `/api/v4/posts/{post_id}/reactions` | Implemented | posts.rs |
-| `/api/v4/users/{user_id}/posts/{post_id}/reactions/{emoji_name}` | Implemented | posts.rs |
-| `/api/v4/posts/ids/reactions` | Implemented | posts.rs |
-| `/api/v4/actions/dialogs/open` | Implemented | - |
-| `/api/v4/actions/dialogs/submit` | Implemented | - |
-| `/api/v4/actions/dialogs/lookup` | Implemented | - |
-| `/api/v4/bots` | Implemented | bots.rs |
-| `/api/v4/bots/{bot_user_id}` | Implemented | - |
-| `/api/v4/bots/{bot_user_id}/disable` | Implemented | - |
-| `/api/v4/bots/{bot_user_id}/enable` | Implemented | - |
-| `/api/v4/bots/{bot_user_id}/assign/{user_id}` | Implemented | - |
-| `/api/v4/bots/{bot_user_id}/icon` | Implemented | - |
-| `/api/v4/bots/{bot_user_id}/convert_to_user` | Implemented | - |
-| `/api/v4/cloud/limits` | Implemented | cloud.rs |
-| `/api/v4/cloud/products` | Implemented | cloud.rs |
-| `/api/v4/cloud/payment` | Implemented | cloud.rs |
-| `/api/v4/cloud/payment/confirm` | Implemented | cloud.rs |
-| `/api/v4/cloud/customer` | Implemented | cloud.rs |
-| `/api/v4/cloud/customer/address` | Implemented | cloud.rs |
-| `/api/v4/cloud/subscription` | Implemented | cloud.rs |
-| `/api/v4/cloud/installation` | Implemented | cloud.rs |
-| `/api/v4/cloud/subscription/invoices` | Implemented | cloud.rs |
-| `/api/v4/cloud/subscription/invoices/{invoice_id}/pdf` | Implemented | cloud.rs |
-| `/api/v4/cloud/webhook` | Implemented | cloud.rs |
-| `/api/v4/cloud/preview/modal_data` | Implemented | cloud.rs |
-| `/api/v4/usage/posts` | Implemented | usage.rs |
-| `/api/v4/usage/storage` | Implemented | usage.rs |
-| `/api/v4/permissions/ancillary` | Implemented | - |
-| `/api/v4/imports` | Implemented | - |
-| `/api/v4/imports/{import_name}` | Implemented | - |
-| `/api/v4/exports` | Implemented | - |
-| `/api/v4/exports/{export_name}` | Implemented | - |
-| `/api/v4/ip_filtering` | Implemented | - |
-| `/api/v4/ip_filtering/my_ip` | Implemented | - |
-| `/api/v4/channels/{channel_id}/bookmarks` | Implemented | channels.rs |
-| `/api/v4/channels/{channel_id}/bookmarks/{bookmark_id}` | Implemented | channels.rs |
-| `/api/v4/channels/{channel_id}/bookmarks/{bookmark_id}/sort_order` | Implemented | channels.rs |
-| `/api/v4/reports/users` | Implemented | - |
-| `/api/v4/reports/users/count` | Implemented | - |
-| `/api/v4/reports/users/export` | Implemented | - |
-| `/api/v4/reports/posts` | Implemented | - |
-| `/api/v4/limits/server` | Implemented | - |
-| `/api/v4/logs/download` | Implemented | - |
-| `/api/v4/oauth/outgoing_connections` | Implemented | oauth.rs |
-| `/api/v4/oauth/outgoing_connections/{connection_id}` | Implemented | oauth.rs |
-| `/api/v4/oauth/outgoing_connections/validate` | Implemented | oauth.rs |
-| `/api/v4/client_perf` | Implemented | system.rs |
-| `/api/v4/posts/schedule` | Implemented | posts.rs |
-| `/api/v4/posts/scheduled/team/{team_id}` | Implemented | posts.rs |
-| `/api/v4/posts/schedule/{scheduled_post_id}` | Implemented | posts.rs |
-| `/api/v4/custom_profile_attributes/fields` | Implemented | users.rs |
-| `/api/v4/custom_profile_attributes/fields/{field_id}` | Implemented | - |
-| `/api/v4/custom_profile_attributes/values` | Implemented | - |
-| `/api/v4/custom_profile_attributes/group` | Implemented | - |
-| `/api/v4/users/{user_id}/custom_profile_attributes` | Implemented | users.rs |
-| `/api/v4/audit_logs/certificate` | Implemented | - |
-| `/api/v4/access_control_policies` | Implemented | access_control.rs |
-| `/api/v4/access_control_policies/cel/check` | Implemented | access_control.rs |
-| `/api/v4/access_control_policies/cel/validate_requester` | Implemented | access_control.rs |
-| `/api/v4/access_control_policies/cel/test` | Implemented | access_control.rs |
-| `/api/v4/access_control_policies/search` | Implemented | access_control.rs |
-| `/api/v4/access_control_policies/cel/autocomplete/fields` | Implemented | access_control.rs |
-| `/api/v4/access_control_policies/{policy_id}` | Implemented | access_control.rs |
-| `/api/v4/access_control_policies/{policy_id}/activate` | Implemented | access_control.rs |
-| `/api/v4/access_control_policies/{policy_id}/assign` | Implemented | access_control.rs |
-| `/api/v4/access_control_policies/{policy_id}/unassign` | Implemented | access_control.rs |
-| `/api/v4/access_control_policies/{policy_id}/resources/channels` | Implemented | access_control.rs |
-| `/api/v4/access_control_policies/{policy_id}/resources/channels/search` | Implemented | access_control.rs |
-| `/api/v4/channels/{channel_id}/access_control/attributes` | Implemented | channels.rs |
-| `/api/v4/access_control_policies/cel/visual_ast` | Implemented | access_control.rs |
-| `/api/v4/access_control_policies/activate` | Implemented | access_control.rs |
-| `/api/v4/content_flagging/flag/config` | Implemented | content_flagging.rs |
-| `/api/v4/content_flagging/team/{team_id}/status` | Implemented | content_flagging.rs |
-| `/api/v4/content_flagging/post/{post_id}/flag` | Implemented | content_flagging.rs |
-| `/api/v4/content_flagging/fields` | Implemented | content_flagging.rs |
-| `/api/v4/content_flagging/post/{post_id}/field_values` | Implemented | content_flagging.rs |
-| `/api/v4/content_flagging/post/{post_id}` | Implemented | content_flagging.rs |
-| `/api/v4/content_flagging/post/{post_id}/remove` | Implemented | content_flagging.rs |
-| `/api/v4/content_flagging/post/{post_id}/keep` | Implemented | content_flagging.rs |
-| `/api/v4/content_flagging/config` | Implemented | content_flagging.rs |
-| `/api/v4/content_flagging/team/{team_id}/reviewers/search` | Implemented | content_flagging.rs |
-| `/api/v4/content_flagging/post/{post_id}/assign/{content_reviewer_id}` | Implemented | content_flagging.rs |
-| `/api/v4/agents` | Implemented | - |
-| `/api/v4/agents/status` | Implemented | - |
-| `/api/v4/llmservices` | Implemented | - |
+- Mattermost OpenAPI baseline set (`endpoints_baseline.json`): **570** method+path entries.
+- Combined priority/discovery set (`endpoints_final.json`): **632** entries.
+- Static mobile-reference extraction (`endpoints_static.json`): **87** entries.
 
-## RustChat-only implemented endpoints
+`endpoints_final.json` is a prioritization/discovery artifact, not proof of full semantic parity.
 
-| Endpoint | Notes | RustChat Source |
-| --- | --- | --- |
-| `/api/v4/channels/members/me/view` | Not found in OpenAPI path list | channels.rs |
-| `/api/v4/channels/{channel_id}/members/me` | Not found in OpenAPI path list | channels.rs |
-| `/api/v4/channels/{channel_id}/posts/{post_id}/pin` | Not found in OpenAPI path list | channels.rs |
-| `/api/v4/channels/{channel_id}/posts/{post_id}/unpin` | Not found in OpenAPI path list | channels.rs |
-| `/api/v4/channels/{channel_id}/unread` | Not found in OpenAPI path list | channels.rs |
-| `/api/v4/posts/{post_id}/ack` | Not found in OpenAPI path list | posts.rs |
-| `/api/v4/system/version` | Not found in OpenAPI path list | system.rs |
-| `/api/v4/teams/{team_id}/members/me` | Not found in OpenAPI path list | teams.rs |
-| `/api/v4/users/me` | Not found in OpenAPI path list | users.rs |
-| `/api/v4/users/me/channels` | Not found in OpenAPI path list | users.rs |
-| `/api/v4/users/me/channels/categories` | Not found in OpenAPI path list | users.rs |
-| `/api/v4/users/me/patch` | Not found in OpenAPI path list | users.rs |
-| `/api/v4/users/me/posts/{post_id}/reactions/{emoji_name}` | Not found in OpenAPI path list | posts.rs |
-| `/api/v4/users/me/preferences` | Not found in OpenAPI path list | users.rs |
-| `/api/v4/users/me/sessions` | Not found in OpenAPI path list | users.rs |
-| `/api/v4/users/me/status` | Not found in OpenAPI path list | users.rs |
-| `/api/v4/users/me/teams` | Not found in OpenAPI path list | users.rs |
-| `/api/v4/users/me/teams/members` | Not found in OpenAPI path list | users.rs |
-| `/api/v4/users/me/teams/unread` | Not found in OpenAPI path list | users.rs |
-| `/api/v4/users/me/teams/{team_id}/channels` | Not found in OpenAPI path list | users.rs |
-| `/api/v4/users/me/teams/{team_id}/channels/members` | Not found in OpenAPI path list | users.rs |
-| `/api/v4/users/me/teams/{team_id}/channels/not_members` | Not found in OpenAPI path list | users.rs |
-| `/api/v4/users/notifications` | Not found in OpenAPI path list | users.rs |
-| `/api/v4/users/{user_id}/channels/{channel_id}/typing` | Not found in OpenAPI path list | users.rs |
-| `/api/v4/users/{user_id}/sidebar/categories` | Not found in OpenAPI path list | users.rs |
-| `/api/v4/users/{user_id}/sidebar/categories/order` | Not found in OpenAPI path list | users.rs |
-| `/api/v4/users/{user_id}/threads` | Not found in OpenAPI path list | threads.rs |
-| `/api/v4/websocket` | Not found in OpenAPI path list | mod.rs |
+## Current Parity Statement
+
+- RustChat exposes a broad `/api/v4` route surface across users/teams/channels/posts/files/system/plugins/threads and calls plugin namespaces.
+- Compatibility for core client flows (login, bootstrap, channels, posts, websocket, calls handshake) is implemented.
+- Many enterprise/admin surfaces are present but still partial or placeholder.
+- Unsupported flows should return explicit Mattermost-style `501` rather than silent success stubs.
+
+## High-Impact Endpoint Status (Verified)
+
+| Endpoint | Status |
+| --- | --- |
+| `POST /api/v4/users/login` | Implemented |
+| `GET /api/v4/users/me` | Implemented |
+| `GET /api/v4/users/me/teams` | Implemented |
+| `GET /api/v4/users/me/teams/{team_id}/channels` | Implemented |
+| `GET /api/v4/channels/{channel_id}/posts` | Implemented |
+| `POST /api/v4/posts` | Implemented |
+| `GET /api/v4/config/client?format=old` | Implemented |
+| `GET /api/v4/license/client` | Implemented |
+| `GET /api/v4/websocket` | Implemented |
+| `GET /api/v4/plugins` | Implemented (calls plugin state-aware response) |
+| `GET /api/v4/plugins/{plugin_id}` | Implemented for `com.mattermost.calls` |
+| `GET /api/v4/plugins/statuses` | Implemented |
+| `GET /api/v4/plugins/webapp` | Implemented when calls enabled |
+| `POST /api/v4/plugins` | Explicit `501` |
+| `POST /api/v4/plugins/install_from_url` | Explicit `501` |
+| `DELETE /api/v4/plugins/{plugin_id}` | Explicit `501` |
+| `POST /api/v4/plugins/{plugin_id}/enable` | Explicit `501` |
+| `POST /api/v4/plugins/{plugin_id}/disable` | Explicit `501` |
+| `POST /api/v4/actions/dialogs/open` | Explicit `501` |
+| `POST /api/v4/actions/dialogs/submit` | Explicit `501` |
+| `POST /api/v4/actions/dialogs/lookup` | Explicit `501` |
+
+## Version and Fallback Behavior
+
+- Compatibility version reported by system endpoints: `10.11.10`.
+- `/api/v4` router fallback returns Mattermost-style `501 Not Implemented`.
+- `/api/v4/*` responses include `X-MM-COMPAT: 1`.
+
+## Detailed Follow-Up Reference
+
+For detailed stub/partial endpoint inventory and test coverage notes, use:
+
+- `docs/api_v4_compatibility_report.md`

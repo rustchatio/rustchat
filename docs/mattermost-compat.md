@@ -1,62 +1,85 @@
 # Mattermost Compatibility
 
-RustChat implements a subset of the Mattermost API v4 to support mobile clients (Mattermost Mobile for Android/iOS).
+RustChat implements a partial Mattermost API v4 compatibility layer for Mattermost mobile/desktop clients.
 
-## Compatibility Version
-The server reports version `10.11.10` to clients.
+## Last Verified
 
-## Supported Endpoints
+- Date: **2026-02-07**
+- Verified against:
+  - `backend/src/api/v4/mod.rs`
+  - `backend/src/api/v4/system.rs`
+  - `backend/src/api/v4/plugins.rs`
+  - `backend/src/api/v4/calls_plugin/mod.rs`
+  - `backend/src/api/v4/websocket.rs`
+  - `docs/api_v4_compatibility_report.md`
 
-### System & Handshake
-- `GET /api/v4/system/ping`: Returns system status and version.
-- `GET /api/v4/system/version`: Returns the server version string.
-- `GET /api/v4/config/client`: Returns client configuration.
-- `GET /api/v4/license/client`: Returns license information.
+## Compatibility Baseline
 
-### Authentication & Users
-- `POST /api/v4/users/login`: Login with username/email and password.
-- `GET /api/v4/users/me`: Get current user info.
-- `GET /api/v4/users/me/teams`: Get user's teams.
-- `GET /api/v4/users/me/channels`: Get user's channels.
-- `GET /api/v4/users/status/ids`: Get status for list of users.
-- `GET /api/v4/users/{user_id}/status`: Get status for a user.
-- `PUT /api/v4/users/me/status`: Update current user status.
+- Mattermost compatibility version constant: `10.11.10` (`backend/src/mattermost_compat/mod.rs`).
+- All `/api/v4/*` responses include `X-MM-COMPAT: 1`.
+- Unmatched `/api/v4/*` routes return Mattermost-style `501 Not Implemented` JSON via router fallback.
 
-### Teams & Channels
-- `GET /api/v4/teams/{team_id}/channels`: Get channels for a team.
-- `GET /api/v4/channels/{channel_id}`: Get channel details.
-- `GET /api/v4/channels/{channel_id}/members`: Get channel members.
-- `GET /api/v4/channels/{channel_id}/posts`: Get posts in a channel (with pagination).
-- `POST /api/v4/channels/direct`: Create direct message channel.
-- `POST /api/v4/channels/group`: Create group message channel.
-- `POST /api/v4/channels/search`: Search channels.
-- `POST /api/v4/teams/search`: Search teams.
+## Verified Endpoint Coverage (Core Client Flows)
 
-### Sidebar Categories
-- `GET /api/v4/users/me/channels/categories`: Get sidebar categories for the current user.
-- `GET /api/v4/users/{user_id}/teams/{team_id}/channels/categories`: Get sidebar categories for a team.
+### System and startup
+- `GET /api/v4/system/ping`
+- `GET /api/v4/system/version`
+- `GET /api/v4/config/client`
+- `GET /api/v4/license/client`
 
-### Posts
-- `POST /api/v4/posts`: Create a new post.
-- `GET /api/v4/posts/{post_id}`: Get a specific post.
-- `GET /api/v4/channels/{channel_id}/posts`: Fetch post list for a channel.
+### Auth and user bootstrap
+- `POST /api/v4/users/login`
+- `GET /api/v4/users/me`
+- `GET /api/v4/users/me/teams`
+- `GET /api/v4/users/me/teams/{team_id}/channels`
+- `POST /api/v4/users/status/ids`
+- `GET|PUT /api/v4/users/{user_id}/status`
+- `GET|PUT /api/v4/users/me/status`
+
+### Channels, posts, files
+- `GET /api/v4/channels/{channel_id}/posts`
+- `POST /api/v4/posts`
+- `GET /api/v4/posts/{post_id}`
+- `GET /api/v4/files/{file_id}`
+- `GET /api/v4/files/{file_id}/info`
 
 ### Threads
-- `GET /api/v4/users/{user_id}/threads`: Get user's followed threads.
-- `GET /api/v4/users/{user_id}/teams/{team_id}/threads`: Get team-scoped threads.
-- `POST /api/v4/users/{user_id}/teams/{team_id}/threads/{thread_id}/following`: Follow a thread.
+- `GET /api/v4/users/{user_id}/threads`
+- `GET|PUT /api/v4/users/{user_id}/teams/{team_id}/threads`
+- `PUT|DELETE /api/v4/users/{user_id}/teams/{team_id}/threads/{thread_id}/following`
 
-### Files
-- `GET /api/v4/files/{file_id}/info`: Get file metadata.
-- `GET /api/v4/files/{file_id}`: Stream file content (via S3 redirect).
+### Calls plugin namespace
+- Routes exist under `/api/v4/plugins/com.mattermost.calls/*` for version/config/channels and call lifecycle (`start`, `join`, `leave`, state, reactions, mute/unmute, raise/lower hand, `offer`, `ice`).
+- TURN/STUN data is exposed from runtime configuration.
 
-### WebSocket
-- `/api/v4/websocket`: WebSocket connection for real-time events.
-  - Supported events: `posted`, `typing`, `post_edited`, `post_deleted`, `reaction_added`, `status_change`.
+## WebSocket Compatibility
 
-## Architecture
-All `/api/v4/*` requests are routed to the Rust backend. The frontend (Nginx) acts as a reverse proxy but does not serve these requests directly (no SPA fallback).
-Responses from `/api/v4/` include the `X-MM-COMPAT: 1` header.
+- Endpoint: `GET /api/v4/websocket`
+- Supports authentication challenge flow.
+- Internal events are mapped to Mattermost-style events including:
+  - `posted`
+  - `typing`
+  - `post_edited`
+  - `post_deleted`
+  - `reaction_added`
+  - `reaction_removed`
+  - `status_change`
+  - `channel_viewed`
+  - `user_added`
+  - `user_removed`
 
-## Unimplemented Endpoints
-Unimplemented endpoints return HTTP 501 Not Implemented with a JSON error body.
+## Explicitly Unsupported (501) Examples
+
+- `POST /api/v4/plugins`
+- `POST /api/v4/plugins/install_from_url`
+- `DELETE /api/v4/plugins/{plugin_id}`
+- `POST /api/v4/plugins/{plugin_id}/enable`
+- `POST /api/v4/plugins/{plugin_id}/disable`
+- `POST /api/v4/actions/dialogs/open`
+- `POST /api/v4/actions/dialogs/submit`
+- `POST /api/v4/actions/dialogs/lookup`
+
+## Notes
+
+- Compatibility is endpoint-by-endpoint and behavior depth varies.
+- For prioritized endpoint-level status and known stubbed areas, see `docs/api_v4_compatibility_report.md`.

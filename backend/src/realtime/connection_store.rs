@@ -249,7 +249,13 @@ impl ConnectionStore {
         } else {
             connection_id.unwrap_or_else(|| Uuid::new_v4().to_string())
         };
-        let initial_seq = requested_seq.unwrap_or(0);
+        // Start from the next server-side sequence value:
+        // - new connections begin at 1 (hello uses seq 0 in the v4 adapter)
+        // - resumption starts at requested_seq + 1 to avoid duplicate seq delivery
+        let initial_seq = requested_seq
+            .map(|s| s.saturating_add(1))
+            .unwrap_or(1)
+            .max(1);
 
         let state = ConnectionState::new(new_conn_id.clone(), user_id, initial_seq);
 
@@ -483,11 +489,39 @@ mod tests {
 
         // Resume
         let (resumed_state, is_resumed, missed) =
-            store.resume_or_create(Some(conn_id.clone()), user_id, Some(2));
+            store.resume_or_create(Some(conn_id.clone()), user_id, Some(3));
 
         assert!(is_resumed);
-        assert_eq!(missed.len(), 2); // seq 3 and 4
+        assert_eq!(missed.len(), 2); // seq 4 and 5
+        assert_eq!(missed[0].seq, 4);
+        assert_eq!(missed[1].seq, 5);
         assert_eq!(resumed_state.connection_id, conn_id);
+    }
+
+    #[tokio::test]
+    async fn test_new_connection_first_queued_sequence_is_one() {
+        let store = ConnectionStore::new();
+        let user_id = Uuid::new_v4();
+
+        let (state, _, _) = store.resume_or_create(None, user_id, None);
+        let first = store
+            .queue_message(&state.connection_id, json!({"msg":"first"}))
+            .expect("message should be queued");
+
+        assert_eq!(first, 1);
+    }
+
+    #[tokio::test]
+    async fn test_new_connection_with_requested_sequence_starts_at_next_value() {
+        let store = ConnectionStore::new();
+        let user_id = Uuid::new_v4();
+
+        let (state, _, _) = store.resume_or_create(None, user_id, Some(10));
+        let first = store
+            .queue_message(&state.connection_id, json!({"msg":"first"}))
+            .expect("message should be queued");
+
+        assert_eq!(first, 11);
     }
 
     #[tokio::test]

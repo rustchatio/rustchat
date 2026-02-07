@@ -54,6 +54,14 @@ RustChat currently includes these major function groups.
 
 ## Compatibility
 
+Compatibility claims in this section were last verified on **2026-02-07** against:
+- `backend/src/api/v4/mod.rs`
+- `backend/src/api/v4/system.rs`
+- `backend/src/api/v4/plugins.rs`
+- `backend/src/api/v4/websocket.rs`
+- `docs/mattermost-compat.md`
+- `docs/mattermost-v4-comparison.md`
+
 ### Client compatibility matrix
 
 | Client/API | Status | Notes |
@@ -68,6 +76,7 @@ RustChat currently includes these major function groups.
 - `/api/v4/*` responses include `X-MM-COMPAT: 1`.
 - v4 router has a fallback that returns `501 Not Implemented` for unmatched routes.
 - Mattermost compatibility version constant is currently `10.11.10`.
+- Plugin mutation and interactive dialogs routes are explicit `501` (not silent stubs).
 - Several enterprise-specific paths intentionally return `501` (e.g., many LDAP/SAML operations).
 
 ## Current Design Problems
@@ -89,15 +98,11 @@ The following are known technical/design gaps in the current codebase:
 - Integration tests are out of sync with current router signature.
 - Some lib tests are environment-sensitive and currently fail in this environment.
 
-5. Documentation/config drift
-- Docs/scripts and implementation are not fully synchronized (for example compatibility version expectations and setup details).
-- `.env.example` does not currently document all calls/TURN settings used in `docker-compose.yml`.
-
-6. Security and operations defaults need tightening
+5. Security and operations defaults need tightening
 - Global permissive CORS (`allow_origin(Any)` and broad methods/headers).
 - Default TURN credentials in compose are development-friendly but should not be treated as secure defaults.
 
-7. Maintainability debt
+6. Maintainability debt
 - Large monolithic API files (notably v4 users/channels/posts modules) and a high warning count make evolution harder.
 
 ## Improvement Priorities
@@ -123,8 +128,7 @@ The following are known technical/design gaps in the current codebase:
 
 5. Improve structure and docs
 - Split oversized route modules.
-- Align README/docs/scripts with actual runtime behavior and versions.
-- Expand `.env.example` with calls/TURN and other operationally relevant settings.
+- Keep compatibility docs and env examples aligned with code and compose updates.
 
 ## Quick Start (Dev)
 
@@ -135,6 +139,7 @@ The following are known technical/design gaps in the current codebase:
 
 ### Run with Docker Compose
 ```bash
+cp .env.example .env
 docker compose up -d --build
 ```
 
