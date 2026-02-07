@@ -208,6 +208,8 @@ impl ConnectionStore {
         user_id: Uuid,
         requested_seq: Option<i64>,
     ) -> (Arc<ConnectionState>, bool, Vec<SequencedMessage>) {
+        let mut rejected_resume = false;
+
         // Try to resume existing connection
         if let Some(ref conn_id) = connection_id {
             if let Some(existing) = self.connections.get(conn_id) {
@@ -236,12 +238,17 @@ impl ConnectionStore {
                         actual_user = %user_id,
                         "User mismatch during connection resume"
                     );
+                    rejected_resume = true;
                 }
             }
         }
 
         // Create new connection
-        let new_conn_id = connection_id.unwrap_or_else(|| Uuid::new_v4().to_string());
+        let new_conn_id = if rejected_resume {
+            Uuid::new_v4().to_string()
+        } else {
+            connection_id.unwrap_or_else(|| Uuid::new_v4().to_string())
+        };
         let initial_seq = requested_seq.unwrap_or(0);
 
         let state = ConnectionState::new(new_conn_id.clone(), user_id, initial_seq);
@@ -481,5 +488,28 @@ mod tests {
         assert!(is_resumed);
         assert_eq!(missed.len(), 2); // seq 3 and 4
         assert_eq!(resumed_state.connection_id, conn_id);
+    }
+
+    #[tokio::test]
+    async fn test_resume_rejects_connection_hijack() {
+        let store = ConnectionStore::new();
+        let owner_id = Uuid::new_v4();
+        let attacker_id = Uuid::new_v4();
+
+        let (owner_conn, _, _) = store.resume_or_create(None, owner_id, None);
+        let owner_connection_id = owner_conn.connection_id.clone();
+        store.disconnect_connection(&owner_connection_id);
+
+        let (attacker_conn, is_resumed, missed) =
+            store.resume_or_create(Some(owner_connection_id.clone()), attacker_id, Some(0));
+
+        assert!(!is_resumed);
+        assert!(missed.is_empty());
+        assert_ne!(attacker_conn.connection_id, owner_connection_id);
+
+        let original = store
+            .get_connection(&owner_connection_id)
+            .expect("original owner state should remain");
+        assert_eq!(original.user_id, owner_id);
     }
 }

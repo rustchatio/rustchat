@@ -95,9 +95,10 @@ impl WsHub {
     /// Subscribe user to a channel
     pub async fn subscribe_channel(&self, user_id: Uuid, channel_id: Uuid) {
         let mut subs = self.channel_subscriptions.write().await;
-        subs.entry(channel_id)
-            .or_insert_with(Vec::new)
-            .push(user_id);
+        let users = subs.entry(channel_id).or_insert_with(Vec::new);
+        if !users.contains(&user_id) {
+            users.push(user_id);
+        }
     }
 
     /// Unsubscribe user from a channel
@@ -111,7 +112,10 @@ impl WsHub {
     /// Subscribe user to a team
     pub async fn subscribe_team(&self, user_id: Uuid, team_id: Uuid) {
         let mut subs = self.team_subscriptions.write().await;
-        subs.entry(team_id).or_insert_with(Vec::new).push(user_id);
+        let users = subs.entry(team_id).or_insert_with(Vec::new);
+        if !users.contains(&user_id) {
+            users.push(user_id);
+        }
     }
 
     /// Unsubscribe user from a team
@@ -245,5 +249,95 @@ impl Default for WsHub {
             presence: RwLock::new(HashMap::new()),
             usernames: RwLock::new(HashMap::new()),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use tokio::time::timeout;
+
+    use super::*;
+    use crate::realtime::{EventType, WsBroadcast, WsEnvelope};
+
+    #[tokio::test]
+    async fn channel_broadcast_respects_exclude_user() {
+        let hub = WsHub::new();
+
+        let user_a = Uuid::new_v4();
+        let user_b = Uuid::new_v4();
+        let user_c = Uuid::new_v4();
+        let channel_id = Uuid::new_v4();
+
+        let (_conn_a, mut rx_a) = hub.add_connection(user_a, "user-a".to_string()).await;
+        let (_conn_b, mut rx_b) = hub.add_connection(user_b, "user-b".to_string()).await;
+        let (_conn_c, mut rx_c) = hub.add_connection(user_c, "user-c".to_string()).await;
+
+        hub.subscribe_channel(user_a, channel_id).await;
+        hub.subscribe_channel(user_b, channel_id).await;
+
+        let envelope = WsEnvelope::event(
+            EventType::UserTyping,
+            serde_json::json!({"channel_id": channel_id}),
+            Some(channel_id),
+        )
+        .with_broadcast(WsBroadcast {
+            channel_id: Some(channel_id),
+            team_id: None,
+            user_id: None,
+            exclude_user_id: Some(user_a),
+        });
+
+        hub.broadcast(envelope).await;
+
+        let b_msg = timeout(Duration::from_millis(250), rx_b.recv()).await;
+        assert!(b_msg.is_ok(), "channel subscriber should receive broadcast");
+
+        let a_msg = timeout(Duration::from_millis(150), rx_a.recv()).await;
+        assert!(a_msg.is_err(), "excluded user must not receive broadcast");
+
+        let c_msg = timeout(Duration::from_millis(150), rx_c.recv()).await;
+        assert!(
+            c_msg.is_err(),
+            "non-subscriber should not receive channel broadcast"
+        );
+    }
+
+    #[tokio::test]
+    async fn direct_user_broadcast_targets_only_user() {
+        let hub = WsHub::new();
+
+        let target = Uuid::new_v4();
+        let other = Uuid::new_v4();
+
+        let (_target_conn, mut target_rx) = hub.add_connection(target, "target".to_string()).await;
+        let (_other_conn, mut other_rx) = hub.add_connection(other, "other".to_string()).await;
+
+        let envelope = WsEnvelope::event(
+            EventType::ChannelSubscribed,
+            serde_json::json!({"ok": true}),
+            None,
+        )
+        .with_broadcast(WsBroadcast {
+            user_id: Some(target),
+            channel_id: None,
+            team_id: None,
+            exclude_user_id: None,
+        });
+
+        hub.broadcast(envelope).await;
+
+        let target_msg = timeout(Duration::from_millis(250), target_rx.recv()).await;
+        assert!(
+            target_msg.is_ok(),
+            "target user should receive direct message"
+        );
+
+        let other_msg = timeout(Duration::from_millis(150), other_rx.recv()).await;
+        assert!(
+            other_msg.is_err(),
+            "other users should not receive direct message"
+        );
     }
 }

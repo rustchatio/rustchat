@@ -23,6 +23,7 @@ use tokio::time::timeout;
 use tracing::{debug, error, info, trace, warn};
 use uuid::Uuid;
 
+use crate::api::websocket_core::{self, EnvelopeCommandOptions};
 use crate::api::AppState;
 use crate::auth::validate_token;
 use crate::mattermost_compat::{
@@ -45,22 +46,6 @@ pub struct WsQuery {
     pub sequence_number: Option<i64>,
 }
 
-/// Get max simultaneous connections from config
-async fn get_max_simultaneous_connections(state: &AppState) -> usize {
-    let value: Option<String> = sqlx::query_scalar(
-        "SELECT site->>'max_simultaneous_connections' FROM server_config WHERE id = 'default'",
-    )
-    .fetch_optional(&state.db)
-    .await
-    .ok()
-    .flatten();
-
-    match value.and_then(|val| val.parse::<i64>().ok()) {
-        Some(max) if max > 0 => max as usize,
-        _ => 5,
-    }
-}
-
 /// Main WebSocket handler
 pub async fn handle_websocket(
     ws: WebSocketUpgrade,
@@ -69,33 +54,11 @@ pub async fn handle_websocket(
     Query(query): Query<WsQuery>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
 ) -> Response {
-    let mut token = query.token.clone();
+    let token = websocket_core::resolve_auth_token(query.token.as_deref(), &headers, None, false);
     let sequence_number = query.sequence_number;
     let connection_id = query.connection_id.clone();
 
-    // Check Authorization header if token not in query
-    if token.is_none() {
-        if let Some(auth_header) = headers.get("Authorization") {
-            if let Ok(auth_str) = auth_header.to_str() {
-                if auth_str.starts_with("Bearer ") {
-                    token = Some(auth_str[7..].to_string());
-                } else if auth_str.starts_with("Token ") {
-                    token = Some(auth_str[6..].to_string());
-                } else {
-                    token = Some(auth_str.to_string());
-                }
-            }
-        }
-    }
-
-    // Validate token
-    let user_id = if let Some(ref t) = token {
-        validate_token(t, &state.jwt_secret)
-            .ok()
-            .map(|c| c.claims.sub)
-    } else {
-        None
-    };
+    let user_id = websocket_core::validate_user_id(token.as_deref(), &state.jwt_secret);
 
     trace!(
         addr = %addr,
@@ -153,32 +116,26 @@ async fn authenticate_via_websocket(
     loop {
         match timeout(timeout_duration, socket.recv()).await {
             Ok(Some(Ok(Message::Text(text)))) => {
-                if let Ok(value) = serde_json::from_str::<serde_json::Value>(&text) {
-                    if value["action"] == "authentication_challenge" {
-                        if let Some(token) = value["data"]["token"].as_str() {
-                            if let Ok(claims) = validate_token(token, &state.jwt_secret) {
-                                let user_id = claims.claims.sub;
+                if let Some(challenge) = parse_authentication_challenge(&text) {
+                    let valid_user = websocket_core::normalize_auth_token(&challenge.token)
+                        .and_then(|t| validate_token(&t, &state.jwt_secret).ok())
+                        .map(|c| c.claims.sub);
 
-                                // Send OK response
-                                let resp = json!({
-                                    "status": "OK",
-                                    "seq_reply": value["seq"]
-                                });
-
-                                let _ = socket.send(Message::Text(resp.to_string().into())).await;
-
-                                return Some((user_id, socket));
-                            } else {
-                                // Send error response
-                                let resp = json!({
-                                    "status": "FAIL",
-                                    "seq_reply": value["seq"],
-                                    "error": "Invalid token"
-                                });
-                                let _ = socket.send(Message::Text(resp.to_string().into())).await;
-                            }
-                        }
+                    if let Some(user_id) = valid_user {
+                        let resp = json!({
+                            "status": "OK",
+                            "seq_reply": challenge.seq_reply
+                        });
+                        let _ = socket.send(Message::Text(resp.to_string().into())).await;
+                        return Some((user_id, socket));
                     }
+
+                    let resp = json!({
+                        "status": "FAIL",
+                        "seq_reply": challenge.seq_reply,
+                        "error": "Invalid token"
+                    });
+                    let _ = socket.send(Message::Text(resp.to_string().into())).await;
                 }
             }
             Ok(Some(Ok(Message::Close(_)))) | Ok(None) => {
@@ -206,14 +163,11 @@ async fn run_connection(
     addr: SocketAddr,
 ) {
     // Check connection limits
-    let max_connections = get_max_simultaneous_connections(&state).await;
-    let current_connections = state.ws_hub.user_connection_count(user_id).await;
-
-    if current_connections >= max_connections {
+    if let Err(limit) = websocket_core::enforce_connection_limit(&state, user_id).await {
         warn!(
             user_id = %user_id,
-            current = current_connections,
-            max = max_connections,
+            current = limit.current,
+            max = limit.max,
             "Too many connections for user"
         );
 
@@ -225,6 +179,7 @@ async fn run_connection(
 
     // Get or create connection store
     let store = state.connection_store.clone();
+    let replay_store = store.clone();
 
     // Check if this is a resumption attempt before moving connection_id
     let is_resumption_attempt = connection_id.is_some();
@@ -253,11 +208,7 @@ async fn run_connection(
     );
 
     // Get username
-    let username = match sqlx::query_scalar::<_, String>("SELECT username FROM users WHERE id = $1")
-        .bind(user_id)
-        .fetch_one(&state.db)
-        .await
-    {
+    let username = match websocket_core::fetch_username(&state, user_id).await {
         Ok(name) => name,
         Err(_) => {
             error!(user_id = %user_id, "Failed to get username");
@@ -269,44 +220,7 @@ async fn run_connection(
     // Add connection to hub
     let (hub_conn_id, mut hub_rx) = state.ws_hub.add_connection(user_id, username.clone()).await;
 
-    // Subscribe to teams and channels
-    let teams =
-        sqlx::query_scalar::<_, Uuid>("SELECT team_id FROM team_members WHERE user_id = $1")
-            .bind(user_id)
-            .fetch_all(&state.db)
-            .await
-            .unwrap_or_default();
-
-    for team_id in teams {
-        state.ws_hub.subscribe_team(user_id, team_id).await;
-    }
-
-    let channels =
-        sqlx::query_scalar::<_, Uuid>("SELECT channel_id FROM channel_members WHERE user_id = $1")
-            .bind(user_id)
-            .fetch_all(&state.db)
-            .await
-            .unwrap_or_default();
-
-    for channel_id in channels {
-        state.ws_hub.subscribe_channel(user_id, channel_id).await;
-    }
-
-    // Update presence
-    let _ = sqlx::query("UPDATE users SET presence = 'online' WHERE id = $1")
-        .bind(user_id)
-        .execute(&state.db)
-        .await;
-
-    let presence_evt = WsEnvelope::event(
-        crate::realtime::EventType::UserPresence,
-        crate::realtime::PresenceEvent {
-            user_id,
-            status: "online".to_string(),
-        },
-        None,
-    );
-    state.ws_hub.broadcast(presence_evt).await;
+    websocket_core::initialize_connection_state(&state, user_id, true).await;
 
     // Send hello event
     let hello = mm::WebSocketMessage {
@@ -347,14 +261,25 @@ async fn run_connection(
     }
 
     // Main event loop
-    let state_clone = state.clone();
     let actor_clone = actor.clone();
+    let replay_connection_id = actor_connection_id.clone();
 
     // Spawn task to forward hub messages to client
     let mut hub_forward_task = tokio::spawn(async move {
         while let Ok(msg_str) = hub_rx.recv().await {
             if let Ok(envelope) = serde_json::from_str::<WsEnvelope>(&msg_str) {
-                if let Some(mm_msg) = map_envelope_to_mm(&envelope) {
+                if let Some(mut mm_msg) = map_envelope_to_mm(&envelope) {
+                    let replay_payload = json!({
+                        "event": mm_msg.event.clone(),
+                        "data": mm_msg.data.clone(),
+                    });
+
+                    if let Some(seq) =
+                        replay_store.queue_message(&replay_connection_id, replay_payload)
+                    {
+                        mm_msg.seq = Some(seq);
+                    }
+
                     if let Err(_) = actor_clone.send(mm_msg) {
                         break;
                     }
@@ -422,23 +347,7 @@ async fn run_connection(
     // Remove from hub
     state.ws_hub.remove_connection(user_id, hub_conn_id).await;
 
-    // Update presence if no other connections
-    if state.ws_hub.user_connection_count(user_id).await == 0 {
-        let _ = sqlx::query("UPDATE users SET presence = 'offline' WHERE id = $1")
-            .bind(user_id)
-            .execute(&state.db)
-            .await;
-
-        let presence_evt = WsEnvelope::event(
-            crate::realtime::EventType::UserPresence,
-            crate::realtime::PresenceEvent {
-                user_id,
-                status: "offline".to_string(),
-            },
-            None,
-        );
-        state.ws_hub.broadcast(presence_evt).await;
-    }
+    websocket_core::set_offline_if_last_connection(&state, user_id).await;
 
     info!(
         connection_id = %actor_connection_id,
@@ -456,107 +365,67 @@ async fn handle_client_message(state: &AppState, user_id: Uuid, username: &str, 
     );
 
     if let Ok(value) = serde_json::from_str::<serde_json::Value>(text) {
-        // Handle action-based messages (Mattermost style)
         if let Some(action) = value.get("action").and_then(|v| v.as_str()) {
-            match action {
-                "user_typing" => {
-                    if let Some(data) = value.get("data") {
-                        if let Some(channel_id_str) =
-                            data.get("channel_id").and_then(|v| v.as_str())
-                        {
-                            if let Some(channel_id) = parse_mm_or_uuid(channel_id_str) {
-                                let broadcast = WsEnvelope::event(
-                                    crate::realtime::EventType::UserTyping,
-                                    crate::realtime::TypingEvent {
-                                        user_id,
-                                        display_name: username.to_string(),
-                                        thread_root_id: data
-                                            .get("parent_id")
-                                            .and_then(|v| v.as_str())
-                                            .and_then(parse_mm_or_uuid),
-                                    },
-                                    Some(channel_id),
-                                )
-                                .with_broadcast(WsBroadcast {
-                                    channel_id: Some(channel_id),
-                                    team_id: None,
-                                    user_id: None,
-                                    exclude_user_id: Some(user_id),
-                                });
-                                state.ws_hub.broadcast(broadcast).await;
-                            }
+            if action == "user_typing" {
+                if let Some(data) = value.get("data") {
+                    if let Some(channel_id_str) = data.get("channel_id").and_then(|v| v.as_str()) {
+                        if let Some(channel_id) = parse_mm_or_uuid(channel_id_str) {
+                            let broadcast = WsEnvelope::event(
+                                crate::realtime::EventType::UserTyping,
+                                crate::realtime::TypingEvent {
+                                    user_id,
+                                    display_name: username.to_string(),
+                                    thread_root_id: data
+                                        .get("parent_id")
+                                        .and_then(|v| v.as_str())
+                                        .and_then(parse_mm_or_uuid),
+                                },
+                                Some(channel_id),
+                            )
+                            .with_broadcast(WsBroadcast {
+                                channel_id: Some(channel_id),
+                                team_id: None,
+                                user_id: None,
+                                exclude_user_id: Some(user_id),
+                            });
+                            state.ws_hub.broadcast(broadcast).await;
                         }
                     }
                 }
-                _ => {
-                    trace!(action = %action, "Unknown action received");
-                }
-            }
-        }
-
-        // Handle envelope-style messages (our internal format)
-        if let Ok(envelope) = serde_json::from_str::<crate::realtime::ClientEnvelope>(text) {
-            match envelope.event.as_str() {
-                "subscribe_channel" => {
-                    if let Some(cid) = envelope.channel_id {
-                        state.ws_hub.subscribe_channel(user_id, cid).await;
-                        let evt = WsEnvelope::event(
-                            crate::realtime::EventType::ChannelSubscribed,
-                            json!({ "channel_id": cid }),
-                            None,
-                        )
-                        .with_broadcast(WsBroadcast {
-                            user_id: Some(user_id),
-                            channel_id: None,
-                            team_id: None,
-                            exclude_user_id: None,
-                        });
-                        state.ws_hub.broadcast(evt).await;
-                    }
-                }
-                "unsubscribe_channel" => {
-                    if let Some(cid) = envelope.channel_id {
-                        state.ws_hub.unsubscribe_channel(user_id, cid).await;
-                    }
-                }
-                "typing" | "typing_start" => {
-                    if let Some(cid) = envelope.channel_id {
-                        let event = WsEnvelope::event(
-                            crate::realtime::EventType::UserTyping,
-                            crate::realtime::TypingEvent {
-                                user_id,
-                                display_name: username.to_string(),
-                                thread_root_id: None,
-                            },
-                            Some(cid),
-                        )
-                        .with_broadcast(WsBroadcast {
-                            channel_id: Some(cid),
-                            user_id: None,
-                            team_id: None,
-                            exclude_user_id: Some(user_id),
-                        });
-                        state.ws_hub.broadcast(event).await;
-                    }
-                }
-                "presence" => {
-                    if let Some(status) = envelope.data.get("status").and_then(|v| v.as_str()) {
-                        state.ws_hub.set_presence(user_id, status.to_string()).await;
-                        let event = WsEnvelope::event(
-                            crate::realtime::EventType::UserPresence,
-                            crate::realtime::PresenceEvent {
-                                user_id,
-                                status: status.to_string(),
-                            },
-                            None,
-                        );
-                        state.ws_hub.broadcast(event).await;
-                    }
-                }
-                _ => {}
+            } else {
+                trace!(action = %action, "Unknown action received");
             }
         }
     }
+
+    let _ = websocket_core::handle_client_envelope_message(
+        state,
+        user_id,
+        username,
+        text,
+        EnvelopeCommandOptions::V4,
+    )
+    .await;
+}
+
+#[derive(Debug, Clone)]
+struct AuthenticationChallenge {
+    token: String,
+    seq_reply: serde_json::Value,
+}
+
+fn parse_authentication_challenge(text: &str) -> Option<AuthenticationChallenge> {
+    let value = serde_json::from_str::<serde_json::Value>(text).ok()?;
+    if value.get("action").and_then(|v| v.as_str()) != Some("authentication_challenge") {
+        return None;
+    }
+    let token = value
+        .get("data")
+        .and_then(|v| v.get("token"))
+        .and_then(|v| v.as_str())?
+        .to_string();
+    let seq_reply = value.get("seq").cloned().unwrap_or(serde_json::Value::Null);
+    Some(AuthenticationChallenge { token, seq_reply })
 }
 
 /// Map internal envelope to Mattermost-compatible message
@@ -777,5 +646,35 @@ fn map_broadcast(b_opt: Option<&crate::realtime::WsBroadcast>) -> mm::Broadcast 
             channel_id: String::new(),
             team_id: String::new(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_authentication_challenge;
+
+    #[test]
+    fn parse_authentication_challenge_accepts_valid_payload() {
+        let msg = r#"{
+            "action":"authentication_challenge",
+            "seq":7,
+            "data":{"token":"abc.def.ghi"}
+        }"#;
+
+        let challenge = parse_authentication_challenge(msg).expect("challenge should parse");
+        assert_eq!(challenge.token, "abc.def.ghi");
+        assert_eq!(challenge.seq_reply, serde_json::json!(7));
+    }
+
+    #[test]
+    fn parse_authentication_challenge_rejects_non_challenge() {
+        let msg = r#"{"action":"ping","data":{"token":"abc.def.ghi"}}"#;
+        assert!(parse_authentication_challenge(msg).is_none());
+    }
+
+    #[test]
+    fn parse_authentication_challenge_requires_token() {
+        let msg = r#"{"action":"authentication_challenge","seq":3,"data":{}}"#;
+        assert!(parse_authentication_challenge(msg).is_none());
     }
 }

@@ -86,6 +86,9 @@ Response ← JSON Serialization ← Result
 Client ← WebSocket Hub ← Event Publisher ← Service ← Database Change
 ```
 
+Detailed adapter boundaries and v1/v4 contract mapping:
+`docs/websocket_architecture.md`.
+
 ## Database Schema
 
 Key tables:

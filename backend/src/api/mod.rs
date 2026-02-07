@@ -20,6 +20,7 @@ mod unreads;
 mod users;
 mod v4;
 mod video;
+mod websocket_core;
 mod ws;
 
 use std::sync::Arc;
