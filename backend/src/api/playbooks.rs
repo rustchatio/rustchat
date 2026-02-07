@@ -212,12 +212,13 @@ async fn delete_playbook(
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<serde_json::Value>> {
     // Check ownership
-    let current = sqlx::query!("SELECT created_by FROM playbooks WHERE id = $1", id)
+    let current = sqlx::query_scalar::<_, Uuid>("SELECT created_by FROM playbooks WHERE id = $1")
+        .bind(id)
         .fetch_optional(&state.db)
         .await?
         .ok_or_else(|| AppError::NotFound("Playbook not found".to_string()))?;
 
-    if current.created_by != auth.user_id && auth.role != "system_admin" {
+    if current != auth.user_id && auth.role != "system_admin" {
         return Err(AppError::Forbidden(
             "Only the creator can archive this playbook".to_string(),
         ));

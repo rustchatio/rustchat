@@ -985,14 +985,11 @@ pub async fn execute_command_internal(
     let team_id = if let Some(tid) = payload.team_id {
         tid
     } else {
-        let channel = sqlx::query!(
-            "SELECT team_id FROM channels WHERE id = $1",
-            payload.channel_id
-        )
-        .fetch_optional(&state.db)
-        .await?
-        .ok_or_else(|| AppError::NotFound("Channel not found".to_string()))?;
-        channel.team_id
+        sqlx::query_scalar::<_, Uuid>("SELECT team_id FROM channels WHERE id = $1")
+            .bind(payload.channel_id)
+            .fetch_optional(&state.db)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Channel not found".to_string()))?
     };
 
     let command = sqlx::query_as::<_, SlashCommand>(

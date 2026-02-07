@@ -401,11 +401,11 @@ pub async fn create_system_message(
     props: Option<serde_json::Value>,
 ) -> ApiResult<()> {
     // 1. Find bot user
-    let bot_user = sqlx::query!("SELECT id FROM users WHERE is_bot = true LIMIT 1")
-        .fetch_optional(&state.db)
-        .await?
-        .map(|r| r.id)
-        .unwrap_or_else(Uuid::nil);
+    let bot_user =
+        sqlx::query_scalar::<_, Uuid>("SELECT id FROM users WHERE is_bot = true LIMIT 1")
+            .fetch_optional(&state.db)
+            .await?
+            .unwrap_or_else(Uuid::nil);
 
     // 2. Prepare props
     let mut final_props = props.unwrap_or_else(|| serde_json::json!({}));
@@ -485,7 +485,8 @@ async fn check_playbook_triggers(
     message: &str,
 ) -> ApiResult<()> {
     // 1. Get team_id
-    let channel_info = sqlx::query!("SELECT team_id FROM channels WHERE id = $1", channel_id)
+    let channel_info = sqlx::query_scalar::<_, Uuid>("SELECT team_id FROM channels WHERE id = $1")
+        .bind(channel_id)
         .fetch_optional(&state.db)
         .await?;
 
@@ -494,15 +495,15 @@ async fn check_playbook_triggers(
         let playbooks = sqlx::query_as::<_, crate::models::Playbook>(
             "SELECT * FROM playbooks WHERE team_id = $1 AND is_archived = false AND keyword_triggers IS NOT NULL"
         )
-        .bind(chan.team_id)
+        .bind(chan)
         .fetch_all(&state.db)
         .await?;
 
         // 3. Find bot user (optional)
-        let bot_user = sqlx::query!("SELECT id FROM users WHERE is_bot = true LIMIT 1")
-            .fetch_optional(&state.db)
-            .await?
-            .map(|r| r.id);
+        let bot_user =
+            sqlx::query_scalar::<_, Uuid>("SELECT id FROM users WHERE is_bot = true LIMIT 1")
+                .fetch_optional(&state.db)
+                .await?;
 
         let lower_message = message.to_lowercase();
 
