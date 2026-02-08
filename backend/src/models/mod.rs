@@ -4,6 +4,7 @@
 
 pub mod call;
 pub mod channel;
+pub mod channel_bookmark;
 pub mod channel_category;
 pub mod enterprise;
 pub mod file;
@@ -13,13 +14,18 @@ pub mod organization;
 pub mod playbook;
 pub mod post;
 pub mod preferences;
+pub mod scheduled_post;
 pub mod server_config;
 pub mod team;
 pub mod user;
 
 pub use call::*;
 pub use channel::*;
+pub use channel_bookmark::*;
 pub use channel_category::*;
+pub use scheduled_post::*;
+
+
 pub use enterprise::*;
 pub use file::*;
 pub use integration::*;

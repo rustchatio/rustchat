@@ -132,7 +132,7 @@ pub fn router() -> Router<AppState> {
         .route("/users/known", get(get_known_users))
         .route("/users/stats", get(get_user_stats))
         .route("/users/stats/filtered", post(get_user_stats_filtered))
-        .route("/users/group_channels", get(get_user_group_channels))
+        .route("/users/group_channels", get(get_user_group_channels).post(get_profiles_in_group_channels))
         .route(
             "/users/{user_id}/oauth/apps/authorized",
             get(get_authorized_oauth_apps),
@@ -1626,6 +1626,93 @@ async fn get_user_group_channels(
     .await?;
 
     Ok(Json(channels.into_iter().map(|c| c.into()).collect()))
+}
+
+/// POST /users/group_channels - Get user profiles for multiple group/DM channels
+/// Mobile client sends array of channel IDs and expects map of channel_id -> [user profiles]
+async fn get_profiles_in_group_channels(
+    State(state): State<AppState>,
+    auth: MmAuthUser,
+    _headers: HeaderMap,
+    body: Bytes,
+) -> ApiResult<Json<std::collections::HashMap<String, Vec<mm::User>>>> {
+    // Parse channel IDs from body (sent as raw JSON array)
+    let channel_ids: Vec<String> = serde_json::from_slice(&body)
+        .map_err(|_| AppError::BadRequest("Expected array of channel IDs".to_string()))?;
+
+    if channel_ids.is_empty() {
+        return Ok(Json(std::collections::HashMap::new()));
+    }
+
+    // Convert to UUIDs
+    let channel_uuids: Vec<Uuid> = channel_ids
+        .iter()
+        .filter_map(|id| parse_mm_or_uuid(id))
+        .collect();
+
+    if channel_uuids.is_empty() {
+        return Ok(Json(std::collections::HashMap::new()));
+    }
+
+    // Query users for each channel the requesting user is a member of
+    let rows: Vec<(Uuid, Uuid, String, String, Option<String>, Option<String>, bool)> = sqlx::query_as(
+        r#"
+        SELECT 
+            cm.channel_id,
+            u.id,
+            u.username,
+            u.email,
+            u.display_name,
+            u.avatar_url,
+            u.is_active
+        FROM channel_members cm
+        JOIN users u ON cm.user_id = u.id
+        WHERE cm.channel_id = ANY($1)
+          AND EXISTS (
+              SELECT 1 FROM channel_members cm2 
+              WHERE cm2.channel_id = cm.channel_id AND cm2.user_id = $2
+          )
+        ORDER BY cm.channel_id, u.username
+        "#,
+    )
+    .bind(&channel_uuids)
+    .bind(auth.user_id)
+    .fetch_all(&state.db)
+    .await?;
+
+    // Group by channel_id
+    let mut result: std::collections::HashMap<String, Vec<mm::User>> = std::collections::HashMap::new();
+    for (channel_id, user_id, username, email, display_name, _avatar_url, _is_active) in rows {
+        let mm_user = mm::User {
+            id: encode_mm_id(user_id),
+            username,
+            email,
+            nickname: display_name.clone().unwrap_or_default(),
+            first_name: display_name.unwrap_or_default(),
+            last_name: "".to_string(),
+            email_verified: true,
+            auth_service: "".to_string(),
+            roles: "system_user".to_string(),
+            locale: "en".to_string(),
+            timezone: serde_json::json!({}),
+            create_at: 0,
+            update_at: 0,
+            delete_at: 0,
+            props: serde_json::json!({}),
+            notify_props: serde_json::json!({}),
+            last_password_update: 0,
+            last_picture_update: 0,
+            failed_attempts: 0,
+            mfa_active: false,
+        };
+        result
+            .entry(encode_mm_id(channel_id))
+            .or_default()
+            .push(mm_user);
+    }
+
+
+    Ok(Json(result))
 }
 
 #[derive(Deserialize)]

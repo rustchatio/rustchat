@@ -74,7 +74,7 @@ pub fn router() -> Router<AppState> {
         .route("/posts/schedule", post(create_scheduled_post))
         .route(
             "/posts/schedule/{scheduled_post_id}",
-            put(update_scheduled_post),
+            put(update_scheduled_post).delete(delete_scheduled_post),
         )
         .route("/posts/scheduled/team/{team_id}", get(list_scheduled_posts))
         .route(
@@ -1141,6 +1141,43 @@ async fn update_scheduled_post(
         scheduled_at: input.scheduled_at,
         create_at: row.0.timestamp_millis(),
         update_at: row.1.timestamp_millis(),
+    }))
+}
+
+async fn delete_scheduled_post(
+    State(state): State<AppState>,
+    auth: MmAuthUser,
+    Path(scheduled_post_id): Path<String>,
+) -> ApiResult<Json<mm::ScheduledPost>> {
+    let scheduled_id = parse_mm_or_uuid(&scheduled_post_id)
+        .ok_or_else(|| AppError::Validation("Invalid scheduled_post_id".to_string()))?;
+
+    // Get the scheduled post details before deleting
+    let row: Option<(Uuid, Uuid, String, String, serde_json::Value, Vec<Uuid>, i64, chrono::DateTime<chrono::Utc>, chrono::DateTime<chrono::Utc>)> = sqlx::query_as(
+        r#"
+        DELETE FROM scheduled_posts
+        WHERE id = $1 AND user_id = $2 AND processed_at = 0
+        RETURNING channel_id, user_id, root_id::text, message, props, file_ids, scheduled_at, create_at, update_at
+        "#,
+    )
+    .bind(scheduled_id)
+    .bind(auth.user_id)
+    .fetch_optional(&state.db)
+    .await?;
+
+    let row = row.ok_or_else(|| AppError::NotFound("Scheduled post not found".to_string()))?;
+
+    Ok(Json(mm::ScheduledPost {
+        id: scheduled_post_id,
+        user_id: encode_mm_id(row.1),
+        channel_id: encode_mm_id(row.0),
+        root_id: row.2.clone(),
+        message: row.3.clone(),
+        props: row.4.clone(),
+        file_ids: row.5.iter().map(|id| encode_mm_id(*id)).collect(),
+        scheduled_at: row.6,
+        create_at: row.7.timestamp_millis(),
+        update_at: row.8.timestamp_millis(),
     }))
 }
 
