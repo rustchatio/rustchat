@@ -328,25 +328,54 @@ async fn run_connection(
 
     // Spawn task to forward hub messages to client
     let mut hub_forward_task = tokio::spawn(async move {
-        while let Ok(msg_str) = hub_rx.recv().await {
-            if let Ok(envelope) = serde_json::from_str::<WsEnvelope>(&msg_str) {
-                if let Some(mut mm_msg) = map_envelope_to_mm(&envelope) {
-                    let replay_payload = json!({
-                        "event": mm_msg.event.clone(),
-                        "data": mm_msg.data.clone(),
-                        "broadcast": mm_msg.broadcast.clone(),
-                    });
-
-                    if let Some(seq) =
-                        replay_store.queue_message(&replay_connection_id, replay_payload)
-                    {
-                        mm_msg.seq = Some(seq);
-                    }
-
-                    if let Err(_) = actor_clone.send(mm_msg) {
-                        break;
-                    }
+        loop {
+            let msg_str = match hub_rx.recv().await {
+                Ok(msg) => msg,
+                Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
+                    warn!(
+                        connection_id = %replay_connection_id,
+                        skipped = skipped,
+                        "Hub receiver lagged; dropping stale websocket messages"
+                    );
+                    continue;
                 }
+                Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                    debug!(
+                        connection_id = %replay_connection_id,
+                        "Hub receiver closed"
+                    );
+                    break;
+                }
+            };
+
+            let envelope = match serde_json::from_str::<WsEnvelope>(&msg_str) {
+                Ok(value) => value,
+                Err(err) => {
+                    warn!(
+                        connection_id = %replay_connection_id,
+                        error = %err,
+                        "Failed to deserialize hub websocket envelope"
+                    );
+                    continue;
+                }
+            };
+
+            let Some(mut mm_msg) = map_envelope_to_mm(&envelope) else {
+                continue;
+            };
+
+            let replay_payload = json!({
+                "event": mm_msg.event.clone(),
+                "data": mm_msg.data.clone(),
+                "broadcast": mm_msg.broadcast.clone(),
+            });
+
+            if let Some(seq) = replay_store.queue_message(&replay_connection_id, replay_payload) {
+                mm_msg.seq = Some(seq);
+            }
+
+            if actor_clone.send(mm_msg).is_err() {
+                break;
             }
         }
     });
