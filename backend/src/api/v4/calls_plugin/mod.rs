@@ -44,6 +44,12 @@ pub fn router() -> Router<AppState> {
         .route("/plugins/com.mattermost.calls/config", get(get_config))
         // Channels with calls enabled
         .route("/plugins/com.mattermost.calls/channels", get(get_channels))
+        // Mattermost mobile compatibility: some clients call
+        // /plugins/com.mattermost.calls/{channel_id}?mobilev2=true directly.
+        .route(
+            "/plugins/com.mattermost.calls/{channel_id}",
+            get(get_call_state),
+        )
         // Call management endpoints
         .route(
             "/plugins/com.mattermost.calls/calls/{channel_id}/start",

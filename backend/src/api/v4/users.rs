@@ -1629,8 +1629,10 @@ async fn get_user_group_channels(
 }
 
 #[derive(Deserialize)]
-struct UsernamesRequest {
-    usernames: Vec<String>,
+#[serde(untagged)]
+enum UsersByUsernamesRequest {
+    Usernames(Vec<String>),
+    Wrapped { usernames: Vec<String> },
 }
 
 async fn get_users_by_usernames(
@@ -1638,13 +1640,20 @@ async fn get_users_by_usernames(
     headers: HeaderMap,
     body: Bytes,
 ) -> ApiResult<Json<Vec<mm::User>>> {
-    let input: UsernamesRequest = parse_body(&headers, &body, "Invalid usernames body")?;
-    if input.usernames.is_empty() {
+    // Mattermost clients send a raw JSON array for this endpoint:
+    // ["user1","user2"] (not an object wrapper). We also accept
+    // {"usernames":[...]} for compatibility with custom clients.
+    let usernames = parse_body::<UsersByUsernamesRequest>(&headers, &body, "Invalid usernames body")
+        .map(|parsed| match parsed {
+            UsersByUsernamesRequest::Usernames(usernames) => usernames,
+            UsersByUsernamesRequest::Wrapped { usernames } => usernames,
+        })?;
+    if usernames.is_empty() {
         return Ok(Json(vec![]));
     }
 
     let users: Vec<User> = sqlx::query_as("SELECT * FROM users WHERE username = ANY($1)")
-        .bind(&input.usernames)
+        .bind(&usernames)
         .fetch_all(&state.db)
         .await?;
 
