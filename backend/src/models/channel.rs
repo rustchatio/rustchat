@@ -74,3 +74,76 @@ pub struct UpdateChannel {
     pub purpose: Option<String>,
     pub header: Option<String>,
 }
+
+fn sort_user_ids(user_a: Uuid, user_b: Uuid) -> (Uuid, Uuid) {
+    if user_a <= user_b {
+        (user_a, user_b)
+    } else {
+        (user_b, user_a)
+    }
+}
+
+/// Canonical Mattermost DM channel name format: "<user1>__<user2>"
+pub fn canonical_direct_channel_name(user_a: Uuid, user_b: Uuid) -> String {
+    let (first, second) = sort_user_ids(user_a, user_b);
+    format!("{first}__{second}")
+}
+
+/// Legacy RustChat DM channel name format kept for backward compatibility.
+pub fn legacy_direct_channel_name(user_a: Uuid, user_b: Uuid) -> String {
+    let (first, second) = sort_user_ids(user_a, user_b);
+    format!("dm_{first}_{second}")
+}
+
+/// Parses both canonical ("<id>__<id>") and legacy ("dm_<id>_<id>") DM names.
+pub fn parse_direct_channel_name(name: &str) -> Option<(Uuid, Uuid)> {
+    if let Some((left, right)) = name.split_once("__") {
+        let left_id = Uuid::parse_str(left).ok()?;
+        let right_id = Uuid::parse_str(right).ok()?;
+        return Some(sort_user_ids(left_id, right_id));
+    }
+
+    if let Some(rest) = name.strip_prefix("dm_") {
+        let (left, right) = rest.split_once('_')?;
+        let left_id = Uuid::parse_str(left).ok()?;
+        let right_id = Uuid::parse_str(right).ok()?;
+        return Some(sort_user_ids(left_id, right_id));
+    }
+
+    None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        canonical_direct_channel_name, legacy_direct_channel_name, parse_direct_channel_name,
+    };
+    use uuid::Uuid;
+
+    #[test]
+    fn parses_canonical_direct_channel_name() {
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        let canonical = canonical_direct_channel_name(a, b);
+        let parsed = parse_direct_channel_name(&canonical).expect("canonical name should parse");
+        assert_eq!(canonical_direct_channel_name(parsed.0, parsed.1), canonical);
+    }
+
+    #[test]
+    fn parses_legacy_direct_channel_name() {
+        let a = Uuid::new_v4();
+        let b = Uuid::new_v4();
+        let legacy = legacy_direct_channel_name(a, b);
+        let parsed = parse_direct_channel_name(&legacy).expect("legacy name should parse");
+        assert_eq!(
+            canonical_direct_channel_name(parsed.0, parsed.1),
+            canonical_direct_channel_name(a, b)
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_direct_channel_name() {
+        assert!(parse_direct_channel_name("dm_not-a-uuid_not-a-uuid").is_none());
+        assert!(parse_direct_channel_name("invalid").is_none());
+    }
+}

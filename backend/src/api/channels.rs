@@ -190,14 +190,24 @@ async fn create_channel(
         // Deterministic name: sorted user IDs
         let mut ids = vec![auth.user_id, target_id];
         ids.sort();
-        let dm_name = format!("dm_{}_{}", ids[0], ids[1]);
+        let dm_name = crate::models::canonical_direct_channel_name(ids[0], ids[1]);
+        let legacy_dm_name = crate::models::legacy_direct_channel_name(ids[0], ids[1]);
 
         // Check if DM channel already exists in this team
         let existing = sqlx::query_as::<_, Channel>(
-            "SELECT * FROM channels WHERE team_id = $1 AND name = $2 AND type = 'direct'::channel_type",
+            r#"
+            SELECT *
+            FROM channels
+            WHERE team_id = $1
+              AND type = 'direct'::channel_type
+              AND (name = $2 OR name = $3)
+            ORDER BY created_at ASC
+            LIMIT 1
+            "#,
         )
         .bind(input.team_id)
         .bind(&dm_name)
+        .bind(&legacy_dm_name)
         .fetch_optional(&state.db)
         .await?;
 

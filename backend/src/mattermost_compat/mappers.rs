@@ -90,6 +90,13 @@ impl From<Channel> for mm::Channel {
                 _ => channel.name.clone(),
             },
         };
+        let name = if channel.channel_type == ChannelType::Direct {
+            crate::models::parse_direct_channel_name(&channel.name)
+                .map(|(left, right)| crate::models::canonical_direct_channel_name(left, right))
+                .unwrap_or_else(|| channel.name.clone())
+        } else {
+            channel.name.clone()
+        };
 
         mm::Channel {
             id: encode_mm_id(channel.id),
@@ -109,7 +116,7 @@ impl From<Channel> for mm::Channel {
             }
             .to_string(),
             display_name,
-            name: channel.name,
+            name,
             header: channel.header.unwrap_or_default(),
             purpose: channel.purpose.unwrap_or_default(),
             last_post_at: 0,

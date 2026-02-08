@@ -482,9 +482,10 @@ pub async fn create_direct_channel_internal(
     creator_id: Uuid,
     other_id: Uuid,
 ) -> ApiResult<crate::models::channel::Channel> {
+    let canonical_name = crate::models::canonical_direct_channel_name(creator_id, other_id);
+    let legacy_name = crate::models::legacy_direct_channel_name(creator_id, other_id);
     let mut ids = vec![creator_id, other_id];
     ids.sort();
-    let name = format!("dm_{}_{}", ids[0], ids[1]);
 
     let team_id: Uuid = sqlx::query_scalar(
         "SELECT team_id FROM team_members WHERE user_id = $1 ORDER BY created_at ASC LIMIT 1",
@@ -502,6 +503,36 @@ pub async fn create_direct_channel_internal(
     .await?
     .unwrap_or_else(|| "Direct Message".to_string());
 
+    if let Some(channel) = sqlx::query_as::<_, crate::models::Channel>(
+        r#"
+        SELECT *
+        FROM channels
+        WHERE team_id = $1
+          AND type = 'direct'::channel_type
+          AND (name = $2 OR name = $3)
+        ORDER BY created_at ASC
+        LIMIT 1
+        "#,
+    )
+    .bind(team_id)
+    .bind(&canonical_name)
+    .bind(&legacy_name)
+    .fetch_optional(&state.db)
+    .await?
+    {
+        for user_id in ids {
+            sqlx::query(
+                "INSERT INTO channel_members (channel_id, user_id, role) VALUES ($1, $2, 'member') ON CONFLICT DO NOTHING",
+            )
+            .bind(channel.id)
+            .bind(user_id)
+            .execute(&state.db)
+            .await?;
+        }
+
+        return Ok(channel);
+    }
+
     let channel: crate::models::Channel = sqlx::query_as(
         r#"
         INSERT INTO channels (team_id, type, name, display_name, purpose, header, creator_id)
@@ -516,7 +547,7 @@ pub async fn create_direct_channel_internal(
         "#,
     )
     .bind(team_id)
-    .bind(&name)
+    .bind(&canonical_name)
     .bind(&display_name)
     .bind(creator_id)
     .fetch_one(&state.db)
