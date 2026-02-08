@@ -577,6 +577,15 @@ impl ActorTask {
         self.is_closing.store(true, Ordering::SeqCst);
         ping_task.abort();
 
+        // Send close frame for graceful shutdown (unless client already closed)
+        // This prevents "Connection reset without closing handshake" errors
+        let close_frame = CloseFrame {
+            code: close_codes::GOING_AWAY.into(),
+            reason: "Connection ended".into(),
+        };
+        // Best-effort close frame - don't wait or error if it fails
+        let _ = timeout(Duration::from_secs(1), ws_sink.send(Message::Close(Some(close_frame)))).await;
+
         // Mark connection as disconnected (but retain state for resumption)
         self.store.disconnect_connection(&self.connection_id);
 
