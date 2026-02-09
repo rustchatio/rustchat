@@ -102,6 +102,10 @@ pub fn router() -> Router<AppState> {
             "/plugins/com.mattermost.calls/calls/{channel_id}/ice",
             post(handle_ice_candidate),
         )
+        .route(
+            "/plugins/com.mattermost.calls/turn-credentials",
+            get(get_turn_credentials),
+        )
         // Slash commands
         .merge(commands::router())
 }
@@ -116,7 +120,10 @@ struct VersionResponse {
 
 #[derive(Debug, Serialize)]
 struct ConfigResponse {
-    ice_servers: Vec<IceServer>,
+    #[serde(rename = "ICEServersConfigs")]
+    ice_servers_configs: Vec<IceServer>,
+    #[serde(rename = "NeedsTURNCredentials")]
+    needs_turn_credentials: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -126,6 +133,8 @@ struct IceServer {
     username: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     credential: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    credential_type: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -200,7 +209,7 @@ async fn get_version(State(_state): State<AppState>) -> ApiResult<Json<VersionRe
 /// Returns ICE server configuration with TURN credentials
 async fn get_config(
     State(state): State<AppState>,
-    auth: MmAuthUser,
+    _auth: MmAuthUser,
 ) -> ApiResult<Json<ConfigResponse>> {
     // Build ice servers list
     let mut ice_servers = vec![];
@@ -211,33 +220,63 @@ async fn get_config(
             urls: vec![stun_url.clone()],
             username: None,
             credential: None,
+            credential_type: None,
         });
     }
 
     // Add TURN server if enabled
     if state.config.calls.turn_server_enabled {
-        // Configure TURN server with static credentials
-        let turn_config = TurnServerConfig {
-            enabled: true,
-            url: state.config.calls.turn_server_url.clone(),
-            username: state.config.calls.turn_server_username.clone(),
-            credential: state.config.calls.turn_server_credential.clone(),
-        };
+        // Build basic server info without credentials (mobile will fetch them later via /turn-credentials)
+        ice_servers.push(IceServer {
+            urls: vec![state.config.calls.turn_server_url.clone()],
+            username: None,
+            credential: None,
+            credential_type: Some("password".to_string()),
+        });
+    }
+    let needs_turn = state.config.calls.turn_server_enabled;
 
-        let turn_generator = TurnCredentialGenerator::with_static_credentials(turn_config);
-        let credentials = turn_generator.generate_credentials(&auth.user_id.to_string());
+    Ok(Json(ConfigResponse { 
+        ice_servers_configs: ice_servers,
+        needs_turn_credentials: needs_turn,
+    }))
+}
 
-        // Add TURN server with credentials
-        if let Some(turn_url) = turn_generator.get_turn_url() {
-            ice_servers.push(IceServer {
-                urls: vec![turn_url],
-                username: Some(credentials.username.clone()),
-                credential: Some(credentials.credential.clone()),
-            });
-        }
+/// GET /plugins/com.mattermost.calls/turn-credentials
+/// Returns ephemeral TURN credentials
+async fn get_turn_credentials(
+    State(state): State<AppState>,
+    auth: MmAuthUser,
+) -> ApiResult<Json<Vec<IceServer>>> {
+    if !state.config.calls.turn_server_enabled {
+        return Err(AppError::BadRequest("TURN server is disabled".to_string()));
     }
 
-    Ok(Json(ConfigResponse { ice_servers }))
+    let turn_config = TurnServerConfig {
+        enabled: true,
+        url: state.config.calls.turn_server_url.clone(),
+        username: state.config.calls.turn_server_username.clone(),
+        credential: state.config.calls.turn_server_credential.clone(),
+    };
+
+    // If static credentials are NOT provided, use the application encryption key as the secret for ephemeral ones
+    let generator = if turn_config.username.is_empty() || turn_config.credential.is_empty() {
+        TurnCredentialGenerator::with_rest_api(
+            state.config.encryption_key.clone(),
+            state.config.calls.turn_ttl_minutes
+        )
+    } else {
+        TurnCredentialGenerator::with_static_credentials(turn_config)
+    };
+
+    let credentials = generator.generate_credentials(&auth.user_id.to_string());
+    
+    Ok(Json(vec![IceServer {
+        urls: vec![state.config.calls.turn_server_url.clone()],
+        username: Some(credentials.username),
+        credential: Some(credentials.credential),
+        credential_type: Some("password".to_string()),
+    }]))
 }
 
 /// GET /plugins/com.mattermost.calls/channels

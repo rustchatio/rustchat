@@ -173,7 +173,12 @@ fn default_turn_ttl() -> u64 {
 }
 
 fn default_stun_servers() -> Vec<String> {
-    vec!["stun:stun.l.google.com:19302".to_string()]
+    vec![
+        "stun:stun.l.google.com:19302".to_string(),
+        "stun:stun1.l.google.com:19302".to_string(),
+        "stun:stun2.l.google.com:19302".to_string(),
+        "stun:stun.services.mozilla.com".to_string(),
+    ]
 }
 
 fn default_calls_state_backend() -> String {

@@ -1425,17 +1425,18 @@ async fn get_user_image(
 
     // Try to fetch from S3
     let key = format!("avatars/{}.png", user_uuid);
+    let data = state.s3_client.download_optional(&key).await?;
     
-    match state.s3_client.download(&key).await {
-        Ok(data) => {
+    match data {
+        Some(bytes) => {
             // Detect content type from magic bytes
-            let content_type = if data.starts_with(&[0x89, 0x50, 0x4E, 0x47]) {
+            let content_type = if bytes.starts_with(&[0x89, 0x50, 0x4E, 0x47]) {
                 "image/png"
-            } else if data.starts_with(&[0xFF, 0xD8, 0xFF]) {
+            } else if bytes.starts_with(&[0xFF, 0xD8, 0xFF]) {
                 "image/jpeg"
-            } else if data.starts_with(b"GIF") {
+            } else if bytes.starts_with(b"GIF") {
                 "image/gif"
-            } else if data.len() > 12 && data.starts_with(b"RIFF") && &data[8..12] == b"WEBP" {
+            } else if bytes.len() > 12 && bytes.starts_with(b"RIFF") && &bytes[8..12] == b"WEBP" {
                 "image/webp"
             } else {
                 "image/png"
@@ -1446,10 +1447,10 @@ async fn get_user_image(
                     (axum::http::header::CONTENT_TYPE, content_type),
                     (axum::http::header::CACHE_CONTROL, "private, max-age=86400"),
                 ],
-                data,
+                bytes,
             ).into_response())
         }
-        Err(_) => {
+        None => {
             // Return default 1x1 transparent PNG if no image uploaded
             const PNG_1X1: &[u8] = &[
                 137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1, 8, 6,
@@ -1460,7 +1461,7 @@ async fn get_user_image(
             Ok((
                 [
                     (axum::http::header::CONTENT_TYPE, "image/png"),
-                    (axum::http::header::CACHE_CONTROL, "private, max-age=300"),
+                    (axum::http::header::CACHE_CONTROL, "private, max-age=86400"),
                 ],
                 PNG_1X1.to_vec(),
             ).into_response())
