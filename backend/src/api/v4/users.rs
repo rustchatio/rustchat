@@ -9,7 +9,6 @@ use axum::{
 use chrono::{DateTime, Utc};
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
-use serde_json::json;
 use uuid::Uuid;
 
 use super::extractors::MmAuthUser;
@@ -136,14 +135,6 @@ pub fn router() -> Router<AppState> {
         .route(
             "/users/{user_id}/oauth/apps/authorized",
             get(get_authorized_oauth_apps),
-        )
-        .route(
-            "/users/{user_id}/data_retention/team_policies",
-            get(get_user_team_retention_policies),
-        )
-        .route(
-            "/users/{user_id}/data_retention/channel_policies",
-            get(get_user_channel_retention_policies),
         )
         .route("/users/usernames", post(get_users_by_usernames))
         .route("/users/email/{email}", get(get_user_by_email))
@@ -2203,24 +2194,6 @@ async fn get_authorized_oauth_apps(
     Path(_user_id): Path<String>,
 ) -> ApiResult<Json<Vec<serde_json::Value>>> {
     Ok(Json(vec![]))
-}
-
-/// GET /api/v4/users/{user_id}/data_retention/team_policies
-async fn get_user_team_retention_policies(
-    State(_state): State<AppState>,
-    _auth: MmAuthUser,
-    Path(_user_id): Path<String>,
-) -> ApiResult<Json<serde_json::Value>> {
-    Ok(Json(json!({"policies": [], "total_count": 0})))
-}
-
-/// GET /api/v4/users/{user_id}/data_retention/channel_policies
-async fn get_user_channel_retention_policies(
-    State(_state): State<AppState>,
-    _auth: MmAuthUser,
-    Path(_user_id): Path<String>,
-) -> ApiResult<Json<serde_json::Value>> {
-    Ok(Json(json!({"policies": [], "total_count": 0})))
 }
 
 async fn get_user_groups(
