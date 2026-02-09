@@ -3,7 +3,7 @@ use axum::{
     extract::{Path, Query, State},
     Json,
 };
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use serde::Deserialize;
 use uuid::Uuid;
 
@@ -44,9 +44,9 @@ pub struct ChannelBookmarkResponse {
 #[derive(sqlx::FromRow)]
 struct BookmarkRow {
     id: Uuid,
-    create_at: i64,
-    update_at: i64,
-    delete_at: i64,
+    created_at: DateTime<Utc>,
+    updated_at: DateTime<Utc>,
+    deleted_at: Option<DateTime<Utc>>,
     channel_id: Uuid,
     owner_id: Uuid,
     file_id: Option<Uuid>,
@@ -64,9 +64,9 @@ impl From<BookmarkRow> for ChannelBookmarkResponse {
     fn from(row: BookmarkRow) -> Self {
         Self {
             id: encode_mm_id(row.id),
-            create_at: row.create_at,
-            update_at: row.update_at,
-            delete_at: row.delete_at,
+            create_at: row.created_at.timestamp_millis(),
+            update_at: row.updated_at.timestamp_millis(),
+            delete_at: row.deleted_at.map(|t| t.timestamp_millis()).unwrap_or(0),
             channel_id: encode_mm_id(row.channel_id),
             owner_id: encode_mm_id(row.owner_id),
             file_id: row.file_id.map(encode_mm_id),
@@ -115,12 +115,14 @@ pub(super) async fn get_channel_bookmarks(
     
     let bookmarks: Vec<BookmarkRow> = sqlx::query_as(
         r#"
-        SELECT id, create_at, update_at, delete_at, channel_id, owner_id, file_id,
+        SELECT id, created_at, updated_at, deleted_at, channel_id, owner_id, file_id,
                display_name, sort_order, link_url, image_url, emoji, bookmark_type,
                original_id, parent_id
         FROM channel_bookmarks
-        WHERE channel_id = $1 AND update_at >= $2
-        ORDER BY sort_order ASC, create_at ASC
+        WHERE channel_id = $1
+          AND ($2 <= 0 OR updated_at >= to_timestamp($2::double precision / 1000.0))
+          AND deleted_at IS NULL
+        ORDER BY sort_order ASC, created_at ASC
         "#,
     )
     .bind(channel_id)
@@ -190,16 +192,16 @@ pub(super) async fn create_channel_bookmark(
     .await?;
     
     let sort_order = max_order.unwrap_or(0) + 1;
-    let now = Utc::now().timestamp_millis();
+    let now = Utc::now();
 
     let bookmark: BookmarkRow = sqlx::query_as(
         r#"
         INSERT INTO channel_bookmarks (
             channel_id, owner_id, file_id, display_name, sort_order,
-            link_url, image_url, emoji, bookmark_type, create_at, update_at
+            link_url, image_url, emoji, bookmark_type, created_at, updated_at
         )
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)
-        RETURNING id, create_at, update_at, delete_at, channel_id, owner_id, file_id,
+        RETURNING id, created_at, updated_at, deleted_at, channel_id, owner_id, file_id,
                   display_name, sort_order, link_url, image_url, emoji, bookmark_type,
                   original_id, parent_id
         "#,
@@ -266,7 +268,6 @@ pub(super) async fn patch_channel_bookmark(
     let req: PatchBookmarkRequest = serde_json::from_slice(&body)
         .map_err(|_| AppError::BadRequest("Invalid patch body".to_string()))?;
 
-    let now = Utc::now().timestamp_millis();
     let file_id = req.file_id.as_ref().and_then(|id| parse_mm_or_uuid(id));
 
     let bookmark: BookmarkRow = sqlx::query_as(
@@ -278,9 +279,9 @@ pub(super) async fn patch_channel_bookmark(
             emoji = COALESCE($6, emoji),
             file_id = COALESCE($7, file_id),
             sort_order = COALESCE($8, sort_order),
-            update_at = $9
-        WHERE id = $1 AND channel_id = $2 AND delete_at = 0
-        RETURNING id, create_at, update_at, delete_at, channel_id, owner_id, file_id,
+            updated_at = NOW()
+        WHERE id = $1 AND channel_id = $2 AND deleted_at IS NULL
+        RETURNING id, created_at, updated_at, deleted_at, channel_id, owner_id, file_id,
                   display_name, sort_order, link_url, image_url, emoji, bookmark_type,
                   original_id, parent_id
         "#,
@@ -293,7 +294,6 @@ pub(super) async fn patch_channel_bookmark(
     .bind(&req.emoji)
     .bind(file_id)
     .bind(req.sort_order)
-    .bind(now)
     .fetch_optional(&state.db)
     .await?
     .ok_or_else(|| AppError::NotFound("Bookmark not found".to_string()))?;
@@ -333,27 +333,24 @@ pub(super) async fn update_channel_bookmark_sort_order(
     let new_order: i64 = serde_json::from_slice(&body)
         .map_err(|_| AppError::BadRequest("Invalid sort order".to_string()))?;
 
-    let now = Utc::now().timestamp_millis();
-
     sqlx::query(
-        "UPDATE channel_bookmarks SET sort_order = $3, update_at = $4 WHERE id = $1 AND channel_id = $2",
+        "UPDATE channel_bookmarks SET sort_order = $3, updated_at = NOW() WHERE id = $1 AND channel_id = $2",
     )
     .bind(bookmark_id)
     .bind(channel_id)
     .bind(new_order)
-    .bind(now)
     .execute(&state.db)
     .await?;
 
     // Return all bookmarks for this channel
     let bookmarks: Vec<BookmarkRow> = sqlx::query_as(
         r#"
-        SELECT id, create_at, update_at, delete_at, channel_id, owner_id, file_id,
+        SELECT id, created_at, updated_at, deleted_at, channel_id, owner_id, file_id,
                display_name, sort_order, link_url, image_url, emoji, bookmark_type,
                original_id, parent_id
         FROM channel_bookmarks
-        WHERE channel_id = $1 AND delete_at = 0
-        ORDER BY sort_order ASC, create_at ASC
+        WHERE channel_id = $1 AND deleted_at IS NULL
+        ORDER BY sort_order ASC, created_at ASC
         "#,
     )
     .bind(channel_id)
@@ -387,21 +384,18 @@ pub(super) async fn delete_channel_bookmark(
         return Err(AppError::Forbidden("Not a member of this channel".to_string()));
     }
 
-    let now = Utc::now().timestamp_millis();
-
     // Soft delete
     let bookmark: BookmarkRow = sqlx::query_as(
         r#"
-        UPDATE channel_bookmarks SET delete_at = $3, update_at = $3
-        WHERE id = $1 AND channel_id = $2 AND delete_at = 0
-        RETURNING id, create_at, update_at, delete_at, channel_id, owner_id, file_id,
+        UPDATE channel_bookmarks SET deleted_at = NOW(), updated_at = NOW()
+        WHERE id = $1 AND channel_id = $2 AND deleted_at IS NULL
+        RETURNING id, created_at, updated_at, deleted_at, channel_id, owner_id, file_id,
                   display_name, sort_order, link_url, image_url, emoji, bookmark_type,
                   original_id, parent_id
         "#,
     )
     .bind(bookmark_id)
     .bind(channel_id)
-    .bind(now)
     .fetch_optional(&state.db)
     .await?
     .ok_or_else(|| AppError::NotFound("Bookmark not found".to_string()))?;
