@@ -324,7 +324,11 @@ pub async fn ensure_dm_membership(state: &AppState, channel_id: Uuid) -> ApiResu
 }
 
 /// Helper to populate files for posts
+/// Uses authenticated API endpoints instead of presigned S3 URLs
+/// This ensures files remain accessible after re-login and require authentication
 pub async fn populate_files(state: &AppState, posts: &mut [PostResponse]) -> ApiResult<()> {
+    use crate::mattermost_compat::id::encode_mm_id;
+    
     // 1. Collect all file IDs
     let all_file_ids: Vec<Uuid> = posts.iter().flat_map(|p| p.file_ids.clone()).collect();
 
@@ -333,30 +337,26 @@ pub async fn populate_files(state: &AppState, posts: &mut [PostResponse]) -> Api
     }
 
     // 2. Fetch file infos
-    // crate::models::FileInfo is needed, ensure it is pub
     let files: Vec<crate::models::FileInfo> =
         sqlx::query_as("SELECT * FROM files WHERE id = ANY($1)")
             .bind(&all_file_ids)
             .fetch_all(&state.db)
             .await?;
 
-    // 3. Generate presigned URLs and map to posts
+    // 3. Generate authenticated API URLs (not presigned S3 URLs)
+    // These URLs require authentication and don't expire
     let mut file_map = HashMap::new();
     for file in files {
-        let url = state
-            .s3_client
-            .presigned_download_url(&file.key, 3600)
-            .await?;
+        let mm_file_id = encode_mm_id(file.id);
+        
+        // Use authenticated API endpoints instead of presigned S3 URLs
+        // This ensures:
+        // 1. Files require authentication to access
+        // 2. URLs don't expire after logout/login
+        // 3. Original filenames are preserved in Content-Disposition header
+        let url = format!("/api/v4/files/{}", mm_file_id);
         let thumbnail_url = if file.has_thumbnail {
-            if let Some(t_key) = &file.thumbnail_key {
-                state
-                    .s3_client
-                    .presigned_download_url(t_key, 3600)
-                    .await
-                    .ok()
-            } else {
-                None
-            }
+            Some(format!("/api/v4/files/{}/thumbnail", mm_file_id))
         } else {
             None
         };

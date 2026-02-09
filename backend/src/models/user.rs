@@ -29,6 +29,14 @@ pub struct User {
     pub password_hash: String,
     pub display_name: Option<String>,
     pub avatar_url: Option<String>,
+    #[sqlx(default)]
+    pub first_name: Option<String>,
+    #[sqlx(default)]
+    pub last_name: Option<String>,
+    #[sqlx(default)]
+    pub nickname: Option<String>,
+    #[sqlx(default)]
+    pub position: Option<String>,
     pub is_bot: bool,
     pub is_active: bool,
     pub role: String,
@@ -56,6 +64,10 @@ pub struct UserResponse {
     pub email: String,
     pub display_name: Option<String>,
     pub avatar_url: Option<String>,
+    pub first_name: Option<String>,
+    pub last_name: Option<String>,
+    pub nickname: Option<String>,
+    pub position: Option<String>,
     pub is_bot: bool,
     pub role: String,
     pub presence: String,
@@ -75,6 +87,10 @@ impl From<User> for UserResponse {
             email: user.email,
             display_name: user.display_name,
             avatar_url: user.avatar_url,
+            first_name: user.first_name,
+            last_name: user.last_name,
+            nickname: user.nickname,
+            position: user.position,
             is_bot: user.is_bot,
             role: user.role,
             presence: user.presence,

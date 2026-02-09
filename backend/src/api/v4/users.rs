@@ -1270,13 +1270,9 @@ struct UpdateStatusRequest {
 
 #[derive(Deserialize)]
 struct PatchMeRequest {
-    #[allow(dead_code)]
     nickname: Option<String>,
-    #[allow(dead_code)]
     first_name: Option<String>,
-    #[allow(dead_code)]
     last_name: Option<String>,
-    #[allow(dead_code)]
     position: Option<String>,
 }
 
@@ -1331,7 +1327,29 @@ async fn patch_me(
     headers: HeaderMap,
     body: Bytes,
 ) -> ApiResult<Json<mm::User>> {
-    let _input: PatchMeRequest = parse_body(&headers, &body, "Invalid patch body")?;
+    let input: PatchMeRequest = parse_body(&headers, &body, "Invalid patch body")?;
+    
+    // Update any provided fields
+    sqlx::query(
+        r#"
+        UPDATE users 
+        SET first_name = COALESCE($1, first_name),
+            last_name = COALESCE($2, last_name),
+            nickname = COALESCE($3, nickname),
+            position = COALESCE($4, position),
+            updated_at = NOW()
+        WHERE id = $5
+        "#,
+    )
+    .bind(&input.first_name)
+    .bind(&input.last_name)
+    .bind(&input.nickname)
+    .bind(&input.position)
+    .bind(auth.user_id)
+    .execute(&state.db)
+    .await?;
+
+    // Fetch updated user
     let user: User = sqlx::query_as("SELECT * FROM users WHERE id = $1")
         .bind(auth.user_id)
         .fetch_one(&state.db)
