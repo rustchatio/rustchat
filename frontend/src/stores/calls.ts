@@ -213,6 +213,24 @@ export const useCallsStore = defineStore('calls', () => {
     async function loadConfig() {
         try {
             const { data } = await callsApi.getConfig()
+
+            // If TURN is enabled but credentials are not in the main config, fetch them
+            if (data.NeedsTURNCredentials) {
+                try {
+                    const { data: turnServers } = await callsApi.getTurnCredentials()
+                    // Merge TURN servers into ICE config
+                    data.ICEServersConfigs = [
+                        ...data.ICEServersConfigs.filter(s => {
+                            const urls = Array.isArray(s.urls) ? s.urls : [s.urls]
+                            return !urls.some(url => url.toString().startsWith('turn:'))
+                        }),
+                        ...turnServers
+                    ]
+                } catch (error) {
+                    console.error('Failed to fetch TURN credentials', error)
+                }
+            }
+
             callsConfig.value = data
             return data
         } catch (error) {
@@ -220,6 +238,7 @@ export const useCallsStore = defineStore('calls', () => {
             return null
         }
     }
+
 
     async function loadCalls() {
         try {

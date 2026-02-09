@@ -100,6 +100,7 @@ interface CallsConfigWire {
         username?: string
         credential?: string
     }>
+    NeedsTURNCredentials?: boolean
 }
 
 interface CallStateWire {
@@ -151,7 +152,7 @@ function normalizeConfig(raw: CallsConfigWire): CallsConfig {
         ICEServersConfigs: normalizeIceServers(raw),
         AllowEnableCalls: true,
         DefaultEnabled: true,
-        NeedsTURNCredentials: false,
+        NeedsTURNCredentials: raw.NeedsTURNCredentials || false,
         MaxCallParticipants: 0,
         AllowScreenSharing: true,
         EnableSimulcast: false,
@@ -233,6 +234,11 @@ export default {
             ...response,
             data: normalizeConfig(response.data),
         }
+    },
+
+    // Get ephemeral TURN credentials
+    async getTurnCredentials() {
+        return apiClient.get<RTCIceServer[]>(`${CALLS_ROUTE}/turn-credentials`)
     },
 
     // Get all active calls
