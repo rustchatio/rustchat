@@ -1,0 +1,78 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Mattermost Channel",
+    "description": "Channel response from /api/v4/channels/{id}",
+    "type": "object",
+    "required": [
+        "id",
+        "create_at",
+        "update_at",
+        "team_id",
+        "type",
+        "name",
+        "display_name"
+    ],
+    "properties": {
+        "id": {
+            "type": "string",
+            "description": "26-character base62 channel ID"
+        },
+        "create_at": {
+            "type": "integer"
+        },
+        "update_at": {
+            "type": "integer"
+        },
+        "delete_at": {
+            "type": "integer",
+            "default": 0
+        },
+        "team_id": {
+            "type": "string",
+            "description": "Empty for DM/GM channels"
+        },
+        "type": {
+            "type": "string",
+            "enum": [
+                "O",
+                "P",
+                "D",
+                "G"
+            ],
+            "description": "O=Open, P=Private, D=Direct, G=Group"
+        },
+        "name": {
+            "type": "string"
+        },
+        "display_name": {
+            "type": "string"
+        },
+        "header": {
+            "type": "string"
+        },
+        "purpose": {
+            "type": "string"
+        },
+        "last_post_at": {
+            "type": "integer"
+        },
+        "total_msg_count": {
+            "type": "integer"
+        },
+        "extra_update_at": {
+            "type": "integer"
+        },
+        "creator_id": {
+            "type": "string"
+        },
+        "props": {
+            "type": "object"
+        },
+        "policy_id": {
+            "type": [
+                "string",
+                "null"
+            ]
+        }
+    }
+}

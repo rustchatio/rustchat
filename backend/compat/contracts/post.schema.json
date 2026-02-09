@@ -1,0 +1,97 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Mattermost Post",
+    "description": "Post response from /api/v4/posts/{id}",
+    "type": "object",
+    "required": [
+        "id",
+        "create_at",
+        "update_at",
+        "user_id",
+        "channel_id",
+        "message",
+        "type"
+    ],
+    "properties": {
+        "id": {
+            "type": "string"
+        },
+        "create_at": {
+            "type": "integer"
+        },
+        "update_at": {
+            "type": "integer"
+        },
+        "edit_at": {
+            "type": "integer"
+        },
+        "delete_at": {
+            "type": "integer",
+            "default": 0
+        },
+        "user_id": {
+            "type": "string"
+        },
+        "channel_id": {
+            "type": "string"
+        },
+        "root_id": {
+            "type": "string",
+            "description": "Empty for root posts, parent post ID for replies"
+        },
+        "original_id": {
+            "type": "string"
+        },
+        "message": {
+            "type": "string"
+        },
+        "type": {
+            "type": "string",
+            "description": "Empty for regular posts, system_* for system posts"
+        },
+        "props": {
+            "type": "object"
+        },
+        "hashtags": {
+            "type": "string"
+        },
+        "file_ids": {
+            "type": "array",
+            "items": {
+                "type": "string"
+            }
+        },
+        "pending_post_id": {
+            "type": "string"
+        },
+        "metadata": {
+            "type": "object",
+            "properties": {
+                "embeds": {
+                    "type": "array"
+                },
+                "emojis": {
+                    "type": "array"
+                },
+                "files": {
+                    "type": "array"
+                },
+                "images": {
+                    "type": "object"
+                },
+                "reactions": {
+                    "type": "array"
+                }
+            }
+        },
+        "reply_count": {
+            "type": "integer"
+        },
+        "is_pinned": {
+            "type": "boolean"
+        },
+        "has_reactions": {
+            "type": "boolean"
+        }
+    }
+}

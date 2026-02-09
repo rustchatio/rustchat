@@ -1,0 +1,108 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Mattermost User",
+    "description": "User profile response from /api/v4/users/me or /api/v4/users/{id}",
+    "type": "object",
+    "required": [
+        "id",
+        "create_at",
+        "update_at",
+        "username",
+        "auth_service",
+        "roles",
+        "nickname"
+    ],
+    "properties": {
+        "id": {
+            "type": "string",
+            "description": "26-character base62 user ID"
+        },
+        "create_at": {
+            "type": "integer",
+            "description": "Unix timestamp in milliseconds"
+        },
+        "update_at": {
+            "type": "integer",
+            "description": "Unix timestamp in milliseconds"
+        },
+        "delete_at": {
+            "type": "integer",
+            "default": 0
+        },
+        "username": {
+            "type": "string",
+            "minLength": 1
+        },
+        "auth_service": {
+            "type": "string",
+            "enum": [
+                "",
+                "email",
+                "ldap",
+                "saml",
+                "gitlab",
+                "google",
+                "office365",
+                "openid"
+            ]
+        },
+        "email": {
+            "type": "string",
+            "format": "email"
+        },
+        "email_verified": {
+            "type": "boolean"
+        },
+        "nickname": {
+            "type": "string"
+        },
+        "first_name": {
+            "type": "string"
+        },
+        "last_name": {
+            "type": "string"
+        },
+        "position": {
+            "type": "string"
+        },
+        "roles": {
+            "type": "string",
+            "description": "Space-separated role names"
+        },
+        "locale": {
+            "type": "string"
+        },
+        "timezone": {
+            "type": "object",
+            "properties": {
+                "useAutomaticTimezone": {
+                    "type": "string"
+                },
+                "manualTimezone": {
+                    "type": "string"
+                },
+                "automaticTimezone": {
+                    "type": "string"
+                }
+            }
+        },
+        "props": {
+            "type": "object"
+        },
+        "notify_props": {
+            "type": "object"
+        },
+        "last_picture_update": {
+            "type": "integer"
+        },
+        "last_password_update": {
+            "type": "integer"
+        },
+        "terms_of_service_id": {
+            "type": "string"
+        },
+        "terms_of_service_create_at": {
+            "type": "integer"
+        }
+    }
+}

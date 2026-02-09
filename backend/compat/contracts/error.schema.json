@@ -1,0 +1,33 @@
+{
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Mattermost Error",
+    "description": "Standard Mattermost error response format",
+    "type": "object",
+    "required": [
+        "id",
+        "message",
+        "status_code"
+    ],
+    "properties": {
+        "id": {
+            "type": "string",
+            "description": "Error identifier like 'api.user.login.invalid_credentials'"
+        },
+        "message": {
+            "type": "string",
+            "description": "Human-readable error message"
+        },
+        "detailed_error": {
+            "type": "string",
+            "description": "Additional error details"
+        },
+        "request_id": {
+            "type": "string",
+            "description": "Request tracing ID"
+        },
+        "status_code": {
+            "type": "integer",
+            "description": "HTTP status code"
+        }
+    }
+}
