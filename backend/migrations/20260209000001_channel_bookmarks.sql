@@ -2,7 +2,7 @@
 -- Supports both link and file bookmark types
 
 CREATE TABLE IF NOT EXISTS channel_bookmarks (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     channel_id UUID NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
     owner_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     file_id UUID REFERENCES files(id) ON DELETE SET NULL,
@@ -18,6 +18,9 @@ CREATE TABLE IF NOT EXISTS channel_bookmarks (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     deleted_at TIMESTAMPTZ
 );
+
+-- Ensure deleted_at exists if table was created by a previous version of this migration
+ALTER TABLE channel_bookmarks ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
 
 -- Index for fetching bookmarks by channel
 CREATE INDEX IF NOT EXISTS idx_channel_bookmarks_channel_id ON channel_bookmarks(channel_id);

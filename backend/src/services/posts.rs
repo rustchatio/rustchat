@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use uuid::Uuid;
+use crate::mattermost_compat::models as mm;
 
 use crate::api::AppState;
 use crate::error::{ApiResult, AppError};
@@ -141,7 +142,8 @@ pub async fn create_post(
         EventType::MessageCreated
     };
 
-    let broadcast = WsEnvelope::event(event_type, response.clone(), Some(channel_id))
+    let mm_post = mm::Post::from(response.clone());
+    let broadcast = WsEnvelope::event(event_type, mm_post, Some(channel_id))
         .with_broadcast(WsBroadcast {
             channel_id: Some(channel_id),
             team_id: None,
@@ -666,6 +668,11 @@ pub async fn get_posts(
     .fetch_one(&state.db)
     .await?;
 
+    let mut posts = posts;
+    if !posts.is_empty() {
+        populate_files(state, &mut posts).await?;
+    }
+
     Ok((posts, total))
 }
 
@@ -686,6 +693,9 @@ pub async fn get_post_by_id(state: &AppState, post_id: Uuid) -> ApiResult<PostRe
     .fetch_optional(&state.db)
     .await?
     .ok_or_else(|| AppError::NotFound("Post not found".to_string()))?;
+
+    let mut post = post;
+    populate_files(state, std::slice::from_mut(&mut post)).await?;
 
     Ok(post)
 }

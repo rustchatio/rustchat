@@ -2,7 +2,7 @@
 
 -- Field definitions (schema/types of custom attributes)
 CREATE TABLE IF NOT EXISTS custom_profile_fields (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     group_id VARCHAR(26) NOT NULL DEFAULT '',
     name VARCHAR(64) NOT NULL,
     field_type VARCHAR(32) NOT NULL DEFAULT 'text',
@@ -14,9 +14,12 @@ CREATE TABLE IF NOT EXISTS custom_profile_fields (
     deleted_at TIMESTAMPTZ
 );
 
+-- Ensure deleted_at exists if table was created by a previous version of this migration
+ALTER TABLE custom_profile_fields ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+
 -- User attribute values (actual values per user)
 CREATE TABLE IF NOT EXISTS custom_profile_attributes (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     field_id UUID NOT NULL REFERENCES custom_profile_fields(id) ON DELETE CASCADE,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     value TEXT NOT NULL DEFAULT '',

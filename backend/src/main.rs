@@ -68,6 +68,7 @@ async fn main() -> anyhow::Result<()> {
         config.s3_secret_key.clone(),
         config.s3_region.clone(),
     );
+    let _ = s3_client.ensure_bucket().await;
     info!("S3 client initialized");
 
     // Spawn background jobs

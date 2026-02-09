@@ -89,6 +89,11 @@ pub(super) async fn search_team_posts(
     .fetch_all(&state.db)
     .await?;
 
+    let mut posts = posts;
+    if !posts.is_empty() {
+        let _ = crate::services::posts::populate_files(&state, &mut posts).await;
+    }
+
     let mut order = Vec::new();
     let mut posts_map: std::collections::HashMap<String, mm::Post> =
         std::collections::HashMap::new();
@@ -111,7 +116,11 @@ pub(super) async fn search_team_posts(
         if let Some(reactions) = reactions_map.get(&post_uuid) {
             if !reactions.is_empty() {
                 if let Some(post) = posts_map.get_mut(&post_id) {
-                    post.metadata = Some(json!({ "reactions": reactions }));
+                    let mut metadata = post.metadata.clone().unwrap_or_else(|| json!({}));
+                    if let Some(obj) = metadata.as_object_mut() {
+                        obj.insert("reactions".to_string(), json!(reactions));
+                    }
+                    post.metadata = Some(metadata);
                 }
             }
         }
@@ -161,6 +170,11 @@ pub(super) async fn search_posts_all_teams(
     .fetch_all(&state.db)
     .await?;
 
+    let mut posts = posts;
+    if !posts.is_empty() {
+        let _ = crate::services::posts::populate_files(&state, &mut posts).await;
+    }
+
     let mut order = Vec::new();
     let mut posts_map: std::collections::HashMap<String, mm::Post> =
         std::collections::HashMap::new();
@@ -183,7 +197,11 @@ pub(super) async fn search_posts_all_teams(
         if let Some(reactions) = reactions_map.get(&post_uuid) {
             if !reactions.is_empty() {
                 if let Some(post) = posts_map.get_mut(&post_id) {
-                    post.metadata = Some(json!({ "reactions": reactions }));
+                    let mut metadata = post.metadata.clone().unwrap_or_else(|| json!({}));
+                    if let Some(obj) = metadata.as_object_mut() {
+                        obj.insert("reactions".to_string(), json!(reactions));
+                    }
+                    post.metadata = Some(metadata);
                 }
             }
         }

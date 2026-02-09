@@ -7,6 +7,7 @@ use crate::models::{
     user::User,
 };
 use serde_json::json;
+use uuid::Uuid;
 
 impl From<User> for mm::User {
     fn from(user: User) -> Self {
@@ -152,6 +153,51 @@ impl From<Post> for mm::Post {
 
 impl From<PostResponse> for mm::Post {
     fn from(post: PostResponse) -> Self {
+        // Build metadata with files if files are present
+        let metadata = if !post.files.is_empty() {
+            let mm_files: Vec<mm::FileInfo> = post
+                .files
+                .into_iter()
+                .map(|f| mm::FileInfo {
+                    id: encode_mm_id(f.id),
+                    user_id: String::new(), // Not available in FileUploadResponse
+                    post_id: encode_mm_id(post.id),
+                    channel_id: encode_mm_id(post.channel_id),
+                    create_at: post.created_at.timestamp_millis(), // Fallback
+                    update_at: post.created_at.timestamp_millis(), // Fallback
+                    delete_at: 0,
+                    name: f.name.clone(),
+                    extension: f.name.rsplit_once('.').map(|(_, ext)| ext).unwrap_or_default().to_string(),
+                    size: f.size,
+                    mime_type: f.mime_type,
+                    width: 0,
+                    height: 0,
+                    has_preview_image: f.thumbnail_url.is_some(),
+                    mini_preview: None,
+                })
+                .collect();
+            Some(json!({
+                "files": mm_files,
+                "reactions": post.reactions.iter().map(|r| json!({
+                    "user_id": encode_mm_id(r.users.first().copied().unwrap_or_else(Uuid::nil)),
+                    "post_id": encode_mm_id(post.id),
+                    "emoji_name": r.emoji,
+                    "create_at": post.created_at.timestamp_millis()
+                })).collect::<Vec<_>>()
+            }))
+        } else if !post.reactions.is_empty() {
+            Some(json!({
+                "reactions": post.reactions.iter().map(|r| json!({
+                    "user_id": encode_mm_id(r.users.first().copied().unwrap_or_else(Uuid::nil)),
+                    "post_id": encode_mm_id(post.id),
+                    "emoji_name": r.emoji,
+                    "create_at": post.created_at.timestamp_millis()
+                })).collect::<Vec<_>>()
+            }))
+        } else {
+            None
+        };
+
         mm::Post {
             id: encode_mm_id(post.id),
             create_at: post.created_at.timestamp_millis(),
@@ -168,7 +214,7 @@ impl From<PostResponse> for mm::Post {
             hashtags: "".to_string(),
             file_ids: post.file_ids.iter().map(|id| encode_mm_id(*id)).collect(),
             pending_post_id: post.client_msg_id.unwrap_or_default(),
-            metadata: None,
+            metadata,
         }
     }
 }

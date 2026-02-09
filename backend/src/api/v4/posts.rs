@@ -219,7 +219,11 @@ async fn get_post(
     let reactions_map = reactions_for_posts(&state, &[post_id]).await?;
     if let Some(reactions) = reactions_map.get(&post_id) {
         if !reactions.is_empty() {
-            mm_post.metadata = Some(json!({ "reactions": reactions }));
+            let mut metadata = mm_post.metadata.clone().unwrap_or_else(|| json!({}));
+            if let Some(obj) = metadata.as_object_mut() {
+                obj.insert("reactions".to_string(), json!(reactions));
+            }
+            mm_post.metadata = Some(metadata);
         }
     }
 
