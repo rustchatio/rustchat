@@ -61,18 +61,16 @@ pub struct ListChannelsQuery {
     pub available_to_join: Option<bool>,
 }
 
-fn is_blank_display_name(value: Option<&str>) -> bool {
-    value.map(|v| v.trim().is_empty()).unwrap_or(true)
-}
+
 
 async fn hydrate_direct_channel_display_name(
     state: &AppState,
     viewer_id: Uuid,
     channel: &mut Channel,
 ) -> ApiResult<()> {
-    if channel.channel_type != ChannelType::Direct
-        || !is_blank_display_name(channel.display_name.as_deref())
-    {
+    // For Direct channels, ALWAYS compute display_name from the other participant
+    // This ensures each user sees the other person's name, not their own
+    if channel.channel_type != ChannelType::Direct {
         return Ok(());
     }
 

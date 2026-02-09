@@ -560,18 +560,16 @@ async fn get_team_members_for_user(
     Ok(Json(mm_members))
 }
 
-fn is_blank_display_name(value: Option<&str>) -> bool {
-    value.map(|v| v.trim().is_empty()).unwrap_or(true)
-}
+
 
 async fn hydrate_direct_channel_display_name(
     state: &AppState,
     viewer_id: Uuid,
     channel: &mut Channel,
 ) -> ApiResult<()> {
-    if channel.channel_type != crate::models::channel::ChannelType::Direct
-        || !is_blank_display_name(channel.display_name.as_deref())
-    {
+    // For Direct channels, ALWAYS compute display_name from the other participant
+    // This ensures each user sees the other person's name, not their own
+    if channel.channel_type != crate::models::channel::ChannelType::Direct {
         return Ok(());
     }
 
@@ -1398,20 +1396,58 @@ async fn list_users(
     Ok(Json(mm_users))
 }
 
+/// GET /users/{user_id}/image - Get user profile image (requires auth)
 async fn get_user_image(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
+    _auth: MmAuthUser, // Require authentication - images are only accessible to logged-in users
     Path(user_id): Path<String>,
 ) -> ApiResult<impl IntoResponse> {
-    let _user_id = parse_mm_or_uuid(&user_id)
+    let user_uuid = parse_mm_or_uuid(&user_id)
         .ok_or_else(|| AppError::BadRequest("Invalid user ID".to_string()))?;
 
-    const PNG_1X1: &[u8] = &[
-        137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1, 8, 6,
-        0, 0, 0, 31, 21, 196, 137, 0, 0, 0, 10, 73, 68, 65, 84, 120, 156, 99, 0, 1, 0, 0, 5, 0, 1,
-        13, 10, 45, 180, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130,
-    ];
-
-    Ok(([(axum::http::header::CONTENT_TYPE, "image/png")], PNG_1X1))
+    // Try to fetch from S3
+    let key = format!("avatars/{}.png", user_uuid);
+    
+    match state.s3_client.download(&key).await {
+        Ok(data) => {
+            // Detect content type from magic bytes
+            let content_type = if data.starts_with(&[0x89, 0x50, 0x4E, 0x47]) {
+                "image/png"
+            } else if data.starts_with(&[0xFF, 0xD8, 0xFF]) {
+                "image/jpeg"
+            } else if data.starts_with(b"GIF") {
+                "image/gif"
+            } else if data.len() > 12 && data.starts_with(b"RIFF") && &data[8..12] == b"WEBP" {
+                "image/webp"
+            } else {
+                "image/png"
+            };
+            
+            Ok((
+                [
+                    (axum::http::header::CONTENT_TYPE, content_type),
+                    (axum::http::header::CACHE_CONTROL, "private, max-age=86400"),
+                ],
+                data,
+            ).into_response())
+        }
+        Err(_) => {
+            // Return default 1x1 transparent PNG if no image uploaded
+            const PNG_1X1: &[u8] = &[
+                137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1, 8, 6,
+                0, 0, 0, 31, 21, 196, 137, 0, 0, 0, 10, 73, 68, 65, 84, 120, 156, 99, 0, 1, 0, 0, 5, 0, 1,
+                13, 10, 45, 180, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130,
+            ];
+            
+            Ok((
+                [
+                    (axum::http::header::CONTENT_TYPE, "image/png"),
+                    (axum::http::header::CACHE_CONTROL, "private, max-age=300"),
+                ],
+                PNG_1X1.to_vec(),
+            ).into_response())
+        }
+    }
 }
 
 /// POST /users/{user_id}/image - Upload user profile image
@@ -1802,9 +1838,10 @@ async fn update_user_active(
 
 async fn get_user_image_default(
     State(state): State<AppState>,
+    auth: MmAuthUser,
     Path(user_id): Path<String>,
 ) -> ApiResult<impl IntoResponse> {
-    get_user_image(State(state), Path(user_id)).await
+    get_user_image(State(state), auth, Path(user_id)).await
 }
 
 async fn reset_password(headers: HeaderMap, body: Bytes) -> ApiResult<Json<serde_json::Value>> {

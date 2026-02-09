@@ -176,9 +176,7 @@ fn parse_body<T: DeserializeOwned>(
     }
 }
 
-fn is_blank_display_name(value: Option<&str>) -> bool {
-    value.map(|v| v.trim().is_empty()).unwrap_or(true)
-}
+
 
 async fn resolve_direct_channel_display_name(
     state: &AppState,
@@ -226,9 +224,9 @@ async fn get_channel(
             .fetch_one(&state.db)
             .await?;
 
-    if channel.channel_type == crate::models::channel::ChannelType::Direct
-        && is_blank_display_name(channel.display_name.as_deref())
-    {
+    // For Direct channels, ALWAYS compute display_name from the other participant
+    // This ensures each user sees the other person's name, not their own
+    if channel.channel_type == crate::models::channel::ChannelType::Direct {
         channel.display_name =
             resolve_direct_channel_display_name(&state, channel.id, auth.user_id)
                 .await?
