@@ -134,7 +134,7 @@ const statusLabel = computed(() => {
       </div>
       
       <!-- Presence Switcher -->
-      <div class="mr-2">
+      <div>
         <PresenceSelector />
       </div>
 

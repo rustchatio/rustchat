@@ -13,6 +13,7 @@ const emit = defineEmits<{
   (e: 'reply', messageId: string): void
   (e: 'delete', messageId: string): void
   (e: 'edit', messageId: string): void
+  (e: 'openProfile', userId: string): void
 }>()
 
 const messageStore = useMessageStore()
@@ -123,6 +124,10 @@ function handleDelete(id: string) {
 function handleEdit(id: string) {
   emit('edit', id)
 }
+
+function handleOpenProfile(userId: string) {
+  emit('openProfile', userId)
+}
 </script>
 
 <template>
@@ -185,6 +190,7 @@ function handleEdit(id: string) {
                 @reply="handleReply"
                 @delete="handleDelete"
                 @edit="handleEdit"
+                @openProfile="handleOpenProfile"
             />
         </template>
     </div>

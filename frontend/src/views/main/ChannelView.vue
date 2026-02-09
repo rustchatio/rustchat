@@ -15,6 +15,7 @@ import SearchPanel from '../../components/channel/SearchPanel.vue';
 import ChannelMembersPanel from '../../components/channel/ChannelMembersPanel.vue';
 import ChannelSettingsModal from '../../components/modals/ChannelSettingsModal.vue';
 import VideoCallModal from '../../components/modals/VideoCallModal.vue';
+import UserProfileModal from '../../components/modals/UserProfileModal.vue';
 import TypingIndicator from '../../components/channel/TypingIndicator.vue';
 import ActiveCall from '../../components/calls/ActiveCall.vue';
 import IncomingCallModal from '../../components/calls/IncomingCallModal.vue';
@@ -47,6 +48,15 @@ const messageListRef = ref<any>(null);
 
 // Channel settings modal
 const showChannelSettings = ref(false);
+
+// User profile modal
+const showUserProfile = ref(false);
+const profileUserId = ref<string | null>(null);
+
+function handleOpenProfile(userId: string) {
+  profileUserId.value = userId;
+  showUserProfile.value = true;
+}
 
 // Mark as read when channel changes
 watch(channelId, (newId) => {
@@ -176,6 +186,7 @@ async function onStartAudioCall() {
                     :channelId="currentChannel.id"
                     @reply="handleMessageReply"
                     @delete="handleMessageDelete"
+                    @openProfile="handleOpenProfile"
                   />
 
                   <!-- Typing Indicator -->
@@ -245,5 +256,12 @@ async function onStartAudioCall() {
 
       <!-- Incoming Call Modal -->
       <IncomingCallModal />
+
+      <!-- User Profile Modal -->
+      <UserProfileModal
+        :show="showUserProfile"
+        :userId="profileUserId || ''"
+        @close="showUserProfile = false"
+      />
   </AppShell>
 </template>

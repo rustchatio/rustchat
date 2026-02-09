@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { usePresenceStore, type Presence } from '../../stores/presence';
 
 interface Props {
@@ -84,6 +84,18 @@ const avatarUrl = computed(() => {
   return `${props.src}${separator}v=${props.avatarVersion}`;
 });
 
+// Track image loading errors
+const imageError = ref(false);
+
+// Reset error when src changes
+watch(() => props.src, () => {
+  imageError.value = false;
+});
+
+function handleImageError() {
+  imageError.value = true;
+}
+
 const presenceSizeClass = computed(() => {
   const size = props.size;
   if (typeof size === 'number') {
@@ -114,16 +126,17 @@ const presenceColorClass = computed(() => {
 <template>
   <div 
     class="relative inline-flex items-center justify-center rounded-full shrink-0 select-none overflow-visible"
-    :class="[sizeClasses, !avatarUrl ? bgColor : '']"
+    :class="[sizeClasses, !avatarUrl || imageError ? bgColor : '']"
     :style="customSizeStyle"
   >
     <!-- Avatar Image -->
     <div class="w-full h-full rounded-full overflow-hidden flex items-center justify-center">
       <img 
-        v-if="avatarUrl" 
+        v-if="avatarUrl && !imageError" 
         :src="avatarUrl" 
         :alt="username" 
         class="w-full h-full object-cover"
+        @error="handleImageError"
       />
       <!-- Fallback Initials -->
       <span v-else class="text-white font-bold tracking-tighter">

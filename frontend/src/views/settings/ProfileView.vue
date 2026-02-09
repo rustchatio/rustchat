@@ -9,6 +9,10 @@ import api from '../../api/client';
 const authStore = useAuthStore();
 const user = computed(() => authStore.user);
 
+const firstName = ref(user.value?.first_name || '');
+const lastName = ref(user.value?.last_name || '');
+const nickname = ref(user.value?.nickname || '');
+const position = ref(user.value?.position || '');
 const displayName = ref(user.value?.display_name || '');
 const username = ref(user.value?.username || '');
 const saving = ref(false);
@@ -24,12 +28,18 @@ async function handleUpdateProfile() {
     error.value = null;
     success.value = false;
     try {
+        // Use Mattermost-compatible patch endpoint
+        await api.put('/api/v4/users/me/patch', {
+            first_name: firstName.value || undefined,
+            last_name: lastName.value || undefined,
+            nickname: nickname.value || undefined,
+            position: position.value || undefined,
+        });
+        // Also update username/display_name via our endpoint
         await api.put(`/users/${user.value.id}`, {
             display_name: displayName.value,
             username: username.value
         });
-        // Update local state is handled via WebSocket or manual refresh
-        // For now, let's just refresh the user in store if needed
         await authStore.fetchMe();
         success.value = true;
         setTimeout(() => success.value = false, 3000);
@@ -151,6 +161,49 @@ async function removeAvatar() {
                     </div>
 
                     <div class="grid grid-cols-1 gap-6">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="space-y-2">
+                                <label class="text-sm font-semibold text-gray-700 dark:text-gray-300">First Name</label>
+                                <input 
+                                    v-model="firstName"
+                                    type="text" 
+                                    placeholder="John"
+                                    class="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all dark:text-white"
+                                />
+                            </div>
+                            <div class="space-y-2">
+                                <label class="text-sm font-semibold text-gray-700 dark:text-gray-300">Last Name</label>
+                                <input 
+                                    v-model="lastName"
+                                    type="text" 
+                                    placeholder="Doe"
+                                    class="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all dark:text-white"
+                                />
+                            </div>
+                        </div>
+
+                        <div class="space-y-2">
+                            <label class="text-sm font-semibold text-gray-700 dark:text-gray-300">Nickname</label>
+                            <input 
+                                v-model="nickname"
+                                type="text" 
+                                placeholder="Johnny"
+                                class="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all dark:text-white"
+                            />
+                            <p class="text-xs text-gray-500">How you want to be called.</p>
+                        </div>
+
+                        <div class="space-y-2">
+                            <label class="text-sm font-semibold text-gray-700 dark:text-gray-300">Position</label>
+                            <input 
+                                v-model="position"
+                                type="text" 
+                                placeholder="Software Engineer"
+                                class="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all dark:text-white"
+                            />
+                            <p class="text-xs text-gray-500">Your job title or role.</p>
+                        </div>
+
                         <div class="space-y-2">
                             <label class="text-sm font-semibold text-gray-700 dark:text-gray-300">Display Name</label>
                             <input 

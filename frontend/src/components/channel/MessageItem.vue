@@ -25,7 +25,12 @@ const emit = defineEmits<{
   (e: 'delete', id: string): void
   (e: 'reply', id: string): void
   (e: 'update', id: string, content: string): void
+  (e: 'openProfile', userId: string): void
 }>()
+
+function openUserProfile() {
+  emit('openProfile', props.message.userId)
+}
 
 const authStore = useAuthStore()
 const messageStore = useMessageStore()
@@ -272,20 +277,23 @@ async function toggleReaction(emoji: string) {
     <div v-if="isMentioned" class="absolute left-0 top-0 bottom-0 w-1 bg-yellow-600"></div>
 
     <!-- Avatar -->
-    <div class="shrink-0 select-none mr-3 mt-1">
+    <div class="shrink-0 select-none mr-3 mt-1 cursor-pointer" @click="openUserProfile">
       <RcAvatar 
         :userId="message.userId"
         :src="message.avatarUrl" 
         :username="message.username" 
         size="md"
-        class="w-9 h-9 rounded-md"
+        class="w-9 h-9 rounded-md hover:ring-2 hover:ring-primary/50 transition-all"
       />
     </div>
 
     <div class="flex-1 min-w-0">
       <!-- Header -->
       <div class="flex items-baseline mb-0.5">
-        <span class="font-bold text-[15px] text-gray-900 dark:text-gray-100 hover:underline cursor-pointer mr-2">
+        <span 
+          class="font-bold text-[15px] text-gray-900 dark:text-gray-100 hover:underline cursor-pointer mr-2"
+          @click="openUserProfile"
+        >
           {{ message.username }}
         </span>
         <span class="text-[11px] text-gray-500 hover:underline cursor-pointer">
