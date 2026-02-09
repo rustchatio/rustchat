@@ -1507,6 +1507,8 @@ async fn handle_offer(
         .await
         .map_err(|e| AppError::Internal(format!("Failed to get or create SFU: {}", e)))?;
 
+    info!(call_id = %call.call_id, "SFU retrieved/created");
+
     // Ensure this participant is present in the SFU before handling signaling.
     if !sfu.has_participant(participant.session_id).await {
         warn!(
@@ -1533,10 +1535,15 @@ async fn handle_offer(
         .map_err(|e| AppError::BadRequest(format!("Invalid SDP offer: {}", e)))?;
 
     // Handle the offer and get answer
+    info!(session_id = %participant.session_id, "Calling sfu.handle_offer");
     let answer = sfu
         .handle_offer(participant.session_id, offer)
         .await
-        .map_err(|e| AppError::Internal(format!("Failed to handle offer: {}", e)))?;
+        .map_err(|e| {
+            error!(session_id = %participant.session_id, error = %e, "sfu.handle_offer failed");
+            AppError::Internal(format!("Failed to handle offer: {}", e))
+        })?;
+    info!(session_id = %participant.session_id, "sfu.handle_offer success");
     debug!(
         call_id = %call.call_id,
         user_id = %auth.user_id,

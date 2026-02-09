@@ -8,6 +8,7 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};
+use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 use webrtc::api::interceptor_registry::register_default_interceptors;
 use webrtc::api::media_engine::MediaEngine;
@@ -154,7 +155,7 @@ impl SFU {
 
         let video_track = Arc::new(TrackLocalStaticRTP::new(
             RTCRtpCodecCapability {
-                mime_type: "video/VP8".to_string(),
+                mime_type: "video/vp8".to_string(),
                 ..Default::default()
             },
             format!("video-{}", session_id),
@@ -163,7 +164,7 @@ impl SFU {
 
         let screen_track = Arc::new(TrackLocalStaticRTP::new(
             RTCRtpCodecCapability {
-                mime_type: "video/VP8".to_string(),
+                mime_type: "video/vp8".to_string(),
                 ..Default::default()
             },
             format!("screen-{}", session_id),
@@ -171,9 +172,11 @@ impl SFU {
         ));
 
         // Add tracks to peer connection
+        info!("Adding tracks to peer connection for session {}", session_id);
         peer_connection.add_track(audio_track.clone() as Arc<dyn TrackLocal + Send + Sync>).await?;
         peer_connection.add_track(video_track.clone() as Arc<dyn TrackLocal + Send + Sync>).await?;
         peer_connection.add_track(screen_track.clone() as Arc<dyn TrackLocal + Send + Sync>).await?;
+        info!("Tracks added successfully for session {}", session_id);
 
         // Store participant
         let participant = Participant {
