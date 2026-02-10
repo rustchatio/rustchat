@@ -192,7 +192,7 @@ struct IceServer {
     username: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     credential: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(rename = "credentialType", skip_serializing_if = "Option::is_none")]
     credential_type: Option<String>,
 }
 
@@ -299,6 +299,20 @@ struct EffectiveCallsConfig {
     stun_servers: Vec<String>,
 }
 
+fn ensure_protocol(url: &str, protocol: &str) -> String {
+    let url = url.trim();
+    if url.is_empty() {
+        return url.to_string();
+    }
+    let lower = url.to_lowercase();
+    // For TURN, we also accept turns:
+    if lower.starts_with(protocol) || (protocol == "turn:" && lower.starts_with("turns:")) {
+        url.to_string()
+    } else {
+        format!("{}{}", protocol, url)
+    }
+}
+
 async fn load_effective_calls_config(state: &AppState) -> EffectiveCallsConfig {
     // Try to read the database-saved config (same query the admin GET uses)
     let db_config: Option<(serde_json::Value,)> =
@@ -317,8 +331,8 @@ async fn load_effective_calls_config(state: &AppState) -> EffectiveCallsConfig {
                 turn_server_url: obj
                     .get("turn_server_url")
                     .and_then(|v| v.as_str())
-                    .map(|s| s.to_string())
-                    .unwrap_or_else(|| state.config.calls.turn_server_url.clone()),
+                    .map(|s| ensure_protocol(s, "turn:"))
+                    .unwrap_or_else(|| ensure_protocol(&state.config.calls.turn_server_url, "turn:")),
                 turn_server_username: obj
                     .get("turn_server_username")
                     .and_then(|v| v.as_str())
@@ -335,10 +349,18 @@ async fn load_effective_calls_config(state: &AppState) -> EffectiveCallsConfig {
                     .map(|arr| {
                         arr.iter()
                             .filter_map(|v| v.as_str())
-                            .map(|s| s.to_string())
+                            .map(|s| ensure_protocol(s, "stun:"))
                             .collect()
                     })
-                    .unwrap_or_else(|| state.config.calls.stun_servers.clone()),
+                    .unwrap_or_else(|| {
+                        state
+                            .config
+                            .calls
+                            .stun_servers
+                            .iter()
+                            .map(|s| ensure_protocol(s, "stun:"))
+                            .collect()
+                    }),
             };
         }
     }

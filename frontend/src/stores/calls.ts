@@ -335,8 +335,11 @@ export const useCallsStore = defineStore('calls', () => {
                 activeCalls.value.delete(channelId)
             }
             return data
-        } catch (error) {
-            console.error('Failed to load call for channel', error)
+        } catch (error: any) {
+            // Silently handle 404s as they just mean there's no active call in the channel
+            if (error?.response?.status !== 404) {
+                console.error('Failed to load call for channel', error)
+            }
             return null
         }
     }
