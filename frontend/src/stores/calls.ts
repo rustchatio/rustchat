@@ -61,7 +61,7 @@ export const useCallsStore = defineStore('calls', () => {
         }
 
         const selfSession = Object.values(call.sessions || {}).find(
-            (session) => session.user_id === myUserId
+            (session) => (session.user_id_raw || session.user_id) === myUserId
         )
         return selfSession?.session_id || ''
     }
@@ -71,7 +71,7 @@ export const useCallsStore = defineStore('calls', () => {
         const mySession = mySessionId ? call.sessions?.[mySessionId] : undefined
         isMuted.value = mySession ? !mySession.unmuted : true
         isHandRaised.value = !!mySession && mySession.raised_hand > 0
-        isScreenSharing.value = call.screen_sharing_id === authStore.user?.id
+        isScreenSharing.value = (call.screen_sharing_id_raw || call.screen_sharing_id) === authStore.user?.id
     }
 
     // WebSocket Event Listeners for Call Events

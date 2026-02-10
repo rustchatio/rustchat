@@ -49,6 +49,7 @@ export interface CallState {
     host_id: string
     thread_id?: string
     screen_sharing_id?: string
+    screen_sharing_id_raw?: string
     screen_sharing_session_id?: string
     recording?: CallJobState
     dismissed_notification?: Record<string, boolean>
@@ -128,6 +129,7 @@ interface CallStateWire {
     }>
     thread_id?: string
     screen_sharing_id?: string
+    screen_sharing_id_raw?: string
     screen_sharing_session_id?: string
     screen_sharing_session_id_raw?: string
 }
@@ -199,6 +201,7 @@ function normalizeCallState(channelId: string, raw: CallStateWire): CallState {
             host_id: raw.host_id_raw || raw.host_id || raw.owner_id_raw || raw.owner_id || '',
             thread_id: raw.thread_id,
             screen_sharing_id: raw.screen_sharing_id,
+            screen_sharing_id_raw: raw.screen_sharing_id_raw,
             screen_sharing_session_id: raw.screen_sharing_session_id || raw.screen_sharing_session_id_raw,
             sessions,
         }
@@ -223,6 +226,7 @@ function normalizeCallState(channelId: string, raw: CallStateWire): CallState {
         host_id: raw.host_id_raw || raw.host_id || raw.owner_id_raw || raw.owner_id || '',
         thread_id: raw.thread_id,
         screen_sharing_id: raw.screen_sharing_id,
+        screen_sharing_id_raw: raw.screen_sharing_id_raw,
         screen_sharing_session_id: raw.screen_sharing_session_id || raw.screen_sharing_session_id_raw,
         sessions,
     }

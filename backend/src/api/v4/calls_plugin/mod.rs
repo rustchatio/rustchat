@@ -199,6 +199,8 @@ struct CallStateResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     screen_sharing_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    screen_sharing_id_raw: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     screen_sharing_session_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     screen_sharing_session_id_raw: Option<String>,
@@ -941,6 +943,7 @@ async fn get_call_state(
         participants_raw,
         sessions,
         screen_sharing_id: call.screen_sharer.map(encode_mm_id),
+        screen_sharing_id_raw: call.screen_sharer.map(|id| id.to_string()),
         screen_sharing_session_id: screen_sharing_session
             .map(|participant| encode_mm_id(participant.session_id)),
         screen_sharing_session_id_raw: screen_sharing_session
