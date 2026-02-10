@@ -8,7 +8,7 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};
-use tracing::{info, trace};
+use tracing::{info, trace, warn};
 use uuid::Uuid;
 use webrtc::api::interceptor_registry::register_default_interceptors;
 use webrtc::api::media_engine::MediaEngine;
@@ -511,10 +511,18 @@ impl SFU {
         let mut voice_on = false;
         let mut last_packet_at = tokio::time::Instant::now();
 
+        let is_screen_share = track.stream_id().to_lowercase().contains("screen")
+            || track.stream_id().to_lowercase().contains("display")
+            || track.id().to_lowercase().contains("screen")
+            || track.id().to_lowercase().contains("display");
+            
         info!(
             call_id = %call_id,
             sender_session_id = %sender_session_id,
             track_id = %track.id(),
+            track_kind = ?track.kind(),
+            stream_id = %track.stream_id(),
+            is_screen_share = is_screen_share,
             "Starting track forwarding loop"
         );
 
@@ -585,6 +593,18 @@ impl SFU {
                                         || track_label.contains("screen")
                                         || track_label.contains("display");
                                     
+                                    // Log screen detection for debugging
+                                    if is_screen && packet_count % 100 == 1 {
+                                        info!(
+                                            sender_session_id = %sender_session_id,
+                                            receiver_session_id = %session_id,
+                                            stream_id = %stream_id,
+                                            track_label = %track_label,
+                                            has_screen_track = participant.screen_track.is_some(),
+                                            "Screen track detected and forwarding"
+                                        );
+                                    }
+                                    
                                     if is_screen {
                                         if let Some(screen_track) = &participant.screen_track {
                                             if let Err(e) = screen_track.write_rtp(&packet).await {
@@ -592,6 +612,14 @@ impl SFU {
                                                     session_id = %session_id,
                                                     error = %e,
                                                     "Failed to write screen share RTP packet"
+                                                );
+                                            }
+                                        } else {
+                                            // Screen detected but no screen track available for this participant
+                                            if packet_count % 100 == 1 {
+                                                warn!(
+                                                    receiver_session_id = %session_id,
+                                                    "Screen track detected but participant has no screen_track"
                                                 );
                                             }
                                         }
