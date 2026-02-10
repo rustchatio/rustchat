@@ -255,6 +255,73 @@ pub struct IceCandidateRequest {
     pub sdp_mline_index: Option<u16>,
 }
 
+// ============ Effective config from database ============
+
+/// Effective calls config resolved from database overrides + env var defaults.
+/// The admin console saves to `server_config.plugins->'calls'`; env vars are only
+/// the fallback for fields that were never saved via the admin UI.
+struct EffectiveCallsConfig {
+    turn_server_enabled: bool,
+    turn_server_url: String,
+    turn_server_username: String,
+    turn_server_credential: String,
+    stun_servers: Vec<String>,
+}
+
+async fn load_effective_calls_config(state: &AppState) -> EffectiveCallsConfig {
+    // Try to read the database-saved config (same query the admin GET uses)
+    let db_config: Option<(serde_json::Value,)> =
+        sqlx::query_as("SELECT plugins->'calls' FROM server_config WHERE id = 'default'")
+            .fetch_optional(&state.db)
+            .await
+            .unwrap_or(None);
+
+    if let Some((json,)) = db_config {
+        if let Some(obj) = json.as_object() {
+            return EffectiveCallsConfig {
+                turn_server_enabled: obj
+                    .get("turn_server_enabled")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(state.config.calls.turn_server_enabled),
+                turn_server_url: obj
+                    .get("turn_server_url")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| state.config.calls.turn_server_url.clone()),
+                turn_server_username: obj
+                    .get("turn_server_username")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| state.config.calls.turn_server_username.clone()),
+                turn_server_credential: obj
+                    .get("turn_server_credential")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| state.config.calls.turn_server_credential.clone()),
+                stun_servers: obj
+                    .get("stun_servers")
+                    .and_then(|v| v.as_array())
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|v| v.as_str())
+                            .map(|s| s.to_string())
+                            .collect()
+                    })
+                    .unwrap_or_else(|| state.config.calls.stun_servers.clone()),
+            };
+        }
+    }
+
+    // No database overrides — use env var defaults
+    EffectiveCallsConfig {
+        turn_server_enabled: state.config.calls.turn_server_enabled,
+        turn_server_url: state.config.calls.turn_server_url.clone(),
+        turn_server_username: state.config.calls.turn_server_username.clone(),
+        turn_server_credential: state.config.calls.turn_server_credential.clone(),
+        stun_servers: state.config.calls.stun_servers.clone(),
+    }
+}
+
 // ============ Handlers ============
 
 /// GET /plugins/com.mattermost.calls/version
@@ -267,16 +334,21 @@ async fn get_version(State(_state): State<AppState>) -> ApiResult<Json<VersionRe
 }
 
 /// GET /plugins/com.mattermost.calls/config
-/// Returns ICE server configuration with TURN credentials
+/// Returns ICE server configuration.
+/// TURN credentials are NOT included here — clients must call /turn-credentials separately.
 async fn get_config(
     State(state): State<AppState>,
     _auth: MmAuthUser,
 ) -> ApiResult<Json<ConfigResponse>> {
-    // Build ice servers list
+    let effective = load_effective_calls_config(&state).await;
+
+    // Build ice servers list — STUN only.
+    // TURN is intentionally omitted from this response because including a credential-less
+    // TURN entry causes browsers to attempt (and fail) auth. The client already handles
+    // `NeedsTURNCredentials: true` by fetching proper creds via /turn-credentials.
     let mut ice_servers = vec![];
 
-    // Add STUN servers if configured
-    for stun_url in &state.config.calls.stun_servers {
+    for stun_url in &effective.stun_servers {
         ice_servers.push(IceServer {
             urls: vec![stun_url.clone()],
             username: None,
@@ -285,42 +357,33 @@ async fn get_config(
         });
     }
 
-    // Add TURN server if enabled
-    if state.config.calls.turn_server_enabled {
-        // Build basic server info without credentials (mobile will fetch them later via /turn-credentials)
-        ice_servers.push(IceServer {
-            urls: vec![state.config.calls.turn_server_url.clone()],
-            username: None,
-            credential: None,
-            credential_type: Some("password".to_string()),
-        });
-    }
-    let needs_turn = state.config.calls.turn_server_enabled;
-
     Ok(Json(ConfigResponse {
         ice_servers_configs: ice_servers,
-        needs_turn_credentials: needs_turn,
+        needs_turn_credentials: effective.turn_server_enabled,
     }))
 }
 
 /// GET /plugins/com.mattermost.calls/turn-credentials
-/// Returns ephemeral TURN credentials
+/// Returns TURN credentials (static from admin config, or ephemeral via HMAC)
 async fn get_turn_credentials(
     State(state): State<AppState>,
     auth: MmAuthUser,
 ) -> ApiResult<Json<Vec<IceServer>>> {
-    if !state.config.calls.turn_server_enabled {
+    let effective = load_effective_calls_config(&state).await;
+
+    if !effective.turn_server_enabled {
         return Err(AppError::BadRequest("TURN server is disabled".to_string()));
     }
 
     let turn_config = TurnServerConfig {
         enabled: true,
-        url: state.config.calls.turn_server_url.clone(),
-        username: state.config.calls.turn_server_username.clone(),
-        credential: state.config.calls.turn_server_credential.clone(),
+        url: effective.turn_server_url.clone(),
+        username: effective.turn_server_username.clone(),
+        credential: effective.turn_server_credential.clone(),
     };
 
-    // If static credentials are NOT provided, use the application encryption key as the secret for ephemeral ones
+    // If static credentials are provided (via admin console), use them directly.
+    // Otherwise, generate ephemeral HMAC-SHA1 credentials using the encryption key.
     let generator = if turn_config.username.is_empty() || turn_config.credential.is_empty() {
         TurnCredentialGenerator::with_rest_api(
             state.config.encryption_key.clone(),
@@ -333,7 +396,7 @@ async fn get_turn_credentials(
     let credentials = generator.generate_credentials(&auth.user_id.to_string());
 
     Ok(Json(vec![IceServer {
-        urls: vec![state.config.calls.turn_server_url.clone()],
+        urls: vec![effective.turn_server_url],
         username: Some(credentials.username),
         credential: Some(credentials.credential),
         credential_type: Some("password".to_string()),
