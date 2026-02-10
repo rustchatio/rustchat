@@ -43,15 +43,15 @@ export const useCallsStore = defineStore('calls', () => {
     })
 
     function readEventChannelId(data: any): string | undefined {
-        return data?.channel_id || data?.channel_id_raw
+        return data?.channel_id_raw || data?.channel_id
     }
 
     function readEventUserId(data: any): string | undefined {
-        return data?.user_id || data?.user_id_raw
+        return data?.user_id_raw || data?.user_id
     }
 
     function readEventSessionId(data: any): string | undefined {
-        return data?.session_id || data?.session_id_raw
+        return data?.session_id_raw || data?.session_id
     }
 
     function findMySessionId(call: CallState): string {

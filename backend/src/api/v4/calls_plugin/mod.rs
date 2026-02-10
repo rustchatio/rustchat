@@ -142,6 +142,33 @@ pub fn router() -> Router<AppState> {
         .merge(commands::router())
 }
 
+/// Helper to resolve a channel ID which might be a UUID, a Mattermost encoded ID, or a DM name.
+async fn resolve_channel_id(state: &AppState, channel_id: &str) -> ApiResult<Uuid> {
+    let channel_id = channel_id.trim();
+    if let Ok(uuid) = Uuid::parse_str(channel_id) {
+        return Ok(uuid);
+    }
+
+    if let Some(uuid) = parse_mm_or_uuid(channel_id) {
+        return Ok(uuid);
+    }
+
+    // Check if it's a DM name
+    if crate::models::channel::parse_direct_channel_name(channel_id).is_some() {
+        // Look up channel by name
+        let channel_uuid: Option<Uuid> = sqlx::query_scalar("SELECT id FROM channels WHERE name = $1")
+            .bind(channel_id)
+            .fetch_optional(&state.db)
+            .await?;
+
+        if let Some(uuid) = channel_uuid {
+            return Ok(uuid);
+        }
+    }
+
+    Err(AppError::BadRequest("Invalid channel_id".to_string()))
+}
+
 // ============ Response Models ============
 
 #[derive(Debug, Serialize)]
@@ -214,6 +241,8 @@ struct CallSessionResponse {
     session_id_raw: String,
     user_id: String,
     user_id_raw: String,
+    username: String,
+    display_name: String,
     unmuted: bool,
     raised_hand: i32,
 }
@@ -469,8 +498,7 @@ async fn start_call(
     auth: MmAuthUser,
     Path(channel_id): Path<String>,
 ) -> ApiResult<Json<StartCallResponse>> {
-    let channel_uuid = parse_mm_or_uuid(&channel_id)
-        .ok_or_else(|| AppError::BadRequest("Invalid channel_id".to_string()))?;
+    let channel_uuid = resolve_channel_id(&state, &channel_id).await?;
     info!(
         user_id = %auth.user_id,
         channel_id = %channel_uuid,
@@ -633,8 +661,7 @@ async fn join_call(
     auth: MmAuthUser,
     Path(channel_id): Path<String>,
 ) -> ApiResult<Json<StatusResponse>> {
-    let channel_uuid = parse_mm_or_uuid(&channel_id)
-        .ok_or_else(|| AppError::BadRequest("Invalid channel_id".to_string()))?;
+    let channel_uuid = resolve_channel_id(&state, &channel_id).await?;
     info!(
         user_id = %auth.user_id,
         channel_id = %channel_uuid,
@@ -752,8 +779,7 @@ async fn leave_call(
     auth: MmAuthUser,
     Path(channel_id): Path<String>,
 ) -> ApiResult<Json<StatusResponse>> {
-    let channel_uuid = parse_mm_or_uuid(&channel_id)
-        .ok_or_else(|| AppError::BadRequest("Invalid channel_id".to_string()))?;
+    let channel_uuid = resolve_channel_id(&state, &channel_id).await?;
     info!(
         user_id = %auth.user_id,
         channel_id = %channel_uuid,
@@ -869,8 +895,7 @@ async fn get_call_state(
         ));
     }
 
-    let channel_uuid = parse_mm_or_uuid(&channel_id)
-        .ok_or_else(|| AppError::BadRequest("Invalid channel_id".to_string()))?;
+    let channel_uuid = resolve_channel_id(&state, &channel_id).await?;
 
     // Get call manager
     let call_manager = state.call_state_manager.as_ref();
@@ -890,14 +915,32 @@ async fn get_call_state(
             return Ok((axum::http::StatusCode::NOT_FOUND, Json(body)).into_response());
         }
     };
-    debug!(
-        channel_id = %channel_uuid,
-        call_id = %call.call_id,
-        owner_id = %call.owner_id,
-        "calls.get_call_state found active call"
-    );
 
     let call_participants = call_manager.get_participants(call.call_id).await;
+
+    // Fetch user info for all participants to provide names in the UI
+    let user_ids: Vec<Uuid> = call_participants.iter().map(|p| p.user_id).collect();
+    let users_info: HashMap<Uuid, (String, String)> = if !user_ids.is_empty() {
+        sqlx::query(
+            "SELECT id, username, COALESCE(display_name, '') as display_name FROM users WHERE id = ANY($1)"
+        )
+        .bind(&user_ids)
+        .fetch_all(&state.db)
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .map(|row| {
+            use sqlx::Row;
+            let id: Uuid = row.get(0);
+            let username: String = row.get(1);
+            let display_name: String = row.get(2);
+            (id, (username, display_name))
+        })
+        .collect()
+    } else {
+        HashMap::new()
+    };
+
     let participants: Vec<String> = call_participants
         .iter()
         .map(|p| encode_mm_id(p.user_id))
@@ -910,6 +953,11 @@ async fn get_call_state(
         .iter()
         .map(|participant| {
             let encoded_session_id = encode_mm_id(participant.session_id);
+            let (username, display_name) = users_info
+                .get(&participant.user_id)
+                .cloned()
+                .unwrap_or_else(|| (participant.user_id.to_string(), String::new()));
+
             (
                 encoded_session_id.clone(),
                 CallSessionResponse {
@@ -917,6 +965,8 @@ async fn get_call_state(
                     session_id_raw: participant.session_id.to_string(),
                     user_id: encode_mm_id(participant.user_id),
                     user_id_raw: participant.user_id.to_string(),
+                    username,
+                    display_name,
                     unmuted: !participant.muted,
                     raised_hand: if participant.hand_raised { 1 } else { 0 },
                 },
@@ -961,8 +1011,7 @@ async fn send_reaction(
     Path(channel_id): Path<String>,
     Json(payload): Json<ReactionRequest>,
 ) -> ApiResult<Json<StatusResponse>> {
-    let channel_uuid = parse_mm_or_uuid(&channel_id)
-        .ok_or_else(|| AppError::BadRequest("Invalid channel_id".to_string()))?;
+    let channel_uuid = resolve_channel_id(&state, &channel_id).await?;
 
     // Broadcast reaction event
     broadcast_call_event(
@@ -990,8 +1039,7 @@ async fn toggle_screen_share(
     auth: MmAuthUser,
     Path(channel_id): Path<String>,
 ) -> ApiResult<Json<StatusResponse>> {
-    let channel_uuid = parse_mm_or_uuid(&channel_id)
-        .ok_or_else(|| AppError::BadRequest("Invalid channel_id".to_string()))?;
+    let channel_uuid = resolve_channel_id(&state, &channel_id).await?;
 
     // Get call manager
     let call_manager = state.call_state_manager.as_ref();
@@ -1054,8 +1102,7 @@ async fn mute_user(
     auth: MmAuthUser,
     Path(channel_id): Path<String>,
 ) -> ApiResult<Json<StatusResponse>> {
-    let channel_uuid = parse_mm_or_uuid(&channel_id)
-        .ok_or_else(|| AppError::BadRequest("Invalid channel_id".to_string()))?;
+    let channel_uuid = resolve_channel_id(&state, &channel_id).await?;
 
     // Get call manager
     let call_manager = state.call_state_manager.as_ref();
@@ -1097,8 +1144,7 @@ async fn unmute_user(
     auth: MmAuthUser,
     Path(channel_id): Path<String>,
 ) -> ApiResult<Json<StatusResponse>> {
-    let channel_uuid = parse_mm_or_uuid(&channel_id)
-        .ok_or_else(|| AppError::BadRequest("Invalid channel_id".to_string()))?;
+    let channel_uuid = resolve_channel_id(&state, &channel_id).await?;
 
     // Get call manager
     let call_manager = state.call_state_manager.as_ref();
@@ -1140,8 +1186,7 @@ async fn raise_hand(
     auth: MmAuthUser,
     Path(channel_id): Path<String>,
 ) -> ApiResult<Json<StatusResponse>> {
-    let channel_uuid = parse_mm_or_uuid(&channel_id)
-        .ok_or_else(|| AppError::BadRequest("Invalid channel_id".to_string()))?;
+    let channel_uuid = resolve_channel_id(&state, &channel_id).await?;
 
     // Get call manager
     let call_manager = state.call_state_manager.as_ref();
@@ -1183,8 +1228,7 @@ async fn lower_hand(
     auth: MmAuthUser,
     Path(channel_id): Path<String>,
 ) -> ApiResult<Json<StatusResponse>> {
-    let channel_uuid = parse_mm_or_uuid(&channel_id)
-        .ok_or_else(|| AppError::BadRequest("Invalid channel_id".to_string()))?;
+    let channel_uuid = resolve_channel_id(&state, &channel_id).await?;
 
     // Get call manager
     let call_manager = state.call_state_manager.as_ref();
@@ -1227,8 +1271,7 @@ async fn host_mute(
     Path(channel_id): Path<String>,
     Json(payload): Json<HostControlRequest>,
 ) -> ApiResult<Json<StatusResponse>> {
-    let channel_uuid = parse_mm_or_uuid(&channel_id)
-        .ok_or_else(|| AppError::BadRequest("Invalid channel_id".to_string()))?;
+    let channel_uuid = resolve_channel_id(&state, &channel_id).await?;
     let target_session_id = parse_mm_or_uuid(&payload.session_id)
         .ok_or_else(|| AppError::BadRequest("Invalid session_id".to_string()))?;
 
@@ -1297,8 +1340,7 @@ async fn host_mute_others(
     auth: MmAuthUser,
     Path(channel_id): Path<String>,
 ) -> ApiResult<Json<StatusResponse>> {
-    let channel_uuid = parse_mm_or_uuid(&channel_id)
-        .ok_or_else(|| AppError::BadRequest("Invalid channel_id".to_string()))?;
+    let channel_uuid = resolve_channel_id(&state, &channel_id).await?;
 
     let call_manager = state.call_state_manager.as_ref();
     let call = call_manager
@@ -1362,8 +1404,7 @@ async fn host_remove_user(
     Path(channel_id): Path<String>,
     Json(payload): Json<HostControlRequest>,
 ) -> ApiResult<Json<StatusResponse>> {
-    let channel_uuid = parse_mm_or_uuid(&channel_id)
-        .ok_or_else(|| AppError::BadRequest("Invalid channel_id".to_string()))?;
+    let channel_uuid = resolve_channel_id(&state, &channel_id).await?;
     let target_session_id = parse_mm_or_uuid(&payload.session_id)
         .ok_or_else(|| AppError::BadRequest("Invalid session_id".to_string()))?;
 
@@ -1442,8 +1483,7 @@ async fn host_lower_hand(
     Path(channel_id): Path<String>,
     Json(payload): Json<HostControlRequest>,
 ) -> ApiResult<Json<StatusResponse>> {
-    let channel_uuid = parse_mm_or_uuid(&channel_id)
-        .ok_or_else(|| AppError::BadRequest("Invalid channel_id".to_string()))?;
+    let channel_uuid = resolve_channel_id(&state, &channel_id).await?;
     let target_session_id = parse_mm_or_uuid(&payload.session_id)
         .ok_or_else(|| AppError::BadRequest("Invalid session_id".to_string()))?;
 
@@ -1514,8 +1554,7 @@ async fn host_make_moderator(
     Path(channel_id): Path<String>,
     Json(payload): Json<HostMakeRequest>,
 ) -> ApiResult<Json<StatusResponse>> {
-    let channel_uuid = parse_mm_or_uuid(&channel_id)
-        .ok_or_else(|| AppError::BadRequest("Invalid channel_id".to_string()))?;
+    let channel_uuid = resolve_channel_id(&state, &channel_id).await?;
     let new_host_uuid = parse_mm_or_uuid(&payload.new_host_id)
         .ok_or_else(|| AppError::BadRequest("Invalid new_host_id".to_string()))?;
 
@@ -1566,8 +1605,7 @@ async fn ring_users(
     auth: MmAuthUser,
     Path(channel_id): Path<String>,
 ) -> ApiResult<Json<StatusResponse>> {
-    let channel_uuid = parse_mm_or_uuid(&channel_id)
-        .ok_or_else(|| AppError::BadRequest("Invalid channel_id".to_string()))?;
+    let channel_uuid = resolve_channel_id(&state, &channel_id).await?;
 
     // Check if call exists
     let call_manager = state.call_state_manager.as_ref();
@@ -1614,8 +1652,7 @@ async fn handle_offer(
     Path(channel_id): Path<String>,
     Json(payload): Json<OfferRequest>,
 ) -> ApiResult<Json<AnswerResponse>> {
-    let channel_uuid = parse_mm_or_uuid(&channel_id)
-        .ok_or_else(|| AppError::BadRequest("Invalid channel_id".to_string()))?;
+    let channel_uuid = resolve_channel_id(&state, &channel_id).await?;
     info!(
         user_id = %auth.user_id,
         channel_id = %channel_uuid,
@@ -1745,8 +1782,7 @@ async fn handle_ice_candidate(
     Path(channel_id): Path<String>,
     Json(payload): Json<IceCandidateRequest>,
 ) -> ApiResult<Json<StatusResponse>> {
-    let channel_uuid = parse_mm_or_uuid(&channel_id)
-        .ok_or_else(|| AppError::BadRequest("Invalid channel_id".to_string()))?;
+    let channel_uuid = resolve_channel_id(&state, &channel_id).await?;
 
     let candidate_len = payload.candidate.len();
     debug!(

@@ -204,9 +204,9 @@ const formatDuration = (startAt: number) => {
                         <div class="flex-1 min-w-0">
                             <div class="flex items-center space-x-1">
                                 <p class="text-white text-sm truncate">
-                                    {{ participant.user_id === authStore.user?.id ? 'You' : participant.user_id.slice(0, 8) }}
+                                    {{ (participant.user_id_raw || participant.user_id) === authStore.user?.id ? 'You' : (participant.display_name || participant.username || participant.user_id.slice(0, 8)) }}
                                 </p>
-                                <Shield v-if="participant.user_id === activeCall.call.host_id" 
+                                <Shield v-if="(participant.user_id_raw || participant.user_id) === activeCall.call.host_id_raw || participant.user_id === activeCall.call.host_id" 
                                         class="w-3 h-3 text-indigo-400" title="Host" />
                             </div>
                         </div>
