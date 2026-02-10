@@ -2137,7 +2137,23 @@ async fn handle_ws_sdp(
 ) -> Result<(), String> {
     let session_id = Uuid::parse_str(connection_id)
         .map_err(|_| format!("Invalid connection ID: {connection_id}"))?;
-    let sdp = parse_ws_sdp_payload(data).map_err(|e| format!("Invalid SDP payload: {e}"))?;
+    
+    info!(
+        user_id = %user_id,
+        connection_id = connection_id,
+        "calls.ws sdp received"
+    );
+    
+    let sdp = parse_ws_sdp_payload(data).map_err(|e| {
+        error!(
+            user_id = %user_id,
+            connection_id = connection_id,
+            error = %e,
+            "Failed to parse SDP payload"
+        );
+        format!("Invalid SDP payload: {e}")
+    })?;
+    
     let call = find_call_for_session(state, user_id, session_id)
         .await
         .ok_or_else(|| "No active call found for connection".to_string())?;
@@ -2149,6 +2165,11 @@ async fn handle_ws_sdp(
         .map_err(|e| format!("Failed to get or create SFU: {e}"))?;
 
     if !sfu.has_participant(session_id).await {
+        info!(
+            user_id = %user_id,
+            session_id = %session_id,
+            "Adding participant to SFU for SDP handling"
+        );
         let _ = sfu
             .add_participant(user_id, session_id)
             .await
@@ -2156,10 +2177,24 @@ async fn handle_ws_sdp(
     }
 
     let offer = RTCSessionDescription::offer(sdp).map_err(|e| format!("Invalid offer SDP: {e}"))?;
+    
+    info!(
+        user_id = %user_id,
+        session_id = %session_id,
+        "Processing SDP offer"
+    );
+    
     let answer = sfu
         .handle_offer(session_id, offer)
         .await
         .map_err(|e| format!("Failed to handle offer: {e}"))?;
+
+    info!(
+        user_id = %user_id,
+        session_id = %session_id,
+        sdp_length = answer.sdp.len(),
+        "Sending SDP answer"
+    );
 
     send_ws_plugin_signal(
         state,
@@ -2183,8 +2218,24 @@ async fn handle_ws_ice(
 ) -> Result<(), String> {
     let session_id = Uuid::parse_str(connection_id)
         .map_err(|_| format!("Invalid connection ID: {connection_id}"))?;
+    
+    debug!(
+        user_id = %user_id,
+        connection_id = connection_id,
+        "calls.ws ice received"
+    );
+    
     let (candidate, sdp_mid, sdp_mline_index) =
-        parse_ws_ice_payload(data).map_err(|e| format!("Invalid ICE payload: {e}"))?;
+        parse_ws_ice_payload(data).map_err(|e| {
+            error!(
+                user_id = %user_id,
+                connection_id = connection_id,
+                error = %e,
+                "Failed to parse ICE payload"
+            );
+            format!("Invalid ICE payload: {e}")
+        })?;
+    
     let call = find_call_for_session(state, user_id, session_id)
         .await
         .ok_or_else(|| "No active call found for connection".to_string())?;
@@ -2196,11 +2247,25 @@ async fn handle_ws_ice(
         .map_err(|e| format!("Failed to get or create SFU: {e}"))?;
 
     if !sfu.has_participant(session_id).await {
+        info!(
+            user_id = %user_id,
+            session_id = %session_id,
+            "Adding participant to SFU for ICE handling"
+        );
         let _ = sfu
             .add_participant(user_id, session_id)
             .await
             .map_err(|e| format!("Failed to add participant to SFU: {e}"))?;
     }
+
+    info!(
+        user_id = %user_id,
+        session_id = %session_id,
+        candidate_len = candidate.len(),
+        sdp_mid = ?sdp_mid,
+        sdp_mline_index = ?sdp_mline_index,
+        "Processing ICE candidate"
+    );
 
     sfu.handle_ice_candidate(session_id, candidate, sdp_mid, sdp_mline_index)
         .await
@@ -2384,6 +2449,7 @@ fn parse_ws_sdp_payload(data: Option<&Value>) -> Result<String, String> {
         .get("data")
         .ok_or_else(|| "missing payload.data".to_string())?;
 
+    // Try parsing as string first (uncompressed JSON)
     if let Some(text) = data_field.as_str() {
         let parsed = serde_json::from_str::<Value>(text).map_err(|e| e.to_string())?;
         let sdp = parsed
@@ -2393,7 +2459,10 @@ fn parse_ws_sdp_payload(data: Option<&Value>) -> Result<String, String> {
         return Ok(sdp.to_string());
     }
 
+    // Parse binary data (compressed)
     let bytes = parse_ws_binary_data(data_field)?;
+    
+    // Try as uncompressed UTF-8 first
     if let Ok(text) = String::from_utf8(bytes.clone()) {
         if let Ok(parsed) = serde_json::from_str::<Value>(&text) {
             if let Some(sdp) = parsed.get("sdp").and_then(|v| v.as_str()) {
@@ -2402,18 +2471,20 @@ fn parse_ws_sdp_payload(data: Option<&Value>) -> Result<String, String> {
         }
     }
 
+    // Try zlib decompression (mobile clients send compressed SDP)
     let mut decoder = ZlibDecoder::new(bytes.as_slice());
     let mut decoded = String::new();
-    decoder
-        .read_to_string(&mut decoded)
-        .map_err(|e| format!("zlib decode failed: {e}"))?;
-
-    let parsed = serde_json::from_str::<Value>(&decoded).map_err(|e| e.to_string())?;
-    let sdp = parsed
-        .get("sdp")
-        .and_then(|v| v.as_str())
-        .ok_or_else(|| "missing sdp".to_string())?;
-    Ok(sdp.to_string())
+    match decoder.read_to_string(&mut decoded) {
+        Ok(_) => {
+            let parsed = serde_json::from_str::<Value>(&decoded).map_err(|e| e.to_string())?;
+            let sdp = parsed
+                .get("sdp")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| "missing sdp in decompressed data".to_string())?;
+            Ok(sdp.to_string())
+        }
+        Err(e) => Err(format!("zlib decode failed: {e}. Data may not be compressed."))
+    }
 }
 
 fn parse_ws_ice_payload(

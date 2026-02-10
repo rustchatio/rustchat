@@ -8,7 +8,7 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};
-use tracing::info;
+use tracing::{info, trace};
 use uuid::Uuid;
 use webrtc::api::interceptor_registry::register_default_interceptors;
 use webrtc::api::media_engine::MediaEngine;
@@ -322,6 +322,9 @@ impl SFU {
     }
 
     /// Handle ICE candidate from client
+    /// In an SFU architecture, we need to:
+    /// 1. Store the candidate for the sender's peer connection
+    /// 2. Forward the candidate to ALL other participants so they can add it to their peer connections
     pub async fn handle_ice_candidate(
         &self,
         session_id: Uuid,
@@ -329,33 +332,64 @@ impl SFU {
         sdp_mid: Option<String>,
         sdp_mline_index: Option<u16>,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-        let participants = self.participants.read().await;
+        let candidate_init = Self::parse_client_ice_candidate(candidate.clone(), sdp_mid.clone(), sdp_mline_index)?;
 
-        let participant = participants
-            .get(&session_id)
-            .ok_or("Participant not found")?;
-
-        let candidate_init = Self::parse_client_ice_candidate(candidate, sdp_mid, sdp_mline_index)?;
-
-        if participant
-            .peer_connection
-            .remote_description()
-            .await
-            .is_none()
+        // First, handle the candidate for the sender's own peer connection
         {
-            self.pending_ice_candidates
-                .write()
+            let participants = self.participants.read().await;
+            let participant = participants
+                .get(&session_id)
+                .ok_or("Participant not found")?;
+
+            if participant
+                .peer_connection
+                .remote_description()
                 .await
-                .entry(session_id)
-                .or_default()
-                .push(candidate_init);
-            return Ok(());
+                .is_none()
+            {
+                // Remote description not set yet, queue the candidate
+                drop(participants);
+                self.pending_ice_candidates
+                    .write()
+                    .await
+                    .entry(session_id)
+                    .or_default()
+                    .push(candidate_init);
+            } else {
+                // Add candidate to sender's peer connection
+                participant
+                    .peer_connection
+                    .add_ice_candidate(candidate_init)
+                    .await?;
+            }
         }
 
-        participant
-            .peer_connection
-            .add_ice_candidate(candidate_init)
-            .await?;
+        // Forward the ICE candidate to all OTHER participants
+        // In an SFU, each participant needs to know about each other's candidates
+        // to establish peer connections with the SFU
+        let participants = self.participants.read().await;
+        for (other_session_id, other_participant) in participants.iter() {
+            if *other_session_id == session_id {
+                continue; // Skip the sender
+            }
+
+            // Forward the candidate to this participant via signaling
+            let forwarded_candidate = SignalingMessage::IceCandidate {
+                candidate: candidate.clone(),
+                sdp_mid: sdp_mid.clone(),
+                sdp_mline_index,
+                username_fragment: None,
+            };
+
+            let _ = other_participant.signaling_tx.send(forwarded_candidate);
+        }
+
+        info!(
+            session_id = %session_id,
+            candidate_len = candidate.len(),
+            "ICE candidate processed and forwarded to {} other participants",
+            participants.len().saturating_sub(1)
+        );
 
         Ok(())
     }
@@ -415,6 +449,14 @@ impl SFU {
                 let voice_event_tx = voice_event_tx.clone();
 
                 tokio::spawn(async move {
+                    info!(
+                        session_id = %session_id,
+                        track_id = %track.id(),
+                        track_kind = ?track.kind(),
+                        stream_id = %track.stream_id(),
+                        "New track received from participant"
+                    );
+
                     // Register the track
                     track_manager
                         .register_track(session_id, track.clone())
@@ -450,14 +492,37 @@ impl SFU {
     ) {
         // Read RTP packets from the track
         let mut rtp_buffer = vec![0u8; 1500];
+        let mut packet_count = 0u64;
+        let mut last_log_at = tokio::time::Instant::now();
 
         let mut voice_on = false;
         let mut last_packet_at = tokio::time::Instant::now();
+
+        info!(
+            call_id = %call_id,
+            sender_session_id = %sender_session_id,
+            track_id = %track.id(),
+            "Starting track forwarding loop"
+        );
 
         loop {
             // Read RTP packet
             match track.read(&mut rtp_buffer).await {
                 Ok((packet, _)) => {
+                    packet_count += 1;
+
+                    // Log packet stats periodically
+                    if last_log_at.elapsed() > tokio::time::Duration::from_secs(10) {
+                        info!(
+                            call_id = %call_id,
+                            sender_session_id = %sender_session_id,
+                            track_id = %track.id(),
+                            packet_count = packet_count,
+                            "Track forwarding stats"
+                        );
+                        last_log_at = tokio::time::Instant::now();
+                    }
+
                     // Update voice activity if it's an audio track
                     if track.kind() == webrtc::rtp_transceiver::rtp_codec::RTPCodecType::Audio {
                         last_packet_at = tokio::time::Instant::now();
@@ -477,35 +542,60 @@ impl SFU {
 
                     // Forward to other participants
                     let participants_guard = participants.read().await;
+                    let other_participant_count = participants_guard.len().saturating_sub(1);
 
-                    for (session_id, participant) in participants_guard.iter() {
-                        if *session_id == sender_session_id {
-                            continue; // Don't send back to sender
-                        }
-
-                        // Forward based on track kind
-                        match track.kind() {
-                            webrtc::rtp_transceiver::rtp_codec::RTPCodecType::Audio => {
-                                if let Some(audio_track) = &participant.audio_track {
-                                    // Write RTP packet to track
-                                    // This is simplified - in production you'd use a proper RTP writer
-                                    let _ = audio_track.write_rtp(&packet).await;
-                                }
+                    if other_participant_count > 0 {
+                        for (session_id, participant) in participants_guard.iter() {
+                            if *session_id == sender_session_id {
+                                continue; // Don't send back to sender
                             }
-                            webrtc::rtp_transceiver::rtp_codec::RTPCodecType::Video => {
-                                // Check if this is a screen share track (simplified detection)
-                                let is_screen = track.stream_id().contains("screen");
-                                if is_screen {
-                                    if let Some(screen_track) = &participant.screen_track {
-                                        let _ = screen_track.write_rtp(&packet).await;
-                                    }
-                                } else {
-                                    if let Some(video_track) = &participant.video_track {
-                                        let _ = video_track.write_rtp(&packet).await;
+
+                            // Forward based on track kind
+                            match track.kind() {
+                                webrtc::rtp_transceiver::rtp_codec::RTPCodecType::Audio => {
+                                    if let Some(audio_track) = &participant.audio_track {
+                                        if let Err(e) = audio_track.write_rtp(&packet).await {
+                                            trace!(
+                                                session_id = %session_id,
+                                                error = %e,
+                                                "Failed to write audio RTP packet"
+                                            );
+                                        }
                                     }
                                 }
+                                webrtc::rtp_transceiver::rtp_codec::RTPCodecType::Video => {
+                                    // Improved screen share detection: check stream_id or track label
+                                    let stream_id = track.stream_id().to_lowercase();
+                                    let track_label = track.id().to_lowercase();
+                                    let is_screen = stream_id.contains("screen") 
+                                        || stream_id.contains("display")
+                                        || track_label.contains("screen")
+                                        || track_label.contains("display");
+                                    
+                                    if is_screen {
+                                        if let Some(screen_track) = &participant.screen_track {
+                                            if let Err(e) = screen_track.write_rtp(&packet).await {
+                                                trace!(
+                                                    session_id = %session_id,
+                                                    error = %e,
+                                                    "Failed to write screen share RTP packet"
+                                                );
+                                            }
+                                        }
+                                    } else {
+                                        if let Some(video_track) = &participant.video_track {
+                                            if let Err(e) = video_track.write_rtp(&packet).await {
+                                                trace!(
+                                                    session_id = %session_id,
+                                                    error = %e,
+                                                    "Failed to write video RTP packet"
+                                                );
+                                            }
+                                        }
+                                    }
+                                }
+                                _ => {}
                             }
-                            _ => {}
                         }
                     }
                 }
@@ -532,6 +622,14 @@ impl SFU {
         track_manager
             .unregister_track(sender_session_id, &track.id())
             .await;
+
+        info!(
+            call_id = %call_id,
+            sender_session_id = %sender_session_id,
+            track_id = %track.id(),
+            total_packets = packet_count,
+            "Track forwarding ended"
+        );
     }
 
     /// Set up ICE handlers for a peer connection
