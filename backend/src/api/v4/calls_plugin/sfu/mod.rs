@@ -361,19 +361,21 @@ impl SFU {
         Ok(())
     }
 
-    /// Build ICE servers from configuration
+    /// Build ICE servers for the SFU's server-side PeerConnection.
+    ///
+    /// **Important**: We intentionally do NOT add external STUN servers here.
+    /// STUN is for *clients* to discover their public IP; the SFU runs on known
+    /// infrastructure and only needs host candidates.  Adding STUN servers
+    /// that are unreachable from inside a Docker container (IPv6 not available,
+    /// DNS failures) causes the ICE agent to fail, which tears down the
+    /// PeerConnection's internal channels and makes renegotiation impossible.
+    ///
+    /// If a TURN server is configured, we include it so the SFU can relay
+    /// media through it when direct connectivity is not possible.
     fn build_ice_servers(&self) -> Vec<RTCIceServer> {
         let mut servers = vec![];
 
-        // Add STUN servers
-        for stun_url in &self.config.stun_servers {
-            servers.push(RTCIceServer {
-                urls: vec![stun_url.clone()],
-                ..Default::default()
-            });
-        }
-
-        // Add TURN server if enabled
+        // Add TURN server if enabled (needed for relay through NAT/firewall)
         if self.config.turn_server_enabled
             && !self.config.turn_server_url.trim().is_empty()
             && !self.config.turn_server_username.trim().is_empty()
