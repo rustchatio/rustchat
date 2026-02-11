@@ -521,11 +521,18 @@ impl SFU {
             .map(|p| p.is_screen_sharing)
             .unwrap_or(false);
         
-        // Also check stream_id/track_label as fallback for older clients
-        let stream_id_contains_screen = track.stream_id().to_lowercase().contains("screen")
-            || track.stream_id().to_lowercase().contains("display");
-        let track_label_contains_screen = track.id().to_lowercase().contains("screen")
-            || track.id().to_lowercase().contains("display");
+        // Also check stream_id/track_label as fallback for older clients.
+        // This is currently debug-oriented because forwarding for video now targets both tracks.
+        let stream_id_raw = track.stream_id();
+        let track_id_raw = track.id();
+        let stream_id_lower = stream_id_raw.to_lowercase();
+        let track_id_lower = track_id_raw.to_lowercase();
+        let stream_id_contains_screen = stream_id_lower.contains("screen")
+            || stream_id_lower.contains("display")
+            || stream_id_lower.contains("share");
+        let track_label_contains_screen = track_id_lower.contains("screen")
+            || track_id_lower.contains("display")
+            || track_id_lower.contains("share");
         
         // Determine if this is a screen share track
         // Priority: API state > stream_id detection > track_label detection
@@ -538,9 +545,9 @@ impl SFU {
         info!(
             call_id = %call_id,
             sender_session_id = %sender_session_id,
-            track_id = %track.id(),
+            track_id = %track_id_raw,
             track_kind = ?track.kind(),
-            stream_id = %track.stream_id(),
+            stream_id = %stream_id_raw,
             sender_is_screen_sharing = sender_is_screen_sharing,
             stream_id_contains_screen = stream_id_contains_screen,
             track_label_contains_screen = track_label_contains_screen,
@@ -607,54 +614,49 @@ impl SFU {
                                     }
                                 }
                                 webrtc::rtp_transceiver::rtp_codec::RTPCodecType::Video => {
-                                    // Improved screen share detection: check stream_id or track label
-                                    let stream_id = track.stream_id().to_lowercase();
-                                    let track_label = track.id().to_lowercase();
-                                    let is_screen = stream_id.contains("screen") 
-                                        || stream_id.contains("display")
-                                        || track_label.contains("screen")
-                                        || track_label.contains("display");
-                                    
-                                    // Log screen detection for debugging
-                                    if is_screen && packet_count % 100 == 1 {
+                                    // Race-safe fallback: duplicate all video RTP packets to both destinations.
+                                    // This avoids misrouting if /screen-share state arrives after the track.
+                                    if packet_count % 100 == 1 {
                                         info!(
                                             sender_session_id = %sender_session_id,
                                             receiver_session_id = %session_id,
-                                            stream_id = %stream_id,
-                                            track_label = %track_label,
+                                            stream_id = %stream_id_raw,
+                                            track_id = %track_id_raw,
+                                            sender_is_screen_sharing = sender_is_screen_sharing,
+                                            has_video_track = participant.video_track.is_some(),
                                             has_screen_track = participant.screen_track.is_some(),
-                                            "Screen track detected and forwarding"
+                                            "Forwarding video RTP to all available receiver video/screen tracks"
                                         );
                                     }
-                                    
-                                    if is_screen {
-                                        if let Some(screen_track) = &participant.screen_track {
-                                            if let Err(e) = screen_track.write_rtp(&packet).await {
-                                                trace!(
-                                                    session_id = %session_id,
-                                                    error = %e,
-                                                    "Failed to write screen share RTP packet"
-                                                );
-                                            }
-                                        } else {
-                                            // Screen detected but no screen track available for this participant
-                                            if packet_count % 100 == 1 {
-                                                warn!(
-                                                    receiver_session_id = %session_id,
-                                                    "Screen track detected but participant has no screen_track"
-                                                );
-                                            }
+
+                                    if let Some(video_track) = &participant.video_track {
+                                        if let Err(e) = video_track.write_rtp(&packet).await {
+                                            trace!(
+                                                session_id = %session_id,
+                                                error = %e,
+                                                "Failed to write video RTP packet"
+                                            );
                                         }
-                                    } else {
-                                        if let Some(video_track) = &participant.video_track {
-                                            if let Err(e) = video_track.write_rtp(&packet).await {
-                                                trace!(
-                                                    session_id = %session_id,
-                                                    error = %e,
-                                                    "Failed to write video RTP packet"
-                                                );
-                                            }
+                                    }
+
+                                    if let Some(screen_track) = &participant.screen_track {
+                                        if let Err(e) = screen_track.write_rtp(&packet).await {
+                                            trace!(
+                                                session_id = %session_id,
+                                                error = %e,
+                                                "Failed to write screen RTP packet"
+                                            );
                                         }
+                                    }
+
+                                    if participant.video_track.is_none()
+                                        && participant.screen_track.is_none()
+                                        && packet_count % 100 == 1
+                                    {
+                                        warn!(
+                                            receiver_session_id = %session_id,
+                                            "No receiver video/screen tracks available for video RTP forwarding"
+                                        );
                                     }
                                 }
                                 _ => {}
