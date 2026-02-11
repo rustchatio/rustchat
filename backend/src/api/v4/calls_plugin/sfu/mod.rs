@@ -6,7 +6,7 @@
 
 use serde::Deserialize;
 use std::collections::HashMap;
-use std::net::IpAddr;
+use std::net::{IpAddr, ToSocketAddrs};
 use std::sync::Arc;
 use tokio::sync::{mpsc, RwLock};
 use tracing::{info, trace, warn};
@@ -75,6 +75,25 @@ pub struct SFU {
 }
 
 impl SFU {
+    fn resolve_ice_host_override(ice_host_override: &str) -> Option<IpAddr> {
+        if let Ok(ip) = ice_host_override.parse::<IpAddr>() {
+            return Some(ip);
+        }
+
+        // Allow hostnames by resolving once when SFU is created.
+        let addrs: Vec<IpAddr> = (ice_host_override, 0)
+            .to_socket_addrs()
+            .ok()?
+            .map(|addr| addr.ip())
+            .collect();
+
+        addrs
+            .iter()
+            .find(|ip| ip.is_ipv4())
+            .copied()
+            .or_else(|| addrs.first().copied())
+    }
+
     /// Create a new SFU instance
     pub async fn new(
         call_id: Uuid,
@@ -137,22 +156,21 @@ impl SFU {
                 .map(str::trim)
                 .filter(|v| !v.is_empty())
             {
-                if ice_host_override.parse::<IpAddr>().is_ok() {
+                if let Some(resolved_ip) = Self::resolve_ice_host_override(ice_host_override) {
                     setting_engine.set_ice_multicast_dns_mode(MulticastDnsMode::Disabled);
-                    setting_engine.set_nat_1to1_ips(
-                        vec![ice_host_override.to_string()],
-                        RTCIceCandidateType::Host,
-                    );
+                    setting_engine
+                        .set_nat_1to1_ips(vec![resolved_ip.to_string()], RTCIceCandidateType::Host);
                     info!(
                         call_id = %call_id,
                         ice_host_override = %ice_host_override,
+                        resolved_ip = %resolved_ip,
                         "SFU configured with ICE host override"
                     );
                 } else {
                     warn!(
                         call_id = %call_id,
                         ice_host_override = %ice_host_override,
-                        "Ignoring invalid RUSTCHAT_CALLS_ICE_HOST_OVERRIDE: expected raw IP address"
+                        "Ignoring invalid RUSTCHAT_CALLS_ICE_HOST_OVERRIDE: expected IP or resolvable hostname"
                     );
                 }
             }
