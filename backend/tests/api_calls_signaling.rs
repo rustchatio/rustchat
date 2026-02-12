@@ -128,6 +128,55 @@ async fn calls_lifecycle_events_are_delivered_over_websocket() {
 }
 
 #[tokio::test]
+async fn calls_start_in_direct_channel_auto_rings_other_participants() {
+    let app = spawn_app().await;
+
+    let org_id = insert_org(&app, "Calls Direct Ringing Org").await;
+    let (token_a, user_a) =
+        register_and_login(&app, org_id, "direct_ring_a", "direct_ring_a@example.com").await;
+    let (token_b, user_b) =
+        register_and_login(&app, org_id, "direct_ring_b", "direct_ring_b@example.com").await;
+    let channel_id = create_team_and_channel_with_members_of_type(
+        &app,
+        org_id,
+        &[user_a, user_b],
+        "direct",
+    )
+    .await;
+
+    let mut ws_a = connect_ws(&app.address, &token_a).await;
+    let mut ws_b = connect_ws(&app.address, &token_b).await;
+    wait_for_event(&mut ws_a, "hello", Duration::from_secs(5)).await;
+    wait_for_event(&mut ws_b, "hello", Duration::from_secs(5)).await;
+    subscribe_channel(&mut ws_a, channel_id).await;
+    subscribe_channel(&mut ws_b, channel_id).await;
+    let _ = wait_for_event(&mut ws_a, "channel_subscribed", Duration::from_secs(5)).await;
+    let _ = wait_for_event(&mut ws_b, "channel_subscribed", Duration::from_secs(5)).await;
+
+    let start = app
+        .api_client
+        .post(format!(
+            "{}/api/v4/plugins/com.mattermost.calls/calls/{}/start",
+            app.address, channel_id
+        ))
+        .header("Authorization", format!("Bearer {token_a}"))
+        .send()
+        .await
+        .expect("start call request failed");
+    assert_eq!(start.status(), StatusCode::OK);
+    let start_body: serde_json::Value = start.json().await.expect("start call JSON");
+
+    let ringing_event = wait_for_event(
+        &mut ws_b,
+        "custom_com.mattermost.calls_ringing",
+        Duration::from_secs(5),
+    )
+    .await;
+    assert_eq!(ringing_event["sender_id"], encode_mm_id(user_a));
+    assert_eq!(ringing_event["call_id"], start_body["id"]);
+}
+
+#[tokio::test]
 async fn offer_generates_server_signaling_event_over_websocket() {
     let app = spawn_app().await;
 
@@ -249,6 +298,16 @@ async fn calls_mobile_channel_state_and_end_route_are_compatible() {
     let config_body: serde_json::Value = config.json().await.expect("config JSON");
     assert_eq!(config_body["EnableRinging"], true);
     assert_eq!(config_body["HostControlsAllowed"], true);
+    assert_eq!(config_body["MaxCallParticipants"], 0);
+    assert_eq!(config_body["AllowScreenSharing"], true);
+    assert_eq!(config_body["EnableSimulcast"], false);
+    assert_eq!(config_body["EnableAV1"], false);
+    assert_eq!(config_body["MaxRecordingDuration"], 60);
+    assert_eq!(config_body["TranscribeAPI"], "whisper.cpp");
+    assert_eq!(config_body["sku_short_name"], "starter");
+    assert_eq!(config_body["EnableDCSignaling"], false);
+    assert_eq!(config_body["EnableTranscriptions"], false);
+    assert_eq!(config_body["EnableLiveCaptions"], false);
 
     let recording_start = app
         .api_client
@@ -379,6 +438,18 @@ async fn calls_mobile_event_names_and_payloads_are_compatible() {
         Duration::from_secs(5),
     )
     .await;
+    let call_state_event = wait_for_event(
+        &mut ws_a,
+        "custom_com.mattermost.calls_call_state",
+        Duration::from_secs(5),
+    )
+    .await;
+    let call_state_payload = call_state_event["call"]
+        .as_str()
+        .expect("call state payload should include call JSON");
+    let call_state_json: serde_json::Value =
+        serde_json::from_str(call_state_payload).expect("call state payload should parse as JSON");
+    assert_eq!(call_state_json["channel_id"], encode_mm_id(channel_id));
 
     let channel_state = app
         .api_client
@@ -515,6 +586,12 @@ async fn calls_mobile_event_names_and_payloads_are_compatible() {
         host_changed_event["hostID"].as_str(),
         Some(expected_host.as_str())
     );
+    let _ = wait_for_event(
+        &mut ws_a,
+        "custom_com.mattermost.calls_call_state",
+        Duration::from_secs(5),
+    )
+    .await;
 
     let dismiss = app
         .api_client
@@ -539,6 +616,41 @@ async fn calls_mobile_event_names_and_payloads_are_compatible() {
         Some(expected_user.as_str())
     );
     assert!(dismissed_event["callID"].as_str().is_some());
+
+    let dismissed_state_event = wait_for_event(
+        &mut ws_a,
+        "custom_com.mattermost.calls_call_state",
+        Duration::from_secs(5),
+    )
+    .await;
+    let dismissed_payload = dismissed_state_event["call"]
+        .as_str()
+        .expect("dismissed call state event should include call JSON");
+    let dismissed_json: serde_json::Value =
+        serde_json::from_str(dismissed_payload).expect("dismissed call JSON should parse");
+    let dismissed_user_id = encode_mm_id(user_b);
+    assert_eq!(
+        dismissed_json["dismissed_notification"][dismissed_user_id.as_str()],
+        true
+    );
+
+    let call_state_resp = app
+        .api_client
+        .get(format!(
+            "{}/api/v4/plugins/com.mattermost.calls/calls/{}",
+            app.address, channel_id
+        ))
+        .header("Authorization", format!("Bearer {token_a}"))
+        .send()
+        .await
+        .expect("get call state request failed");
+    assert_eq!(call_state_resp.status(), StatusCode::OK);
+    let call_state_body: serde_json::Value = call_state_resp.json().await.expect("call state JSON");
+    let dismissed_user_id = encode_mm_id(user_b);
+    assert_eq!(
+        call_state_body["dismissed_notification"][dismissed_user_id.as_str()],
+        true
+    );
 }
 
 async fn insert_org(app: &common::TestApp, name: &str) -> Uuid {
@@ -619,6 +731,15 @@ async fn create_team_and_channel_with_members(
     org_id: Uuid,
     users: &[Uuid],
 ) -> Uuid {
+    create_team_and_channel_with_members_of_type(app, org_id, users, "public").await
+}
+
+async fn create_team_and_channel_with_members_of_type(
+    app: &common::TestApp,
+    org_id: Uuid,
+    users: &[Uuid],
+    channel_type: &str,
+) -> Uuid {
     let suffix = Uuid::new_v4().to_string().replace('-', "");
     let team_id = Uuid::new_v4();
     let channel_id = Uuid::new_v4();
@@ -634,10 +755,11 @@ async fn create_team_and_channel_with_members(
     .await
     .expect("failed to create team");
 
-    sqlx::query("INSERT INTO channels (id, team_id, name, type) VALUES ($1, $2, $3, 'public')")
+    sqlx::query("INSERT INTO channels (id, team_id, name, type) VALUES ($1, $2, $3, $4::channel_type)")
         .bind(channel_id)
         .bind(team_id)
         .bind(format!("channel_{suffix}"))
+        .bind(channel_type)
         .execute(&app.db_pool)
         .await
         .expect("failed to create channel");

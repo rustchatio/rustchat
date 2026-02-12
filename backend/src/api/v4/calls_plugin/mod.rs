@@ -14,7 +14,7 @@ use dashmap::DashMap;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::io::Read;
 use tokio::sync::mpsc;
 use tokio::time::{sleep, Duration};
@@ -218,6 +218,26 @@ struct ConfigResponse {
     host_controls_allowed: bool,
     #[serde(rename = "EnableRecordings")]
     enable_recordings: bool,
+    #[serde(rename = "MaxCallParticipants")]
+    max_call_participants: i32,
+    #[serde(rename = "AllowScreenSharing")]
+    allow_screen_sharing: bool,
+    #[serde(rename = "EnableSimulcast")]
+    enable_simulcast: bool,
+    #[serde(rename = "EnableAV1")]
+    enable_av1: bool,
+    #[serde(rename = "MaxRecordingDuration")]
+    max_recording_duration: i32,
+    #[serde(rename = "TranscribeAPI")]
+    transcribe_api: String,
+    #[serde(rename = "sku_short_name")]
+    sku_short_name: String,
+    #[serde(rename = "EnableDCSignaling")]
+    enable_dc_signaling: bool,
+    #[serde(rename = "EnableTranscriptions")]
+    enable_transcriptions: bool,
+    #[serde(rename = "EnableLiveCaptions")]
+    enable_live_captions: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -472,6 +492,16 @@ async fn get_config(
         enable_ringing: true,
         host_controls_allowed: true,
         enable_recordings: false,
+        max_call_participants: 0,
+        allow_screen_sharing: true,
+        enable_simulcast: false,
+        enable_av1: false,
+        max_recording_duration: 60,
+        transcribe_api: "whisper.cpp".to_string(),
+        sku_short_name: "starter".to_string(),
+        enable_dc_signaling: false,
+        enable_transcriptions: false,
+        enable_live_captions: false,
     }))
 }
 
@@ -686,6 +716,11 @@ async fn build_call_state_response(
             .iter()
             .find(|participant| participant.user_id == screen_sharer)
     });
+    let dismissed_notification: HashMap<String, bool> = call
+        .dismissed_users
+        .iter()
+        .map(|user_id| (encode_mm_id(*user_id), true))
+        .collect();
 
     Ok(CallStateResponse {
         id: encode_mm_id(call.call_id),
@@ -708,7 +743,7 @@ async fn build_call_state_response(
             .map(|participant| participant.session_id.to_string()),
         thread_id: call.thread_id.map(encode_mm_id),
         recording: None,
-        dismissed_notification: Some(HashMap::new()),
+        dismissed_notification: Some(dismissed_notification),
     })
 }
 
@@ -832,6 +867,7 @@ async fn start_call(
         participants: HashMap::new(),
         screen_sharer: None,
         thread_id: None,
+        dismissed_users: HashSet::new(),
     };
 
     call_manager.add_call(call.clone()).await;
@@ -923,6 +959,12 @@ async fn start_call(
         None,
     )
     .await;
+
+    if is_dm_or_gm_channel(&state, channel_uuid).await? {
+        broadcast_ringing_event(&state, channel_uuid, call_id, auth.user_id, Some(auth.user_id)).await;
+    }
+
+    broadcast_call_state_event(&state, channel_uuid, None).await;
 
     // Mattermost-compatible behavior: if nobody else joins, drop the call after a ring timeout.
     schedule_unanswered_call_timeout(&state, call_id, channel_uuid);
@@ -1061,6 +1103,8 @@ async fn join_call(
         None,
     )
     .await;
+    broadcast_call_state_event(&state, channel_uuid, None).await;
+
     info!(
         call_id = %call.call_id,
         channel_id = %channel_uuid,
@@ -1140,6 +1184,7 @@ async fn leave_call(
         None,
     )
     .await;
+    broadcast_call_state_event(&state, channel_uuid, None).await;
 
     let participants = call_manager.get_participants(call.call_id).await;
     if participants.len() <= 1 {
@@ -1987,6 +2032,7 @@ async fn host_make_moderator(
         None,
     )
     .await;
+    broadcast_call_state_event(&state, channel_uuid, None).await;
 
     Ok(Json(StatusResponse {
         status: "OK".to_string(),
@@ -2009,18 +2055,7 @@ async fn ring_users(
         .await
         .ok_or_else(|| AppError::NotFound("No active call to ring".to_string()))?;
 
-    // Broadcast ringing event
-    broadcast_call_event(
-        &state,
-        "custom_com.mattermost.calls_ringing",
-        &channel_uuid,
-        serde_json::json!({
-            "call_id": encode_mm_id(call.call_id),
-            "sender_id": encode_mm_id(auth.user_id),
-        }),
-        None,
-    )
-    .await;
+    broadcast_ringing_event(&state, channel_uuid, call.call_id, auth.user_id, None).await;
 
     Ok(Json(StatusResponse {
         status: "OK".to_string(),
@@ -2039,10 +2074,15 @@ async fn dismiss_notification(
         .call_state_manager
         .get_call_by_channel(&channel_uuid)
         .await;
-    let call_id = call
-        .as_ref()
-        .map(|c| encode_mm_id(c.call_id))
-        .unwrap_or_default();
+    let call_id = if let Some(call) = call {
+        state
+            .call_state_manager
+            .dismiss_user_notification(call.call_id, auth.user_id)
+            .await;
+        encode_mm_id(call.call_id)
+    } else {
+        String::new()
+    };
 
     broadcast_call_event(
         &state,
@@ -2057,6 +2097,7 @@ async fn dismiss_notification(
         None,
     )
     .await;
+    broadcast_call_state_event(&state, channel_uuid, None).await;
 
     Ok(Json(StatusResponse {
         status: "OK".to_string(),
@@ -2494,6 +2535,7 @@ async fn handle_ws_join_call(
                 .get("threadID")
                 .and_then(|v| v.as_str())
                 .and_then(parse_mm_or_uuid),
+            dismissed_users: HashSet::new(),
         };
         call_manager.add_call(call.clone()).await;
         call
@@ -3098,6 +3140,21 @@ async fn check_channel_permission(
     Ok(())
 }
 
+async fn is_dm_or_gm_channel(state: &AppState, channel_id: Uuid) -> ApiResult<bool> {
+    let channel_type: Option<String> = sqlx::query_scalar("SELECT type::text FROM channels WHERE id = $1")
+        .bind(channel_id)
+        .fetch_optional(&state.db)
+        .await
+        .map_err(|e| AppError::Internal(format!("Database error: {}", e)))?;
+
+    let Some(channel_type) = channel_type else {
+        return Ok(false);
+    };
+
+    let normalized = channel_type.trim().to_ascii_lowercase();
+    Ok(matches!(normalized.as_str(), "direct" | "group" | "d" | "g"))
+}
+
 /// Broadcast a call-related WebSocket event
 async fn broadcast_call_event(
     state: &AppState,
@@ -3136,6 +3193,76 @@ async fn broadcast_call_event(
     };
 
     state.ws_hub.broadcast(envelope).await;
+}
+
+async fn broadcast_ringing_event(
+    state: &AppState,
+    channel_id: Uuid,
+    call_id: Uuid,
+    sender_id: Uuid,
+    exclude_user_id: Option<Uuid>,
+) {
+    broadcast_call_event(
+        state,
+        "custom_com.mattermost.calls_ringing",
+        &channel_id,
+        serde_json::json!({
+            "call_id": encode_mm_id(call_id),
+            "sender_id": encode_mm_id(sender_id),
+        }),
+        exclude_user_id,
+    )
+    .await;
+}
+
+async fn broadcast_call_state_event(
+    state: &AppState,
+    channel_id: Uuid,
+    exclude_user_id: Option<Uuid>,
+) {
+    let Some(call) = state.call_state_manager.get_call_by_channel(&channel_id).await else {
+        return;
+    };
+
+    let call_state = match build_call_state_response(state, &call, encode_mm_id(channel_id), channel_id).await
+    {
+        Ok(state_payload) => state_payload,
+        Err(err) => {
+            warn!(
+                call_id = %call.call_id,
+                channel_id = %channel_id,
+                error = %err,
+                "calls.call_state failed to build call state payload"
+            );
+            return;
+        }
+    };
+
+    let call_json = match serde_json::to_string(&call_state) {
+        Ok(payload) => payload,
+        Err(err) => {
+            warn!(
+                call_id = %call.call_id,
+                channel_id = %channel_id,
+                error = %err,
+                "calls.call_state failed to serialize call state payload"
+            );
+            return;
+        }
+    };
+
+    broadcast_call_event(
+        state,
+        "custom_com.mattermost.calls_call_state",
+        &channel_id,
+        serde_json::json!({
+            "call": call_json,
+            "call_id": encode_mm_id(call.call_id),
+            "callID": encode_mm_id(call.call_id),
+        }),
+        exclude_user_id,
+    )
+    .await;
 }
 
 fn spawn_signaling_forwarder(

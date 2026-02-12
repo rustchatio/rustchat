@@ -649,6 +649,7 @@ pub async fn execute_command_internal(
                 participants: std::collections::HashMap::new(),
                 screen_sharer: None,
                 thread_id: None,
+                dismissed_users: std::collections::HashSet::new(),
             };
 
             call_manager.add_call(call).await;

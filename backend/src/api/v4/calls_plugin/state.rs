@@ -3,7 +3,7 @@
 //! Manages active calls, participants, and call metadata in memory.
 //! For multi-node deployments, this should be backed by Redis.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 
 use deadpool_redis::redis::AsyncCommands;
@@ -23,6 +23,8 @@ pub struct CallState {
     pub participants: HashMap<Uuid, Participant>,
     pub screen_sharer: Option<Uuid>,
     pub thread_id: Option<Uuid>,
+    #[serde(default)]
+    pub dismissed_users: HashSet<Uuid>,
 }
 
 /// Represents a call participant
@@ -264,6 +266,14 @@ impl CallStateManager {
     pub async fn set_host(&self, call_id: Uuid, host_id: Uuid) {
         self.mutate_call(call_id, |call| {
             call.host_id = host_id;
+        })
+        .await;
+    }
+
+    /// Mark a user as having dismissed incoming call notifications.
+    pub async fn dismiss_user_notification(&self, call_id: Uuid, user_id: Uuid) {
+        self.mutate_call(call_id, |call| {
+            call.dismissed_users.insert(user_id);
         })
         .await;
     }
@@ -517,6 +527,7 @@ mod tests {
                 participants: HashMap::new(),
                 screen_sharer: None,
                 thread_id: None,
+                dismissed_users: HashSet::new(),
             })
             .await;
 
@@ -542,6 +553,7 @@ mod tests {
                 participants: HashMap::new(),
                 screen_sharer: None,
                 thread_id: None,
+                dismissed_users: HashSet::new(),
             })
             .await;
 
