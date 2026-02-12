@@ -1529,6 +1529,14 @@ async fn mute_user(
         .await
         .ok_or_else(|| AppError::NotFound("No active call in this channel".to_string()))?;
 
+    // Get user's session_id from participants
+    let participants = call_manager.get_participants(call.call_id).await;
+    let session_id = participants
+        .iter()
+        .find(|p| p.user_id == auth.user_id)
+        .map(|p| p.session_id.to_string())
+        .unwrap_or_default();
+
     // Set muted
     call_manager
         .set_muted(call.call_id, auth.user_id, true)
@@ -1542,6 +1550,7 @@ async fn mute_user(
         serde_json::json!({
             "channel_id": channel_id,
             "user_id": encode_mm_id(auth.user_id),
+            "session_id": session_id,
             "muted": true,
         }),
         None,
@@ -1571,6 +1580,14 @@ async fn unmute_user(
         .await
         .ok_or_else(|| AppError::NotFound("No active call in this channel".to_string()))?;
 
+    // Get user's session_id from participants
+    let participants = call_manager.get_participants(call.call_id).await;
+    let session_id = participants
+        .iter()
+        .find(|p| p.user_id == auth.user_id)
+        .map(|p| p.session_id.to_string())
+        .unwrap_or_default();
+
     // Set unmuted
     call_manager
         .set_muted(call.call_id, auth.user_id, false)
@@ -1584,6 +1601,7 @@ async fn unmute_user(
         serde_json::json!({
             "channel_id": channel_id,
             "user_id": encode_mm_id(auth.user_id),
+            "session_id": session_id,
             "muted": false,
         }),
         None,
@@ -1738,6 +1756,7 @@ async fn host_mute(
         serde_json::json!({
             "channel_id": channel_id,
             "user_id": encode_mm_id(target_user_id),
+            "session_id": payload.session_id,
             "muted": true,
         }),
         None,
@@ -1800,6 +1819,7 @@ async fn host_mute_others(
             serde_json::json!({
                 "channel_id": channel_id,
                 "user_id": encode_mm_id(participant.user_id),
+                "session_id": participant.session_id.to_string(),
                 "muted": true,
             }),
             None,
