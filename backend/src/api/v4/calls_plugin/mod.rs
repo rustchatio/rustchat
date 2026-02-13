@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 use std::io::Read;
+use std::sync::atomic::Ordering;
 use tokio::sync::mpsc;
 use tokio::time::{sleep, Duration};
 use tracing::{debug, error, info, warn};
@@ -331,11 +332,24 @@ struct HostMakeRequest {
 }
 
 fn is_system_admin(auth: &MmAuthUser) -> bool {
-    auth.role.split_whitespace().any(|role| role == "system_admin")
+    auth.role
+        .split_whitespace()
+        .any(|role| role == "system_admin")
 }
 
 fn can_manage_call(auth: &MmAuthUser, call: &CallState) -> bool {
     call.host_id == auth.user_id || is_system_admin(auth)
+}
+
+fn is_host_session_active(state: &AppState, call: &CallState) -> bool {
+    let Some(host_participant) = call.participants.get(&call.host_id) else {
+        return false;
+    };
+    state
+        .connection_store
+        .get_connection(&host_participant.session_id.to_string())
+        .map(|connection| connection.is_active.load(Ordering::SeqCst))
+        .unwrap_or(false)
 }
 
 // WebRTC Signaling Request/Response structs
@@ -1306,7 +1320,8 @@ async fn leave_call(
         None,
     )
     .await;
-    let remaining = reconcile_after_participant_left(&state, call.call_id, channel_uuid, auth.user_id).await;
+    let remaining =
+        reconcile_after_participant_left(&state, call.call_id, channel_uuid, auth.user_id).await;
     if remaining <= 1 {
         schedule_empty_call_timeout(&state, call.call_id, channel_uuid);
         info!(
@@ -1358,9 +1373,10 @@ async fn end_call_endpoint(
     check_channel_permission(&state, auth.user_id, call.channel_id).await?;
     call = normalize_call_host_if_stale(&state, call).await;
 
-    let caller_is_only_participant =
-        call.participants.len() <= 1 && call.participants.contains_key(&auth.user_id);
-    if !can_manage_call(&auth, &call) && !caller_is_only_participant {
+    let caller_is_participant = call.participants.contains_key(&auth.user_id);
+    let caller_is_only_participant = call.participants.len() <= 1 && caller_is_participant;
+    let host_session_inactive = caller_is_participant && !is_host_session_active(&state, &call);
+    if !can_manage_call(&auth, &call) && !caller_is_only_participant && !host_session_inactive {
         return Err(AppError::Forbidden(
             "Only the host can end this call".to_string(),
         ));
@@ -1557,7 +1573,11 @@ async fn send_reaction(
         .call_state_manager
         .get_call_by_channel(&channel_uuid)
         .await
-        .and_then(|call| call.participants.get(&auth.user_id).map(|participant| participant.session_id.to_string()))
+        .and_then(|call| {
+            call.participants
+                .get(&auth.user_id)
+                .map(|participant| participant.session_id.to_string())
+        })
         .unwrap_or_default();
 
     // Broadcast reaction event
@@ -2653,7 +2673,10 @@ async fn reconcile_after_participant_left(
 
     if call.host_id == departed_user_id {
         if let Some(new_host_id) = select_next_host(&call.participants) {
-            state.call_state_manager.set_host(call.call_id, new_host_id).await;
+            state
+                .call_state_manager
+                .set_host(call.call_id, new_host_id)
+                .await;
             broadcast_host_changed_event(state, channel_id, new_host_id).await;
             if let Some(updated_call) = state.call_state_manager.get_call(call_id).await {
                 call = updated_call;
@@ -2661,7 +2684,10 @@ async fn reconcile_after_participant_left(
         }
     } else if !call.participants.is_empty() && !call.participants.contains_key(&call.host_id) {
         if let Some(new_host_id) = select_next_host(&call.participants) {
-            state.call_state_manager.set_host(call.call_id, new_host_id).await;
+            state
+                .call_state_manager
+                .set_host(call.call_id, new_host_id)
+                .await;
             broadcast_host_changed_event(state, channel_id, new_host_id).await;
             if let Some(updated_call) = state.call_state_manager.get_call(call_id).await {
                 call = updated_call;
@@ -3054,7 +3080,8 @@ async fn handle_ws_leave_call(
     )
     .await;
 
-    let remaining = reconcile_after_participant_left(state, call.call_id, call.channel_id, user_id).await;
+    let remaining =
+        reconcile_after_participant_left(state, call.call_id, call.channel_id, user_id).await;
     if remaining <= 1 {
         schedule_empty_call_timeout(state, call.call_id, call.channel_id);
     }
@@ -3092,7 +3119,8 @@ pub async fn handle_ws_connection_closed(state: &AppState, user_id: Uuid, connec
     )
     .await;
 
-    let remaining = reconcile_after_participant_left(state, call.call_id, call.channel_id, user_id).await;
+    let remaining =
+        reconcile_after_participant_left(state, call.call_id, call.channel_id, user_id).await;
     if remaining <= 1 {
         schedule_empty_call_timeout(state, call.call_id, call.channel_id);
     }

@@ -733,6 +733,201 @@ async fn calls_mobile_event_names_and_payloads_are_compatible() {
     );
 }
 
+#[tokio::test]
+async fn calls_host_transfers_when_original_host_leaves() {
+    let app = spawn_app().await;
+
+    let org_id = insert_org(&app, "Calls Host Transfer Org").await;
+    let (token_a, user_a) =
+        register_and_login(&app, org_id, "host_leave_a", "host_leave_a@example.com").await;
+    let (token_b, user_b) =
+        register_and_login(&app, org_id, "host_leave_b", "host_leave_b@example.com").await;
+    let channel_id = create_team_and_channel_with_members(&app, org_id, &[user_a, user_b]).await;
+
+    let mut ws_b = connect_ws(&app.address, &token_b).await;
+    wait_for_event(&mut ws_b, "hello", Duration::from_secs(5)).await;
+    subscribe_channel(&mut ws_b, channel_id).await;
+    let _ = wait_for_event(&mut ws_b, "channel_subscribed", Duration::from_secs(5)).await;
+
+    let start = app
+        .api_client
+        .post(format!(
+            "{}/api/v4/plugins/com.mattermost.calls/calls/{}/start",
+            app.address, channel_id
+        ))
+        .header("Authorization", format!("Bearer {token_a}"))
+        .send()
+        .await
+        .expect("start call request failed");
+    assert_eq!(start.status(), StatusCode::OK);
+
+    let join = app
+        .api_client
+        .post(format!(
+            "{}/api/v4/plugins/com.mattermost.calls/calls/{}/join",
+            app.address, channel_id
+        ))
+        .header("Authorization", format!("Bearer {token_b}"))
+        .send()
+        .await
+        .expect("join call request failed");
+    assert_eq!(join.status(), StatusCode::OK);
+
+    let leave_host = app
+        .api_client
+        .post(format!(
+            "{}/api/v4/plugins/com.mattermost.calls/calls/{}/leave",
+            app.address, channel_id
+        ))
+        .header("Authorization", format!("Bearer {token_a}"))
+        .send()
+        .await
+        .expect("host leave request failed");
+    assert_eq!(leave_host.status(), StatusCode::OK);
+
+    let host_changed = wait_for_event(
+        &mut ws_b,
+        "custom_com.mattermost.calls_call_host_changed",
+        Duration::from_secs(5),
+    )
+    .await;
+    assert_eq!(host_changed["hostID"], encode_mm_id(user_b));
+
+    let end_by_new_host = app
+        .api_client
+        .post(format!(
+            "{}/api/v4/plugins/com.mattermost.calls/calls/{}/end",
+            app.address, channel_id
+        ))
+        .header("Authorization", format!("Bearer {token_b}"))
+        .send()
+        .await
+        .expect("end call request failed");
+    assert_eq!(end_by_new_host.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn system_admin_can_end_call_even_when_not_host() {
+    let app = spawn_app().await;
+
+    let org_id = insert_org(&app, "Calls Admin End Org").await;
+    let (token_a, user_a) =
+        register_and_login(&app, org_id, "admin_end_a", "admin_end_a@example.com").await;
+    let (_token_b, user_b) =
+        register_and_login(&app, org_id, "admin_end_b", "admin_end_b@example.com").await;
+    let channel_id = create_team_and_channel_with_members(&app, org_id, &[user_a, user_b]).await;
+
+    sqlx::query("UPDATE users SET role = 'system_admin' WHERE id = $1")
+        .bind(user_b)
+        .execute(&app.db_pool)
+        .await
+        .expect("failed to promote user to system_admin");
+    let token_b = login_and_get_token(&app, "admin_end_b@example.com", "Password123!").await;
+
+    let start = app
+        .api_client
+        .post(format!(
+            "{}/api/v4/plugins/com.mattermost.calls/calls/{}/start",
+            app.address, channel_id
+        ))
+        .header("Authorization", format!("Bearer {token_a}"))
+        .send()
+        .await
+        .expect("start call request failed");
+    assert_eq!(start.status(), StatusCode::OK);
+
+    let join = app
+        .api_client
+        .post(format!(
+            "{}/api/v4/plugins/com.mattermost.calls/calls/{}/join",
+            app.address, channel_id
+        ))
+        .header("Authorization", format!("Bearer {token_b}"))
+        .send()
+        .await
+        .expect("join call request failed");
+    assert_eq!(join.status(), StatusCode::OK);
+
+    let end = app
+        .api_client
+        .post(format!(
+            "{}/api/v4/plugins/com.mattermost.calls/calls/{}/end",
+            app.address, channel_id
+        ))
+        .header("Authorization", format!("Bearer {token_b}"))
+        .send()
+        .await
+        .expect("end call request failed");
+    assert_eq!(end.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn calls_reaction_event_contains_mobile_fields() {
+    let app = spawn_app().await;
+
+    let org_id = insert_org(&app, "Calls Reaction Payload Org").await;
+    let (token_a, user_a) =
+        register_and_login(&app, org_id, "reaction_a", "reaction_a@example.com").await;
+    let (token_b, user_b) =
+        register_and_login(&app, org_id, "reaction_b", "reaction_b@example.com").await;
+    let channel_id = create_team_and_channel_with_members(&app, org_id, &[user_a, user_b]).await;
+
+    let mut ws_a = connect_ws(&app.address, &token_a).await;
+    let mut ws_b = connect_ws(&app.address, &token_b).await;
+    wait_for_event(&mut ws_a, "hello", Duration::from_secs(5)).await;
+    wait_for_event(&mut ws_b, "hello", Duration::from_secs(5)).await;
+    subscribe_channel(&mut ws_a, channel_id).await;
+    subscribe_channel(&mut ws_b, channel_id).await;
+    let _ = wait_for_event(&mut ws_a, "channel_subscribed", Duration::from_secs(5)).await;
+    let _ = wait_for_event(&mut ws_b, "channel_subscribed", Duration::from_secs(5)).await;
+
+    let start = app
+        .api_client
+        .post(format!(
+            "{}/api/v4/plugins/com.mattermost.calls/calls/{}/start",
+            app.address, channel_id
+        ))
+        .header("Authorization", format!("Bearer {token_a}"))
+        .send()
+        .await
+        .expect("start call request failed");
+    assert_eq!(start.status(), StatusCode::OK);
+
+    let join = app
+        .api_client
+        .post(format!(
+            "{}/api/v4/plugins/com.mattermost.calls/calls/{}/join",
+            app.address, channel_id
+        ))
+        .header("Authorization", format!("Bearer {token_b}"))
+        .send()
+        .await
+        .expect("join call request failed");
+    assert_eq!(join.status(), StatusCode::OK);
+
+    let react_action = serde_json::json!({
+        "action": "custom_com.mattermost.calls_react",
+        "seq": 1,
+        "data": {
+            "data": "{\"name\":\"+1\",\"literal\":\"👍\"}"
+        }
+    });
+    ws_b.send(Message::Text(react_action.to_string().into()))
+        .await
+        .expect("reaction websocket action should be sent");
+
+    let reacted_event = wait_for_event(
+        &mut ws_a,
+        "custom_com.mattermost.calls_user_reacted",
+        Duration::from_secs(5),
+    )
+    .await;
+    assert!(reacted_event["session_id"].as_str().is_some());
+    assert!(reacted_event["timestamp"].as_i64().unwrap_or_default() > 0);
+    assert_eq!(reacted_event["emoji"]["name"], "+1");
+    assert_eq!(reacted_event["reaction"], "👍");
+}
+
 async fn insert_org(app: &common::TestApp, name: &str) -> Uuid {
     let org_id = Uuid::new_v4();
     sqlx::query("INSERT INTO organizations (id, name) VALUES ($1, $2)")
@@ -804,6 +999,28 @@ async fn register_and_login(
         .expect("user id should parse");
 
     (token, user_id)
+}
+
+async fn login_and_get_token(app: &common::TestApp, email: &str, password: &str) -> String {
+    let login = app
+        .api_client
+        .post(format!("{}/api/v4/users/login", app.address))
+        .json(&serde_json::json!({
+            "login_id": email,
+            "password": password,
+        }))
+        .send()
+        .await
+        .expect("login request failed")
+        .error_for_status()
+        .expect("login should succeed");
+
+    login
+        .headers()
+        .get("Token")
+        .and_then(|v| v.to_str().ok())
+        .expect("token header missing")
+        .to_string()
 }
 
 async fn create_team_and_channel_with_members(
