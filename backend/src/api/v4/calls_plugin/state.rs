@@ -3,7 +3,7 @@
 //! Manages active calls, participants, and call metadata in memory.
 //! For multi-node deployments, this should be backed by Redis.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 
 use deadpool_redis::redis::AsyncCommands;
@@ -18,10 +18,13 @@ pub struct CallState {
     pub call_id: Uuid,
     pub channel_id: Uuid,
     pub owner_id: Uuid,
+    pub host_id: Uuid,
     pub started_at: i64,
     pub participants: HashMap<Uuid, Participant>,
     pub screen_sharer: Option<Uuid>,
     pub thread_id: Option<Uuid>,
+    #[serde(default)]
+    pub dismissed_users: HashSet<Uuid>,
 }
 
 /// Represents a call participant
@@ -255,6 +258,22 @@ impl CallStateManager {
             if let Some(participant) = call.participants.get_mut(&user_id) {
                 participant.hand_raised = raised;
             }
+        })
+        .await;
+    }
+
+    /// Set call host
+    pub async fn set_host(&self, call_id: Uuid, host_id: Uuid) {
+        self.mutate_call(call_id, |call| {
+            call.host_id = host_id;
+        })
+        .await;
+    }
+
+    /// Mark a user as having dismissed incoming call notifications.
+    pub async fn dismiss_user_notification(&self, call_id: Uuid, user_id: Uuid) {
+        self.mutate_call(call_id, |call| {
+            call.dismissed_users.insert(user_id);
         })
         .await;
     }
@@ -503,10 +522,12 @@ mod tests {
                 call_id,
                 channel_id,
                 owner_id,
+                host_id: owner_id,
                 started_at: 1,
                 participants: HashMap::new(),
                 screen_sharer: None,
                 thread_id: None,
+                dismissed_users: HashSet::new(),
             })
             .await;
 
@@ -527,10 +548,12 @@ mod tests {
                 call_id,
                 channel_id,
                 owner_id: Uuid::new_v4(),
+                host_id: Uuid::new_v4(),
                 started_at: 2,
                 participants: HashMap::new(),
                 screen_sharer: None,
                 thread_id: None,
+                dismissed_users: HashSet::new(),
             })
             .await;
 

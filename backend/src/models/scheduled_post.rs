@@ -75,7 +75,11 @@ impl ScheduledPost {
             message: self.message.clone(),
             file_ids: self.file_ids.iter().map(|id| encode_mm_id(*id)).collect(),
             scheduled_at: self.scheduled_at.timestamp_millis(),
-            props: if self.props.is_null() { None } else { Some(self.props.clone()) },
+            props: if self.props.is_null() {
+                None
+            } else {
+                Some(self.props.clone())
+            },
             error_code: self.error_message.clone(),
         }
     }

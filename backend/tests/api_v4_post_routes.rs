@@ -272,3 +272,98 @@ async fn mm_set_unread_returns_channel_unread_at() {
     assert_eq!(unread_body["team_id"], encode_mm_id(team_id));
     assert_eq!(unread_body["msg_count"], (seq - 1).max(0));
 }
+
+#[tokio::test]
+async fn mm_channel_posts_include_file_metadata_for_mobile_history() {
+    let ctx = setup_mm_user().await;
+    let (_team_id, channel_id) = setup_team_channel(&ctx).await;
+
+    let png_1x1: Vec<u8> = vec![
+        137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1,
+        8, 6, 0, 0, 0, 31, 21, 196, 137, 0, 0, 0, 13, 73, 68, 65, 84, 120, 156, 99, 248, 255,
+        255, 63, 0, 5, 254, 2, 254, 167, 100, 129, 165, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96,
+        130,
+    ];
+    let part = reqwest::multipart::Part::bytes(png_1x1)
+        .file_name("photo.png")
+        .mime_str("image/png")
+        .unwrap();
+    let form = reqwest::multipart::Form::new()
+        .part("files", part)
+        .text("channel_id", channel_id.to_string());
+
+    let upload_res = ctx
+        .app
+        .api_client
+        .post(format!("{}/api/v4/files", &ctx.app.address))
+        .header("Authorization", format!("Bearer {}", ctx.token))
+        .multipart(form)
+        .send()
+        .await
+        .unwrap();
+    assert!(upload_res.status().is_success());
+    let upload_body: serde_json::Value = upload_res.json().await.unwrap();
+    let file_id = upload_body["file_infos"][0]["id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let post_res = ctx
+        .app
+        .api_client
+        .post(format!("{}/api/v4/posts", &ctx.app.address))
+        .header("Authorization", format!("Bearer {}", ctx.token))
+        .json(&json!({
+            "channel_id": channel_id.to_string(),
+            "message": "Image post",
+            "file_ids": [file_id]
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(200, post_res.status().as_u16());
+    let post_body: serde_json::Value = post_res.json().await.unwrap();
+    let post_id = post_body["id"].as_str().unwrap().to_string();
+
+    let reaction_res = ctx
+        .app
+        .api_client
+        .post(format!("{}/api/v4/reactions", &ctx.app.address))
+        .header("Authorization", format!("Bearer {}", ctx.token))
+        .json(&json!({
+            "user_id": ctx.user_id,
+            "post_id": post_id,
+            "emoji_name": "thumbsup"
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert!(
+        reaction_res.status().as_u16() == 200 || reaction_res.status().as_u16() == 201,
+        "unexpected reaction status: {}",
+        reaction_res.status()
+    );
+
+    let posts_res = ctx
+        .app
+        .api_client
+        .get(format!(
+            "{}/api/v4/channels/{}/posts?page=0&per_page=30",
+            &ctx.app.address, channel_id
+        ))
+        .header("Authorization", format!("Bearer {}", ctx.token))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(200, posts_res.status().as_u16());
+
+    let posts_body: serde_json::Value = posts_res.json().await.unwrap();
+    let post_entry = &posts_body["posts"][post_id.as_str()];
+    let files = post_entry["metadata"]["files"].as_array().unwrap();
+    assert_eq!(files.len(), 1);
+    assert_eq!(files[0]["id"], upload_body["file_infos"][0]["id"]);
+
+    let reactions = post_entry["metadata"]["reactions"].as_array().unwrap();
+    assert_eq!(reactions.len(), 1);
+    assert_eq!(reactions[0]["emoji_name"], "thumbsup");
+}

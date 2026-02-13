@@ -176,8 +176,6 @@ fn parse_body<T: DeserializeOwned>(
     }
 }
 
-
-
 async fn resolve_direct_channel_display_name(
     state: &AppState,
     channel_id: Uuid,
@@ -842,7 +840,7 @@ async fn get_pinned_posts(
                 crate::error::AppError::Forbidden("Not a member of this channel".to_string())
             })?;
 
-    let posts: Vec<PostResponse> = sqlx::query_as(
+    let mut posts: Vec<PostResponse> = sqlx::query_as(
         r#"
         SELECT p.id, p.channel_id, p.user_id, p.root_post_id, p.message, p.props, p.file_ids,
                p.is_pinned, p.created_at, p.edited_at, p.deleted_at,
@@ -858,6 +856,8 @@ async fn get_pinned_posts(
     .bind(channel_id)
     .fetch_all(&state.db)
     .await?;
+
+    crate::services::posts::populate_files(&state, &mut posts).await?;
 
     let mut order = Vec::new();
     let mut posts_map: HashMap<String, mm::Post> = HashMap::new();
@@ -877,7 +877,11 @@ async fn get_pinned_posts(
         if let Some(reactions) = reactions_map.get(&post_uuid) {
             if !reactions.is_empty() {
                 if let Some(post) = posts_map.get_mut(&post_id) {
-                    post.metadata = Some(json!({ "reactions": reactions }));
+                    let mut metadata = post.metadata.take().unwrap_or_else(|| json!({}));
+                    if let Some(obj) = metadata.as_object_mut() {
+                        obj.insert("reactions".to_string(), json!(reactions));
+                    }
+                    post.metadata = Some(metadata);
                 }
             }
         }
@@ -1374,7 +1378,7 @@ async fn get_posts(
     let per_page = pagination.per_page.unwrap_or(60).min(200) as i64;
 
     // Determine query type based on pagination params
-    let posts: Vec<PostResponse> = if let Some(since) = pagination.since {
+    let mut posts: Vec<PostResponse> = if let Some(since) = pagination.since {
         // Incremental sync: get posts created or edited since timestamp
         let since_time =
             chrono::DateTime::from_timestamp_millis(since).unwrap_or_else(|| chrono::Utc::now());
@@ -1499,6 +1503,8 @@ async fn get_posts(
         .await?
     };
 
+    crate::services::posts::populate_files(&state, &mut posts).await?;
+
     let mut order = Vec::new();
     let mut posts_map: HashMap<String, mm::Post> = HashMap::new();
     let mut post_ids = Vec::new();
@@ -1533,7 +1539,11 @@ async fn get_posts(
         if let Some(reactions) = reactions_map.get(&post_uuid) {
             if !reactions.is_empty() {
                 if let Some(post) = posts_map.get_mut(&post_id) {
-                    post.metadata = Some(json!({ "reactions": reactions }));
+                    let mut metadata = post.metadata.take().unwrap_or_else(|| json!({}));
+                    if let Some(obj) = metadata.as_object_mut() {
+                        obj.insert("reactions".to_string(), json!(reactions));
+                    }
+                    post.metadata = Some(metadata);
                 }
             }
         }

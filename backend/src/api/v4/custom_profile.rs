@@ -11,13 +11,25 @@ use crate::api::v4::extractors::MmAuthUser;
 use crate::api::AppState;
 use crate::error::{ApiResult, AppError};
 use crate::mattermost_compat::id::{encode_mm_id, parse_mm_or_uuid};
-use crate::models::{CustomProfileAttribute, CustomProfileField, CustomProfileFieldResponse, UserCustomProfileAttributeSimple};
+use crate::models::{
+    CustomProfileAttribute, CustomProfileField, CustomProfileFieldResponse,
+    UserCustomProfileAttributeSimple,
+};
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/custom_profile_attributes/fields", get(get_custom_profile_fields))
-        .route("/custom_profile_attributes/values", patch(update_custom_profile_values))
-        .route("/users/{user_id}/custom_profile_attributes", get(get_user_custom_profile_attributes))
+        .route(
+            "/custom_profile_attributes/fields",
+            get(get_custom_profile_fields),
+        )
+        .route(
+            "/custom_profile_attributes/values",
+            patch(update_custom_profile_values),
+        )
+        .route(
+            "/users/{user_id}/custom_profile_attributes",
+            get(get_user_custom_profile_attributes),
+        )
 }
 
 /// GET /custom_profile_attributes/fields - Get all custom profile field definitions
@@ -63,7 +75,10 @@ async fn get_user_custom_profile_attributes(
 
     let mut result: HashMap<String, serde_json::Value> = HashMap::new();
     for attr in attrs {
-        result.insert(encode_mm_id(attr.field_id), serde_json::Value::String(attr.value));
+        result.insert(
+            encode_mm_id(attr.field_id),
+            serde_json::Value::String(attr.value),
+        );
     }
 
     Ok(Json(result))
@@ -78,7 +93,7 @@ async fn update_custom_profile_values(
     for (field_id_str, value) in values {
         let field_id = parse_mm_or_uuid(&field_id_str)
             .ok_or_else(|| AppError::BadRequest(format!("Invalid field_id: {}", field_id_str)))?;
-        
+
         let value_str = match value {
             serde_json::Value::String(s) => s,
             serde_json::Value::Array(arr) => {

@@ -43,11 +43,17 @@ export interface CallsVersionInfo {
 
 export interface CallState {
     id: string
+    id_raw: string
     channel_id: string
+    channel_id_raw: string
     start_at: number
     owner_id: string
+    owner_id_raw: string
     host_id: string
+    host_id_raw: string
     thread_id?: string
+    screen_sharing_id?: string
+    screen_sharing_id_raw?: string
     screen_sharing_session_id?: string
     recording?: CallJobState
     dismissed_notification?: Record<string, boolean>
@@ -56,7 +62,11 @@ export interface CallState {
 
 export interface CallSession {
     session_id: string
+    session_id_raw?: string
     user_id: string
+    user_id_raw?: string
+    username?: string
+    display_name?: string
     unmuted: boolean
     raised_hand: number
 }
@@ -77,6 +87,7 @@ export interface StartCallResponse {
     channel_id: string
     start_at: number
     owner_id: string
+    host_id: string
 }
 
 export interface ApiResp {
@@ -99,6 +110,7 @@ interface CallsConfigWire {
         username?: string
         credential?: string
     }>
+    NeedsTURNCredentials?: boolean
 }
 
 interface CallStateWire {
@@ -109,12 +121,25 @@ interface CallStateWire {
     start_at?: number
     owner_id?: string
     owner_id_raw?: string
+    host_id?: string
+    host_id_raw?: string
     participants?: string[]
     participants_raw?: string[]
-    sessions?: Record<string, CallSession>
+    sessions?: Record<string, {
+        session_id?: string
+        session_id_raw?: string
+        user_id?: string
+        user_id_raw?: string
+        username?: string
+        display_name?: string
+        unmuted?: boolean
+        raised_hand?: number
+    }>
     thread_id?: string
     screen_sharing_id?: string
+    screen_sharing_id_raw?: string
     screen_sharing_session_id?: string
+    screen_sharing_session_id_raw?: string
 }
 
 interface ChannelStateWire {
@@ -148,7 +173,7 @@ function normalizeConfig(raw: CallsConfigWire): CallsConfig {
         ICEServersConfigs: normalizeIceServers(raw),
         AllowEnableCalls: true,
         DefaultEnabled: true,
-        NeedsTURNCredentials: false,
+        NeedsTURNCredentials: raw.NeedsTURNCredentials || false,
         MaxCallParticipants: 0,
         AllowScreenSharing: true,
         EnableSimulcast: false,
@@ -163,15 +188,36 @@ function normalizeConfig(raw: CallsConfigWire): CallsConfig {
 
 function normalizeCallState(channelId: string, raw: CallStateWire): CallState {
     if (raw.sessions && typeof raw.sessions === 'object') {
+        const sessions: Record<string, CallSession> = {}
+        for (const [key, value] of Object.entries(raw.sessions)) {
+            const sessionId = value.session_id || key
+            sessions[sessionId] = {
+                session_id: sessionId,
+                session_id_raw: value.session_id_raw,
+                user_id: value.user_id || '',
+                user_id_raw: value.user_id_raw,
+                username: value.username,
+                display_name: value.display_name,
+                unmuted: value.unmuted ?? false,
+                raised_hand: value.raised_hand ?? 0,
+            }
+        }
+
         return {
-            id: raw.id_raw || raw.id || '',
+            id: raw.id || '',
+            id_raw: raw.id_raw || raw.id || '',
             channel_id: channelId,
+            channel_id_raw: raw.channel_id_raw || channelId,
             start_at: raw.start_at || Date.now(),
-            owner_id: raw.owner_id_raw || raw.owner_id || '',
-            host_id: raw.owner_id_raw || raw.owner_id || '',
+            owner_id: raw.owner_id || '',
+            owner_id_raw: raw.owner_id_raw || raw.owner_id || '',
+            host_id: raw.host_id || '',
+            host_id_raw: raw.host_id_raw || raw.host_id || '',
             thread_id: raw.thread_id,
-            screen_sharing_session_id: raw.screen_sharing_session_id || raw.screen_sharing_id,
-            sessions: raw.sessions,
+            screen_sharing_id: raw.screen_sharing_id,
+            screen_sharing_id_raw: raw.screen_sharing_id_raw,
+            screen_sharing_session_id: raw.screen_sharing_session_id || raw.screen_sharing_session_id_raw,
+            sessions,
         }
     }
 
@@ -187,13 +233,19 @@ function normalizeCallState(channelId: string, raw: CallStateWire): CallState {
     }
 
     return {
-        id: raw.id_raw || raw.id || '',
+        id: raw.id || '',
+        id_raw: raw.id_raw || raw.id || '',
         channel_id: channelId,
+        channel_id_raw: raw.channel_id_raw || channelId,
         start_at: raw.start_at || Date.now(),
-        owner_id: raw.owner_id_raw || raw.owner_id || '',
-        host_id: raw.owner_id_raw || raw.owner_id || '',
+        owner_id: raw.owner_id || '',
+        owner_id_raw: raw.owner_id_raw || raw.owner_id || '',
+        host_id: raw.host_id || '',
+        host_id_raw: raw.host_id_raw || raw.host_id || '',
         thread_id: raw.thread_id,
-        screen_sharing_session_id: raw.screen_sharing_session_id || raw.screen_sharing_id,
+        screen_sharing_id: raw.screen_sharing_id,
+        screen_sharing_id_raw: raw.screen_sharing_id_raw,
+        screen_sharing_session_id: raw.screen_sharing_session_id || raw.screen_sharing_session_id_raw,
         sessions,
     }
 }
@@ -230,6 +282,11 @@ export default {
             ...response,
             data: normalizeConfig(response.data),
         }
+    },
+
+    // Get ephemeral TURN credentials
+    async getTurnCredentials() {
+        return apiClient.get<RTCIceServer[]>(`${CALLS_ROUTE}/turn-credentials`)
     },
 
     // Get all active calls
@@ -365,6 +422,15 @@ export default {
 
     hostRemove(channelId: string, sessionId: string) {
         return apiClient.post<ApiResp>(`${CALLS_ROUTE}/calls/${channelId}/host/remove`, { session_id: sessionId })
+    },
+
+    // Ringing
+    ringUsers(channelId: string) {
+        return apiClient.post<ApiResp>(`${CALLS_ROUTE}/calls/${channelId}/ring`)
+    },
+
+    dismissNotification(channelId: string) {
+        return apiClient.post<ApiResp>(`${CALLS_ROUTE}/calls/${channelId}/dismiss-notification`)
     },
 
     // Recording

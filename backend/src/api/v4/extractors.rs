@@ -64,13 +64,11 @@ where
             let cookie_str = cookie_header
                 .to_str()
                 .map_err(|_| AppError::Unauthorized("Invalid cookie header".to_string()))?;
-            
+
             cookie_str
                 .split(';')
                 .map(|s| s.trim())
-                .find_map(|cookie| {
-                    cookie.strip_prefix("MMAUTHTOKEN=")
-                })
+                .find_map(|cookie| cookie.strip_prefix("MMAUTHTOKEN="))
                 .ok_or_else(|| AppError::Unauthorized("Missing MMAUTHTOKEN cookie".to_string()))?
         } else {
             return Err(AppError::Unauthorized(

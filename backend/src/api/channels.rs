@@ -61,8 +61,6 @@ pub struct ListChannelsQuery {
     pub available_to_join: Option<bool>,
 }
 
-
-
 async fn hydrate_direct_channel_display_name(
     state: &AppState,
     viewer_id: Uuid,

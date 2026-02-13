@@ -90,9 +90,15 @@ async fn custom_profile_fields_returns_200_and_mattermost_shape() {
         response.status()
     );
 
-    let body: Value = response.json().await.expect("Failed to decode response body");
+    let body: Value = response
+        .json()
+        .await
+        .expect("Failed to decode response body");
     let fields = body.as_array().expect("Expected array response");
-    assert!(!fields.is_empty(), "Expected at least one custom profile field");
+    assert!(
+        !fields.is_empty(),
+        "Expected at least one custom profile field"
+    );
 
     let expected_id = encode_mm_id(field_id);
     let field = fields

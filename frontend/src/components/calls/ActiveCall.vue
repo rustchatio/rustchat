@@ -2,7 +2,7 @@
 import { useCallsStore } from '../../stores/calls'
 import { useAuthStore } from '../../stores/auth'
 import { useChannelStore } from '../../stores/channels'
-import { computed, ref } from 'vue'
+import { computed, ref, watchEffect } from 'vue'
 import { 
     Maximize2, 
     Minimize2, 
@@ -12,7 +12,10 @@ import {
     Hand, 
     Monitor,
     MoreVertical,
-    Users
+    Users,
+    Bell,
+    Trash2,
+    Shield
 } from 'lucide-vue-next'
 
 const callsStore = useCallsStore()
@@ -28,6 +31,38 @@ const participants = computed(() => callsStore.currentCallParticipants)
 
 const showParticipants = ref(false)
 const showMenu = ref(false)
+const participantMenuOpen = ref<string | null>(null) // session_id for which menu is open
+
+const speakingParticipants = computed(() => callsStore.speakingParticipants)
+const screenVideoRef = ref<HTMLVideoElement | null>(null)
+
+const screenShareStream = computed(() => {
+    if (!activeCall.value) return null
+    
+    // If local user is sharing, use local screen stream
+    if (activeCall.value.screenStream) return activeCall.value.screenStream
+    
+    // Prefer the stream that matches the call state's screen sharing session.
+    const remoteStreams = Array.from(activeCall.value.remoteStreams.values())
+    const screenSessionId = activeCall.value.call.screen_sharing_session_id
+    if (screenSessionId) {
+        const matched = remoteStreams.find((stream) => {
+            if (!stream.getVideoTracks().length) return false
+            if (stream.id.includes(screenSessionId)) return true
+            return stream.getVideoTracks().some((track) => track.id.includes(screenSessionId))
+        })
+        if (matched) return matched
+    }
+
+    // Fallback: in this audio-call UI, any remote video stream is likely screen share.
+    return remoteStreams.find((stream) => stream.getVideoTracks().length > 0) || null
+})
+
+watchEffect(() => {
+    if (screenVideoRef.value && screenShareStream.value) {
+        screenVideoRef.value.srcObject = screenShareStream.value
+    }
+})
 
 const channelName = computed(() => {
     if (!activeCall.value) return ''
@@ -63,6 +98,26 @@ const toggleHand = () => {
 
 const toggleScreenShare = () => {
     callsStore.toggleScreenShare()
+}
+
+const handleRingAll = () => {
+    if (activeCall.value) {
+        callsStore.ring(activeCall.value.channelId)
+    }
+}
+
+const handleMuteAll = () => {
+    callsStore.hostMuteOthers()
+}
+
+const handleHostMute = (sessionId: string) => {
+    callsStore.hostMute(sessionId)
+    participantMenuOpen.value = null
+}
+
+const handleHostRemove = (sessionId: string) => {
+    callsStore.hostRemove(sessionId)
+    participantMenuOpen.value = null
 }
 
 const formatDuration = (startAt: number) => {
@@ -107,8 +162,19 @@ const formatDuration = (startAt: number) => {
         <!-- Participants List (Expanded) -->
         <div v-if="isExpanded" class="flex-1 overflow-hidden flex">
             <!-- Main Area - Could show active speaker or screen share here -->
-            <div class="flex-1 bg-slate-950 flex items-center justify-center">
-                <div class="text-center">
+            <div class="flex-1 bg-slate-950 flex items-center justify-center relative overflow-hidden">
+                <div v-if="screenShareStream" class="absolute inset-0 flex items-center justify-center bg-black">
+                    <video 
+                        ref="screenVideoRef" 
+                        autoplay 
+                        playsinline 
+                        class="max-w-full max-h-full object-contain"
+                    ></video>
+                    <div v-if="activeCall.screenStream" class="absolute top-4 left-4 bg-indigo-600 px-3 py-1 rounded text-xs font-medium text-white shadow-lg">
+                        You are sharing your screen
+                    </div>
+                </div>
+                <div v-else class="text-center">
                     <div class="w-24 h-24 rounded-full bg-slate-800 flex items-center justify-center mb-4 mx-auto">
                         <Users class="w-12 h-12 text-slate-400" />
                     </div>
@@ -124,20 +190,51 @@ const formatDuration = (startAt: number) => {
                 </div>
                 <div class="p-2 space-y-1">
                     <div v-for="participant in participants" :key="participant.session_id"
-                         class="flex items-center space-x-2 p-2 rounded hover:bg-white/5">
-                        <div class="w-8 h-8 rounded-full bg-indigo-500/20 flex items-center justify-center">
+                         class="flex items-center space-x-2 p-2 rounded hover:bg-white/5 relative group">
+                        <div class="w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300"
+                             :class="[
+                                 speakingParticipants.has(participant.session_id) 
+                                     ? 'bg-green-500/20 ring-2 ring-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]' 
+                                     : 'bg-indigo-500/20'
+                             ]">
                             <span class="text-indigo-400 text-xs font-medium">
                                 {{ participant.user_id.slice(0, 2).toUpperCase() }}
                             </span>
                         </div>
                         <div class="flex-1 min-w-0">
-                            <p class="text-white text-sm truncate">
-                                {{ participant.user_id === authStore.user?.id ? 'You' : participant.user_id.slice(0, 8) }}
-                            </p>
+                            <div class="flex items-center space-x-1">
+                                <p class="text-white text-sm truncate">
+                                    {{ (participant.user_id_raw || participant.user_id) === authStore.user?.id ? 'You' : (participant.display_name || participant.username || participant.user_id.slice(0, 8)) }}
+                                </p>
+                                <Shield v-if="(participant.user_id_raw || participant.user_id) === activeCall.call.host_id_raw || participant.user_id === activeCall.call.host_id" 
+                                        class="w-3 h-3 text-indigo-400" title="Host" />
+                            </div>
                         </div>
                         <div class="flex items-center space-x-1">
                             <MicOff v-if="!participant.unmuted" class="w-3.5 h-3.5 text-slate-500" />
                             <Hand v-if="participant.raised_hand > 0" class="w-3.5 h-3.5 text-yellow-500" />
+                            
+                            <!-- Participant Moderation Menu -->
+                            <div v-if="isHost && participant.user_id !== authStore.user?.id" class="relative ml-1">
+                                <button @click="participantMenuOpen = participantMenuOpen === participant.session_id ? null : participant.session_id"
+                                        class="p-1 text-slate-500 hover:text-white rounded hover:bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <MoreVertical class="w-3.5 h-3.5" />
+                                </button>
+                                
+                                <div v-if="participantMenuOpen === participant.session_id" 
+                                     class="absolute right-0 top-full mt-1 w-32 bg-slate-800 border border-slate-700 rounded shadow-xl z-50 py-1">
+                                    <button @click="handleHostMute(participant.session_id)" 
+                                            class="w-full px-3 py-1.5 text-left text-xs text-slate-300 hover:bg-white/5 flex items-center">
+                                        <MicOff class="w-3 h-3 mr-2" />
+                                        Mute
+                                    </button>
+                                    <button @click="handleHostRemove(participant.session_id)" 
+                                            class="w-full px-3 py-1.5 text-left text-xs text-red-400 hover:bg-white/5 flex items-center">
+                                        <Trash2 class="w-3 h-3 mr-2" />
+                                        Remove
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -148,8 +245,13 @@ const formatDuration = (startAt: number) => {
         <div v-else class="flex-1 bg-slate-950 p-3 overflow-hidden">
             <div class="flex items-center space-x-2">
                 <div v-for="(participant, idx) in participants.slice(0, 5)" :key="participant.session_id"
-                     class="w-10 h-10 rounded-full bg-indigo-500/20 flex items-center justify-center shrink-0"
-                     :style="{ marginLeft: idx > 0 ? '-0.5rem' : '0', zIndex: 10 - idx }">
+                     class="w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-all duration-300"
+                     :class="[
+                         speakingParticipants.has(participant.session_id) 
+                             ? 'ring-2 ring-green-500 bg-green-500/20 z-20' 
+                             : 'bg-indigo-500/20'
+                     ]"
+                     :style="{ marginLeft: idx > 0 ? '-0.5rem' : '0', zIndex: speakingParticipants.has(participant.session_id) ? 30 : (10 - idx) }">
                     <span class="text-indigo-400 text-xs font-medium">
                         {{ participant.user_id.slice(0, 2).toUpperCase() }}
                     </span>
@@ -239,14 +341,33 @@ const formatDuration = (startAt: number) => {
                      class="absolute bottom-full mb-2 right-0 w-48 bg-slate-800 border border-slate-700 rounded-lg shadow-xl py-1 z-50">
                     <div class="fixed inset-0 z-[-1]" @click="showMenu = false"></div>
                     
-                    <button 
-                        v-if="isHost"
-                        @click="handleEndCall(); showMenu = false"
-                        class="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-white/5 flex items-center"
-                    >
-                        <PhoneOff class="w-4 h-4 mr-2" />
-                        End Call for Everyone
-                    </button>
+                    <template v-if="isHost">
+                        <button 
+                            @click="handleMuteAll(); showMenu = false"
+                            class="w-full px-4 py-2 text-left text-sm text-slate-300 hover:bg-white/5 flex items-center"
+                        >
+                            <MicOff class="w-4 h-4 mr-2" />
+                            Mute All
+                        </button>
+                        <button 
+                            @click="handleRingAll(); showMenu = false"
+                            class="w-full px-4 py-2 text-left text-sm text-slate-300 hover:bg-white/5 flex items-center"
+                        >
+                            <Bell class="w-4 h-4 mr-2" />
+                            Ring Everyone
+                        </button>
+                        <div class="my-1 border-t border-white/5"></div>
+                        <button 
+                            @click="handleEndCall(); showMenu = false"
+                            class="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-white/5 flex items-center"
+                        >
+                            <PhoneOff class="w-4 h-4 mr-2" />
+                            End Call for Everyone
+                        </button>
+                    </template>
+                    <template v-else>
+                        <p class="px-4 py-2 text-xs text-slate-500 italic text-center">No host options available</p>
+                    </template>
                 </div>
             </div>
 

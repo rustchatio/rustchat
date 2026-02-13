@@ -644,10 +644,12 @@ pub async fn execute_command_internal(
                 call_id,
                 channel_id,
                 owner_id: auth.user_id,
+                host_id: auth.user_id,
                 started_at: now,
                 participants: std::collections::HashMap::new(),
                 screen_sharer: None,
                 thread_id: None,
+                dismissed_users: std::collections::HashSet::new(),
             };
 
             call_manager.add_call(call).await;

@@ -591,7 +591,7 @@ async fn search_files_impl(
     terms: &str,
 ) -> ApiResult<Json<FileSearchResult>> {
     let search_pattern = format!("%{}%", terms);
-    
+
     let files: Vec<FileInfo> = if let Some(tid) = team_id {
         sqlx::query_as(
             r#"
@@ -626,32 +626,35 @@ async fn search_files_impl(
 
     let mut order = Vec::new();
     let mut file_infos = std::collections::HashMap::new();
-    
+
     for file in files {
         let id = encode_mm_id(file.id);
         order.push(id.clone());
-        
+
         let extension = filename_extension(&file.name)
             .unwrap_or_default()
             .to_string();
-            
-        file_infos.insert(id.clone(), mm::FileInfo {
-            id,
-            user_id: encode_mm_id(file.uploader_id),
-            post_id: file.post_id.map(encode_mm_id).unwrap_or_default(),
-            channel_id: file.channel_id.map(encode_mm_id).unwrap_or_default(),
-            create_at: file.created_at.timestamp_millis(),
-            update_at: file.created_at.timestamp_millis(),
-            delete_at: 0,
-            name: file.name,
-            extension,
-            size: file.size,
-            mime_type: file.mime_type,
-            width: file.width.unwrap_or(0),
-            height: file.height.unwrap_or(0),
-            has_preview_image: file.has_thumbnail,
-            mini_preview: None,
-        });
+
+        file_infos.insert(
+            id.clone(),
+            mm::FileInfo {
+                id,
+                user_id: encode_mm_id(file.uploader_id),
+                post_id: file.post_id.map(encode_mm_id).unwrap_or_default(),
+                channel_id: file.channel_id.map(encode_mm_id).unwrap_or_default(),
+                create_at: file.created_at.timestamp_millis(),
+                update_at: file.created_at.timestamp_millis(),
+                delete_at: 0,
+                name: file.name,
+                extension,
+                size: file.size,
+                mime_type: file.mime_type,
+                width: file.width.unwrap_or(0),
+                height: file.height.unwrap_or(0),
+                has_preview_image: file.has_thumbnail,
+                mini_preview: None,
+            },
+        );
     }
 
     Ok(Json(FileSearchResult { order, file_infos }))

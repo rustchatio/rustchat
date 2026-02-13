@@ -30,6 +30,14 @@ const PONG_WAIT: Duration = Duration::from_secs(100);
 /// Interval between Ping frames (60 seconds)
 const PING_INTERVAL: Duration = Duration::from_secs(60);
 
+fn is_benign_disconnect_error(error: &str) -> bool {
+    let e = error.to_ascii_lowercase();
+    e.contains("without closing handshake")
+        || e.contains("connection reset by peer")
+        || e.contains("broken pipe")
+        || e.contains("connection closed")
+}
+
 /// WebSocket close codes
 pub mod close_codes {
     /// Normal closure
@@ -396,12 +404,25 @@ impl ActorTask {
                             break;
                         }
                         Some(Err(e)) => {
-                            error!(
-                                connection_id = %self.connection_id,
-                                error = %e,
-                                "WebSocket error"
-                            );
-                            let _ = self.event_tx.send(WsEvent::Error(e.to_string()));
+                            let error_text = e.to_string();
+                            if is_benign_disconnect_error(&error_text) {
+                                warn!(
+                                    connection_id = %self.connection_id,
+                                    error = %error_text,
+                                    "WebSocket disconnected without clean close handshake"
+                                );
+                                let _ = self.event_tx.send(WsEvent::Closed(CloseReason {
+                                    code: close_codes::GOING_AWAY,
+                                    reason: "Peer disconnected".to_string(),
+                                }));
+                            } else {
+                                error!(
+                                    connection_id = %self.connection_id,
+                                    error = %error_text,
+                                    "WebSocket error"
+                                );
+                                let _ = self.event_tx.send(WsEvent::Error(error_text));
+                            }
                             break;
                         }
                         None => {
@@ -584,7 +605,11 @@ impl ActorTask {
             reason: "Connection ended".into(),
         };
         // Best-effort close frame - don't wait or error if it fails
-        let _ = timeout(Duration::from_secs(1), ws_sink.send(Message::Close(Some(close_frame)))).await;
+        let _ = timeout(
+            Duration::from_secs(1),
+            ws_sink.send(Message::Close(Some(close_frame))),
+        )
+        .await;
 
         // Mark connection as disconnected (but retain state for resumption)
         self.store.disconnect_connection(&self.connection_id);

@@ -108,11 +108,13 @@ pub(super) async fn get_channel_bookmarks(
     .await?;
 
     if !is_member {
-        return Err(AppError::Forbidden("Not a member of this channel".to_string()));
+        return Err(AppError::Forbidden(
+            "Not a member of this channel".to_string(),
+        ));
     }
 
     let since = query.bookmarks_since.unwrap_or(0);
-    
+
     let bookmarks: Vec<BookmarkRow> = sqlx::query_as(
         r#"
         SELECT id, created_at, updated_at, deleted_at, channel_id, owner_id, file_id,
@@ -165,7 +167,9 @@ pub(super) async fn create_channel_bookmark(
     .await?;
 
     if !is_member {
-        return Err(AppError::Forbidden("Not a member of this channel".to_string()));
+        return Err(AppError::Forbidden(
+            "Not a member of this channel".to_string(),
+        ));
     }
 
     let req: CreateBookmarkRequest = serde_json::from_slice(&body)
@@ -173,24 +177,27 @@ pub(super) async fn create_channel_bookmark(
 
     // Validate bookmark type
     if req.bookmark_type != "link" && req.bookmark_type != "file" {
-        return Err(AppError::BadRequest("Type must be 'link' or 'file'".to_string()));
+        return Err(AppError::BadRequest(
+            "Type must be 'link' or 'file'".to_string(),
+        ));
     }
 
     // Validate link URL for link type
     if req.bookmark_type == "link" && req.link_url.is_none() {
-        return Err(AppError::BadRequest("Link URL required for link bookmarks".to_string()));
+        return Err(AppError::BadRequest(
+            "Link URL required for link bookmarks".to_string(),
+        ));
     }
 
     let file_id = req.file_id.as_ref().and_then(|id| parse_mm_or_uuid(id));
-    
+
     // Get max sort order for this channel
-    let max_order: Option<i64> = sqlx::query_scalar(
-        "SELECT MAX(sort_order) FROM channel_bookmarks WHERE channel_id = $1",
-    )
-    .bind(channel_id)
-    .fetch_one(&state.db)
-    .await?;
-    
+    let max_order: Option<i64> =
+        sqlx::query_scalar("SELECT MAX(sort_order) FROM channel_bookmarks WHERE channel_id = $1")
+            .bind(channel_id)
+            .fetch_one(&state.db)
+            .await?;
+
     let sort_order = max_order.unwrap_or(0) + 1;
     let now = Utc::now();
 
@@ -262,7 +269,9 @@ pub(super) async fn patch_channel_bookmark(
     .await?;
 
     if !is_member {
-        return Err(AppError::Forbidden("Not a member of this channel".to_string()));
+        return Err(AppError::Forbidden(
+            "Not a member of this channel".to_string(),
+        ));
     }
 
     let req: PatchBookmarkRequest = serde_json::from_slice(&body)
@@ -327,7 +336,9 @@ pub(super) async fn update_channel_bookmark_sort_order(
     .await?;
 
     if !is_member {
-        return Err(AppError::Forbidden("Not a member of this channel".to_string()));
+        return Err(AppError::Forbidden(
+            "Not a member of this channel".to_string(),
+        ));
     }
 
     let new_order: i64 = serde_json::from_slice(&body)
@@ -381,7 +392,9 @@ pub(super) async fn delete_channel_bookmark(
     .await?;
 
     if !is_member {
-        return Err(AppError::Forbidden("Not a member of this channel".to_string()));
+        return Err(AppError::Forbidden(
+            "Not a member of this channel".to_string(),
+        ));
     }
 
     // Soft delete

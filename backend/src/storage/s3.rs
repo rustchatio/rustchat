@@ -145,27 +145,50 @@ impl S3Client {
 
     /// Download a file from S3
     pub async fn download(&self, key: &str) -> Result<Vec<u8>, AppError> {
-        let response = self
+        self.download_optional(key).await?.ok_or_else(|| {
+            error!(bucket = %self.bucket, key = %key, "S3 file not found");
+            AppError::NotFound(format!("File not found: {}", key))
+        })
+    }
+
+    /// Download a file from S3, returning None if the key doesn't exist
+    pub async fn download_optional(&self, key: &str) -> Result<Option<Vec<u8>>, AppError> {
+        let result = self
             .client
             .get_object()
             .bucket(&self.bucket)
             .key(key)
             .send()
-            .await
-            .map_err(|e| {
+            .await;
+
+        match result {
+            Ok(response) => {
+                let data = response
+                    .body
+                    .collect()
+                    .await
+                    .map_err(|e| AppError::Internal(format!("S3 read error: {}", e)))?
+                    .into_bytes()
+                    .to_vec();
+                Ok(Some(data))
+            }
+            Err(SdkError::ServiceError(service_error)) => {
+                let code = service_error.err().code().unwrap_or_default();
+                if code == "NoSuchKey" {
+                    Ok(None)
+                } else {
+                    error!(error = ?service_error, bucket = %self.bucket, key = %key, "S3 download failed");
+                    Err(AppError::Internal(format!(
+                        "S3 download error: {:?}",
+                        service_error
+                    )))
+                }
+            }
+            Err(e) => {
                 error!(error = ?e, bucket = %self.bucket, key = %key, "S3 download failed");
-                AppError::Internal(format!("S3 download error: {}", e))
-            })?;
-
-        let data = response
-            .body
-            .collect()
-            .await
-            .map_err(|e| AppError::Internal(format!("S3 read error: {}", e)))?
-            .into_bytes()
-            .to_vec();
-
-        Ok(data)
+                Err(AppError::Internal(format!("S3 download error: {}", e)))
+            }
+        }
     }
 
     /// Delete a file from S3

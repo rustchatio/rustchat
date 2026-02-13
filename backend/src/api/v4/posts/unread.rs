@@ -76,7 +76,7 @@ pub(super) async fn get_posts_around_unread(
 
     let last_read_seq = last_read_seq.unwrap_or(0);
 
-    let posts: Vec<crate::models::post::PostResponse> = sqlx::query_as(
+    let mut posts: Vec<crate::models::post::PostResponse> = sqlx::query_as(
         r#"
         (
             SELECT p.id, p.channel_id, p.user_id, p.root_post_id, p.message, p.props, p.file_ids,
@@ -113,6 +113,8 @@ pub(super) async fn get_posts_around_unread(
     .fetch_all(&state.db)
     .await?;
 
+    crate::services::posts::populate_files(&state, &mut posts).await?;
+
     let mut order = Vec::new();
     let mut posts_map: std::collections::HashMap<String, mm::Post> =
         std::collections::HashMap::new();
@@ -132,7 +134,11 @@ pub(super) async fn get_posts_around_unread(
         if let Some(reactions) = reactions_map.get(&post_uuid) {
             if !reactions.is_empty() {
                 if let Some(post) = posts_map.get_mut(&post_id) {
-                    post.metadata = Some(json!({ "reactions": reactions }));
+                    let mut metadata = post.metadata.take().unwrap_or_else(|| json!({}));
+                    if let Some(obj) = metadata.as_object_mut() {
+                        obj.insert("reactions".to_string(), json!(reactions));
+                    }
+                    post.metadata = Some(metadata);
                 }
             }
         }

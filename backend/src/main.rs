@@ -4,6 +4,12 @@ use tracing::info;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    // Install default rustls crypto provider (required for rustls 0.23+)
+    // This must be done before any TLS connections are made
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .expect("Failed to install rustls ring crypto provider");
+
     // Load environment from .env file if present
     dotenvy::dotenv().ok();
 

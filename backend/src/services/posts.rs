@@ -1,6 +1,6 @@
+use crate::mattermost_compat::models as mm;
 use std::collections::HashMap;
 use uuid::Uuid;
-use crate::mattermost_compat::models as mm;
 
 use crate::api::AppState;
 use crate::error::{ApiResult, AppError};
@@ -143,8 +143,8 @@ pub async fn create_post(
     };
 
     let mm_post = mm::Post::from(response.clone());
-    let broadcast = WsEnvelope::event(event_type, mm_post, Some(channel_id))
-        .with_broadcast(WsBroadcast {
+    let broadcast =
+        WsEnvelope::event(event_type, mm_post, Some(channel_id)).with_broadcast(WsBroadcast {
             channel_id: Some(channel_id),
             team_id: None,
             user_id: None,
@@ -307,14 +307,17 @@ pub async fn ensure_dm_membership(state: &AppState, channel_id: Uuid) -> ApiResu
                 if added.is_some() {
                     // User was missing and just re-added.
                     // Broadcast ChannelCreated to them so their UI opens it.
-                    let event =
-                        WsEnvelope::event(EventType::ChannelCreated, chan.clone(), Some(channel_id))
-                            .with_broadcast(WsBroadcast {
-                                user_id: Some(target_user_id),
-                                channel_id: None,
-                                team_id: None,
-                                exclude_user_id: None,
-                            });
+                    let event = WsEnvelope::event(
+                        EventType::ChannelCreated,
+                        chan.clone(),
+                        Some(channel_id),
+                    )
+                    .with_broadcast(WsBroadcast {
+                        user_id: Some(target_user_id),
+                        channel_id: None,
+                        team_id: None,
+                        exclude_user_id: None,
+                    });
                     state.ws_hub.broadcast(event).await;
                 }
             }
@@ -328,7 +331,7 @@ pub async fn ensure_dm_membership(state: &AppState, channel_id: Uuid) -> ApiResu
 /// This ensures files remain accessible after re-login and require authentication
 pub async fn populate_files(state: &AppState, posts: &mut [PostResponse]) -> ApiResult<()> {
     use crate::mattermost_compat::id::encode_mm_id;
-    
+
     // 1. Collect all file IDs
     let all_file_ids: Vec<Uuid> = posts.iter().flat_map(|p| p.file_ids.clone()).collect();
 
@@ -348,7 +351,7 @@ pub async fn populate_files(state: &AppState, posts: &mut [PostResponse]) -> Api
     let mut file_map = HashMap::new();
     for file in files {
         let mm_file_id = encode_mm_id(file.id);
-        
+
         // Use authenticated API endpoints instead of presigned S3 URLs
         // This ensures:
         // 1. Files require authentication to access

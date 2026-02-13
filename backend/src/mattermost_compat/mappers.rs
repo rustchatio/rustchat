@@ -167,7 +167,12 @@ impl From<PostResponse> for mm::Post {
                     update_at: post.created_at.timestamp_millis(), // Fallback
                     delete_at: 0,
                     name: f.name.clone(),
-                    extension: f.name.rsplit_once('.').map(|(_, ext)| ext).unwrap_or_default().to_string(),
+                    extension: f
+                        .name
+                        .rsplit_once('.')
+                        .map(|(_, ext)| ext)
+                        .unwrap_or_default()
+                        .to_string(),
                     size: f.size,
                     mime_type: f.mime_type,
                     width: 0,

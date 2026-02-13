@@ -68,10 +68,12 @@ fn handle_panic(
 }
 
 use crate::api::v4::calls_plugin::sfu::SFUManager;
+use crate::api::v4::calls_plugin::start_voice_event_listener;
 use crate::api::v4::calls_plugin::state::{CallStateBackend, CallStateManager};
 use crate::config::Config;
 use crate::realtime::{ConnectionStore, WsHub};
 use crate::storage::S3Client;
+use tokio::sync::mpsc;
 
 fn parse_cors_allowed_origins(raw: &str) -> Vec<HeaderValue> {
     raw.split(',')
@@ -146,7 +148,8 @@ pub fn router(
     s3_client: S3Client,
     config: Config,
 ) -> Router {
-    let sfu_manager = SFUManager::new(config.calls.clone());
+    let (voice_event_tx, voice_event_rx) = mpsc::unbounded_channel();
+    let sfu_manager = SFUManager::new(config.calls.clone(), voice_event_tx);
     let call_state_manager = Arc::new(CallStateManager::with_backend(
         Some(redis.clone()),
         CallStateBackend::parse(&config.calls.state_backend),
@@ -167,6 +170,9 @@ pub fn router(
         sfu_manager,
         call_state_manager,
     };
+
+    // Start Calls voice event listener
+    tokio::spawn(start_voice_event_listener(state.clone(), voice_event_rx));
 
     // CORS configuration
     let cors = build_cors_layer(&state.config);

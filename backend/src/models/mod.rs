@@ -27,7 +27,6 @@ pub use channel_category::*;
 pub use custom_profile_attribute::*;
 pub use scheduled_post::*;
 
-
 pub use enterprise::*;
 pub use file::*;
 pub use integration::*;

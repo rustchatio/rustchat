@@ -534,10 +534,7 @@ async fn handle_client_value_message(
     }
 
     if action == "ping" {
-        let seq_reply = value
-            .get("seq")
-            .cloned()
-            .unwrap_or(serde_json::Value::Null);
+        let seq_reply = value.get("seq").cloned().unwrap_or(serde_json::Value::Null);
         let server_time_ms = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .ok()

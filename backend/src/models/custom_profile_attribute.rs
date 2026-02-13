@@ -54,7 +54,11 @@ impl From<CustomProfileField> for CustomProfileFieldResponse {
             group_id: f.group_id,
             name: f.name,
             field_type: f.field_type,
-            attrs: if f.attrs.is_null() { None } else { Some(f.attrs) },
+            attrs: if f.attrs.is_null() {
+                None
+            } else {
+                Some(f.attrs)
+            },
             target_id: f.target_id,
             target_type: f.target_type,
             create_at: f.created_at.timestamp_millis(),
