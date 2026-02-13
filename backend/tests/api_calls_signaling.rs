@@ -54,12 +54,16 @@ async fn calls_lifecycle_events_are_delivered_over_websocket() {
     )
     .await;
     assert_eq!(call_start["channel_id"], channel_id.to_string());
-    let _ = wait_for_event(
+    let owner_joined = wait_for_event(
         &mut ws_a,
         "custom_com.mattermost.calls_user_joined",
         Duration::from_secs(5),
     )
     .await;
+    let owner_session = owner_joined["session_id"]
+        .as_str()
+        .expect("owner session_id should be present");
+    Uuid::parse_str(owner_session).expect("owner session_id should be a raw UUID");
 
     let join = app
         .api_client
@@ -81,6 +85,10 @@ async fn calls_lifecycle_events_are_delivered_over_websocket() {
     .await;
     assert_eq!(user_joined["channel_id"], channel_id.to_string());
     assert_eq!(user_joined["user_id"], encode_mm_id(user_b));
+    let joined_session = user_joined["session_id"]
+        .as_str()
+        .expect("joined session_id should be present");
+    Uuid::parse_str(joined_session).expect("joined session_id should be a raw UUID");
 
     let leave_b = app
         .api_client
@@ -136,13 +144,9 @@ async fn calls_start_in_direct_channel_auto_rings_other_participants() {
         register_and_login(&app, org_id, "direct_ring_a", "direct_ring_a@example.com").await;
     let (token_b, user_b) =
         register_and_login(&app, org_id, "direct_ring_b", "direct_ring_b@example.com").await;
-    let channel_id = create_team_and_channel_with_members_of_type(
-        &app,
-        org_id,
-        &[user_a, user_b],
-        "direct",
-    )
-    .await;
+    let channel_id =
+        create_team_and_channel_with_members_of_type(&app, org_id, &[user_a, user_b], "direct")
+            .await;
 
     let mut ws_a = connect_ws(&app.address, &token_a).await;
     let mut ws_b = connect_ws(&app.address, &token_b).await;
@@ -174,6 +178,45 @@ async fn calls_start_in_direct_channel_auto_rings_other_participants() {
     .await;
     assert_eq!(ringing_event["sender_id"], encode_mm_id(user_a));
     assert_eq!(ringing_event["call_id"], start_body["id"]);
+}
+
+#[tokio::test]
+async fn ring_endpoint_requires_channel_membership() {
+    let app = spawn_app().await;
+
+    let org_id = insert_org(&app, "Calls Ring Permission Org").await;
+    let (token_a, user_a) =
+        register_and_login(&app, org_id, "ring_member_a", "ring_member_a@example.com").await;
+    let (_token_b, user_b) =
+        register_and_login(&app, org_id, "ring_member_b", "ring_member_b@example.com").await;
+    let (token_outsider, _user_outsider) =
+        register_and_login(&app, org_id, "ring_outsider", "ring_outsider@example.com").await;
+
+    let channel_id = create_team_and_channel_with_members(&app, org_id, &[user_a, user_b]).await;
+
+    let start = app
+        .api_client
+        .post(format!(
+            "{}/api/v4/plugins/com.mattermost.calls/calls/{}/start",
+            app.address, channel_id
+        ))
+        .header("Authorization", format!("Bearer {token_a}"))
+        .send()
+        .await
+        .expect("start call request failed");
+    assert_eq!(start.status(), StatusCode::OK);
+
+    let ring = app
+        .api_client
+        .post(format!(
+            "{}/api/v4/plugins/com.mattermost.calls/calls/{}/ring",
+            app.address, channel_id
+        ))
+        .header("Authorization", format!("Bearer {token_outsider}"))
+        .send()
+        .await
+        .expect("ring request failed");
+    assert_eq!(ring.status(), StatusCode::FORBIDDEN);
 }
 
 #[tokio::test]
@@ -414,12 +457,16 @@ async fn calls_mobile_event_names_and_payloads_are_compatible() {
         Duration::from_secs(5),
     )
     .await;
-    let _ = wait_for_event(
+    let owner_joined = wait_for_event(
         &mut ws_a,
         "custom_com.mattermost.calls_user_joined",
         Duration::from_secs(5),
     )
     .await;
+    let owner_session = owner_joined["session_id"]
+        .as_str()
+        .expect("owner session_id should be present");
+    Uuid::parse_str(owner_session).expect("owner session_id should be raw UUID");
 
     let join = app
         .api_client
@@ -432,12 +479,16 @@ async fn calls_mobile_event_names_and_payloads_are_compatible() {
         .await
         .expect("join call request failed");
     assert_eq!(join.status(), StatusCode::OK);
-    let _ = wait_for_event(
+    let b_joined_event = wait_for_event(
         &mut ws_a,
         "custom_com.mattermost.calls_user_joined",
         Duration::from_secs(5),
     )
     .await;
+    let b_joined_session = b_joined_event["session_id"]
+        .as_str()
+        .expect("joined participant session_id should be present");
+    Uuid::parse_str(b_joined_session).expect("joined participant session_id should be raw UUID");
     let call_state_event = wait_for_event(
         &mut ws_a,
         "custom_com.mattermost.calls_call_state",
@@ -471,6 +522,7 @@ async fn calls_mobile_event_names_and_payloads_are_compatible() {
         .and_then(|session| session["session_id"].as_str())
         .expect("target session id should exist")
         .to_string();
+    assert_eq!(b_session_id, b_joined_session);
 
     let raise = app
         .api_client
@@ -755,14 +807,16 @@ async fn create_team_and_channel_with_members_of_type(
     .await
     .expect("failed to create team");
 
-    sqlx::query("INSERT INTO channels (id, team_id, name, type) VALUES ($1, $2, $3, $4::channel_type)")
-        .bind(channel_id)
-        .bind(team_id)
-        .bind(format!("channel_{suffix}"))
-        .bind(channel_type)
-        .execute(&app.db_pool)
-        .await
-        .expect("failed to create channel");
+    sqlx::query(
+        "INSERT INTO channels (id, team_id, name, type) VALUES ($1, $2, $3, $4::channel_type)",
+    )
+    .bind(channel_id)
+    .bind(team_id)
+    .bind(format!("channel_{suffix}"))
+    .bind(channel_type)
+    .execute(&app.db_pool)
+    .await
+    .expect("failed to create channel");
 
     for user_id in users {
         sqlx::query("INSERT INTO team_members (team_id, user_id, role) VALUES ($1, $2, 'member')")

@@ -552,12 +552,21 @@ async fn handle_client_value_message(
         });
 
         if let Err(err) = actor.send_raw(response) {
-            warn!(
-                user_id = %user_id,
-                connection_id = connection_id,
-                error = %err,
-                "Failed to send ping response"
-            );
+            if err.contains("closing") {
+                debug!(
+                    user_id = %user_id,
+                    connection_id = connection_id,
+                    error = %err,
+                    "Skipping ping response on closing websocket"
+                );
+            } else {
+                warn!(
+                    user_id = %user_id,
+                    connection_id = connection_id,
+                    error = %err,
+                    "Failed to send ping response"
+                );
+            }
         }
     } else if action == "user_typing" {
         if let Some(data) = value.get("data") {
