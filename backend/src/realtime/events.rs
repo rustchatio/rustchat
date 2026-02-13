@@ -15,15 +15,12 @@ pub struct WsEnvelope {
     pub channel_id: Option<Uuid>,
     pub data: serde_json::Value,
 
-    // Internal use for broadcast targeting (not serialized to client if possible, or filtered out before send)
-    // Actually, we can use a wrapper or just strip this field.
-    // For simplicity, let's keep it but skip serializing it.
-    #[serde(skip)]
+    // Broadcast targeting info - included in serialization so clients receive routing info
     pub broadcast: Option<WsBroadcast>,
 }
 
 /// Broadcast targeting info
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WsBroadcast {
     pub channel_id: Option<Uuid>,
     pub team_id: Option<Uuid>,

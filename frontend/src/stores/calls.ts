@@ -321,6 +321,9 @@ export const useCallsStore = defineStore('calls', () => {
     async function loadCallForChannel(channelId: string) {
         try {
             const { data } = await callsApi.getCallForChannel(channelId)
+            if (!data) {
+                return null
+            }
             if (data.call) {
                 activeCalls.value.set(channelId, data.call)
                 if (currentCall.value?.channelId === channelId) {

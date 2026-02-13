@@ -252,6 +252,12 @@ function normalizeCallState(channelId: string, raw: CallStateWire): CallState {
 
 async function fetchCallForChannel(channelId: string): Promise<CallChannelState> {
     const response = await apiClient.get<CallStateWire>(`${CALLS_ROUTE}/calls/${channelId}?mobilev2=true`)
+    if (!response.data) {
+        return {
+            channel_id: channelId,
+            enabled: true,
+        }
+    }
     return {
         channel_id: channelId,
         enabled: true,
