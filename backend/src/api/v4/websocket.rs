@@ -7,6 +7,7 @@
 //! - Message buffering for replay on reconnect
 
 use std::net::SocketAddr;
+use std::sync::atomic::Ordering;
 use std::time::Duration;
 
 use axum::{
@@ -19,7 +20,7 @@ use axum::{
 };
 use serde::Deserialize;
 use serde_json::json;
-use tokio::time::timeout;
+use tokio::time::{sleep, timeout};
 use tracing::{debug, error, info, trace, warn};
 use uuid::Uuid;
 
@@ -448,6 +449,28 @@ async fn run_connection(
 
     // Mark connection as disconnected (for potential resumption)
     actor.disconnect();
+
+    // Calls websocket clients may disconnect without sending an explicit
+    // `leave` action. Apply a short grace window for reconnect and then
+    // best-effort participant cleanup if this exact session is still inactive.
+    let disconnect_state = state.clone();
+    let disconnect_connection_id = actor_connection_id.clone();
+    tokio::spawn(async move {
+        sleep(Duration::from_secs(3)).await;
+        let still_inactive = disconnect_state
+            .connection_store
+            .get_connection(&disconnect_connection_id)
+            .map(|conn| !conn.is_active.load(Ordering::SeqCst))
+            .unwrap_or(true);
+        if still_inactive {
+            calls_plugin::handle_ws_connection_closed(
+                &disconnect_state,
+                user_id,
+                &disconnect_connection_id,
+            )
+            .await;
+        }
+    });
 
     // Remove from hub
     state.ws_hub.remove_connection(user_id, hub_conn_id).await;

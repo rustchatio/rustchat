@@ -286,7 +286,6 @@ struct CallStateResponse {
     screen_sharing_session_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     screen_sharing_session_id_raw: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     thread_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     recording: Option<Value>,
@@ -329,6 +328,14 @@ struct HostControlRequest {
 #[derive(Debug, Deserialize)]
 struct HostMakeRequest {
     new_host_id: String,
+}
+
+fn is_system_admin(auth: &MmAuthUser) -> bool {
+    auth.role.split_whitespace().any(|role| role == "system_admin")
+}
+
+fn can_manage_call(auth: &MmAuthUser, call: &CallState) -> bool {
+    call.host_id == auth.user_id || is_system_admin(auth)
 }
 
 // WebRTC Signaling Request/Response structs
@@ -1299,15 +1306,13 @@ async fn leave_call(
         None,
     )
     .await;
-    broadcast_call_state_event(&state, channel_uuid, None).await;
-
-    let participants = call_manager.get_participants(call.call_id).await;
-    if participants.len() <= 1 {
+    let remaining = reconcile_after_participant_left(&state, call.call_id, channel_uuid, auth.user_id).await;
+    if remaining <= 1 {
         schedule_empty_call_timeout(&state, call.call_id, channel_uuid);
         info!(
             call_id = %call.call_id,
             channel_id = %channel_uuid,
-            remaining_participants = participants.len(),
+            remaining_participants = remaining,
             timeout_secs = EMPTY_CALL_TIMEOUT_SECS,
             "calls.leave_call scheduled no-remote-participant timeout"
         );
@@ -1315,7 +1320,7 @@ async fn leave_call(
         info!(
             call_id = %call.call_id,
             channel_id = %channel_uuid,
-            remaining_participants = participants.len(),
+            remaining_participants = remaining,
             "calls.leave_call completed"
         );
     }
@@ -1335,7 +1340,7 @@ async fn end_call_endpoint(
     let channel_or_call_uuid = resolve_channel_id(&state, &channel_id).await?;
     let call_manager = state.call_state_manager.as_ref();
 
-    let call = match call_manager
+    let mut call = match call_manager
         .get_call_by_channel(&channel_or_call_uuid)
         .await
     {
@@ -1351,8 +1356,11 @@ async fn end_call_endpoint(
     };
 
     check_channel_permission(&state, auth.user_id, call.channel_id).await?;
+    call = normalize_call_host_if_stale(&state, call).await;
 
-    if call.host_id != auth.user_id {
+    let caller_is_only_participant =
+        call.participants.len() <= 1 && call.participants.contains_key(&auth.user_id);
+    if !can_manage_call(&auth, &call) && !caller_is_only_participant {
         return Err(AppError::Forbidden(
             "Only the host can end this call".to_string(),
         ));
@@ -1440,12 +1448,13 @@ async fn host_screen_off(
         .ok_or_else(|| AppError::BadRequest("Invalid session_id".to_string()))?;
 
     let call_manager = state.call_state_manager.as_ref();
-    let call = call_manager
+    let mut call = call_manager
         .get_call_by_channel(&channel_uuid)
         .await
         .ok_or_else(|| AppError::NotFound("No active call in this channel".to_string()))?;
+    call = normalize_call_host_if_stale(&state, call).await;
 
-    if call.host_id != auth.user_id {
+    if !can_manage_call(&auth, &call) {
         return Err(AppError::Forbidden(
             "Only the host can stop screen sharing".to_string(),
         ));
@@ -1541,6 +1550,15 @@ async fn send_reaction(
     Json(payload): Json<ReactionRequest>,
 ) -> ApiResult<Json<StatusResponse>> {
     let channel_uuid = resolve_channel_id(&state, &channel_id).await?;
+    let timestamp = Utc::now().timestamp_millis();
+    let emoji_name = crate::mattermost_compat::emoji_data::get_short_name_for_emoji(&payload.emoji);
+
+    let session_id = state
+        .call_state_manager
+        .get_call_by_channel(&channel_uuid)
+        .await
+        .and_then(|call| call.participants.get(&auth.user_id).map(|participant| participant.session_id.to_string()))
+        .unwrap_or_default();
 
     // Broadcast reaction event
     broadcast_call_event(
@@ -1548,9 +1566,14 @@ async fn send_reaction(
         "custom_com.mattermost.calls_user_reacted",
         &channel_uuid,
         serde_json::json!({
-            "channel_id": channel_id,
             "user_id": encode_mm_id(auth.user_id),
-            "emoji": payload.emoji,
+            "session_id": session_id,
+            "reaction": payload.emoji,
+            "timestamp": timestamp,
+            "emoji": {
+                "name": emoji_name,
+                "literal": payload.emoji,
+            },
         }),
         None,
     )
@@ -1825,13 +1848,14 @@ async fn host_mute(
         .ok_or_else(|| AppError::BadRequest("Invalid session_id".to_string()))?;
 
     let call_manager = state.call_state_manager.as_ref();
-    let call = call_manager
+    let mut call = call_manager
         .get_call_by_channel(&channel_uuid)
         .await
         .ok_or_else(|| AppError::NotFound("No active call in this channel".to_string()))?;
+    call = normalize_call_host_if_stale(&state, call).await;
 
     // Authorize: Only host can mute others
-    if call.host_id != auth.user_id {
+    if !can_manage_call(&auth, &call) {
         return Err(AppError::Forbidden(
             "Only the host can mute other participants".to_string(),
         ));
@@ -1893,12 +1917,13 @@ async fn host_mute_others(
     let channel_uuid = resolve_channel_id(&state, &channel_id).await?;
 
     let call_manager = state.call_state_manager.as_ref();
-    let call = call_manager
+    let mut call = call_manager
         .get_call_by_channel(&channel_uuid)
         .await
         .ok_or_else(|| AppError::NotFound("No active call in this channel".to_string()))?;
+    call = normalize_call_host_if_stale(&state, call).await;
 
-    if call.host_id != auth.user_id {
+    if !can_manage_call(&auth, &call) {
         return Err(AppError::Forbidden(
             "Only the host can mute other participants".to_string(),
         ));
@@ -1960,12 +1985,13 @@ async fn host_remove_user(
         .ok_or_else(|| AppError::BadRequest("Invalid session_id".to_string()))?;
 
     let call_manager = state.call_state_manager.as_ref();
-    let call = call_manager
+    let mut call = call_manager
         .get_call_by_channel(&channel_uuid)
         .await
         .ok_or_else(|| AppError::NotFound("No active call in this channel".to_string()))?;
+    call = normalize_call_host_if_stale(&state, call).await;
 
-    if call.host_id != auth.user_id {
+    if !can_manage_call(&auth, &call) {
         return Err(AppError::Forbidden(
             "Only the host can remove participants".to_string(),
         ));
@@ -2021,8 +2047,9 @@ async fn host_remove_user(
     )
     .await;
 
-    let participants = call_manager.get_participants(call.call_id).await;
-    if participants.len() <= 1 {
+    let remaining =
+        reconcile_after_participant_left(&state, call.call_id, channel_uuid, target_user_id).await;
+    if remaining <= 1 {
         schedule_empty_call_timeout(&state, call.call_id, channel_uuid);
     }
 
@@ -2044,12 +2071,13 @@ async fn host_lower_hand(
         .ok_or_else(|| AppError::BadRequest("Invalid session_id".to_string()))?;
 
     let call_manager = state.call_state_manager.as_ref();
-    let call = call_manager
+    let mut call = call_manager
         .get_call_by_channel(&channel_uuid)
         .await
         .ok_or_else(|| AppError::NotFound("No active call in this channel".to_string()))?;
+    call = normalize_call_host_if_stale(&state, call).await;
 
-    if call.host_id != auth.user_id {
+    if !can_manage_call(&auth, &call) {
         return Err(AppError::Forbidden(
             "Only the host can lower hands".to_string(),
         ));
@@ -2124,12 +2152,13 @@ async fn host_make_moderator(
         .ok_or_else(|| AppError::BadRequest("Invalid new_host_id".to_string()))?;
 
     let call_manager = state.call_state_manager.as_ref();
-    let call = call_manager
+    let mut call = call_manager
         .get_call_by_channel(&channel_uuid)
         .await
         .ok_or_else(|| AppError::NotFound("No active call in this channel".to_string()))?;
+    call = normalize_call_host_if_stale(&state, call).await;
 
-    if call.host_id != auth.user_id {
+    if !can_manage_call(&auth, &call) {
         return Err(AppError::Forbidden(
             "Only the host can transfer host status".to_string(),
         ));
@@ -2145,28 +2174,7 @@ async fn host_make_moderator(
     // Transfer host in state
     call_manager.set_host(call.call_id, new_host_uuid).await;
 
-    let event_payload = serde_json::json!({
-        "channel_id": channel_id,
-        "hostID": payload.new_host_id,
-        "host_id": payload.new_host_id,
-    });
-    broadcast_call_event(
-        &state,
-        "custom_com.mattermost.calls_call_host_changed",
-        &channel_uuid,
-        event_payload.clone(),
-        None,
-    )
-    .await;
-    // Legacy alias kept for compatibility with existing rustchat consumers.
-    broadcast_call_event(
-        &state,
-        "custom_com.mattermost.calls_host_changed",
-        &channel_uuid,
-        event_payload,
-        None,
-    )
-    .await;
+    broadcast_host_changed_event(&state, channel_uuid, new_host_uuid).await;
     broadcast_call_state_event(&state, channel_uuid, None).await;
 
     Ok(Json(StatusResponse {
@@ -2576,6 +2584,96 @@ async fn broadcast_raise_hand_event(
     .await;
 }
 
+fn select_next_host(participants: &HashMap<Uuid, Participant>) -> Option<Uuid> {
+    participants
+        .values()
+        .min_by_key(|participant| (participant.joined_at, participant.user_id))
+        .map(|participant| participant.user_id)
+}
+
+async fn broadcast_host_changed_event(state: &AppState, channel_id: Uuid, new_host_id: Uuid) {
+    let encoded_host_id = encode_mm_id(new_host_id);
+    let event_payload = serde_json::json!({
+        "hostID": encoded_host_id,
+        "host_id": encoded_host_id,
+    });
+
+    broadcast_call_event(
+        state,
+        "custom_com.mattermost.calls_call_host_changed",
+        &channel_id,
+        event_payload.clone(),
+        None,
+    )
+    .await;
+    // Legacy alias kept for compatibility with existing rustchat consumers.
+    broadcast_call_event(
+        state,
+        "custom_com.mattermost.calls_host_changed",
+        &channel_id,
+        event_payload,
+        None,
+    )
+    .await;
+}
+
+async fn normalize_call_host_if_stale(state: &AppState, call: CallState) -> CallState {
+    if call.participants.is_empty() || call.participants.contains_key(&call.host_id) {
+        return call;
+    }
+
+    let Some(new_host_id) = select_next_host(&call.participants) else {
+        return call;
+    };
+
+    state
+        .call_state_manager
+        .set_host(call.call_id, new_host_id)
+        .await;
+    broadcast_host_changed_event(state, call.channel_id, new_host_id).await;
+    broadcast_call_state_event(state, call.channel_id, None).await;
+
+    state
+        .call_state_manager
+        .get_call(call.call_id)
+        .await
+        .unwrap_or(call)
+}
+
+async fn reconcile_after_participant_left(
+    state: &AppState,
+    call_id: Uuid,
+    channel_id: Uuid,
+    departed_user_id: Uuid,
+) -> usize {
+    let mut call = match state.call_state_manager.get_call(call_id).await {
+        Some(call) => call,
+        None => return 0,
+    };
+
+    if call.host_id == departed_user_id {
+        if let Some(new_host_id) = select_next_host(&call.participants) {
+            state.call_state_manager.set_host(call.call_id, new_host_id).await;
+            broadcast_host_changed_event(state, channel_id, new_host_id).await;
+            if let Some(updated_call) = state.call_state_manager.get_call(call_id).await {
+                call = updated_call;
+            }
+        }
+    } else if !call.participants.is_empty() && !call.participants.contains_key(&call.host_id) {
+        if let Some(new_host_id) = select_next_host(&call.participants) {
+            state.call_state_manager.set_host(call.call_id, new_host_id).await;
+            broadcast_host_changed_event(state, channel_id, new_host_id).await;
+            if let Some(updated_call) = state.call_state_manager.get_call(call_id).await {
+                call = updated_call;
+            }
+        }
+    }
+
+    broadcast_call_state_event(state, channel_id, None).await;
+
+    call.participants.len()
+}
+
 /// Handle websocket actions used by Mattermost mobile calls.
 /// Returns `true` when the action is recognized and handled.
 pub async fn handle_ws_action(
@@ -2681,7 +2779,6 @@ async fn handle_ws_join_call(
         if existing.session_id == conn_uuid {
             should_add_participant = false;
         } else {
-            call_manager.remove_participant(call.call_id, user_id).await;
             if let Some(sfu) = state.sfu_manager.get_sfu(call.call_id).await {
                 let _ = sfu.remove_participant(existing.session_id).await;
             }
@@ -2957,11 +3054,57 @@ async fn handle_ws_leave_call(
     )
     .await;
 
-    if call_manager.get_participants(call.call_id).await.len() <= 1 {
+    let remaining = reconcile_after_participant_left(state, call.call_id, call.channel_id, user_id).await;
+    if remaining <= 1 {
         schedule_empty_call_timeout(state, call.call_id, call.channel_id);
     }
 
     Ok(())
+}
+
+/// Best-effort cleanup for abrupt websocket disconnects where no explicit
+/// calls_leave websocket action was delivered.
+pub async fn handle_ws_connection_closed(state: &AppState, user_id: Uuid, connection_id: &str) {
+    let Ok(session_id) = Uuid::parse_str(connection_id) else {
+        return;
+    };
+    let Some(call) = find_call_for_session(state, user_id, session_id).await else {
+        return;
+    };
+
+    state
+        .call_state_manager
+        .remove_participant(call.call_id, user_id)
+        .await;
+    if let Some(sfu) = state.sfu_manager.get_sfu(call.call_id).await {
+        let _ = sfu.remove_participant(session_id).await;
+    }
+
+    broadcast_call_event(
+        state,
+        "custom_com.mattermost.calls_user_left",
+        &call.channel_id,
+        serde_json::json!({
+            "user_id": encode_mm_id(user_id),
+            "session_id": session_id.to_string(),
+        }),
+        None,
+    )
+    .await;
+
+    let remaining = reconcile_after_participant_left(state, call.call_id, call.channel_id, user_id).await;
+    if remaining <= 1 {
+        schedule_empty_call_timeout(state, call.call_id, call.channel_id);
+    }
+
+    info!(
+        user_id = %user_id,
+        session_id = %session_id,
+        call_id = %call.call_id,
+        channel_id = %call.channel_id,
+        remaining_participants = remaining,
+        "calls.ws cleaned up disconnected participant"
+    );
 }
 
 async fn handle_ws_mute(
@@ -3085,7 +3228,20 @@ async fn handle_ws_reaction(
         .get("data")
         .and_then(|v| v.as_str())
         .and_then(|raw| serde_json::from_str::<Value>(raw).ok())
+        .or_else(|| data.get("data").cloned())
         .unwrap_or_else(|| serde_json::json!({}));
+    let reaction = emoji
+        .get("literal")
+        .and_then(|value| value.as_str())
+        .map(ToString::to_string)
+        .or_else(|| {
+            emoji
+                .get("name")
+                .and_then(|value| value.as_str())
+                .map(|name| format!(":{name}:"))
+        })
+        .unwrap_or_default();
+    let timestamp = Utc::now().timestamp_millis();
 
     broadcast_call_event(
         state,
@@ -3094,6 +3250,8 @@ async fn handle_ws_reaction(
         serde_json::json!({
             "user_id": encode_mm_id(user_id),
             "session_id": session_id.to_string(),
+            "reaction": reaction,
+            "timestamp": timestamp,
             "emoji": emoji,
         }),
         None,
