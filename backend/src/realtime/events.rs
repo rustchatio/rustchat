@@ -8,7 +8,7 @@ use uuid::Uuid;
 pub struct WsEnvelope {
     #[serde(rename = "type")]
     pub msg_type: String, // "event", "command", "ack", "error"
-    pub event: String, // e.g. "message_created"
+    pub event: String, // e.g. "posted"
     #[serde(skip_serializing_if = "Option::is_none")]
     pub seq: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -74,9 +74,9 @@ pub enum EventType {
 impl EventType {
     pub fn as_str(&self) -> &'static str {
         match self {
-            Self::MessageCreated => "message_created",
-            Self::MessageUpdated => "message_updated",
-            Self::MessageDeleted => "message_deleted",
+            Self::MessageCreated => "posted",
+            Self::MessageUpdated => "post_edited",
+            Self::MessageDeleted => "post_deleted",
             Self::ThreadReplyCreated => "thread_reply_created",
             Self::ThreadReplyUpdated => "thread_reply_updated",
             Self::ThreadReplyDeleted => "thread_reply_deleted",
@@ -90,10 +90,10 @@ impl EventType {
             Self::ChannelUpdated => "channel_updated",
             Self::ChannelDeleted => "channel_deleted",
             Self::ChannelViewed => "channel_viewed",
-            Self::MemberAdded => "member_added",
-            Self::MemberRemoved => "member_removed",
+            Self::MemberAdded => "user_added",
+            Self::MemberRemoved => "user_removed",
             Self::UserUpdated => "user_updated",
-            Self::UserPresence => "user_presence",
+            Self::UserPresence => "status_change",
             Self::EphemeralMessage => "ephemeral_message",
             Self::CallSignal => "call_signal",
             Self::ConfigUpdated => "config_updated",

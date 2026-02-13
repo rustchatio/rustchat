@@ -808,7 +808,7 @@ fn map_envelope_to_mm(env: &WsEnvelope) -> Option<mm::WebSocketMessage> {
     let seq = None; // Will be assigned by actor
 
     match env.event.as_str() {
-        "message_created" | "thread_reply_created" => {
+        "posted" | "thread_reply_created" => {
             if let Ok(post_resp) =
                 serde_json::from_value::<crate::models::post::PostResponse>(env.data.clone())
             {
@@ -834,7 +834,7 @@ fn map_envelope_to_mm(env: &WsEnvelope) -> Option<mm::WebSocketMessage> {
                 None
             }
         }
-        "user_typing" => {
+        "typing" => {
             if let Ok(typing) =
                 serde_json::from_value::<crate::realtime::TypingEvent>(env.data.clone())
             {
@@ -852,7 +852,7 @@ fn map_envelope_to_mm(env: &WsEnvelope) -> Option<mm::WebSocketMessage> {
                 None
             }
         }
-        "message_updated" | "thread_reply_updated" => {
+        "post_edited" | "thread_reply_updated" => {
             if let Ok(post_resp) =
                 serde_json::from_value::<crate::models::post::PostResponse>(env.data.clone())
             {
@@ -868,7 +868,7 @@ fn map_envelope_to_mm(env: &WsEnvelope) -> Option<mm::WebSocketMessage> {
                 None
             }
         }
-        "message_deleted" | "thread_reply_deleted" => {
+        "post_deleted" | "thread_reply_deleted" => {
             if let Ok(post_resp) =
                 serde_json::from_value::<crate::models::post::PostResponse>(env.data.clone())
             {
@@ -938,7 +938,7 @@ fn map_envelope_to_mm(env: &WsEnvelope) -> Option<mm::WebSocketMessage> {
                 None
             }
         }
-        "user_updated" | "user_presence" => {
+        "user_updated" | "status_change" => {
             if let Some(status_str) = env.data.get("status").and_then(|v| v.as_str()) {
                 let user_id = env
                     .data
@@ -966,7 +966,7 @@ fn map_envelope_to_mm(env: &WsEnvelope) -> Option<mm::WebSocketMessage> {
                 broadcast: map_broadcast(env.broadcast.as_ref()),
             })
         }
-        "member_added" => {
+        "user_added" => {
             let user_id = extract_mm_id(env.data.get("user_id"));
             let channel_id = extract_mm_id(env.data.get("channel_id"));
             let team_id = extract_mm_id(env.data.get("team_id"));
@@ -981,7 +981,7 @@ fn map_envelope_to_mm(env: &WsEnvelope) -> Option<mm::WebSocketMessage> {
                 broadcast: map_broadcast(env.broadcast.as_ref()),
             })
         }
-        "member_removed" => {
+        "user_removed" => {
             let user_id = extract_mm_id(env.data.get("user_id"));
             let remover_id = extract_mm_id(env.data.get("remover_id"));
             Some(mm::WebSocketMessage {
