@@ -371,6 +371,8 @@ pub async fn populate_files(state: &AppState, posts: &mut [PostResponse]) -> Api
                 name: file.name,
                 mime_type: file.mime_type,
                 size: file.size,
+                width: file.width.unwrap_or(0),
+                height: file.height.unwrap_or(0),
                 url,
                 thumbnail_url,
             },

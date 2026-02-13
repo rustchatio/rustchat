@@ -175,8 +175,8 @@ impl From<PostResponse> for mm::Post {
                         .to_string(),
                     size: f.size,
                     mime_type: f.mime_type,
-                    width: 0,
-                    height: 0,
+                    width: f.width,
+                    height: f.height,
                     has_preview_image: f.thumbnail_url.is_some(),
                     mini_preview: None,
                 })
@@ -288,6 +288,7 @@ impl From<FileInfo> for mm::FileInfo {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::models::file::FileUploadResponse;
     use chrono::Utc;
     use uuid::Uuid;
 
@@ -351,5 +352,57 @@ mod tests {
         assert_eq!(mm_c.team_id, encode_mm_id(team_id));
         assert_eq!(mm_c.channel_type, "O");
         assert_eq!(mm_c.name, "general");
+    }
+
+    #[test]
+    fn test_post_response_file_dimensions_mapped_to_metadata() {
+        let now = Utc::now();
+        let post_id = Uuid::new_v4();
+        let channel_id = Uuid::new_v4();
+        let user_id = Uuid::new_v4();
+        let file_id = Uuid::new_v4();
+
+        let post = PostResponse {
+            id: post_id,
+            channel_id,
+            user_id,
+            root_post_id: None,
+            message: "image post".to_string(),
+            props: serde_json::json!({}),
+            file_ids: vec![file_id],
+            is_pinned: false,
+            created_at: now,
+            edited_at: None,
+            deleted_at: None,
+            reply_count: 0,
+            last_reply_at: None,
+            username: Some("alice".to_string()),
+            avatar_url: None,
+            email: None,
+            files: vec![FileUploadResponse {
+                id: file_id,
+                name: "photo.jpg".to_string(),
+                mime_type: "image/jpeg".to_string(),
+                size: 1024,
+                width: 1280,
+                height: 720,
+                url: "/api/v4/files/file".to_string(),
+                thumbnail_url: Some("/api/v4/files/file/thumbnail".to_string()),
+            }],
+            reactions: vec![],
+            is_saved: false,
+            client_msg_id: None,
+            seq: 1,
+        };
+
+        let mm_post: mm::Post = post.into();
+        let metadata = mm_post.metadata.expect("metadata should exist");
+        let files = metadata
+            .get("files")
+            .and_then(|v| v.as_array())
+            .expect("files metadata should exist");
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].get("width"), Some(&serde_json::json!(1280)));
+        assert_eq!(files[0].get("height"), Some(&serde_json::json!(720)));
     }
 }

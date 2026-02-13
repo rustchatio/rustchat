@@ -32,6 +32,10 @@ pub struct FileUploadResponse {
     pub name: String,
     pub mime_type: String,
     pub size: i64,
+    #[serde(default)]
+    pub width: i32,
+    #[serde(default)]
+    pub height: i32,
     pub url: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub thumbnail_url: Option<String>,

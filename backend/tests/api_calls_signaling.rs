@@ -252,6 +252,16 @@ async fn offer_generates_server_signaling_event_over_websocket() {
     assert_eq!(signal_event["channel_id_raw"], channel_id.to_string());
     assert_eq!(signal_event["signal"]["type"], "connection-state");
     assert_eq!(signal_event["signal"]["state"], "ready");
+    let conn_id = signal_event["connID"]
+        .as_str()
+        .expect("calls_signal should include connID");
+    assert!(!conn_id.is_empty(), "connID should not be empty");
+    let serialized_signal = signal_event["data"]
+        .as_str()
+        .expect("calls_signal should include serialized data field");
+    let parsed_signal: serde_json::Value =
+        serde_json::from_str(serialized_signal).expect("serialized signal should parse as JSON");
+    assert_eq!(parsed_signal["type"], signal_event["signal"]["type"]);
 }
 
 #[tokio::test]
@@ -310,6 +320,10 @@ async fn calls_mobile_channel_state_and_end_route_are_compatible() {
     assert_eq!(channel_state["enabled"], true);
     assert!(channel_state["call"].is_object());
     assert!(channel_state["call"]["sessions"].is_object());
+    let list_thread_id = channel_state["call"]["thread_id"]
+        .as_str()
+        .expect("channel list call state should include thread_id");
+    assert!(!list_thread_id.is_empty(), "thread_id should not be empty");
 
     let get_channel_state = app
         .api_client
@@ -326,6 +340,20 @@ async fn calls_mobile_channel_state_and_end_route_are_compatible() {
         get_channel_state.json().await.expect("channel state JSON");
     assert_eq!(get_channel_state_body["enabled"], true);
     assert!(get_channel_state_body["call"].is_object());
+    let thread_id = get_channel_state_body["call"]["thread_id"]
+        .as_str()
+        .expect("mobile channel state should include thread_id")
+        .to_string();
+    assert!(!thread_id.is_empty(), "thread_id should not be empty");
+
+    let thread = app
+        .api_client
+        .get(format!("{}/api/v4/posts/{}/thread", app.address, thread_id))
+        .header("Authorization", format!("Bearer {token_a}"))
+        .send()
+        .await
+        .expect("get call thread request failed");
+    assert_eq!(thread.status(), StatusCode::OK);
 
     let config = app
         .api_client

@@ -158,6 +158,8 @@ async fn upload_file(
         name: file_info.name,
         mime_type: file_info.mime_type,
         size: file_info.size,
+        width: file_info.width.unwrap_or(0),
+        height: file_info.height.unwrap_or(0),
         url,
         thumbnail_url: None, // Will be populated when the record is fetched later
     }))

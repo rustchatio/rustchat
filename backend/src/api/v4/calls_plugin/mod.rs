@@ -25,7 +25,7 @@ use crate::api::v4::extractors::MmAuthUser;
 use crate::api::AppState;
 use crate::error::{ApiResult, AppError};
 use crate::mattermost_compat::id::{encode_mm_id, parse_mm_or_uuid};
-use crate::realtime::{WsBroadcast, WsEnvelope};
+use crate::realtime::{EventType, WsBroadcast, WsEnvelope};
 
 pub mod commands;
 pub mod sfu;
@@ -654,6 +654,8 @@ async fn build_call_state_response(
     channel_id_for_response: String,
     channel_uuid: Uuid,
 ) -> ApiResult<CallStateResponse> {
+    let thread_id = ensure_call_thread_id(state, call).await;
+
     let call_participants = state
         .call_state_manager
         .get_participants(call.call_id)
@@ -741,10 +743,114 @@ async fn build_call_state_response(
             .map(|participant| participant.session_id.to_string()),
         screen_sharing_session_id_raw: screen_sharing_session
             .map(|participant| participant.session_id.to_string()),
-        thread_id: call.thread_id.map(encode_mm_id),
+        thread_id: thread_id.map(encode_mm_id),
         recording: None,
         dismissed_notification: Some(dismissed_notification),
     })
+}
+
+#[derive(sqlx::FromRow)]
+struct CallThreadPostRow {
+    id: Uuid,
+    created_at: chrono::DateTime<Utc>,
+    seq: i64,
+}
+
+async fn create_call_thread_post(
+    state: &AppState,
+    call_id: Uuid,
+    channel_id: Uuid,
+    owner_id: Uuid,
+    started_at: i64,
+) -> Result<Uuid, sqlx::Error> {
+    let props = serde_json::json!({
+        "type": "custom_calls",
+        "call_id": encode_mm_id(call_id),
+        "start_at": started_at,
+        "end_at": 0,
+        "participants": [encode_mm_id(owner_id)],
+    });
+
+    let post: CallThreadPostRow = sqlx::query_as(
+        r#"
+        INSERT INTO posts (channel_id, user_id, message, props, file_ids)
+        VALUES ($1, $2, $3, $4, $5)
+        RETURNING id, created_at, seq
+        "#,
+    )
+    .bind(channel_id)
+    .bind(owner_id)
+    .bind("")
+    .bind(&props)
+    .bind(Vec::<Uuid>::new())
+    .fetch_one(&state.db)
+    .await?;
+
+    let mm_post = crate::mattermost_compat::models::Post {
+        id: encode_mm_id(post.id),
+        create_at: post.created_at.timestamp_millis(),
+        update_at: post.created_at.timestamp_millis(),
+        delete_at: 0,
+        edit_at: 0,
+        user_id: encode_mm_id(owner_id),
+        channel_id: encode_mm_id(channel_id),
+        root_id: String::new(),
+        original_id: String::new(),
+        message: String::new(),
+        post_type: "custom_calls".to_string(),
+        props,
+        hashtags: String::new(),
+        file_ids: Vec::new(),
+        pending_post_id: String::new(),
+        metadata: None,
+    };
+
+    let broadcast = WsEnvelope::event(EventType::MessageCreated, mm_post, Some(channel_id))
+        .with_broadcast(WsBroadcast {
+            channel_id: Some(channel_id),
+            team_id: None,
+            user_id: None,
+            exclude_user_id: None,
+        });
+    state.ws_hub.broadcast(broadcast).await;
+
+    let _ =
+        crate::services::unreads::increment_unreads(state, channel_id, owner_id, post.seq).await;
+
+    Ok(post.id)
+}
+
+async fn ensure_call_thread_id(state: &AppState, call: &CallState) -> Option<Uuid> {
+    if let Some(thread_id) = call.thread_id {
+        return Some(thread_id);
+    }
+
+    match create_call_thread_post(
+        state,
+        call.call_id,
+        call.channel_id,
+        call.owner_id,
+        call.started_at,
+    )
+    .await
+    {
+        Ok(thread_id) => {
+            state
+                .call_state_manager
+                .set_thread_id(call.call_id, Some(thread_id))
+                .await;
+            Some(thread_id)
+        }
+        Err(err) => {
+            warn!(
+                call_id = %call.call_id,
+                channel_id = %call.channel_id,
+                error = %err,
+                "calls failed to create call thread post"
+            );
+            None
+        }
+    }
 }
 
 /// GET /plugins/com.mattermost.calls/{channel_id}
@@ -878,6 +984,8 @@ async fn start_call(
         "calls.start_call call state created"
     );
 
+    let thread_id = ensure_call_thread_id(&state, &call).await;
+
     // Add owner as first participant (muted by default)
     let participant = Participant {
         user_id: auth.user_id,
@@ -938,7 +1046,7 @@ async fn start_call(
             "start_at": now,
             "owner_id": encode_mm_id(auth.user_id),
             "host_id": encode_mm_id(auth.user_id),
-            "thread_id": call.thread_id.map(encode_mm_id),
+            "thread_id": thread_id.map(encode_mm_id),
         }),
         Some(auth.user_id), // Exclude sender
     )
@@ -2609,6 +2717,8 @@ async fn handle_ws_join_call(
             .map_err(|e| format!("Failed to add participant to SFU: {e}"))?;
     }
 
+    let thread_id = ensure_call_thread_id(state, &call).await;
+
     if created_call {
         schedule_unanswered_call_timeout(state, call.call_id, channel_uuid);
         broadcast_call_event(
@@ -2621,7 +2731,7 @@ async fn handle_ws_join_call(
                 "start_at": call.started_at,
                 "owner_id": encode_mm_id(call.owner_id),
                 "host_id": encode_mm_id(call.owner_id),
-                "thread_id": call.thread_id.map(encode_mm_id),
+                "thread_id": thread_id.map(encode_mm_id),
                 "call_id": encode_mm_id(call.call_id),
                 "channel_id": encode_mm_id(channel_uuid),
             }),
@@ -2643,6 +2753,8 @@ async fn handle_ws_join_call(
         None,
     )
     .await;
+
+    broadcast_call_state_event(state, channel_uuid, None).await;
 
     send_ws_plugin_event(
         state,
@@ -3599,11 +3711,14 @@ async fn send_signaling_event(
         seq: None,
         channel_id: Some(channel_id),
         data: serde_json::json!({
+            "connID": session_id.to_string(),
+            "conn_id": session_id.to_string(),
+            "data": signal_payload.to_string(),
             "channel_id": encode_mm_id(channel_id),
             "channel_id_raw": channel_id.to_string(),
             "user_id": encode_mm_id(user_id),
             "user_id_raw": user_id.to_string(),
-            "session_id": encode_mm_id(session_id),
+            "session_id": session_id.to_string(),
             "session_id_raw": session_id.to_string(),
             "signal": signal_payload,
         }),
