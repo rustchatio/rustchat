@@ -502,6 +502,21 @@ async fn handle_client_text_message(
 
     if let Ok(value) = serde_json::from_str::<serde_json::Value>(text) {
         handle_client_value_message(state, actor, user_id, username, connection_id, &value).await;
+    } else {
+        // Handle plain text calls actions (e.g., mobile sends "mute", "unmute" as plain text)
+        let trimmed = text.trim();
+        let calls_actions = ["mute", "unmute", "raise_hand", "unraise_hand", "leave"];
+        if calls_actions.contains(&trimmed) {
+            let action = format!("custom_com.mattermost.calls_{}", trimmed);
+            let _ = calls_plugin::handle_ws_action(
+                state,
+                user_id,
+                connection_id,
+                &action,
+                None,
+            )
+            .await;
+        }
     }
 
     let _ = websocket_core::handle_client_envelope_message(
