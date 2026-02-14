@@ -2525,10 +2525,27 @@ async fn broadcast_screen_share_event(
     session_id: Uuid,
     is_on: bool,
 ) {
+    let call = state
+        .call_state_manager
+        .get_call_by_channel(&channel_id)
+        .await;
+    let call_id = call.map(|c| c.call_id).unwrap_or_default();
+
     let payload = serde_json::json!({
         "user_id": encode_mm_id(user_id),
+        "user_id_raw": user_id.to_string(),
         "session_id": session_id.to_string(),
+        "session_id_raw": session_id.to_string(),
     });
+
+    debug!(
+        call_id = %call_id,
+        channel_id = %channel_id,
+        user_id = %user_id,
+        session_id = %session_id,
+        is_on = is_on,
+        "calls.broadcast_screen_share_event"
+    );
 
     broadcast_call_event(
         state,
@@ -3656,13 +3673,39 @@ async fn broadcast_ringing_event(
     sender_id: Uuid,
     exclude_user_id: Option<Uuid>,
 ) {
+    // Fetch sender info for better mobile client support
+    let sender_info: Option<(String, String)> = sqlx::query_as(
+        "SELECT username, COALESCE(display_name, '') as display_name FROM users WHERE id = $1"
+    )
+    .bind(sender_id)
+    .fetch_optional(&state.db)
+    .await
+    .ok()
+    .flatten();
+
+    let (username, display_name) = sender_info.unwrap_or_else(|| {
+        (encode_mm_id(sender_id), String::new())
+    });
+
+    debug!(
+        call_id = %call_id,
+        channel_id = %channel_id,
+        sender_id = %sender_id,
+        exclude_user_id = ?exclude_user_id,
+        "calls.broadcast_ringing_event"
+    );
+
     broadcast_call_event(
         state,
         "custom_com.mattermost.calls_ringing",
         &channel_id,
         serde_json::json!({
             "call_id": encode_mm_id(call_id),
+            "call_id_raw": call_id.to_string(),
             "sender_id": encode_mm_id(sender_id),
+            "sender_id_raw": sender_id.to_string(),
+            "username": username,
+            "display_name": display_name,
         }),
         exclude_user_id,
     )

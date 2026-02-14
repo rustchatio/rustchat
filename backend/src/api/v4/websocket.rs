@@ -834,17 +834,38 @@ fn map_envelope_to_mm(env: &WsEnvelope) -> Option<mm::WebSocketMessage> {
                 None
             }
         }
-        "typing" => {
+        "typing" | "typing_start" => {
             if let Ok(typing) =
                 serde_json::from_value::<crate::realtime::TypingEvent>(env.data.clone())
             {
                 let parent_id = typing.thread_root_id.map(encode_mm_id).unwrap_or_default();
                 Some(mm::WebSocketMessage {
                     seq,
-                    event: "typing".to_string(),
+                    event: "user_typing".to_string(),
                     data: json!({
                         "parent_id": parent_id,
                         "user_id": encode_mm_id(typing.user_id),
+                        "display_name": typing.display_name,
+                        "thread_root_id": parent_id,
+                    }),
+                    broadcast: map_broadcast(env.broadcast.as_ref()),
+                })
+            } else {
+                None
+            }
+        }
+        "stop_typing" | "typing_stop" => {
+            if let Ok(typing) =
+                serde_json::from_value::<crate::realtime::TypingEvent>(env.data.clone())
+            {
+                let parent_id = typing.thread_root_id.map(encode_mm_id).unwrap_or_default();
+                Some(mm::WebSocketMessage {
+                    seq,
+                    event: "user_typing_stop".to_string(),
+                    data: json!({
+                        "parent_id": parent_id,
+                        "user_id": encode_mm_id(typing.user_id),
+                        "thread_root_id": parent_id,
                     }),
                     broadcast: map_broadcast(env.broadcast.as_ref()),
                 })
