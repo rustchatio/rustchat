@@ -32,6 +32,9 @@ logs/
 # mattermost
 mattermost-mobile
 
+# secrets
+secrets/
+
 # Test coverage
 *.gcno
 *.gcda
