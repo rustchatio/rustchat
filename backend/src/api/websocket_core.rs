@@ -5,12 +5,13 @@
 //! bootstrap, presence lifecycle, and shared command handling.
 
 use axum::http::HeaderMap;
+use chrono::Utc;
 use uuid::Uuid;
 
 use crate::api::AppState;
 use crate::auth::validate_token;
 use crate::realtime::{
-    ClientEnvelope, EventType, PresenceEvent, TypingCommandData, TypingEvent, WsBroadcast,
+    ClientEnvelope, EventType, TypingCommandData, TypingEvent, WsBroadcast,
     WsEnvelope,
 };
 
@@ -152,21 +153,43 @@ pub async fn set_offline_if_last_connection(state: &AppState, user_id: Uuid) {
 }
 
 pub async fn persist_presence_and_broadcast(state: &AppState, user_id: Uuid, status: &str) {
-    let _ = sqlx::query("UPDATE users SET presence = $1 WHERE id = $2")
+    let now = Utc::now();
+    
+    // Update user presence and last activity in database
+    let _ = sqlx::query("UPDATE users SET presence = $1, last_login_at = $2 WHERE id = $3")
         .bind(status)
+        .bind(now)
         .bind(user_id)
         .execute(&state.db)
         .await;
 
     state.ws_hub.set_presence(user_id, status.to_string()).await;
+    
+    // Create status change event with full broadcast info
+    // The broadcast.user_id helps clients identify which user's status changed
     let evt = WsEnvelope::event(
         EventType::UserPresence,
-        PresenceEvent {
-            user_id,
-            status: status.to_string(),
-        },
+        serde_json::json!({
+            "user_id": user_id,
+            "status": status,
+            "manual": false,
+            "last_activity_at": now.timestamp_millis()
+        }),
         None,
+    )
+    .with_broadcast(WsBroadcast {
+        channel_id: None,
+        team_id: None,
+        user_id: Some(user_id),  // Identifies which user's status changed
+        exclude_user_id: None,
+    });
+    
+    tracing::debug!(
+        user_id = %user_id,
+        status = %status,
+        "Broadcasting status change event"
     );
+    
     state.ws_hub.broadcast(evt).await;
 }
 

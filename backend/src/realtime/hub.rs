@@ -133,6 +133,15 @@ impl WsHub {
             Err(_) => return,
         };
 
+        // Debug logging for important events
+        if envelope.event == "typing" || envelope.event == "stop_typing" || envelope.event == "status_change" {
+            tracing::debug!(
+                event = %envelope.event,
+                has_broadcast = envelope.broadcast.is_some(),
+                "Broadcasting WebSocket event"
+            );
+        }
+
         let connections = self.connections.read().await;
 
         if let Some(broadcast) = &envelope.broadcast {

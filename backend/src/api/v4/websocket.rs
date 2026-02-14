@@ -972,10 +972,23 @@ fn map_envelope_to_mm(env: &WsEnvelope) -> Option<mm::WebSocketMessage> {
                     .and_then(parse_mm_or_uuid)
                     .map(encode_mm_id)
                     .unwrap_or_default();
+                
+                // Extract additional fields if available
+                let manual = env.data.get("manual").and_then(|v| v.as_bool()).unwrap_or(false);
+                let last_activity_at = env.data
+                    .get("last_activity_at")
+                    .and_then(|v| v.as_i64())
+                    .unwrap_or(0);
+                
                 Some(mm::WebSocketMessage {
                     seq,
                     event: "status_change".to_string(),
-                    data: json!({ "user_id": user_id, "status": status_str }),
+                    data: json!({ 
+                        "user_id": user_id, 
+                        "status": status_str,
+                        "manual": manual,
+                        "last_activity_at": last_activity_at
+                    }),
                     broadcast: map_broadcast(env.broadcast.as_ref()),
                 })
             } else {

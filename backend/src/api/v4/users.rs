@@ -601,6 +601,13 @@ async fn my_team_channels(
 ) -> ApiResult<Json<Vec<mm::Channel>>> {
     let team_id = parse_mm_or_uuid(&team_id)
         .ok_or_else(|| AppError::BadRequest("Invalid team_id".to_string()))?;
+    
+    tracing::debug!(
+        user_id = %auth.user_id,
+        team_id = %team_id,
+        "Fetching channels for user"
+    );
+    
     let mut channels: Vec<Channel> = sqlx::query_as(
         r#"
         SELECT c.* FROM channels c
@@ -612,6 +619,13 @@ async fn my_team_channels(
     .bind(auth.user_id)
     .fetch_all(&state.db)
     .await?;
+
+    tracing::debug!(
+        user_id = %auth.user_id,
+        team_id = %team_id,
+        channel_count = channels.len(),
+        "Found channels for user"
+    );
 
     for channel in &mut channels {
         hydrate_direct_channel_display_name(&state, auth.user_id, channel).await?;

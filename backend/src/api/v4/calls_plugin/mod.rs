@@ -3718,6 +3718,7 @@ async fn broadcast_ringing_event(
         "calls.broadcast_ringing_event"
     );
 
+    // Broadcast WebSocket event
     broadcast_call_event(
         state,
         "custom_com.mattermost.calls_ringing",
@@ -3733,6 +3734,64 @@ async fn broadcast_ringing_event(
         exclude_user_id,
     )
     .await;
+
+    // Also send push notifications to offline/mobile users
+    // Get channel members to notify
+    let members: Vec<(Uuid,)> = sqlx::query_as(
+        "SELECT user_id FROM channel_members WHERE channel_id = $1"
+    )
+    .bind(channel_id)
+    .fetch_all(&state.db)
+    .await
+    .unwrap_or_default();
+
+    let caller_name = if !display_name.is_empty() {
+        display_name.clone()
+    } else {
+        username.clone()
+    };
+
+    for (user_id,) in members {
+        // Skip the sender
+        if Some(user_id) == exclude_user_id {
+            continue;
+        }
+
+        // Skip users who have dismissed this notification
+        if state.call_state_manager.is_notification_dismissed(call_id, user_id).await {
+            continue;
+        }
+
+        // Send push notification asynchronously (don't block)
+        let state_clone = state.clone();
+        let caller_name_clone = caller_name.clone();
+        tokio::spawn(async move {
+            match crate::services::push_notifications::send_call_ringing_notification(
+                &state_clone,
+                user_id,
+                channel_id,
+                call_id,
+                caller_name_clone,
+            ).await {
+                Ok(count) if count > 0 => {
+                    debug!(
+                        user_id = %user_id,
+                        "Sent push notification for incoming call"
+                    );
+                }
+                Ok(_) => {
+                    // No devices to notify
+                }
+                Err(e) => {
+                    debug!(
+                        user_id = %user_id,
+                        error = %e,
+                        "Failed to send push notification for call"
+                    );
+                }
+            }
+        });
+    }
 }
 
 async fn broadcast_call_state_event(

@@ -106,6 +106,9 @@ pub async fn create_post(
             .fetch_one(&state.db)
             .await?;
 
+    // Store username for later use in push notifications
+    let username_for_push = user.username.clone();
+
     let mut response = PostResponse {
         id: post.id,
         channel_id: post.channel_id,
@@ -249,6 +252,101 @@ pub async fn create_post(
             .ok();
 
         response.props = serde_json::Value::Object(props);
+    }
+
+    // Send push notifications for mentions and DMs
+    // Get channel info for push notifications
+    let channel_info: Option<(String, String, String)> = sqlx::query_as(
+        "SELECT c.name, c.display_name, c.type::text as channel_type FROM channels c WHERE c.id = $1"
+    )
+    .bind(channel_id)
+    .fetch_optional(&state.db)
+    .await
+    .ok()
+    .flatten();
+
+    if let Some((channel_name, channel_display_name, channel_type)) = channel_info {
+        let is_dm = channel_type == "direct";
+        let sender_name = username_for_push.clone();
+        let message_preview = if response.message.len() > 100 {
+            format!("{}...", &response.message[..100])
+        } else {
+            response.message.clone()
+        };
+        
+        // Get channel members to notify
+        let members_to_notify: Vec<Uuid> = if is_dm {
+            // For DMs, notify the other participant
+            sqlx::query_scalar::<_, Uuid>(
+                "SELECT user_id FROM channel_members WHERE channel_id = $1 AND user_id != $2"
+            )
+            .bind(channel_id)
+            .bind(user_id)
+            .fetch_all(&state.db)
+            .await
+            .unwrap_or_default()
+        } else if !mentions.is_empty() {
+            // For mentions, find the mentioned users who are channel members
+            let usernames = mentions.iter().map(|m| m.as_str()).collect::<Vec<_>>();
+            sqlx::query_scalar::<_, Uuid>(
+                "SELECT cm.user_id FROM channel_members cm JOIN users u ON cm.user_id = u.id WHERE cm.channel_id = $1 AND u.username = ANY($2)"
+            )
+            .bind(channel_id)
+            .bind(&usernames)
+            .fetch_all(&state.db)
+            .await
+            .unwrap_or_default()
+        } else {
+            // No mentions and not a DM - don't send push notification for regular messages
+            vec![]
+        };
+
+        // Send push notifications asynchronously
+        for target_user_id in members_to_notify {
+            // Don't notify the sender
+            if target_user_id == user_id {
+                continue;
+            }
+
+            let display_channel_name = if !channel_display_name.is_empty() {
+                channel_display_name.clone()
+            } else {
+                channel_name.clone()
+            };
+
+            let state_clone = state.clone();
+            let sender_name_clone = sender_name.clone();
+            let message_preview_clone = message_preview.clone();
+            
+            tokio::spawn(async move {
+                match crate::services::push_notifications::send_message_notification(
+                    &state_clone,
+                    target_user_id,
+                    channel_id,
+                    display_channel_name,
+                    sender_name_clone,
+                    message_preview_clone,
+                    is_dm,
+                ).await {
+                    Ok(count) if count > 0 => {
+                        tracing::debug!(
+                            user_id = %target_user_id,
+                            "Sent push notification for message"
+                        );
+                    }
+                    Ok(_) => {
+                        // No devices to notify
+                    }
+                    Err(e) => {
+                        tracing::debug!(
+                            user_id = %target_user_id,
+                            error = %e,
+                            "Failed to send push notification for message"
+                        );
+                    }
+                }
+            });
+        }
     }
 
     Ok(response)

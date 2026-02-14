@@ -286,6 +286,15 @@ impl CallStateManager {
         .await;
     }
 
+    /// Check if a user has dismissed notifications for a call.
+    pub async fn is_notification_dismissed(&self, call_id: Uuid, user_id: Uuid) -> bool {
+        let calls = self.calls.read().await;
+        calls
+            .get(&call_id)
+            .map(|call| call.dismissed_users.contains(&user_id))
+            .unwrap_or(false)
+    }
+
     /// Get all active calls (for cleanup/debugging)
     pub async fn get_all_calls(&self) -> Vec<CallState> {
         if let Some(mut conn) = self.redis_conn().await {
