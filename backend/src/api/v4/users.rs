@@ -848,6 +848,39 @@ struct AttachDeviceRequest {
     token: Option<String>,
     #[serde(default)]
     platform: Option<String>,
+    // Fields sent by mobile app but not used
+    #[serde(default)]
+    device_notification_disabled: Option<String>,
+    #[serde(default)]
+    mobile_version: Option<String>,
+}
+
+/// Extract FCM token and platform from mobile app's device_id format
+/// Format: "android_rn-v2:FCM_TOKEN" or "apple_rn-v2:FCM_TOKEN"
+fn parse_mobile_device_id(device_id: &str) -> (String, String, String) {
+    // device_id format: "prefix:FCM_TOKEN"
+    // prefix examples: android_rn-v2, apple_rn-v2, android_rn-v2beta
+    
+    let parts: Vec<&str> = device_id.splitn(2, ':').collect();
+    if parts.len() == 2 {
+        let prefix = parts[0];
+        let token = parts[1];
+        
+        // Extract platform from prefix
+        let platform = if prefix.starts_with("android") {
+            "android"
+        } else if prefix.starts_with("apple") || prefix.starts_with("ios") {
+            "ios"
+        } else {
+            "unknown"
+        };
+        
+        // Return full device_id as stored ID, the token, and platform
+        (device_id.to_string(), token.to_string(), platform.to_string())
+    } else {
+        // No colon found, treat entire string as device_id with no token
+        (device_id.to_string(), String::new(), "unknown".to_string())
+    }
 }
 
 async fn attach_device(
@@ -864,7 +897,7 @@ async fn attach_device(
     // Try to parse body, but accept empty/malformed requests gracefully
     let input: AttachDeviceRequest = match parse_body::<AttachDeviceRequest>(&headers, &body, "Invalid device body") {
         Ok(v) => {
-            info!(user_id = %auth.user_id, device_id = ?v.device_id, has_token = v.token.is_some(), platform = ?v.platform, "attach_device parsed successfully");
+            info!(user_id = %auth.user_id, device_id = ?v.device_id, "attach_device parsed successfully");
             v
         }
         Err(e) => {
@@ -876,6 +909,18 @@ async fn attach_device(
 
     // Only insert if we have device_id
     if let Some(device_id) = input.device_id {
+        // Parse device_id to extract FCM token (it's embedded in the device_id!)
+        let (device_id_stored, token, platform) = parse_mobile_device_id(&device_id);
+        
+        info!(
+            user_id = %auth.user_id, 
+            device_id = %device_id_stored,
+            has_token = !token.is_empty(),
+            token_preview = %&token[..20.min(token.len())],
+            platform = %platform,
+            "Extracted token from device_id"
+        );
+        
         let _ = sqlx::query(
             r#"
             INSERT INTO user_devices (user_id, device_id, token, platform)
@@ -885,9 +930,9 @@ async fn attach_device(
             "#,
         )
         .bind(auth.user_id)
-        .bind(&device_id)
-        .bind(input.token.as_deref())
-        .bind(input.platform.unwrap_or_else(|| "unknown".to_string()))
+        .bind(&device_id_stored)
+        .bind(if token.is_empty() { None } else { Some(&token) })
+        .bind(&platform)
         .execute(&state.db)
         .await;
     }
