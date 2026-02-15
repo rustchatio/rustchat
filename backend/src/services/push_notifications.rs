@@ -368,11 +368,20 @@ pub async fn send_call_ringing_notification(
     let title = format!("Incoming call from {}", caller_name);
     let body = "Tap to answer".to_string();
 
+    // Mattermost mobile expects:
+    // - type: "message" (not "call_ringing")
+    // - sub_type: "calls" (this triggers the ringing UI)
+    // - channel_id, post_id (call_id used as post_id for navigation)
+    // - sender_name (for display)
     let data = serde_json::json!({
-        "type": "call_ringing",
+        "type": "message",
+        "sub_type": "calls",
+        "version": "2",
         "channel_id": channel_id.to_string(),
+        "post_id": call_id.to_string(),
         "call_id": call_id.to_string(),
-        "caller_name": caller_name,
+        "sender_name": caller_name,
+        "channel_name": "Call",
     });
 
     send_push_to_user(
@@ -402,9 +411,15 @@ pub async fn send_message_notification(
         (format!("{} in {}", sender_name, channel_name), message)
     };
 
+    // Generate a post_id for navigation (mobile requires this field)
+    let post_id = uuid::Uuid::new_v4().to_string();
+
     let data = serde_json::json!({
         "type": "message",
+        "version": "2",
         "channel_id": channel_id.to_string(),
+        "post_id": post_id,
+        "channel_name": channel_name,
         "sender_name": sender_name,
     });
 

@@ -143,7 +143,11 @@ async fn test_notifications(
     info!(user_id = %auth.user_id, "Test notification requested");
     
     // Try to send a test push notification to the user's devices
-    // Use 'message' type with proper version for Mattermost mobile compatibility
+    // Use 'message' type with all required fields for Mattermost mobile compatibility
+    // Generate unique IDs for channel_id and post_id so clicking the notification works
+    let test_channel_id = "test_channel_".to_string() + &uuid::Uuid::new_v4().to_string();
+    let test_post_id = "test_post_".to_string() + &uuid::Uuid::new_v4().to_string();
+    
     let result = crate::services::push_notifications::send_push_to_user(
         &state,
         auth.user_id,
@@ -152,7 +156,10 @@ async fn test_notifications(
         serde_json::json!({
             "type": "message",
             "version": "2",
-            "sender_name": "RustChat"
+            "sender_name": "RustChat",
+            "channel_id": test_channel_id,
+            "post_id": test_post_id,
+            "channel_name": "Test Notifications"
         }),
         crate::services::push_notifications::PushPriority::Normal,
     ).await;
