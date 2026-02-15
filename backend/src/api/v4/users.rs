@@ -1343,6 +1343,8 @@ struct PatchMeRequest {
     first_name: Option<String>,
     last_name: Option<String>,
     position: Option<String>,
+    #[serde(default)]
+    notify_props: Option<serde_json::Value>,
 }
 
 async fn update_status(
@@ -1406,14 +1408,16 @@ async fn patch_me(
             last_name = COALESCE($2, last_name),
             nickname = COALESCE($3, nickname),
             position = COALESCE($4, position),
+            notify_props = COALESCE($5, notify_props),
             updated_at = NOW()
-        WHERE id = $5
+        WHERE id = $6
         "#,
     )
     .bind(&input.first_name)
     .bind(&input.last_name)
     .bind(&input.nickname)
     .bind(&input.position)
+    .bind(input.notify_props.as_ref())
     .bind(auth.user_id)
     .execute(&state.db)
     .await?;
