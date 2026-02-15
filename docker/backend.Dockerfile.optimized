@@ -1,20 +1,20 @@
-# Build stage
+# Build stage with BuildKit cache mounts
 FROM rust:1.93-alpine AS builder
 
 RUN apk add --no-cache musl-dev pkgconfig openssl-dev
 
-# Ensure portable builds (avoid CPU-specific instructions)
+# Ensure portable builds
 ENV RUSTFLAGS="-C target-cpu=x86-64"
 
 WORKDIR /app
 
-# Copy manifests
+# Copy manifests first for layer caching
 COPY Cargo.toml Cargo.lock ./
 
 # Create dummy src for dependency caching
-RUN mkdir src && echo "fn main() {}" > src/main.rs
+RUN mkdir src && echo 'fn main() {}' > src/main.rs
 
-# Build dependencies only
+# Build dependencies only (cached layer)
 RUN cargo build --release && rm -rf src
 
 # Copy actual source
@@ -22,8 +22,8 @@ COPY src ./src
 COPY migrations ./migrations
 COPY .sqlx ./.sqlx
 
-# Build with cache mounts for faster rebuilds
-# BuildKit caches cargo registry and build artifacts between builds
+# Build with cache mounts for cargo registry and target
+# This preserves compiled dependencies between builds
 ENV SQLX_OFFLINE=true
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/app/target \
@@ -34,23 +34,11 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 # Runtime stage
 FROM alpine:3.20
 
-ARG VERSION
-ARG BUILD_DATE
-ARG VCS_REF
-
-LABEL org.opencontainers.image.title="rustchat-backend" \
-      org.opencontainers.image.description="Rustchat Backend Server" \
-      org.opencontainers.image.source="https://github.com/rustchat/rustchat" \
-      org.opencontainers.image.version=$VERSION \
-      org.opencontainers.image.created=$BUILD_DATE \
-      org.opencontainers.image.revision=$VCS_REF \
-      org.opencontainers.image.licenses="MIT"
-
 RUN apk add --no-cache ca-certificates libgcc wget
 
 WORKDIR /app
 
-# Copy the binary (from tmp since target is a cache mount)
+# Copy the binary from builder
 COPY --from=builder /tmp/rustchat /usr/local/bin/rustchat
 
 # Copy migrations for runtime

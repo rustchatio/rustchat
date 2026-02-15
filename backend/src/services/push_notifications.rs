@@ -171,10 +171,14 @@ async fn send_via_push_proxy(
         Ok(())
     } else {
         let body = response.text().await.unwrap_or_default();
-        if status.as_u16() == 410 {
-            // Token unregistered
+        let status_code = status.as_u16();
+        
+        // Check for invalid token errors (410 = unregistered, 400 with INVALID_ARGUMENT = bad token)
+        if status_code == 410 || (status_code == 400 && body.contains("INVALID_ARGUMENT")) {
+            warn!(status = %status_code, body = %body, "FCM returned invalid token error");
             return Err(PushNotificationError::InvalidToken);
         }
+        
         error!(
             status = %status,
             body = %body,
@@ -214,6 +218,35 @@ async fn send_push_notification_direct(
     }
 
     result
+}
+
+/// Delete a device registration when its token is invalid
+async fn delete_invalid_device(
+    state: &AppState,
+    user_id: Uuid,
+    device_token: &str,
+) {
+    match sqlx::query(
+        "DELETE FROM user_devices WHERE user_id = $1 AND token = $2"
+    )
+    .bind(user_id)
+    .bind(device_token)
+    .execute(&state.db)
+    .await
+    {
+        Ok(result) => {
+            if result.rows_affected() > 0 {
+                info!(
+                    user_id = %user_id,
+                    token_prefix = %&device_token[..20.min(device_token.len())],
+                    "Deleted invalid device registration"
+                );
+            }
+        }
+        Err(e) => {
+            error!(user_id = %user_id, error = %e, "Failed to delete invalid device");
+        }
+    }
 }
 
 /// Send push notification to multiple devices for a user
@@ -257,6 +290,15 @@ pub async fn send_push_to_user(
             Err(PushNotificationError::NotConfigured) => {
                 // Push notifications not configured, skip silently
                 return Ok(0);
+            }
+            Err(PushNotificationError::InvalidToken) => {
+                // Token is invalid - delete it from database
+                warn!(
+                    user_id = %user_id,
+                    token_prefix = %&device.token[..20.min(device.token.len())],
+                    "Device token is invalid, deleting registration"
+                );
+                delete_invalid_device(state, user_id, &device.token).await;
             }
             Err(e) => {
                 error!(user_id = %user_id, error = %e, "Failed to send push to device");
@@ -565,6 +607,15 @@ async fn send_fcm_message(
         debug!(response = %response_text, "FCM message sent successfully");
         Ok(())
     } else {
+        let status_code = status.as_u16();
+        
+        // Check for invalid token errors
+        // 404 = not found, 400 with INVALID_ARGUMENT = bad token
+        if status_code == 404 || (status_code == 400 && response_text.contains("INVALID_ARGUMENT")) {
+            warn!(status = %status_code, "FCM returned invalid token error");
+            return Err(PushNotificationError::InvalidToken);
+        }
+        
         error!(
             status = %status,
             response = %response_text,
