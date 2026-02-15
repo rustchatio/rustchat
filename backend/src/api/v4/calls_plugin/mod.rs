@@ -3710,12 +3710,12 @@ async fn broadcast_ringing_event(
         (encode_mm_id(sender_id), String::new())
     });
 
-    debug!(
+    info!(
         call_id = %call_id,
         channel_id = %channel_id,
         sender_id = %sender_id,
         exclude_user_id = ?exclude_user_id,
-        "calls.broadcast_ringing_event"
+        "calls.broadcast_ringing_event STARTED - will send push notifications"
     );
 
     // Broadcast WebSocket event
@@ -3745,6 +3745,8 @@ async fn broadcast_ringing_event(
     .await
     .unwrap_or_default();
 
+    info!(member_count = members.len(), "Found channel members for push notification");
+
     let caller_name = if !display_name.is_empty() {
         display_name.clone()
     } else {
@@ -3754,13 +3756,17 @@ async fn broadcast_ringing_event(
     for (user_id,) in members {
         // Skip the sender
         if Some(user_id) == exclude_user_id {
+            info!(user_id = %user_id, "Skipping sender for push notification");
             continue;
         }
 
         // Skip users who have dismissed this notification
         if state.call_state_manager.is_notification_dismissed(call_id, user_id).await {
+            info!(user_id = %user_id, "Skipping user who dismissed notification");
             continue;
         }
+
+        info!(user_id = %user_id, caller_name = %caller_name, "Sending push notification to user");
 
         // Send push notification asynchronously (don't block)
         let state_clone = state.clone();
@@ -3774,8 +3780,9 @@ async fn broadcast_ringing_event(
                 caller_name_clone,
             ).await {
                 Ok(count) if count > 0 => {
-                    debug!(
+                    info!(
                         user_id = %user_id,
+                        count = count,
                         "Sent push notification for incoming call"
                     );
                 }

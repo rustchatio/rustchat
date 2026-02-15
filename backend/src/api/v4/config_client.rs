@@ -326,6 +326,12 @@ fn legacy_config(site: &SiteConfig, auth: &AuthConfig, diagnostic_id: &str) -> s
     insert(&mut map, "MaxReactionsPerPost", "50");
     insert(&mut map, "MaxNotificationsPerChannel", "1000");
 
+    // Add calls-related settings for mobile app
+    insert(&mut map, "EnableCalls", "true");
+    insert(&mut map, "AllowEnableCalls", "true");
+    insert(&mut map, "DefaultEnabled", "true");
+    insert(&mut map, "EnableRinging", "true");
+
     // Add essential fields for mobile
     insert(
         &mut map,

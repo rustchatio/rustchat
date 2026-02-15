@@ -76,27 +76,34 @@ pub async fn send_push_notification(
     state: &AppState,
     notification: PushNotification,
 ) -> Result<(), PushNotificationError> {
-    debug!(
+    info!(
         platform = %notification.platform,
         priority = ?notification.priority,
+        token_prefix = %&notification.device_token[..20.min(notification.device_token.len())],
         "Sending push notification"
     );
 
     // First, try to use the push proxy service
-    if let Some(proxy_url) = get_push_proxy_url() {
+    let proxy_url = get_push_proxy_url();
+    info!(proxy_url = ?proxy_url, "Checking push proxy configuration");
+    
+    if let Some(proxy_url) = proxy_url {
+        info!(%proxy_url, "Attempting to send via push proxy");
         match send_via_push_proxy(&proxy_url, &notification).await {
             Ok(_) => {
-                debug!("Push notification sent successfully via push proxy");
+                info!("Push notification sent successfully via push proxy");
                 return Ok(());
             }
             Err(PushNotificationError::NotConfigured) => {
                 // Proxy not configured, fall through to direct FCM
-                debug!("Push proxy not available, falling back to direct FCM");
+                info!("Push proxy not available, falling back to direct FCM");
             }
             Err(e) => {
                 error!(error = %e, "Push proxy failed, falling back to direct FCM");
             }
         }
+    } else {
+        info!("RUSTCHAT_PUSH_PROXY_URL not set, checking direct FCM configuration");
     }
 
     // Fallback: Send directly via FCM HTTP v1 API
@@ -218,13 +225,17 @@ pub async fn send_push_to_user(
     data: serde_json::Value,
     priority: PushPriority,
 ) -> Result<usize, PushNotificationError> {
+    info!(user_id = %user_id, title = %title, "send_push_to_user called");
+    
     // Get user's devices
     let devices = get_user_devices(state, user_id).await?;
 
     if devices.is_empty() {
-        debug!(user_id = %user_id, "No devices found for user, skipping push notification");
+        info!(user_id = %user_id, "No devices found for user, skipping push notification");
         return Ok(0);
     }
+    
+    info!(user_id = %user_id, device_count = devices.len(), "Found devices for user");
 
     let mut sent_count = 0;
 
