@@ -856,10 +856,19 @@ async fn attach_device(
     headers: HeaderMap,
     body: Bytes,
 ) -> ApiResult<impl IntoResponse> {
+    use tracing::{info, warn};
+    
+    let body_str = String::from_utf8_lossy(&body);
+    info!(user_id = %auth.user_id, body = %body_str, "attach_device received");
+    
     // Try to parse body, but accept empty/malformed requests gracefully
-    let input: AttachDeviceRequest = match parse_body(&headers, &body, "Invalid device body") {
-        Ok(v) => v,
-        Err(_) => {
+    let input: AttachDeviceRequest = match parse_body::<AttachDeviceRequest>(&headers, &body, "Invalid device body") {
+        Ok(v) => {
+            info!(user_id = %auth.user_id, device_id = ?v.device_id, has_token = v.token.is_some(), platform = ?v.platform, "attach_device parsed successfully");
+            v
+        }
+        Err(e) => {
+            warn!(user_id = %auth.user_id, error = %e, body = %body_str, "attach_device parse error");
             // Return OK for malformed requests - mobile sends various formats
             return Ok(Json(serde_json::json!({"status": "OK"})));
         }
