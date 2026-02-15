@@ -96,8 +96,9 @@ async fn handle_socket(socket: WebSocket, user_id: uuid::Uuid, username: String,
 
     websocket_core::initialize_connection_state(&state, user_id, false).await;
 
-    // Send hello message
-    let hello = WsEnvelope::hello(user_id);
+    // Send hello message with connection_id for reliable WebSocket support
+    let connection_uuid = uuid::Uuid::new_v4();
+    let hello = WsEnvelope::hello(connection_uuid, &format!("rustchat-{}", env!("CARGO_PKG_VERSION")));
     if let Ok(msg) = serde_json::to_string(&hello) {
         let _ = sender.send(Message::Text(msg.into())).await;
     }
