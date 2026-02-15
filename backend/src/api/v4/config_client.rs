@@ -81,7 +81,7 @@ pub async fn get_client_license(
 }
 
 fn legacy_config(site: &SiteConfig, auth: &AuthConfig, diagnostic_id: &str) -> serde_json::Value {
-    use serde_json::{Map, Value};
+    use serde_json::{json, Map, Value};
 
     let mut map = Map::new();
     let insert = |map: &mut Map<String, Value>, key: &str, value: &str| {
@@ -331,6 +331,25 @@ fn legacy_config(site: &SiteConfig, auth: &AuthConfig, diagnostic_id: &str) -> s
     insert(&mut map, "AllowEnableCalls", "true");
     insert(&mut map, "DefaultEnabled", "true");
     insert(&mut map, "EnableRinging", "true");
+    
+    // Add PluginSettings for calls plugin (required by mobile app)
+    map.insert(
+        "PluginSettings".to_string(),
+        json!({
+            "EnableCalls": true,
+            "AllowEnableCalls": true,
+            "DefaultEnabled": true,
+            "EnableRinging": true,
+            "Plugins": {
+                "com.mattermost.calls": {
+                    "enable": true,
+                    "allowenablecalls": true,
+                    "enable ringing": true,
+                    "defaultenabled": true
+                }
+            }
+        }),
+    );
 
     // Add essential fields for mobile
     insert(
