@@ -1,8 +1,9 @@
 //! Push Notification Service
 //!
 //! Handles sending push notifications to mobile devices via:
-//! - FCM (Firebase Cloud Messaging) for Android
-//! - APNS (Apple Push Notification Service) for iOS
+//! - Push Proxy service (recommended) which handles FCM/APNS
+//! - Direct FCM (Firebase Cloud Messaging) for Android (fallback)
+//! - Direct APNS (Apple Push Notification Service) for iOS (fallback)
 //!
 //! This service is essential for mattermost-mobile to receive:
 //! - Call ringing notifications when app is in background
@@ -53,66 +54,21 @@ impl PushPriority {
     }
 }
 
-/// FCM message structure (HTTP v1 API)
+/// Push Proxy payload structure
 #[derive(Debug, Serialize)]
-struct FcmMessage {
-    message: FcmMessageBody,
-}
-
-#[derive(Debug, Serialize)]
-struct FcmMessageBody {
+struct PushProxyPayload {
     token: String,
-    notification: Option<FcmNotification>,
-    data: Option<HashMap<String, String>>,
-    android: Option<FcmAndroidConfig>,
-    apns: Option<FcmApnsConfig>,
-}
-
-#[derive(Debug, Serialize)]
-struct FcmNotification {
     title: String,
     body: String,
+    data: PushProxyData,
 }
 
 #[derive(Debug, Serialize)]
-struct FcmAndroidConfig {
-    priority: String,
-    notification: FcmAndroidNotification,
-}
-
-#[derive(Debug, Serialize)]
-struct FcmAndroidNotification {
+struct PushProxyData {
     channel_id: String,
-    sound: String,
-    priority: String,
-}
-
-#[derive(Debug, Serialize)]
-struct FcmApnsConfig {
-    headers: HashMap<String, String>,
-    payload: FcmApnsPayload,
-}
-
-#[derive(Debug, Serialize)]
-struct FcmApnsPayload {
-    aps: FcmAps,
-}
-
-#[derive(Debug, Serialize)]
-struct FcmAps {
-    alert: FcmAlert,
-    badge: i32,
-    sound: String,
-    #[serde(rename = "content-available")]
-    content_available: i32,
-    #[serde(rename = "mutable-content")]
-    mutable_content: i32,
-}
-
-#[derive(Debug, Serialize)]
-struct FcmAlert {
-    title: String,
-    body: String,
+    post_id: String,
+    #[serde(rename = "type")]
+    notification_type: String,
 }
 
 /// Send push notification to a specific device
@@ -126,11 +82,111 @@ pub async fn send_push_notification(
         "Sending push notification"
     );
 
+    // First, try to use the push proxy service
+    if let Some(proxy_url) = get_push_proxy_url() {
+        match send_via_push_proxy(&proxy_url, &notification).await {
+            Ok(_) => {
+                debug!("Push notification sent successfully via push proxy");
+                return Ok(());
+            }
+            Err(PushNotificationError::NotConfigured) => {
+                // Proxy not configured, fall through to direct FCM
+                debug!("Push proxy not available, falling back to direct FCM");
+            }
+            Err(e) => {
+                error!(error = %e, "Push proxy failed, falling back to direct FCM");
+            }
+        }
+    }
+
+    // Fallback: Send directly via FCM HTTP v1 API
+    send_push_notification_direct(state, notification).await
+}
+
+/// Get push proxy URL from environment
+fn get_push_proxy_url() -> Option<String> {
+    std::env::var("RUSTCHAT_PUSH_PROXY_URL").ok()
+}
+
+/// Send notification via push proxy service
+async fn send_via_push_proxy(
+    proxy_url: &str,
+    notification: &PushNotification,
+) -> Result<(), PushNotificationError> {
+    let url = format!("{}/send", proxy_url.trim_end_matches('/'));
+
+    // Extract channel_id and type from data payload
+    let channel_id = notification.data.get("channel_id")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    
+    let notification_type = notification.data.get("type")
+        .and_then(|v| v.as_str())
+        .unwrap_or("message")
+        .to_string();
+
+    let post_id = notification.data.get("call_id")
+        .or_else(|| notification.data.get("post_id"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+
+    let payload = PushProxyPayload {
+        token: notification.device_token.clone(),
+        title: notification.title.clone(),
+        body: notification.body.clone(),
+        data: PushProxyData {
+            channel_id,
+            post_id,
+            notification_type,
+        },
+    };
+
+    let client = reqwest::Client::new();
+    let response = client
+        .post(&url)
+        .json(&payload)
+        .send()
+        .await
+        .map_err(|e| {
+            if e.is_connect() || e.is_timeout() {
+                PushNotificationError::NotConfigured
+            } else {
+                PushNotificationError::NetworkError(format!("Push proxy connection failed: {}", e))
+            }
+        })?;
+
+    let status = response.status();
+    
+    if status.is_success() {
+        info!("Successfully sent notification via push proxy");
+        Ok(())
+    } else {
+        let body = response.text().await.unwrap_or_default();
+        if status.as_u16() == 410 {
+            // Token unregistered
+            return Err(PushNotificationError::InvalidToken);
+        }
+        error!(
+            status = %status,
+            body = %body,
+            "Push proxy returned error"
+        );
+        Err(PushNotificationError::ProxyError(format!("HTTP {}: {}", status, body)))
+    }
+}
+
+/// Send push notification directly via FCM (fallback)
+async fn send_push_notification_direct(
+    state: &AppState,
+    notification: PushNotification,
+) -> Result<(), PushNotificationError> {
     // Check if FCM is configured
     let fcm_config = match get_fcm_config(state).await {
         Some(config) => config,
         None => {
-            warn!("FCM not configured, skipping push notification");
+            warn!("Push notifications not configured (neither push proxy nor direct FCM)");
             return Err(PushNotificationError::NotConfigured);
         }
     };
@@ -143,10 +199,10 @@ pub async fn send_push_notification(
 
     match &result {
         Ok(_) => {
-            debug!("Push notification sent successfully");
+            debug!("Push notification sent successfully via direct FCM");
         }
         Err(e) => {
-            error!(error = %e, "Failed to send push notification");
+            error!(error = %e, "Failed to send push notification via direct FCM");
         }
     }
 
@@ -188,7 +244,7 @@ pub async fn send_push_to_user(
         match send_push_notification(state, notification).await {
             Ok(_) => sent_count += 1,
             Err(PushNotificationError::NotConfigured) => {
-                // FCM not configured, skip silently
+                // Push notifications not configured, skip silently
                 return Ok(0);
             }
             Err(e) => {
@@ -295,6 +351,70 @@ async fn get_user_devices(
         .collect())
 }
 
+// ============ Direct FCM Implementation (Fallback) ============
+
+/// FCM message structure (HTTP v1 API)
+#[derive(Debug, Serialize)]
+struct FcmMessage {
+    message: FcmMessageBody,
+}
+
+#[derive(Debug, Serialize)]
+struct FcmMessageBody {
+    token: String,
+    notification: Option<FcmNotification>,
+    data: Option<HashMap<String, String>>,
+    android: Option<FcmAndroidConfig>,
+    apns: Option<FcmApnsConfig>,
+}
+
+#[derive(Debug, Serialize)]
+struct FcmNotification {
+    title: String,
+    body: String,
+}
+
+#[derive(Debug, Serialize)]
+struct FcmAndroidConfig {
+    priority: String,
+    notification: FcmAndroidNotification,
+}
+
+#[derive(Debug, Serialize)]
+struct FcmAndroidNotification {
+    channel_id: String,
+    sound: String,
+    priority: String,
+}
+
+#[derive(Debug, Serialize)]
+struct FcmApnsConfig {
+    headers: HashMap<String, String>,
+    payload: FcmApnsPayload,
+}
+
+#[derive(Debug, Serialize)]
+struct FcmApnsPayload {
+    aps: FcmAps,
+}
+
+#[derive(Debug, Serialize)]
+struct FcmAps {
+    alert: FcmAlert,
+    badge: i32,
+    sound: String,
+    #[serde(rename = "content-available")]
+    content_available: i32,
+    #[serde(rename = "mutable-content")]
+    mutable_content: i32,
+}
+
+#[derive(Debug, Serialize)]
+struct FcmAlert {
+    title: String,
+    body: String,
+}
+
 /// FCM configuration
 #[derive(Debug, Clone)]
 struct FcmConfig {
@@ -302,7 +422,7 @@ struct FcmConfig {
     access_token: String,
 }
 
-/// Get FCM configuration from database or environment
+/// Get FCM configuration from database or environment (fallback)
 async fn get_fcm_config(state: &AppState) -> Option<FcmConfig> {
     // Try to get from database first
     let config: Option<(String, String)> = sqlx::query_as(
@@ -459,6 +579,9 @@ pub enum PushNotificationError {
 
     #[error("FCM API error: {0}")]
     FcmError(String),
+
+    #[error("Push proxy error: {0}")]
+    ProxyError(String),
 
     #[error("Invalid device token")]
     InvalidToken,
