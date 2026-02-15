@@ -319,7 +319,9 @@ pub async fn handle_client_envelope(
             }
         }
         "ping" => {
-            send_direct(state, user_id, WsEnvelope::pong()).await;
+            // Extract seq from the envelope for the response
+            let seq = envelope.seq;
+            send_direct(state, user_id, WsEnvelope::pong(seq)).await;
         }
         _ => {
             if options.emit_unknown_error {

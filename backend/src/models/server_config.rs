@@ -81,6 +81,15 @@ pub struct SiteConfig {
     pub default_locale: String,
     #[serde(default = "default_timezone")]
     pub default_timezone: String,
+    /// WebSocket URL (empty = use default)
+    #[serde(default)]
+    pub websocket_url: String,
+    /// WebSocket port (empty = use default)
+    #[serde(default)]
+    pub websocket_port: String,
+    /// WebSocket secure port (empty = use default)
+    #[serde(default)]
+    pub websocket_secure_port: String,
 }
 
 fn default_site_name() -> String {

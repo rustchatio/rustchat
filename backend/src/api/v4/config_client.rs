@@ -343,6 +343,12 @@ fn legacy_config(site: &SiteConfig, auth: &AuthConfig, email: &EmailConfig, diag
     insert(&mut map, "EnableEmailBatching", bool_str(email.enable_email_batching));
     insert(&mut map, "EmailNotificationContentsType", &email.email_notification_content);
     
+    // WebSocket settings for stable connections
+    insert(&mut map, "WebsocketURL", &site.websocket_url);
+    insert(&mut map, "WebsocketPort", &site.websocket_port);
+    insert(&mut map, "WebsocketSecurePort", &site.websocket_secure_port);
+    insert(&mut map, "EnableReliableWebSockets", "true");
+    
     // Add PluginSettings for calls plugin (required by mobile app)
     map.insert(
         "PluginSettings".to_string(),

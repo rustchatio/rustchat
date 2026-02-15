@@ -185,13 +185,28 @@ impl WsEnvelope {
         }
     }
 
-    pub fn pong() -> Self {
+    pub fn pong(seq: Option<u64>) -> Self {
         Self {
-            msg_type: "ack".to_string(), // Use "ack" or "response"
+            msg_type: "response".to_string(),
             event: "pong".to_string(),
+            seq,
+            channel_id: None,
+            data: serde_json::json!({ "text": "pong" }), // Mobile app expects data.text === 'pong'
+            broadcast: None,
+        }
+    }
+
+    pub fn hello(connection_id: Uuid, server_version: &str) -> Self {
+        Self {
+            msg_type: "event".to_string(),
+            event: "hello".to_string(),
             seq: None,
             channel_id: None,
-            data: serde_json::Value::Null,
+            data: serde_json::json!({
+                "connection_id": connection_id.to_string(),
+                "server_version": server_version,
+                "reliable_websockets": true
+            }),
             broadcast: None,
         }
     }
