@@ -2902,6 +2902,17 @@ async fn handle_ws_join_call(
             None,
         )
         .await;
+        
+        // Send ringing notifications via push for mobile apps
+        // WebSocket join doesn't go through HTTP /start endpoint, so we need to trigger ringing here
+        broadcast_ringing_event(
+            state,
+            channel_uuid,
+            call.call_id,
+            user_id,
+            Some(user_id),
+        )
+        .await;
     }
 
     broadcast_call_event(
