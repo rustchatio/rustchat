@@ -1089,16 +1089,17 @@ async fn start_call(
     )
     .await;
 
-    if is_dm_or_gm_channel(&state, channel_uuid).await? {
-        broadcast_ringing_event(
-            &state,
-            channel_uuid,
-            call_id,
-            auth.user_id,
-            Some(auth.user_id),
-        )
-        .await;
-    }
+    // Send ringing notifications to all channel members
+    // This ensures push notifications are sent for calls in ALL channel types
+    // (DMs, groups, and regular channels)
+    broadcast_ringing_event(
+        &state,
+        channel_uuid,
+        call_id,
+        auth.user_id,
+        Some(auth.user_id),
+    )
+    .await;
 
     broadcast_call_state_event(&state, channel_uuid, None).await;
 
