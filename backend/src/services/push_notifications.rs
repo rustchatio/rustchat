@@ -69,6 +69,20 @@ struct PushProxyData {
     post_id: String,
     #[serde(rename = "type")]
     notification_type: String,
+    /// Sub-type for call notifications (set to "calls" for ringing)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    sub_type: Option<String>,
+    /// Push notification protocol version
+    version: String,
+    /// Sender user ID
+    #[serde(skip_serializing_if = "Option::is_none")]
+    sender_id: Option<String>,
+    /// Sender display name
+    #[serde(skip_serializing_if = "Option::is_none")]
+    sender_name: Option<String>,
+    /// CRT enabled flag
+    #[serde(skip_serializing_if = "Option::is_none")]
+    is_crt_enabled: Option<bool>,
 }
 
 /// Send push notification to a specific device
@@ -145,6 +159,22 @@ async fn send_via_push_proxy(
         .unwrap_or("")
         .to_string();
 
+    // Extract additional fields for mobile app compatibility
+    let sub_type = notification.data.get("sub_type")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+    
+    let sender_id = notification.data.get("sender_id")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+    
+    let sender_name = notification.data.get("sender_name")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+    
+    let is_crt_enabled = notification.data.get("is_crt_enabled")
+        .and_then(|v| v.as_bool());
+
     let payload = PushProxyPayload {
         token: notification.device_token.clone(),
         title: notification.title.clone(),
@@ -153,6 +183,11 @@ async fn send_via_push_proxy(
             channel_id,
             post_id,
             notification_type,
+            sub_type,
+            version: "2".to_string(),
+            sender_id,
+            sender_name,
+            is_crt_enabled,
         },
     };
 
