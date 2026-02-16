@@ -5,7 +5,7 @@ import { usePresenceStore } from '../stores/presence'
 import { useUnreadStore } from '../stores/unreads'
 import { useChannelStore } from '../stores/channels'
 import { useToast } from './useToast'
-import type { Post } from '../api/posts'
+import { postsApi, type Post } from '../api/posts'
 
 // Server -> Client
 export interface WsEnvelope {
@@ -189,6 +189,8 @@ export function useWebSocket() {
             case 'posted':
             case 'message_created':
             case 'post_created': // Fallback
+            case 'message_posted':
+            // Mattermost standard
             case 'thread_reply_created': {
                 const post = normalizeWsPost(envelope.data)
                 if (!post) {
@@ -375,7 +377,7 @@ export function useWebSocket() {
         const authStore = useAuthStore()
         const messageStore = useMessageStore()
 
-        // Create temp message
+        // Create temp message for optimistic UI
         const tempMsg: any = {
             id: clientMsgId,
             channelId,
@@ -385,7 +387,7 @@ export function useWebSocket() {
             content,
             timestamp: new Date().toISOString(),
             reactions: [],
-            files: [], // Optimistic files? Could be populated if we wanted
+            files: [],
             isPinned: false,
             isSaved: false,
             status: 'sending',
@@ -395,17 +397,22 @@ export function useWebSocket() {
 
         messageStore.addOptimisticMessage(tempMsg)
 
-        send({
-            type: 'command',
-            event: 'send_message',
-            channel_id: channelId,
-            client_msg_id: clientMsgId,
-            data: {
+        try {
+            const { data: post } = await postsApi.create({
+                channel_id: channelId,
                 message: content,
                 root_post_id: rootId,
                 file_ids: fileIds
-            }
-        })
+            })
+
+            // Update optimistic message with real ID and attributes from server
+            messageStore.updateOptimisticMessage(clientMsgId, normalizeWsPost({ post }) as any)
+        } catch (error) {
+            console.error('Failed to send message via REST:', error)
+            // Ideally we'd have a store method to mark as failed
+            const msg = (messageStore.messagesByChannel[channelId] || []).find(m => m.id === clientMsgId)
+            if (msg) msg.status = 'failed'
+        }
     }
 
     function sendPresence(status: string) {

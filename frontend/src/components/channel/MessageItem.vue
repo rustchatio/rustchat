@@ -435,7 +435,7 @@ async function toggleReaction(emoji: string) {
     <!-- Hover Actions -->
     <div 
       v-show="showActions && !isEditing"
-      class="absolute right-4 top-0 -translate-y-1/2 flex items-center bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-md z-10 px-1 py-0.5 transition-all duration-200"
+      class="absolute left-14 top-0 -translate-y-1/2 flex items-center bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-md z-10 px-1 py-0.5 transition-all duration-200 scale-95 origin-left hover:scale-100"
     >
       <!-- Quick Reactions -->
       <div class="flex items-center border-r border-gray-100 dark:border-gray-700 pr-1 mr-1">
