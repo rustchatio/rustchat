@@ -1054,6 +1054,8 @@ async fn start_call(
     );
 
     // Broadcast call_start event
+    // Note: thread_id is used as post_id for call posts in Mattermost
+    let thread_id_str = thread_id.map(encode_mm_id).unwrap_or_default();
     broadcast_call_event(
         &state,
         "custom_com.mattermost.calls_call_start",
@@ -1067,7 +1069,8 @@ async fn start_call(
             "start_at": now,
             "owner_id": encode_mm_id(auth.user_id),
             "host_id": encode_mm_id(auth.user_id),
-            "thread_id": thread_id.map(encode_mm_id).unwrap_or_default(),
+            "thread_id": thread_id_str.clone(),
+            "post_id": thread_id_str,  // Mobile expects post_id for navigation
         }),
         Some(auth.user_id), // Exclude sender
     )
@@ -2224,6 +2227,8 @@ async fn ring_users(
 
     // Mattermost-mobile compatibility: stock mobile clients trigger incoming call UX
     // from calls_call_start and do not handle calls_ringing directly.
+    // Note: thread_id is used as post_id for call posts in Mattermost
+    let thread_id_str = thread_id.map(encode_mm_id).unwrap_or_default();
     broadcast_call_event(
         &state,
         "custom_com.mattermost.calls_call_start",
@@ -2234,7 +2239,8 @@ async fn ring_users(
             "start_at": call.started_at,
             "owner_id": encode_mm_id(call.owner_id),
             "host_id": encode_mm_id(call.host_id),
-            "thread_id": thread_id.map(encode_mm_id).unwrap_or_default(),
+            "thread_id": thread_id_str.clone(),
+            "post_id": thread_id_str,  // Mobile expects post_id for navigation
             "call_id": encode_mm_id(call.call_id),
             "channel_id": encode_mm_id(channel_uuid),
             "user_id": encode_mm_id(call.owner_id),
