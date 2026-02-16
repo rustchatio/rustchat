@@ -291,18 +291,6 @@ async function toggleReaction(emoji: string) {
         </span>
     </div>
   </div>
-                    <div class="text-xs text-gray-500">MiroTalk Meeting</div>
-                </div>
-            </div>
-            <button
-                @click="joinCall"
-                class="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-md transition-colors text-sm flex items-center justify-center"
-            >
-                Join Call
-            </button>
-        </div>
-    </div>
-  </div>
 
   <!-- Regular Message -->
   <div 
