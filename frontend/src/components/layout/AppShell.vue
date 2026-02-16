@@ -11,28 +11,28 @@ const { isMobile, isMobileOrTablet } = useBreakpoints();
 </script>
 
 <template>
-  <div class="h-screen flex flex-col overflow-hidden bg-surface text-gray-800 dark:text-gray-100 transition-colors duration-300">
+  <div class="h-screen flex flex-col overflow-hidden bg-bg-app text-text-1 transition-standard">
     <!-- Top Header -->
-    <GlobalHeader />
+    <GlobalHeader class="z-30" />
 
     <div class="flex flex-1 overflow-hidden relative">
         <!-- Team Rail (Leftmost) -->
-        <TeamRail v-if="!isMobile" class="border-r border-sidebar-hover/30" />
+        <TeamRail v-if="!isMobile" class="border-r border-border-1" />
 
         <!-- Channel Sidebar (LHS) -->
-        <ChannelSidebar v-if="!isMobile" class="border-r border-border-dim dark:border-white/5" />
+        <ChannelSidebar v-if="!isMobile" class="border-r border-border-1" />
 
         <!-- Main Content (Center) -->
         <main 
-          class="flex-1 flex flex-col min-w-0 bg-surface relative transition-all duration-300"
-          :class="{ 'shadow-2xl': ui.isRhsOpen && isMobileOrTablet }"
+          class="flex-1 flex flex-col min-w-0 bg-bg-surface-1 relative transition-standard overflow-hidden"
+          :class="{ 'shadow-2': ui.isRhsOpen && isMobileOrTablet }"
         >
             <slot />
             
             <!-- Mobile Overlay for Sidebar/RHS -->
             <div 
               v-if="ui.isRhsOpen && isMobileOrTablet" 
-              class="absolute inset-0 bg-black/20 dark:bg-black/40 backdrop-blur-sm z-30 lg:hidden"
+              class="absolute inset-0 bg-black/40 backdrop-blur-sm z-30 lg:hidden transition-standard"
               @click="ui.closeRhs()"
             ></div>
         </main>
@@ -48,7 +48,7 @@ const { isMobile, isMobileOrTablet } = useBreakpoints();
         >
           <RightSidebar 
             v-if="ui.isRhsOpen" 
-            class="fixed lg:relative top-0 right-0 h-full z-40 lg:z-10 shadow-2xl lg:shadow-none bg-surface"
+            class="fixed lg:relative top-0 right-0 h-full z-40 lg:z-10 shadow-2 lg:shadow-none bg-bg-surface-1 border-l border-border-1"
             :class="[isMobileOrTablet ? 'w-[85%] sm:w-[400px]' : 'w-[400px]']"
           />
         </transition>

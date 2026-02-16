@@ -1,28 +1,29 @@
 <script setup lang="ts">
-import { Moon, Monitor } from 'lucide-vue-next';
+import { Moon, Sun, Monitor } from 'lucide-vue-next';
 import { useThemeStore } from '../../stores/theme';
 
 const themeStore = useThemeStore();
 
 const themes = [
+  { id: 'light', name: 'Light', icon: Sun },
   { id: 'dark', name: 'Dark', icon: Moon },
   { id: 'system', name: 'System', icon: Monitor },
 ] as const;
 </script>
 
 <template>
-  <div class="flex items-center bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+  <div class="flex items-center bg-bg-surface-2 rounded-r-1 p-1 border border-border-1">
     <button 
       v-for="t in themes" 
       :key="t.id"
       @click="themeStore.setTheme(t.id)"
-      class="flex items-center space-x-2 px-3 py-1.5 rounded-md text-sm font-medium transition-all"
+      class="flex items-center space-x-2 px-3 py-1.5 rounded-r-1 text-sm font-medium transition-standard"
       :class="themeStore.theme === t.id 
-        ? 'bg-white dark:bg-gray-700 text-primary shadow-sm' 
-        : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'"
+        ? 'bg-bg-surface-1 text-brand shadow-1' 
+        : 'text-text-2 hover:text-text-1'"
     >
       <component :is="t.icon" class="w-4 h-4" />
-      <span>{{ t.name }}</span>
+      <span class="hidden sm:inline">{{ t.name }}</span>
     </button>
   </div>
 </template>

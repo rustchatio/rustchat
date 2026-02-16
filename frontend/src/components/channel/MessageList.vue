@@ -132,67 +132,69 @@ function handleOpenProfile(userId: string) {
 
 <template>
   <div 
-    class="flex-1 overflow-y-auto px-4 py-4 space-y-6 custom-scrollbar relative" 
+    class="flex-1 overflow-y-auto custom-scrollbar relative bg-bg-surface-1" 
     ref="containerRef"
     @scroll="handleScroll"
   >
-    <!-- New Messages Floating Button -->
-    <transition
-      enter-active-class="transition ease-out duration-200"
-      enter-from-class="transform translate-y-4 opacity-0"
-      enter-to-class="transform translate-y-0 opacity-100"
-      leave-active-class="transition ease-in duration-150"
-      leave-from-class="transform translate-y-0 opacity-100"
-      leave-to-class="transform translate-y-4 opacity-0"
-    >
-      <div 
-        v-if="showNewMessagesBtn"
-        @click="scrollToBottom('smooth')"
-        class="absolute bottom-6 left-1/2 -translate-x-1/2 z-10 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-full shadow-lg cursor-pointer flex items-center space-x-2 text-sm font-medium animate-bounce"
-      >
-        <ArrowDown class="w-4 h-4" />
-        <span>New messages</span>
-      </div>
-    </transition>
+    <div class="max-w-[var(--msg-max-width)] mx-auto px-[var(--msg-gutter)] py-sp-4 space-y-sp-6">
+        <!-- New Messages Floating Button -->
+        <transition
+          enter-active-class="transition-standard duration-200"
+          enter-from-class="transform translate-y-4 opacity-0"
+          enter-to-class="transform translate-y-0 opacity-100"
+          leave-active-class="transition-standard duration-150"
+          leave-from-class="transform translate-y-0 opacity-100"
+          leave-to-class="transform translate-y-4 opacity-0"
+        >
+          <div 
+            v-if="showNewMessagesBtn"
+            @click="scrollToBottom('smooth')"
+            class="fixed bottom-sp-7 left-1/2 -translate-x-1/2 z-10 bg-brand hover:bg-brand-hover text-white px-sp-4 py-sp-2 rounded-full shadow-2 cursor-pointer flex items-center space-x-sp-2 text-sm font-medium animate-bounce"
+          >
+            <ArrowDown class="w-4 h-4" />
+            <span>New messages</span>
+          </div>
+        </transition>
 
-    <!-- Loading State -->
-    <div v-if="messageStore.loading" class="text-center text-gray-500 py-10">
-        <div class="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full mx-auto mb-2"></div>
-        <p>Loading messages...</p>
-    </div>
+        <!-- Loading State -->
+        <div v-if="messageStore.loading" class="text-center text-text-3 py-sp-7">
+            <div class="animate-spin w-8 h-8 border-2 border-brand border-t-transparent rounded-full mx-auto mb-sp-2"></div>
+            <p>Loading messages...</p>
+        </div>
 
-    <!-- Empty State -->
-    <div v-else-if="messages.length === 0" class="text-center text-gray-500 py-10">
-        <p>This is the start of the channel.</p>
-        <p class="text-sm mt-2">Send a message to start the conversation.</p>
-    </div>
+        <!-- Empty State -->
+        <div v-else-if="messages.length === 0" class="text-center text-text-3 py-sp-7">
+            <p class="text-lg font-medium text-text-1">This is the start of the channel.</p>
+            <p class="text-sm mt-sp-2">Send a message to start the conversation.</p>
+        </div>
 
-    <!-- Message List -->
-    <div v-else class="space-y-[1px]">
-        <template v-for="msg in messages" :key="msg.id">
-            <!-- New Messages Divider -->
-            <div 
-                v-if="readState?.first_unread_message_id && Number(msg.seq) === Number(readState.first_unread_message_id)" 
-                class="flex items-center my-6 py-2"
-            >
-                <div class="flex-1 h-px bg-rose-500/30"></div>
-                <div class="px-3 flex items-center space-x-2">
-                    <span class="text-[11px] font-bold text-rose-500 uppercase tracking-wider">New Messages</span>
+        <!-- Message List -->
+        <div v-else class="space-y-[1px]">
+            <template v-for="msg in messages" :key="msg.id">
+                <!-- New Messages Divider -->
+                <div 
+                    v-if="readState?.first_unread_message_id && Number(msg.seq) === Number(readState.first_unread_message_id)" 
+                    class="flex items-center my-sp-6 py-sp-2"
+                >
+                    <div class="flex-1 h-px bg-rose-500/30"></div>
+                    <div class="px-sp-3 flex items-center space-x-sp-2">
+                        <span class="text-[11px] font-bold text-rose-500 uppercase tracking-widest">New Messages</span>
+                    </div>
+                    <div class="flex-1 h-px bg-rose-500/30"></div>
                 </div>
-                <div class="flex-1 h-px bg-rose-500/30"></div>
-            </div>
 
-            <MessageItem 
-                :message="msg" 
-                :data-message-id="msg.id"
-                :class="{ 'bg-yellow-100/50 dark:bg-yellow-500/10 ring-1 ring-yellow-400/50': highlightedMessageId === msg.id }"
-                class="transition-all duration-500 rounded-sm"
-                @reply="handleReply"
-                @delete="handleDelete"
-                @edit="handleEdit"
-                @openProfile="handleOpenProfile"
-            />
-        </template>
+                <MessageItem 
+                    :message="msg" 
+                    :data-message-id="msg.id"
+                    :class="{ 'bg-brand/5 ring-1 ring-brand/20': highlightedMessageId === msg.id }"
+                    class="transition-standard rounded-r-1"
+                    @reply="handleReply"
+                    @delete="handleDelete"
+                    @edit="handleEdit"
+                    @openProfile="handleOpenProfile"
+                />
+            </template>
+        </div>
     </div>
   </div>
 </template>

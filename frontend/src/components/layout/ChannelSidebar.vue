@@ -162,56 +162,52 @@ async function handleLeaveTeam() {
 </script>
 
 <template>
-  <aside class="w-[260px] flex flex-col shrink-0 select-none relative z-20">
-    <!-- Glass Background Layer -->
-    <!-- Background Layer -->
-    <div class="absolute inset-0 bg-sidebar border-r border-sidebar-hover/30"></div>
-
+  <aside class="w-[260px] flex flex-col shrink-0 select-none relative z-20 bg-bg-surface-2 border-r border-border-1 transition-standard">
     <!-- Content Layer -->
-    <div class="relative flex-1 flex flex-col text-slate-300">
+    <div class="relative flex-1 flex flex-col text-text-2">
     <!-- Team Header -->
     <div 
-      class="h-14 flex items-center justify-between px-4 hover:bg-sidebar-hover cursor-pointer transition-all duration-200 group relative border-b border-sidebar-hover/30"
+      class="h-14 flex items-center justify-between px-4 hover:bg-bg-surface-1 cursor-pointer transition-standard group relative border-b border-border-1"
       @click="showTeamMenu = !showTeamMenu"
     >
-      <h2 class="font-bold truncate text-white text-[15px] tracking-tight">
+      <h2 class="font-bold truncate text-text-1 text-[15px] tracking-tight">
         {{ teamStore.currentTeam?.display_name || teamStore.currentTeam?.name || 'Select Team' }}
       </h2>
-      <ChevronDown class="w-4 h-4 text-slate-400 group-hover:text-white transition-transform duration-200" :class="{ 'rotate-180': showTeamMenu }" />
+      <ChevronDown class="w-4 h-4 text-text-3 group-hover:text-text-1 transition-standard" :class="{ 'rotate-180': showTeamMenu }" />
       
       <!-- Team Dropdown Menu -->
       <div 
         v-if="showTeamMenu"
-        class="absolute top-full left-0 right-0 mt-1 bg-gray-800 rounded-lg shadow-xl border border-gray-700 py-1 z-50"
+        class="absolute top-full left-sp-2 right-sp-2 mt-sp-1 bg-bg-surface-1 rounded-r-2 shadow-2 border border-border-1 py-1 z-50 animate-fade-in"
         @click.stop
       >
         <button
           v-if="authStore.user?.role === 'system_admin' || authStore.user?.role === 'org_admin'"
           @click="$router.push('/admin')"
-          class="w-full flex items-center px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 transition-colors"
+          class="w-full flex items-center px-4 py-2 text-sm text-text-2 hover:bg-bg-surface-2 transition-standard"
         >
-          <Shield class="w-4 h-4 mr-3" />
+          <Shield class="w-4 h-4 mr-3 text-brand" />
           System Console
         </button>
-        <div class="h-px bg-gray-700 my-1 font-medium"></div>
+        <div class="h-px bg-border-1 my-1"></div>
         <button
           @click="showBrowseTeams = true; showTeamMenu = false"
-          class="w-full flex items-center px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 transition-colors"
+          class="w-full flex items-center px-4 py-2 text-sm text-text-2 hover:bg-bg-surface-2 transition-standard"
         >
           <Compass class="w-4 h-4 mr-3" />
           Browse Teams
         </button>
         <button
           @click="showTeamSettings = true; showTeamMenu = false"
-          class="w-full flex items-center px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 transition-colors"
+          class="w-full flex items-center px-4 py-2 text-sm text-text-2 hover:bg-bg-surface-2 transition-standard"
         >
           <Settings class="w-4 h-4 mr-3" />
           Team Settings
         </button>
-        <div class="h-px bg-gray-700 my-1 font-medium"></div>
+        <div class="h-px bg-border-1 my-1"></div>
         <button
           @click="handleLeaveTeam"
-          class="w-full flex items-center px-4 py-2 text-sm text-red-400 hover:bg-red-900/20 transition-colors"
+          class="w-full flex items-center px-4 py-2 text-sm text-danger hover:bg-danger/5 transition-standard"
         >
           <LogOut class="w-4 h-4 mr-3" />
           Leave Team
@@ -234,18 +230,18 @@ async function handleLeaveTeam() {
       <div v-for="cat in categories" :key="cat.id">
         <!-- Category Header -->
         <div 
-          class="flex items-center justify-between px-3 py-1 text-[#BEABBE] hover:text-white cursor-pointer group mb-1"
+          class="flex items-center justify-between px-3 py-1.5 text-text-3 hover:text-text-1 cursor-pointer group mb-1"
           @click="toggleCategory(cat.id)"
         >
-          <div class="flex items-center text-xs font-semibold uppercase tracking-wide">
-            <component :is="isCategoryCollapsed(cat.id) ? ChevronRight : ChevronDown" class="w-3 h-3 mr-1" />
+          <div class="flex items-center text-[11px] font-bold uppercase tracking-widest">
+            <component :is="isCategoryCollapsed(cat.id) ? ChevronRight : ChevronDown" class="w-3.5 h-3.5 mr-1 text-text-3" />
             {{ cat.name }}
           </div>
           <button 
             @click.stop="handleAddCategory(cat.id)"
-            class="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-gray-700 rounded"
+            class="opacity-0 group-hover:opacity-100 p-0.5 hover:bg-bg-surface-1 rounded transition-standard"
           >
-            <Plus class="w-3 h-3" />
+            <Plus class="w-3.5 h-3.5" />
           </button>
         </div>
 
@@ -255,8 +251,11 @@ async function handleLeaveTeam() {
             v-for="channel in cat.channels" 
             :key="channel.id"
             @click="selectChannel(channel.id)"
-            class="group/item relative px-3 py-1.5 mx-2 rounded-md flex items-center justify-between cursor-pointer transition-all duration-200"
-            :class="{ 'bg-primary text-white shadow-sm': channelStore.currentChannelId === channel.id, 'text-white/70 hover:bg-sidebar-hover hover:text-white': channelStore.currentChannelId !== channel.id }"
+            class="group/item relative px-3 py-sp-2 mx-sp-2 rounded-r-1 flex items-center justify-between cursor-pointer transition-standard"
+            :class="{ 
+              'bg-brand text-white shadow-1': channelStore.currentChannelId === channel.id, 
+              'text-text-2 hover:bg-bg-surface-1 hover:text-text-1': channelStore.currentChannelId !== channel.id 
+            }"
           >
             <!-- Active Pill Indicator (Removing sidebar pill for Slack style active row) -->
 
@@ -300,8 +299,8 @@ async function handleLeaveTeam() {
                  <Check class="w-3.5 h-3.5 text-slate-300" />
                </button>
 
-               <div v-if="channel.mention" class="shrink-0 w-2.5 h-2.5 rounded-full bg-rose-500 ring-2 ring-slate-900 shadow-[0_0_8px_rgba(244,63,94,0.6)]"></div>
-               <div v-if="channel.unread > 0" class="shrink-0 px-1.5 h-5 flex items-center justify-center rounded-md bg-slate-700/80 text-[10px] font-bold text-white min-w-[20px]">
+               <div v-if="channel.mention" class="shrink-0 w-2.5 h-2.5 rounded-full bg-danger ring-2 ring-bg-surface-2 shadow-[0_0_8px_rgba(239,68,68,0.4)]"></div>
+               <div v-if="channel.unread > 0" class="shrink-0 px-2 h-5 flex items-center justify-center rounded-full bg-bg-surface-1 text-[10px] font-bold text-text-1 border border-border-1" :class="{ 'bg-white/20 border-none text-white': channelStore.currentChannelId === channel.id }">
                  {{ channel.unread > 99 ? '99+' : channel.unread }}
                </div>
             </div>
@@ -315,44 +314,27 @@ async function handleLeaveTeam() {
       </div>
     </div>
 
-    <!-- Sidebar Footer -->
-    <div class="p-2 border-t border-gray-800 space-y-1">
-        <button
-          v-if="Object.values(unreadStore.channelUnreads).some(c => c > 0)"
-          @click="unreadStore.markAllAsRead()"
-          class="w-full flex items-center justify-start px-2 py-2 text-sm text-gray-400 hover:bg-gray-800 rounded transition-colors text-left"
-        >
-            <div class="w-6 h-6 rounded bg-gray-700/50 flex items-center justify-center mr-2">
-                <Check class="w-4 h-4 text-gray-300" />
-            </div>
-            <span>Mark all as read</span>
-        </button>
+    <div class="p-sp-2 border-t border-border-1 space-y-0.5">
         <button 
-          v-if="Object.values(unreadStore.channelUnreads).some(c => c > 0)"
+          v-if="Object.values(unreadStore.channelUnreads).some(c => (c as number) > 0)"
           @click="unreadStore.markAllAsRead()"
-          class="w-full flex items-center justify-start px-2 py-2 text-sm text-gray-400 hover:bg-gray-800 rounded transition-colors text-left"
+          class="w-full flex items-center justify-start px-3 py-2 text-sm text-text-3 hover:bg-bg-surface-1 hover:text-text-1 rounded-r-1 transition-standard text-left group"
         >
-            <div class="w-6 h-6 rounded bg-gray-700/50 flex items-center justify-center mr-2">
-                <Check class="w-4 h-4 text-gray-300" />
-            </div>
+            <Check class="w-4 h-4 mr-3 text-text-3 group-hover:text-success" />
             <span>Mark all as read</span>
         </button>
         <button 
           @click="showBrowseChannels = true"
-          class="w-full flex items-center justify-start px-2 py-2 text-sm text-gray-400 hover:bg-gray-800 rounded transition-colors text-left"
+          class="w-full flex items-center justify-start px-3 py-2 text-sm text-text-3 hover:bg-bg-surface-1 hover:text-text-1 rounded-r-1 transition-standard text-left"
         >
-            <div class="w-6 h-6 rounded bg-gray-700/50 flex items-center justify-center mr-2">
-                <Compass class="w-4 h-4 text-gray-300" />
-            </div>
+            <Compass class="w-4 h-4 mr-3" />
             <span>Browse channels</span>
         </button>
         <button 
           @click="showCreateModal = true"
-          class="w-full flex items-center justify-start px-2 py-2 text-sm text-gray-400 hover:bg-gray-800 rounded transition-colors text-left"
+          class="w-full flex items-center justify-start px-3 py-sp-2 text-sm text-text-3 hover:bg-bg-surface-1 hover:text-text-1 rounded-r-1 transition-standard text-left"
         >
-            <div class="w-6 h-6 rounded bg-gray-700 flex items-center justify-center mr-2">
-                <Plus class="w-4 h-4 text-gray-300" />
-            </div>
+            <Plus class="w-4 h-4 mr-3" />
             <span>Create channel</span>
         </button>
     </div>

@@ -1,12 +1,50 @@
 @import "tailwindcss";
 
 @theme {
-  /* Color Palette */
-  --color-primary: var(--primary);
-  --color-primary-hover: var(--primary-hover);
-  --color-surface: var(--surface);
-  --color-surface-dim: var(--surface-dim);
-  --color-border-dim: var(--border-dim);
+  /* Design System Tokens Mapping */
+
+  /* Colors */
+  --color-bg-app: var(--bg-app);
+  --color-bg-surface-1: var(--bg-surface-1);
+  --color-bg-surface-2: var(--bg-surface-2);
+
+  --color-text-1: var(--text-1);
+  --color-text-2: var(--text-2);
+  --color-text-3: var(--text-3);
+
+  --color-border-1: var(--border-1);
+  --color-border-2: var(--border-2);
+
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+
+  /* Spacing */
+  --spacing-sp-1: var(--sp-1);
+  --spacing-sp-2: var(--sp-2);
+  --spacing-sp-3: var(--sp-3);
+  --spacing-sp-4: var(--sp-4);
+  --spacing-sp-5: var(--sp-5);
+  --spacing-sp-6: var(--sp-6);
+  --spacing-sp-7: var(--sp-7);
+
+  /* Radius */
+  --radius-r-1: var(--r-1);
+  --radius-r-2: var(--r-2);
+  --radius-r-3: var(--r-3);
+
+  /* Typography Sizes */
+  --font-size-xs: var(--fs-xs);
+  --font-size-sm: var(--fs-sm);
+  --font-size-base: var(--fs-base);
+  --font-size-md: var(--fs-md);
+  --font-size-lg: var(--fs-lg);
+
+  /* Legacy Compatibility */
+  --color-primary: var(--brand);
+  --color-surface: var(--bg-surface-1);
+  --color-surface-dim: var(--bg-surface-2);
 
   /* Custom Animations */
   --animate-fade-in: fadeIn 0.3s ease-out forwards;
@@ -14,30 +52,92 @@
 }
 
 :root {
-  /* Core Colors (Light) */
-  --primary: #4F46E5;
-  --primary-hover: #4338ca;
-  --sidebar-bg: #3F0E40;
-  --sidebar-hover: #350D36;
-  --surface: #FFFFFF;
-  --surface-dim: #F8FAFC;
-  --border-dim: #E2E8F0;
+  /* LIGHT THEME TOKENS */
+
+  /* Colors */
+  --bg-app: #F1F5F9;
+  --bg-surface-1: #FFFFFF;
+  --bg-surface-2: #F8FAFC;
+
+  --text-1: #0F172A;
+  /* Slate 900 */
+  --text-2: #475569;
+  /* Slate 600 */
+  --text-3: #94A3B8;
+  /* Slate 400 */
+
+  --border-1: #E2E8F0;
+  /* Slate 200 */
+  --border-2: #CBD5E1;
+  /* Slate 300 */
+
+  --brand: #4F46E5;
+  --brand-hover: #4338ca;
+  --danger: #EF4444;
+  --success: #22C55E;
+
+  --shadow-1: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-2: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+
+  /* Spacing (4, 8, 12, 16, 20, 24, 32) */
+  --sp-1: 0.25rem;
+  --sp-2: 0.5rem;
+  --sp-3: 0.75rem;
+  --sp-4: 1rem;
+  --sp-5: 1.25rem;
+  --sp-6: 1.5rem;
+  --sp-7: 2rem;
+
+  /* Radius (8, 12, 16) */
+  --r-1: 8px;
+  --r-2: 12px;
+  --r-3: 16px;
+
+  /* Typography (xs: 12/16, sm: 13/18, base: 14/20, md: 16/22, lg: 18/26) */
+  --fs-xs: 12px;
+  --lh-xs: 16px;
+  --fs-sm: 13px;
+  --lh-sm: 18px;
+  --fs-base: 14px;
+  --lh-base: 20px;
+  --fs-md: 16px;
+  --lh-md: 22px;
+  --fs-lg: 18px;
+  --lh-lg: 26px;
+
+  /* Message Layout */
+  --msg-max-width: 860px;
+  --msg-gutter: 16px;
+  --msg-v-p-comfort: 12px;
+  --msg-v-p-compact: 8px;
+  --avatar-size: 32px;
 }
 
+/* DARK THEME TOKENS */
 .dark {
-  /* Core Colors (Dark) */
-  --primary: #6366f1;
-  --primary-hover: #818cf8;
-  --sidebar-bg: #1A1D21;
-  --sidebar-hover: #222529;
-  --surface: #0B0E11;
-  --surface-dim: #15191C;
-  --border-dim: #1E293B;
+  --bg-app: #0B0E11;
+  --bg-surface-1: #15191C;
+  --bg-surface-2: #1E2329;
+
+  --text-1: #F8FAFC;
+  --text-2: #94A3B8;
+  --text-3: #64748B;
+
+  --border-1: rgba(255, 255, 255, 0.06);
+  --border-2: rgba(255, 255, 255, 0.12);
+
+  --brand: #6366f1;
+  --brand-hover: #818cf8;
+
+  --shadow-1: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+  --shadow-2: 0 10px 15px -3px rgb(0 0 0 / 0.5);
 }
 
 body {
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  @apply bg-surface text-gray-950 dark:text-gray-100;
+  font-size: var(--fs-base);
+  line-height: var(--lh-base);
+  @apply bg-bg-app text-text-1;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -53,7 +153,7 @@ body {
   }
 
   .custom-scrollbar::-webkit-scrollbar-thumb {
-    @apply bg-gray-300 dark:bg-gray-700 rounded-full hover:bg-gray-400 dark:hover:bg-gray-600;
+    @apply bg-border-2 rounded-full hover:bg-text-3;
   }
 }
 
@@ -61,15 +161,15 @@ body {
 @utility glass {
   backdrop-filter: blur(12px);
   background-color: rgba(255, 255, 255, 0.7);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  @apply dark:bg-slate-900/40 dark:border-white/5;
+  border: 1px solid var(--border-1);
+  @apply dark:bg-slate-900/40;
 }
 
 @utility glass-panel {
   backdrop-filter: blur(20px);
   background-color: rgba(255, 255, 255, 0.82);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  @apply dark:bg-slate-900/60 dark:border-white/5;
+  border: 1px solid var(--border-1);
+  @apply dark:bg-slate-900/60;
 }
 
 @utility transition-standard {
@@ -81,11 +181,12 @@ body {
 }
 
 @utility hover-lift {
-  @apply transition-standard hover:-translate-y-0.5 active:translate-y-0 shadow-md;
+  @apply transition-standard hover:-translate-y-0.5 active:translate-y-0;
+  box-shadow: var(--shadow-1);
 }
 
 @utility focus-ring {
-  @apply focus:outline-none focus:ring-2 focus:ring-primary/50 focus:ring-offset-2 dark:focus:ring-offset-gray-900 transition-all;
+  @apply focus:outline-none focus:ring-2 focus:ring-brand/50 focus:ring-offset-2 dark:focus:ring-offset-bg-app transition-all;
 }
 
 @keyframes fadeIn {

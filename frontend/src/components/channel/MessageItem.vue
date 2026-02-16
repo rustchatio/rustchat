@@ -264,12 +264,15 @@ async function toggleReaction(emoji: string) {
   <!-- Regular Message -->
   <div 
     v-else
-    class="flex items-start group px-5 py-1.5 hover:bg-surface-dim dark:hover:bg-gray-800/40 -mx-5 transition-standard relative border-l-2 border-transparent"
-    :class="{ 
-        'bg-yellow-50/30 dark:bg-yellow-900/5': isMentioned,
-        'opacity-70': message.status === 'sending',
-        'bg-red-50 dark:bg-red-900/10': message.status === 'failed'
-    }"
+    class="flex items-start group transition-standard relative border-l-2 border-transparent"
+    :class="[
+        uiStore.density === 'compact' ? 'py-sp-2' : 'py-sp-3',
+        isMentioned ? 'bg-brand/5 border-l-brand' : 'hover:bg-bg-app border-l-transparent',
+        { 
+            'opacity-70': message.status === 'sending',
+            'bg-danger/5': message.status === 'failed'
+        }
+    ]"
     @mouseenter="showActions = true"
     @mouseleave="showActions = false; showMenu = false; showEmojiPicker = false"
   >
@@ -277,26 +280,26 @@ async function toggleReaction(emoji: string) {
     <div v-if="isMentioned" class="absolute left-0 top-0 bottom-0 w-1 bg-yellow-600"></div>
 
     <!-- Avatar -->
-    <div class="shrink-0 select-none mr-3 mt-1 cursor-pointer" @click="openUserProfile">
+    <div class="shrink-0 select-none mr-sp-3 mt-sp-1 cursor-pointer" @click="openUserProfile">
       <RcAvatar 
         :userId="message.userId"
         :src="message.avatarUrl" 
         :username="message.username" 
         size="md"
-        class="w-9 h-9 rounded-md hover:ring-2 hover:ring-primary/50 transition-all"
+        class="w-[var(--avatar-size)] h-[var(--avatar-size)] rounded-r-1 hover:shadow-2 transition-standard"
       />
     </div>
 
     <div class="flex-1 min-w-0">
       <!-- Header -->
-      <div class="flex items-baseline mb-1">
+      <div class="flex items-baseline mb-sp-1 space-x-sp-2">
         <span 
-          class="font-bold text-[15px] leading-tight text-gray-900 dark:text-gray-100 hover:underline cursor-pointer mr-2 transition-colors hover:text-primary"
+          class="font-semibold text-sm leading-tight text-text-1 hover:underline cursor-pointer transition-colors hover:text-brand"
           @click="openUserProfile"
         >
           {{ message.username }}
         </span>
-        <span class="text-[11px] text-gray-500 font-medium tracking-tight hover:underline cursor-pointer">
+        <span class="text-xs text-text-3 font-medium tracking-tight hover:underline cursor-pointer">
           {{ format(new Date(message.timestamp), 'h:mm a') }}
         </span>
         <!-- Status Indicators -->
@@ -347,7 +350,7 @@ async function toggleReaction(emoji: string) {
 
       <div v-else class="relative group/content flex items-start">
         <div 
-          class="text-gray-800 dark:text-gray-200 text-[15px] mt-0.5 whitespace-pre-wrap leading-relaxed max-w-[90%] break-words selection:bg-primary/20"
+          class="text-text-1 text-base mt-0.5 whitespace-pre-wrap leading-base max-w-[90%] break-words selection:bg-brand/20"
           :class="{ 'bg-yellow-50/50 dark:bg-yellow-900/10 -mx-2 px-2 py-1 rounded': isMentioned }"
           v-html="formattedContent"
         ></div>

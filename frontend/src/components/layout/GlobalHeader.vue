@@ -83,7 +83,7 @@ const statusLabel = computed(() => {
 </script>
 
 <template>
-  <header class="h-[60px] bg-gray-900 border-b border-gray-800 flex items-center justify-between px-3 text-white shrink-0 z-20 relative">
+  <header class="h-[64px] bg-bg-surface-1 border-b border-border-1 flex items-center justify-between px-4 text-text-1 shrink-0 z-30 relative transition-standard">
     <!-- Left: Logo & Team -->
     <div class="flex items-center min-w-[200px]">
       <div class="font-bold text-lg tracking-tight mr-4 flex items-center">
@@ -97,36 +97,36 @@ const statusLabel = computed(() => {
     <div class="flex-1 max-w-2xl px-4 hidden sm:block">
         <div 
           @click="showSearch = true"
-          class="flex items-center w-full bg-white/10 dark:bg-black/20 hover:bg-white/15 dark:hover:bg-black/30 border border-white/10 dark:border-white/5 rounded-xl px-4 py-1.5 cursor-pointer transition-standard group"
+          class="flex items-center w-full bg-bg-surface-2 hover:bg-bg-surface-1 border border-border-1 rounded-r-2 px-4 py-2 cursor-pointer transition-standard group focus-ring shadow-1"
         >
-          <Search class="w-4 h-4 text-white/50 group-hover:text-white/80 transition-colors mr-3" />
-          <span class="text-sm text-white/50 group-hover:text-white/80 transition-colors flex-1">
+          <Search class="w-4 h-4 text-text-3 group-hover:text-text-2 transition-colors mr-3" />
+          <span class="text-sm text-text-3 group-hover:text-text-2 transition-colors flex-1">
             Search {{ configStore.siteConfig.site_name }}
           </span>
           <div class="flex items-center space-x-1 opacity-50 group-hover:opacity-100 transition-opacity">
-            <kbd class="px-1.5 py-0.5 bg-black/30 border border-white/10 rounded text-[10px] font-bold text-white/70">⌘</kbd>
-            <kbd class="px-1.5 py-0.5 bg-black/30 border border-white/10 rounded text-[10px] font-bold text-white/70">K</kbd>
+            <kbd class="px-1.5 py-0.5 bg-bg-app border border-border-1 rounded text-[10px] font-bold text-text-2">⌘</kbd>
+            <kbd class="px-1.5 py-0.5 bg-bg-app border border-border-1 rounded text-[10px] font-bold text-text-2">K</kbd>
           </div>
         </div>
     </div>
 
     <!-- Right: Actions -->
     <div class="flex items-center space-x-3">
-      <button class="text-gray-400 hover:text-white transition-colors">
+      <button class="text-text-3 hover:text-text-1 transition-colors p-1.5 rounded-r-1 hover:bg-bg-surface-2">
         <HelpCircle class="w-5 h-5" />
       </button>
       
       <div class="relative">
         <button 
           @click="showNotifications = !showNotifications"
-          class="relative text-gray-400 hover:text-white transition-standard p-1 rounded-md focus-ring"
+          class="relative text-text-3 hover:text-text-1 transition-standard p-1.5 rounded-r-1 hover:bg-bg-surface-2 focus-ring"
           aria-label="Toggle notifications"
           title="Notifications"
         >
           <Bell class="w-5 h-5" />
           <span 
             v-if="unreadStore.totalUnreadCount > 0"
-            class="absolute top-0 right-0 block h-2.5 w-2.5 rounded-full ring-2 ring-gray-900 bg-red-500 animate-pulse"
+            class="absolute top-1 right-1 block h-2.5 w-2.5 rounded-full ring-2 ring-bg-surface-1 bg-danger animate-pulse"
           ></span>
         </button>
         <NotificationsDropdown v-if="showNotifications" @close="showNotifications = false" />

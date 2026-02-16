@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
 export type RhsView = 'thread' | 'search' | 'info' | 'saved' | 'pinned' | 'members' | null
+export type Density = 'comfortable' | 'compact'
 
 export const useUIStore = defineStore('ui', () => {
     const isRhsOpen = ref(false)
@@ -11,6 +12,7 @@ export const useUIStore = defineStore('ui', () => {
 
     const videoCallUrl = ref<string | null>(null)
     const isVideoCallOpen = ref(false)
+    const density = ref<Density>((localStorage.getItem('density') as Density) || 'comfortable')
 
     function openSettings() {
         isSettingsOpen.value = true
@@ -50,6 +52,11 @@ export const useUIStore = defineStore('ui', () => {
         videoCallUrl.value = null
     }
 
+    function setDensity(newDensity: Density) {
+        density.value = newDensity
+        localStorage.setItem('density', newDensity)
+    }
+
     return {
         isRhsOpen,
         isSettingsOpen,
@@ -57,12 +64,14 @@ export const useUIStore = defineStore('ui', () => {
         rhsContextId,
         videoCallUrl,
         isVideoCallOpen,
+        density,
         openRhs,
         closeRhs,
         toggleRhs,
         openSettings,
         closeSettings,
         openVideoCall,
-        closeVideoCall
+        closeVideoCall,
+        setDensity
     }
 })

@@ -56,17 +56,17 @@ function jumpToMessage(message: Message) {
 
 <template>
   <div 
-    class="flex-1 flex flex-col min-h-0 bg-surface dark:bg-surface-dim"
+    class="flex-1 flex flex-col min-h-0 bg-bg-surface-1"
   >
     <!-- Search Input Area -->
-    <div class="p-4 border-b border-border-dim dark:border-white/5 bg-surface-dim/30">
+    <div class="p-sp-4 border-b border-border-1 bg-bg-surface-2/30">
         <div class="relative group">
-            <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-primary transition-colors" />
+            <Search class="absolute left-sp-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-3 group-focus-within:text-brand transition-standard" />
             <input 
                 v-model="searchQuery"
                 type="text"
                 placeholder="Search messages..."
-                class="w-full pl-10 pr-4 py-2 bg-surface dark:bg-surface-dim border border-border-dim dark:border-white/5 rounded-xl text-sm focus-ring shadow-sm"
+                class="w-full pl-sp-7 pr-4 py-2 bg-bg-surface-1 border border-border-1 rounded-r-2 text-sm focus-ring shadow-1 transition-standard"
                 autofocus
                 aria-label="Search messages in this channel"
             />
@@ -93,25 +93,25 @@ function jumpToMessage(message: Message) {
         <p class="text-sm font-medium">Search for messages and files in this channel</p>
       </div>
 
-      <div v-else class="divide-y divide-border-dim dark:divide-white/5">
+      <div v-else class="divide-y divide-border-1">
         <div 
             v-for="message in searchResults" 
             :key="message.id"
-            class="px-5 py-5 hover:bg-surface-dim dark:hover:bg-gray-800/40 transition-all group relative cursor-pointer border-l-2 border-transparent hover:border-primary/50"
+            class="px-sp-5 py-sp-5 hover:bg-bg-surface-2 transition-standard group relative cursor-pointer border-l-2 border-transparent hover:border-brand/50"
             @click="jumpToMessage(message)"
         >
-            <div class="flex items-start justify-between mb-1.5">
-                <div class="flex items-center space-x-2">
-                    <span class="font-bold text-sm text-gray-900 dark:text-gray-100 hover:text-primary transition-colors">{{ message.username }}</span>
-                    <span class="text-[10px] text-gray-500 font-medium tracking-tight">{{ format(new Date(message.timestamp), 'MMM d, h:mm a') }}</span>
+            <div class="flex items-start justify-between mb-sp-1">
+                <div class="flex items-center space-x-sp-2">
+                    <span class="font-semibold text-sm text-text-1 hover:text-brand transition-standard">{{ message.username }}</span>
+                    <span class="text-xs text-text-3 font-medium tracking-tight">{{ format(new Date(message.timestamp), 'MMM d, h:mm a') }}</span>
                 </div>
-                <div class="opacity-0 group-hover:opacity-100 transition-all transform translate-x-1 group-hover:translate-x-0">
-                    <button class="text-gray-400 hover:text-primary p-1 rounded-md hover:bg-primary/5 transition-all" title="Jump to message">
+                <div class="opacity-0 group-hover:opacity-100 transition-standard transform translate-x-1 group-hover:translate-x-0">
+                    <button class="text-text-3 hover:text-brand p-1.5 rounded-r-1 hover:bg-brand/5 transition-standard" title="Jump to message">
                         <ExternalLink class="w-4 h-4" />
                     </button>
                 </div>
             </div>
-            <div class="text-[14px] text-gray-700 dark:text-gray-300 line-clamp-3 mt-1 leading-relaxed">
+            <div class="text-[14px] text-text-2 line-clamp-3 mt-1 leading-relaxed">
                 {{ message.content }}
             </div>
         </div>

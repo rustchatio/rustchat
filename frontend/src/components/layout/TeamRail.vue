@@ -23,7 +23,7 @@ function getInitials(name: string): string {
 </script>
 
 <template>
-  <aside class="w-[68px] bg-sidebar flex flex-col items-center py-4 space-y-4 z-20 shrink-0 transition-colors duration-300">
+  <aside class="w-[68px] bg-bg-surface-2 flex flex-col items-center py-sp-4 space-y-sp-4 z-20 shrink-0 transition-standard">
     <div 
       v-for="team in teamStore.teams" 
       :key="team.id"
@@ -32,14 +32,14 @@ function getInitials(name: string): string {
       <!-- Active Indicator -->
       <div 
         v-if="teamStore.currentTeamId === team.id"
-        class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-white rounded-r full transition-all"
+        class="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-brand rounded-r-full transition-standard"
       ></div>
 
       <!-- Team Icon -->
       <button
         @click="selectTeam(team.id)"
-        class="w-10 h-10 rounded-xl bg-gray-700 hover:bg-primary transition-all cursor-pointer flex items-center justify-center text-white font-bold text-sm overflow-hidden border-2 "
-        :class="teamStore.currentTeamId === team.id ? 'border-white bg-primary' : 'border-transparent group-hover:border-gray-500'"
+        class="w-12 h-12 rounded-r-2 bg-bg-surface-1 hover:bg-brand transition-standard cursor-pointer flex items-center justify-center text-text-1 hover:text-white font-bold text-sm overflow-hidden border border-border-1 group-hover:shadow-1"
+        :class="{ 'border-brand ring-2 ring-brand/20 bg-brand text-white': teamStore.currentTeamId === team.id }"
         :title="team.display_name || team.name"
       >
         {{ getInitials(team.display_name || team.name) }}
@@ -48,20 +48,20 @@ function getInitials(name: string): string {
       <!-- Unread Indicator (Dot) -->
       <div 
         v-if="unreadStore.getTeamUnreadCount(team.id) > 0 && teamStore.currentTeamId !== team.id"
-        class="absolute -top-1 -right-1 w-3 h-3 bg-white rounded-full border-2 border-primary flex items-center justify-center shadow-lg pointer-events-none"
+        class="absolute -top-1 -right-1 w-3.5 h-3.5 bg-brand rounded-full border-2 border-bg-surface-2 flex items-center justify-center shadow-1 pointer-events-none"
       >
       </div>
     </div>
 
     <!-- Empty state -->
-    <div v-if="teamStore.teams.length === 0 && !teamStore.loading" class="text-gray-500 text-xs text-center px-2">
-        No teams yet
+    <div v-if="teamStore.teams.length === 0 && !teamStore.loading" class="text-text-3 text-[10px] text-center px-1 uppercase font-bold tracking-tight">
+        No teams
     </div>
 
     <!-- Add Team Button -->
     <button 
       @click="showCreateModal = true"
-      class="w-10 h-10 rounded-full bg-gray-800 hover:bg-green-600 transition-colors cursor-pointer flex items-center justify-center text-gray-400 hover:text-white group"
+      class="w-12 h-12 rounded-r-2 bg-bg-surface-1 hover:bg-success transition-standard cursor-pointer flex items-center justify-center text-text-3 hover:text-white group border border-dashed border-border-2"
       title="Create Team"
     >
       <Plus class="w-5 h-5 group-hover:scale-110 transition-transform" />
