@@ -23,7 +23,7 @@ function getInitials(name: string): string {
 </script>
 
 <template>
-  <aside class="w-[64px] bg-gray-900 flex flex-col items-center py-3 space-y-3 z-20 shrink-0">
+  <aside class="w-[68px] bg-sidebar flex flex-col items-center py-4 space-y-4 z-20 shrink-0 transition-colors duration-300">
     <div 
       v-for="team in teamStore.teams" 
       :key="team.id"

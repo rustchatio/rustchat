@@ -223,8 +223,8 @@ async function onStartAudioCall() {
           />
 
           <SearchPanel 
-            v-if="uiStore.isRhsOpen && uiStore.rhsView === 'search'"
-            :show="true"
+            v-if="uiStore.isRhsOpen && uiStore.rhsView === 'search' && currentChannel"
+            :channelId="currentChannel.id"
             @close="uiStore.closeRhs"
             @jump="handleMessageJump"
           />

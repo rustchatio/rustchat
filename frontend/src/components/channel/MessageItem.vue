@@ -215,7 +215,7 @@ async function toggleReaction(emoji: string) {
 
 <template>
   <!-- System Message -->
-  <div v-if="isSystemMessage" class="flex items-center px-5 py-1 -mx-5 hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors">
+  <div v-if="isSystemMessage" class="flex items-center px-5 py-1 -mx-5 hover:bg-surface-dim dark:hover:bg-gray-800/40 transition-standard">
     <div class="flex items-center text-xs text-gray-500 dark:text-gray-400 italic w-full">
         <ArrowRight class="w-3.5 h-3.5 mr-2 text-gray-400" />
         <span v-html="formattedContent"></span>
@@ -226,7 +226,7 @@ async function toggleReaction(emoji: string) {
   </div>
 
   <!-- Video Call Message -->
-  <div v-else-if="isVideoCall" class="flex items-start group px-5 py-2 hover:bg-gray-50 dark:hover:bg-gray-800/40 -mx-5 transition-colors relative">
+  <div v-else-if="isVideoCall" class="flex items-start group px-5 py-2 hover:bg-surface-dim dark:hover:bg-gray-800/40 -mx-5 transition-standard relative">
     <div class="shrink-0 select-none mr-3 mt-1">
       <RcAvatar
         :userId="message.userId"
@@ -237,11 +237,11 @@ async function toggleReaction(emoji: string) {
       />
     </div>
     <div class="flex-1 min-w-0">
-        <div class="flex items-baseline mb-0.5">
-            <span class="font-bold text-[15px] text-gray-900 dark:text-gray-100 mr-2">{{ message.username }}</span>
-            <span class="text-[11px] text-gray-500">{{ format(new Date(message.timestamp), 'h:mm a') }}</span>
+        <div class="flex items-baseline mb-1">
+            <span class="font-bold text-[15px] leading-tight text-gray-900 dark:text-gray-100 mr-2">{{ message.username }}</span>
+            <span class="text-[11px] text-gray-500 font-medium tracking-tight">{{ format(new Date(message.timestamp), 'h:mm a') }}</span>
         </div>
-        <div class="bg-gray-100 dark:bg-slate-800 border border-gray-200 dark:border-slate-700 rounded-lg p-4 inline-flex flex-col max-w-sm">
+        <div class="bg-surface-dim dark:bg-slate-800/50 border border-border-dim dark:border-slate-700/50 rounded-xl p-4 inline-flex flex-col max-w-sm shadow-sm transition-all hover:border-primary/30">
             <div class="flex items-center gap-3 mb-3">
                 <div class="w-10 h-10 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center">
                     <Video class="w-5 h-5 text-green-600 dark:text-green-400" />
@@ -264,7 +264,7 @@ async function toggleReaction(emoji: string) {
   <!-- Regular Message -->
   <div 
     v-else
-    class="flex items-start group px-5 py-0.5 hover:bg-gray-50 dark:hover:bg-gray-800/40 -mx-5 transition-colors relative"
+    class="flex items-start group px-5 py-1.5 hover:bg-surface-dim dark:hover:bg-gray-800/40 -mx-5 transition-standard relative border-l-2 border-transparent"
     :class="{ 
         'bg-yellow-50/30 dark:bg-yellow-900/5': isMentioned,
         'opacity-70': message.status === 'sending',
@@ -289,19 +289,19 @@ async function toggleReaction(emoji: string) {
 
     <div class="flex-1 min-w-0">
       <!-- Header -->
-      <div class="flex items-baseline mb-0.5">
+      <div class="flex items-baseline mb-1">
         <span 
-          class="font-bold text-[15px] text-gray-900 dark:text-gray-100 hover:underline cursor-pointer mr-2"
+          class="font-bold text-[15px] leading-tight text-gray-900 dark:text-gray-100 hover:underline cursor-pointer mr-2 transition-colors hover:text-primary"
           @click="openUserProfile"
         >
           {{ message.username }}
         </span>
-        <span class="text-[11px] text-gray-500 hover:underline cursor-pointer">
+        <span class="text-[11px] text-gray-500 font-medium tracking-tight hover:underline cursor-pointer">
           {{ format(new Date(message.timestamp), 'h:mm a') }}
         </span>
         <!-- Status Indicators -->
-        <span v-if="message.status === 'sending'" class="text-[10px] text-gray-400 ml-2 italic">Sending...</span>
-        <span v-if="message.status === 'failed'" class="text-[10px] text-red-500 ml-2 font-medium">Failed to send</span>
+        <span v-if="message.status === 'sending'" class="text-[10px] text-gray-400 ml-2 italic font-medium animate-pulse">Sending...</span>
+        <span v-if="message.status === 'failed'" class="text-[10px] text-red-500 ml-2 font-bold uppercase tracking-wider">Failed</span>
         
         <div v-if="message.isPinned || message.isSaved" class="flex items-center space-x-1 ml-2">
             <span v-if="message.isPinned" class="bg-gray-200 dark:bg-gray-700 text-[10px] px-1 rounded text-gray-600 dark:text-gray-300 font-medium flex items-center h-4">
@@ -347,7 +347,7 @@ async function toggleReaction(emoji: string) {
 
       <div v-else class="relative group/content flex items-start">
         <div 
-          class="text-gray-800 dark:text-gray-200 text-sm mt-0.5 whitespace-pre-wrap leading-relaxed max-w-[50%] break-words"
+          class="text-gray-800 dark:text-gray-200 text-[15px] mt-0.5 whitespace-pre-wrap leading-relaxed max-w-[90%] break-words selection:bg-primary/20"
           :class="{ 'bg-yellow-50/50 dark:bg-yellow-900/10 -mx-2 px-2 py-1 rounded': isMentioned }"
           v-html="formattedContent"
         ></div>

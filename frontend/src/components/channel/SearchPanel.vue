@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { X, Search, ExternalLink } from 'lucide-vue-next'
+import { Search, ExternalLink } from 'lucide-vue-next'
 import { format } from 'date-fns'
 import type { Message } from '../../stores/messages'
 import { useMessageStore } from '../../stores/messages'
-import { useChannelStore } from '../../stores/channels'
+
 
 const props = defineProps<{
-    show: boolean
+    channelId: string
 }>()
 
 const emit = defineEmits<{
@@ -16,14 +16,13 @@ const emit = defineEmits<{
 }>()
 
 const messageStore = useMessageStore()
-const channelStore = useChannelStore()
 
 const searchQuery = ref('')
 const searchResults = ref<Message[]>([])
 const loading = ref(false)
 
 async function handleSearch() {
-    if (!searchQuery.value.trim() || !channelStore.currentChannelId) {
+    if (!searchQuery.value.trim() || !props.channelId) {
         searchResults.value = []
         return
     }
@@ -31,7 +30,7 @@ async function handleSearch() {
     loading.value = true
     try {
         searchResults.value = await messageStore.searchMessages(
-            channelStore.currentChannelId, 
+            props.channelId, 
             searchQuery.value
         )
     } catch (e) {
@@ -56,77 +55,68 @@ function jumpToMessage(message: Message) {
 </script>
 
 <template>
-  <aside 
-    v-if="show"
-    class="w-[400px] bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 flex flex-col shrink-0 z-20"
+  <div 
+    class="flex-1 flex flex-col min-h-0 bg-surface dark:bg-surface-dim"
   >
-    <!-- Header -->
-    <div class="h-12 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between px-4">
-      <div class="flex items-center space-x-2">
-        <Search class="w-5 h-5 text-gray-500" />
-        <span class="font-semibold text-gray-900 dark:text-white">Search</span>
-      </div>
-      <button 
-        @click="$emit('close')"
-        class="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
-      >
-        <X class="w-5 h-5 text-gray-400" />
-      </button>
-    </div>
-
-    <!-- Search Input -->
-    <div class="p-4 border-b border-gray-100 dark:border-gray-700">
-        <div class="relative">
-            <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+    <!-- Search Input Area -->
+    <div class="p-4 border-b border-border-dim dark:border-white/5 bg-surface-dim/30">
+        <div class="relative group">
+            <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-primary transition-colors" />
             <input 
                 v-model="searchQuery"
                 type="text"
-                placeholder="Search in channel..."
-                class="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                placeholder="Search messages..."
+                class="w-full pl-10 pr-4 py-2 bg-surface dark:bg-surface-dim border border-border-dim dark:border-white/5 rounded-xl text-sm focus-ring shadow-sm"
                 autofocus
+                aria-label="Search messages in this channel"
             />
         </div>
     </div>
 
     <!-- Results List -->
-    <div class="flex-1 overflow-y-auto p-0">
-      <div v-if="loading" class="text-center py-8 text-gray-500">
-        <div class="animate-spin w-6 h-6 border-2 border-primary border-t-transparent rounded-full mx-auto mb-2"></div>
-        Searching...
+    <div class="flex-1 overflow-y-auto custom-scrollbar">
+      <div v-if="loading" class="text-center py-12 text-gray-500">
+        <div class="animate-spin w-6 h-6 border-2 border-primary border-t-transparent rounded-full mx-auto mb-3"></div>
+        <p class="text-xs font-medium uppercase tracking-widest">Searching...</p>
       </div>
       
-      <div v-else-if="searchQuery && searchResults.length === 0" class="text-center py-8 text-gray-500 px-4">
-        <p>No results found for "{{ searchQuery }}"</p>
+      <div v-else-if="searchQuery && searchResults.length === 0" class="text-center py-12 text-gray-500 px-6">
+        <div class="w-16 h-16 bg-surface-dim dark:bg-slate-800/50 rounded-full flex items-center justify-center mx-auto mb-4 border border-border-dim dark:border-white/5">
+             <Search class="w-8 h-8 text-gray-300" />
+        </div>
+        <p class="text-[15px] font-semibold text-gray-700 dark:text-gray-200">No results found</p>
+        <p class="text-xs text-gray-500 mt-1">We couldn't find anything matching "{{ searchQuery }}"</p>
       </div>
 
-      <div v-else-if="!searchQuery" class="text-center py-12 text-gray-400 px-4">
-        <Search class="w-12 h-12 mx-auto mb-3 opacity-20" />
-        <p class="text-sm">Search for messages in this channel</p>
+      <div v-else-if="!searchQuery" class="text-center py-16 text-gray-400 px-6">
+        <Search class="w-16 h-16 mx-auto mb-4 opacity-10" />
+        <p class="text-sm font-medium">Search for messages and files in this channel</p>
       </div>
 
-      <div v-else class="divide-y divide-gray-100 dark:divide-gray-800">
+      <div v-else class="divide-y divide-border-dim dark:divide-white/5">
         <div 
             v-for="message in searchResults" 
             :key="message.id"
-            class="px-4 py-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors group relative cursor-pointer"
+            class="px-5 py-5 hover:bg-surface-dim dark:hover:bg-gray-800/40 transition-all group relative cursor-pointer border-l-2 border-transparent hover:border-primary/50"
             @click="jumpToMessage(message)"
         >
-            <div class="flex items-start justify-between mb-1">
+            <div class="flex items-start justify-between mb-1.5">
                 <div class="flex items-center space-x-2">
-                    <span class="font-bold text-sm text-gray-900 dark:text-gray-100">{{ message.username }}</span>
-                    <span class="text-[10px] text-gray-400">{{ format(new Date(message.timestamp), 'MMM d, h:mm a') }}</span>
+                    <span class="font-bold text-sm text-gray-900 dark:text-gray-100 hover:text-primary transition-colors">{{ message.username }}</span>
+                    <span class="text-[10px] text-gray-500 font-medium tracking-tight">{{ format(new Date(message.timestamp), 'MMM d, h:mm a') }}</span>
                 </div>
-                <div class="opacity-0 group-hover:opacity-100 transition-opacity">
-                    <button class="text-gray-400 hover:text-blue-500" title="Jump to message">
-                        <ExternalLink class="w-3.5 h-3.5" />
+                <div class="opacity-0 group-hover:opacity-100 transition-all transform translate-x-1 group-hover:translate-x-0">
+                    <button class="text-gray-400 hover:text-primary p-1 rounded-md hover:bg-primary/5 transition-all" title="Jump to message">
+                        <ExternalLink class="w-4 h-4" />
                     </button>
                 </div>
             </div>
-            <div class="text-sm text-gray-700 dark:text-gray-300 line-clamp-3 mt-1">
+            <div class="text-[14px] text-gray-700 dark:text-gray-300 line-clamp-3 mt-1 leading-relaxed">
                 {{ message.content }}
             </div>
         </div>
       </div>
     </div>
-  </aside>
+  </div>
+
 </template>

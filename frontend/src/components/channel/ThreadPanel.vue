@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
-import { X, Send, MessageSquare } from 'lucide-vue-next'
+import { Send, MessageSquare } from 'lucide-vue-next'
 import { format } from 'date-fns'
 import { useMessageStore } from '../../stores/messages'
 import { useUIStore } from '../../stores/ui'
@@ -89,46 +89,33 @@ function handleKeydown(e: KeyboardEvent) {
 </script>
 
 <template>
-  <aside 
-    v-if="uiStore.rhsView === 'thread' && parentMessage"
-    class="w-[400px] h-full bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 flex flex-col shrink-0 z-20"
+  <div 
+    v-if="parentMessage"
+    class="flex-1 flex flex-col min-h-0 bg-surface dark:bg-surface-dim"
   >
-    <!-- Header -->
-    <div class="h-12 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between px-4">
-      <div class="flex items-center space-x-2">
-        <MessageSquare class="w-5 h-5 text-gray-400" />
-        <span class="font-semibold text-gray-900 dark:text-white">Thread</span>
-      </div>
-      <button 
-        @click="uiStore.closeRhs()"
-        class="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
-      >
-        <X class="w-5 h-5 text-gray-400" />
-      </button>
-    </div>
-
+    <!-- Thread Header (Simplified since RightSidebar provides the main header) -->
     <!-- Parent Message -->
-    <div class="p-4 bg-gray-50/50 dark:bg-gray-900/30 border-b border-gray-200 dark:border-gray-700">
+    <div class="p-5 border-b border-border-dim dark:border-white/5 bg-surface-dim/30">
       <div class="flex items-start space-x-3">
         <RcAvatar 
           :userId="parentMessage.userId" 
           :username="parentMessage.username" 
           :src="parentMessage.avatarUrl" 
-          size="sm"
-          class="w-8 h-8 rounded shrink-0"
+          size="md"
+          class="w-10 h-10 rounded-lg shrink-0 mt-0.5"
         />
         <div class="flex-1 min-w-0">
-          <div class="flex items-baseline space-x-2">
-            <span class="font-bold text-sm text-gray-900 dark:text-white leading-tight">{{ parentMessage.username }}</span>
-            <span class="text-[10px] text-gray-500">{{ format(new Date(parentMessage.timestamp), 'MMM d, h:mm a') }}</span>
+          <div class="flex items-baseline space-x-2 mb-1">
+            <span class="font-bold text-[15px] text-gray-900 dark:text-white leading-tight">{{ parentMessage.username }}</span>
+            <span class="text-[11px] text-gray-500 font-medium">{{ format(new Date(parentMessage.timestamp), 'MMM d, h:mm a') }}</span>
           </div>
           <div 
-            class="text-sm text-gray-800 dark:text-gray-200 mt-1 leading-relaxed markdown-content"
+            class="text-[15px] text-gray-800 dark:text-gray-200 leading-relaxed markdown-content"
             v-html="renderMarkdown(parentMessage.content, authStore.user?.username || undefined)"
           ></div>
 
           <!-- Parent Files -->
-          <div v-if="parentMessage.files && parentMessage.files.length > 0" class="mt-3 flex flex-wrap gap-2">
+          <div v-if="parentMessage.files && parentMessage.files.length > 0" class="mt-4 flex flex-wrap gap-2">
             <template v-for="file in parentMessage.files" :key="file.id">
               <FilePreview :file="file" @preview="(f) => openGallery(f, parentMessage!.files || [])" />
             </template>
@@ -138,50 +125,50 @@ function handleKeydown(e: KeyboardEvent) {
     </div>
 
     <!-- Replies Count -->
-    <div v-if="replies.length > 0" class="px-4 py-2 border-b border-gray-100 dark:border-gray-800 text-[11px] font-medium text-gray-500 uppercase tracking-wider">
+    <div v-if="replies.length > 0" class="px-5 py-3 border-b border-border-dim dark:border-white/5 text-[11px] font-bold text-gray-500 uppercase tracking-widest bg-surface/50">
       {{ replies.length }} {{ replies.length === 1 ? 'reply' : 'replies' }}
     </div>
 
     <!-- Replies List -->
-    <div class="flex-1 overflow-y-auto p-4 space-y-5">
+    <div class="flex-1 overflow-y-auto p-5 space-y-6 custom-scrollbar">
       <div v-if="loading" class="text-center py-10 text-gray-500">
-        <div class="animate-spin w-5 h-5 border-2 border-primary border-t-transparent rounded-full mx-auto mb-2"></div>
-        <p class="text-xs">Loading replies...</p>
+        <div class="animate-spin w-6 h-6 border-2 border-primary border-t-transparent rounded-full mx-auto mb-3"></div>
+        <p class="text-xs font-medium uppercase tracking-wider">Loading replies...</p>
       </div>
       
-      <div v-else-if="replies.length === 0" class="text-center py-10">
-          <div class="w-12 h-12 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-3">
-             <MessageSquare class="w-6 h-6 text-gray-400" />
+      <div v-else-if="replies.length === 0" class="text-center py-12">
+          <div class="w-16 h-16 bg-surface-dim dark:bg-slate-800/50 rounded-full flex items-center justify-center mx-auto mb-4 border border-border-dim dark:border-white/5">
+             <MessageSquare class="w-8 h-8 text-gray-400" />
           </div>
-          <p class="text-sm text-gray-500">No replies yet.</p>
-          <p class="text-xs text-gray-400 mt-1">Be the first to reply!</p>
+          <p class="text-[15px] font-semibold text-gray-700 dark:text-gray-200">No replies yet.</p>
+          <p class="text-xs text-gray-500 mt-1">Be the first to share your thoughts!</p>
       </div>
 
       <div 
         v-else
         v-for="reply in replies"
         :key="reply.id"
-        class="flex items-start space-x-3 group"
+        class="flex items-start space-x-3 group relative transition-all"
       >
         <RcAvatar 
           :userId="reply.userId" 
           :username="reply.username" 
           :src="reply.avatarUrl" 
           size="sm"
-          class="w-7 h-7 rounded shrink-0"
+          class="w-8 h-8 rounded-md shrink-0 mt-0.5"
         />
         <div class="flex-1 min-w-0">
-          <div class="flex items-baseline space-x-2">
+          <div class="flex items-baseline space-x-2 mb-0.5">
             <span class="font-bold text-sm text-gray-900 dark:text-gray-100 leading-tight">{{ reply.username }}</span>
-            <span class="text-[10px] text-gray-500">{{ format(new Date(reply.timestamp), 'h:mm a') }}</span>
+            <span class="text-[10px] text-gray-500 font-medium">{{ format(new Date(reply.timestamp), 'h:mm a') }}</span>
           </div>
           <div 
-            class="text-[13px] text-gray-700 dark:text-gray-300 mt-0.5 leading-normal markdown-content"
+            class="text-[14px] text-gray-700 dark:text-gray-300 leading-normal markdown-content"
             v-html="renderMarkdown(reply.content, authStore.user?.username || undefined)"
           ></div>
 
           <!-- Reply Files -->
-          <div v-if="reply.files && reply.files.length > 0" class="mt-2 flex flex-wrap gap-2">
+          <div v-if="reply.files && reply.files.length > 0" class="mt-3 flex flex-wrap gap-2">
             <template v-for="file in reply.files" :key="file.id">
               <FilePreview :file="file" @preview="(f) => openGallery(f, reply.files || [])" />
             </template>
@@ -191,19 +178,19 @@ function handleKeydown(e: KeyboardEvent) {
     </div>
 
     <!-- Reply Composer -->
-    <div class="p-3 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-      <div class="flex items-end space-x-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg focus-within:ring-1 focus-within:ring-primary focus-within:border-primary transition-all p-1">
+    <div class="p-4 border-t border-border-dim dark:border-white/5 bg-surface-dim/30">
+      <div class="flex items-end space-x-2 bg-surface dark:bg-surface-dim border border-border-dim dark:border-white/5 rounded-xl focus-within:ring-2 focus-within:ring-primary/40 focus-within:border-primary/50 transition-all p-1.5 shadow-sm">
         <textarea
           v-model="replyContent"
           @keydown="handleKeydown"
           rows="2"
-          class="flex-1 px-3 py-2 bg-transparent text-gray-900 dark:text-white resize-none border-none focus:ring-0 text-[13px]"
+          class="flex-1 px-3 py-2 bg-transparent text-gray-900 dark:text-white resize-none border-none focus:ring-0 text-[14px] scrollbar-none"
           placeholder="Reply to thread..."
         ></textarea>
         <button
           @click="sendReply"
           :disabled="!replyContent.trim()"
-          class="p-2 bg-primary text-white rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-blue-600 transition-colors mb-1 mr-1"
+          class="p-2.5 bg-primary text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-primary-hover transition-all active:scale-95 shadow-lg shadow-primary/20 mb-1 mr-1"
         >
           <Send class="w-4 h-4" />
         </button>
@@ -219,5 +206,6 @@ function handleKeydown(e: KeyboardEvent) {
         @close="showGallery = false" 
       />
     </Teleport>
-  </aside>
+  </div>
+
 </template>

@@ -95,21 +95,20 @@ const statusLabel = computed(() => {
     </div>
 
     <!-- Center: Search -->
-    <div class="flex-1 max-w-2xl px-4">
-      <div 
-        class="relative group cursor-pointer"
-        @click="showSearch = true"
-      >
-        <div class="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none text-gray-400">
-          <Search class="w-4 h-4" />
-        </div>
+    <div class="flex-1 max-w-2xl px-4 hidden sm:block">
         <div 
-          class="block w-full bg-gray-800 border-transparent rounded text-sm text-gray-400 pl-8 pr-3 py-1.5 transition-colors hover:bg-gray-700 flex items-center justify-between"
+          @click="showSearch = true"
+          class="flex items-center w-full bg-white/10 dark:bg-black/20 hover:bg-white/15 dark:hover:bg-black/30 border border-white/10 dark:border-white/5 rounded-xl px-4 py-1.5 cursor-pointer transition-standard group"
         >
-          <span>Search {{ configStore.siteConfig.site_name }}</span>
-          <kbd class="hidden sm:inline-flex px-1.5 py-0.5 bg-gray-700 text-gray-400 text-xs rounded">⌘K</kbd>
+          <Search class="w-4 h-4 text-white/50 group-hover:text-white/80 transition-colors mr-3" />
+          <span class="text-sm text-white/50 group-hover:text-white/80 transition-colors flex-1">
+            Search {{ configStore.siteConfig.site_name }}
+          </span>
+          <div class="flex items-center space-x-1 opacity-50 group-hover:opacity-100 transition-opacity">
+            <kbd class="px-1.5 py-0.5 bg-black/30 border border-white/10 rounded text-[10px] font-bold text-white/70">⌘</kbd>
+            <kbd class="px-1.5 py-0.5 bg-black/30 border border-white/10 rounded text-[10px] font-bold text-white/70">K</kbd>
+          </div>
         </div>
-      </div>
     </div>
 
     <!-- Right: Actions -->
@@ -121,7 +120,9 @@ const statusLabel = computed(() => {
       <div class="relative">
         <button 
           @click="showNotifications = !showNotifications"
-          class="relative text-gray-400 hover:text-white transition-colors p-1"
+          class="relative text-gray-400 hover:text-white transition-standard p-1 rounded-md focus-ring"
+          aria-label="Toggle notifications"
+          title="Notifications"
         >
           <Bell class="w-5 h-5" />
           <span 

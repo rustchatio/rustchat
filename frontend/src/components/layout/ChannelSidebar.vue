@@ -165,13 +165,13 @@ async function handleLeaveTeam() {
   <aside class="w-[260px] flex flex-col shrink-0 select-none relative z-20">
     <!-- Glass Background Layer -->
     <!-- Background Layer -->
-    <div class="absolute inset-0 bg-[#3F0E40] border-r border-[#522653]"></div>
+    <div class="absolute inset-0 bg-sidebar border-r border-sidebar-hover/30"></div>
 
     <!-- Content Layer -->
     <div class="relative flex-1 flex flex-col text-slate-300">
     <!-- Team Header -->
     <div 
-      class="h-12 flex items-center justify-between px-4 hover:bg-[#350d36] cursor-pointer transition-all duration-200 group relative border-b border-[#522653]"
+      class="h-14 flex items-center justify-between px-4 hover:bg-sidebar-hover cursor-pointer transition-all duration-200 group relative border-b border-sidebar-hover/30"
       @click="showTeamMenu = !showTeamMenu"
     >
       <h2 class="font-bold truncate text-white text-[15px] tracking-tight">
@@ -255,8 +255,8 @@ async function handleLeaveTeam() {
             v-for="channel in cat.channels" 
             :key="channel.id"
             @click="selectChannel(channel.id)"
-            class="group/item relative px-3 py-1.5 mx-2 rounded flex items-center justify-between cursor-pointer transition-all duration-200"
-            :class="{ 'bg-[#1164A3] text-white': channelStore.currentChannelId === channel.id, 'text-[#BEABBE] hover:bg-[#350d36] hover:text-white': channelStore.currentChannelId !== channel.id }"
+            class="group/item relative px-3 py-1.5 mx-2 rounded-md flex items-center justify-between cursor-pointer transition-all duration-200"
+            :class="{ 'bg-primary text-white shadow-sm': channelStore.currentChannelId === channel.id, 'text-white/70 hover:bg-sidebar-hover hover:text-white': channelStore.currentChannelId !== channel.id }"
           >
             <!-- Active Pill Indicator (Removing sidebar pill for Slack style active row) -->
 
