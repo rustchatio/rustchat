@@ -1363,11 +1363,13 @@ async fn update_status(
         ));
     }
 
-    sqlx::query("UPDATE users SET presence = $1 WHERE id = $2")
-        .bind(&input.status)
-        .bind(auth.user_id)
-        .execute(&state.db)
-        .await?;
+    crate::api::websocket_core::persist_presence_and_broadcast(
+        &state,
+        auth.user_id,
+        &input.status,
+        true,
+    )
+    .await;
 
     let status = mm::Status {
         user_id: encode_mm_id(auth.user_id),
@@ -1375,19 +1377,6 @@ async fn update_status(
         manual: true,
         last_activity_at: Utc::now().timestamp_millis(),
     };
-
-    // Broadcast status change
-    let broadcast = crate::realtime::WsEnvelope::event(
-        crate::realtime::EventType::UserUpdated, // Mapping to status_change in WS handler
-        serde_json::json!({
-             "user_id": auth.user_id,
-             "status": input.status,
-             "manual": true,
-             "last_activity_at": status.last_activity_at
-        }),
-        None,
-    );
-    state.ws_hub.broadcast(broadcast).await;
 
     Ok(Json(status))
 }

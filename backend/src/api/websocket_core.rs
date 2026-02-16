@@ -142,19 +142,24 @@ pub async fn initialize_connection_state(
     subscribe_channels: bool,
 ) {
     subscribe_default_scopes(state, user_id, subscribe_channels).await;
-    persist_presence_and_broadcast(state, user_id, "online").await;
+    persist_presence_and_broadcast(state, user_id, "online", false).await;
 }
 
 pub async fn set_offline_if_last_connection(state: &AppState, user_id: Uuid) {
     if state.ws_hub.user_connection_count(user_id).await > 0 {
         return;
     }
-    persist_presence_and_broadcast(state, user_id, "offline").await;
+    persist_presence_and_broadcast(state, user_id, "offline", false).await;
 }
 
-pub async fn persist_presence_and_broadcast(state: &AppState, user_id: Uuid, status: &str) {
+pub async fn persist_presence_and_broadcast(
+    state: &AppState,
+    user_id: Uuid,
+    status: &str,
+    manual: bool,
+) {
     let now = Utc::now();
-    
+
     // Update user presence and last activity in database
     let _ = sqlx::query("UPDATE users SET presence = $1, last_login_at = $2 WHERE id = $3")
         .bind(status)
@@ -164,25 +169,20 @@ pub async fn persist_presence_and_broadcast(state: &AppState, user_id: Uuid, sta
         .await;
 
     state.ws_hub.set_presence(user_id, status.to_string()).await;
-    
+
     // Create status change event with full broadcast info
-    // The broadcast.user_id helps clients identify which user's status changed
     let evt = WsEnvelope::event(
         EventType::UserPresence,
         serde_json::json!({
             "user_id": user_id,
             "status": status,
-            "manual": false,
+            "manual": manual,
             "last_activity_at": now.timestamp_millis()
         }),
         None,
-    )
-    .with_broadcast(WsBroadcast {
-        channel_id: None,
-        team_id: None,
-        user_id: Some(user_id),  // Identifies which user's status changed
-        exclude_user_id: None,
-    });
+    );
+    // No .with_broadcast(...) filter means it broadcasts to ALL connected users
+    // which is necessary for everyone else to see this user's status change.
     
     tracing::debug!(
         user_id = %user_id,
@@ -315,7 +315,7 @@ pub async fn handle_client_envelope(
         }
         "presence" => {
             if let Some(status) = envelope.data.get("status").and_then(|v| v.as_str()) {
-                persist_presence_and_broadcast(state, user_id, status).await;
+                persist_presence_and_broadcast(state, user_id, status, true).await;
             }
         }
         "ping" => {
