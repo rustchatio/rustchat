@@ -386,19 +386,6 @@ async function toggleReaction(emoji: string) {
           v-html="formattedContent"
         ></div>
 
-        <!-- Reactions (Bottom Alignment) -->
-        <div v-if="message.reactions && message.reactions.length > 0 && !isEditing" class="flex items-center mt-2 space-x-1.5 flex-wrap">
-          <div 
-            v-for="reaction in message.reactions" 
-            :key="reaction.emoji"
-            @click="toggleReaction(reaction.emoji)"
-            class="bg-blue-50/80 dark:bg-blue-900/40 border border-blue-100/50 dark:border-blue-800/50 hover:border-blue-300 dark:hover:border-blue-600 rounded-lg px-2 py-0.5 text-[11px] cursor-pointer flex items-center space-x-1.5 transition-all select-none hover:scale-105 active:scale-95"
-            :class="{ 'bg-brand/10 dark:bg-brand/20 border-brand/50 dark:border-brand/40 shadow-sm': reaction.users.includes(authStore.user?.id || '') }"
-          >
-            <span class="text-sm">{{ reaction.emoji }}</span>
-            <span class="font-bold text-blue-600 dark:text-blue-400" :class="{ 'text-brand dark:text-brand': reaction.users.includes(authStore.user?.id || '') }">{{ reaction.count }}</span>
-          </div>
-        </div>
       </div>
 
       <div v-if="message.files && message.files.length > 0" class="mt-2 flex flex-wrap gap-2">
@@ -430,12 +417,26 @@ async function toggleReaction(emoji: string) {
           </span>
         </button>
       </div>
+
+      <!-- Reactions (Bottom Alignment) -->
+      <div v-if="message.reactions && message.reactions.length > 0 && !isEditing" class="flex items-center mt-2 space-x-1.5 flex-wrap">
+        <div 
+          v-for="reaction in message.reactions" 
+          :key="reaction.emoji"
+          @click="toggleReaction(reaction.emoji)"
+          class="bg-blue-50/80 dark:bg-blue-900/40 border border-blue-100/50 dark:border-blue-800/50 hover:border-blue-300 dark:hover:border-blue-600 rounded-lg px-2 py-0.5 text-[11px] cursor-pointer flex items-center space-x-1.5 transition-all select-none hover:scale-105 active:scale-95"
+          :class="{ 'bg-brand/10 dark:bg-brand/20 border-brand/50 dark:border-brand/40 shadow-sm': reaction.users.includes(authStore.user?.id || '') }"
+        >
+          <span class="text-sm">{{ reaction.emoji }}</span>
+          <span class="font-bold text-blue-600 dark:text-blue-400" :class="{ 'text-brand dark:text-brand': reaction.users.includes(authStore.user?.id || '') }">{{ reaction.count }}</span>
+        </div>
+      </div>
     </div>
 
     <!-- Hover Actions -->
     <div 
       v-show="showActions && !isEditing"
-      class="absolute left-14 top-0 -translate-y-1/2 flex items-center bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-md z-10 px-1 py-0.5 transition-all duration-200 scale-95 origin-left hover:scale-100"
+      class="absolute left-14 bottom-0 translate-y-1/2 flex items-center bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-md z-10 px-1 py-0.5 transition-all duration-200 scale-95 origin-left hover:scale-100"
     >
       <!-- Quick Reactions -->
       <div class="flex items-center border-r border-gray-100 dark:border-gray-700 pr-1 mr-1">

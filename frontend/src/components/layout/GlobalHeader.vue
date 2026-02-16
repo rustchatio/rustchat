@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue';
+import { useRouter } from 'vue-router';
 import { Bell, Search, HelpCircle, LogOut, Settings, Smile, Shield } from 'lucide-vue-next';
 import { useAuthStore } from '../../stores/auth';
 import { useUIStore } from '../../stores/ui';
@@ -16,6 +17,7 @@ const ui = useUIStore();
 const configStore = useConfigStore();
 const presenceStore = usePresenceStore();
 const unreadStore = useUnreadStore();
+const router = useRouter();
 
 const showSearch = ref(false);
 const showUserMenu = ref(false);
@@ -209,8 +211,8 @@ const statusLabel = computed(() => {
             <!-- Settings & Account -->
             <div class="p-2 space-y-0.5">
                 <button
-                  v-if="auth.user?.role === 'system_admin' || auth.user?.role === 'org_admin'"
-                  @click="$router.push('/admin'); showUserMenu = false"
+                  v-if="['system_admin', 'org_admin', 'admin', 'administrator'].includes(auth.user?.role)"
+                  @click="router.push('/admin'); showUserMenu = false"
                   class="w-full text-left px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-primary/10 hover:text-primary rounded-xl flex items-center transition-standard focus-ring"
                 >
                     <Shield class="w-4.5 h-4.5 mr-2.5 opacity-60" />

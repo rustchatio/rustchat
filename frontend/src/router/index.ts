@@ -127,9 +127,12 @@ router.beforeEach(async (to, _from, next) => {
         await auth.fetchMe()
     }
 
+    const requiresAdmin = to.matched.some(record => record.meta.requiresAdmin)
+    const isAdmin = ['system_admin', 'org_admin', 'admin', 'administrator'].includes(auth.user?.role)
+
     if (to.meta.requiresAuth && !auth.isAuthenticated) {
         next('/login')
-    } else if (to.meta.requiresAdmin && auth.user?.role !== 'system_admin' && auth.user?.role !== 'org_admin') {
+    } else if (requiresAdmin && !isAdmin) {
         next('/') // Redirect non-admins to home
     } else if ((to.name === 'login' || to.name === 'register') && auth.isAuthenticated) {
         next('/')
