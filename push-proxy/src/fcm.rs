@@ -14,7 +14,19 @@ pub struct PushPayload {
 pub struct PushData {
     pub channel_id: String,
     pub post_id: String,
-    pub r#type: String, // "call", "message", "mention"
+    pub r#type: String, // "message", "clear", "session"
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sub_type: Option<String>, // "calls" for call notifications
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sender_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sender_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_crt_enabled: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub server_url: Option<String>,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -84,6 +96,8 @@ impl FcmClient {
     }
 
     fn build_fcm_message(&self, payload: PushPayload) -> serde_json::Value {
+        let is_call = payload.data.sub_type.as_deref() == Some("calls");
+        
         let mut android_config = serde_json::json!({
             "notification": {
                 "click_action": "TOP_STORY_ACTIVITY"
@@ -91,10 +105,37 @@ impl FcmClient {
         });
 
         // High priority for calls
-        if payload.data.r#type == "call" {
+        if is_call {
             android_config["priority"] = serde_json::json!("high");
             android_config["ttl"] = serde_json::json!("0s");
+            android_config["notification"]["channel_id"] = serde_json::json!("calls");
+            android_config["notification"]["sound"] = serde_json::json!("ringtone");
         }
+
+        // Build APNS config for iOS
+        let mut apns_headers = serde_json::Map::new();
+        apns_headers.insert("apns-priority".to_string(), if is_call { 
+            serde_json::json!("10") 
+        } else { 
+            serde_json::json!("5") 
+        });
+
+        let apns_sound = if is_call { "calls_ringtone.caf" } else { "default" };
+        let apns_config = serde_json::json!({
+            "headers": apns_headers,
+            "payload": {
+                "aps": {
+                    "alert": {
+                        "title": payload.title,
+                        "body": payload.body
+                    },
+                    "sound": apns_sound,
+                    "badge": 1,
+                    "content-available": 1,
+                    "mutable-content": 1
+                }
+            }
+        });
 
         serde_json::json!({
             "message": {
@@ -104,7 +145,8 @@ impl FcmClient {
                     "body": payload.body
                 },
                 "data": payload.data,
-                "android": android_config
+                "android": android_config,
+                "apns": apns_config
             }
         })
     }

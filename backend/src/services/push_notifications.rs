@@ -83,6 +83,9 @@ struct PushProxyData {
     /// CRT enabled flag
     #[serde(skip_serializing_if = "Option::is_none")]
     is_crt_enabled: Option<bool>,
+    /// Server URL so the mobile app knows which server to navigate to
+    #[serde(skip_serializing_if = "Option::is_none")]
+    server_url: Option<String>,
 }
 
 /// Send push notification to a specific device
@@ -174,6 +177,10 @@ async fn send_via_push_proxy(
     
     let is_crt_enabled = notification.data.get("is_crt_enabled")
         .and_then(|v| v.as_bool());
+    
+    let server_url = notification.data.get("server_url")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
 
     let payload = PushProxyPayload {
         token: notification.device_token.clone(),
@@ -188,6 +195,7 @@ async fn send_via_push_proxy(
             sender_id,
             sender_name,
             is_crt_enabled,
+            server_url,
         },
     };
 
@@ -600,6 +608,9 @@ async fn get_fcm_config(state: &AppState) -> Option<FcmConfig> {
 /// Build FCM message from notification
 fn build_fcm_message(notification: &PushNotification) -> FcmMessage {
     let is_high_priority = matches!(notification.priority, PushPriority::High);
+    let is_call_notification = notification.data.get("sub_type")
+        .and_then(|v| v.as_str())
+        == Some("calls");
 
     let mut data_map = HashMap::new();
     if let serde_json::Value::Object(map) = &notification.data {
@@ -612,12 +623,22 @@ fn build_fcm_message(notification: &PushNotification) -> FcmMessage {
         }
     }
 
+    // For call notifications, add a marker for the mobile app
+    if is_call_notification {
+        data_map.insert("is_call".to_string(), "true".to_string());
+    }
+
     let android_config = if is_high_priority {
         Some(FcmAndroidConfig {
             priority: "high".to_string(),
             notification: FcmAndroidNotification {
                 channel_id: "calls".to_string(),
-                sound: notification.sound.clone().unwrap_or_else(|| "default".to_string()),
+                sound: if is_call_notification { 
+                    // For calls, use the default ringtone
+                    "ringtone".to_string() 
+                } else { 
+                    notification.sound.clone().unwrap_or_else(|| "default".to_string()) 
+                },
                 priority: "high".to_string(),
             },
         })
@@ -635,6 +656,13 @@ fn build_fcm_message(notification: &PushNotification) -> FcmMessage {
     let mut apns_headers = HashMap::new();
     apns_headers.insert("apns-priority".to_string(), if is_high_priority { "10".to_string() } else { "5".to_string() });
 
+    // For call notifications, use a specific sound and category
+    let sound = if is_call_notification {
+        "calls_ringtone.caf".to_string()  // Custom ringtone for calls
+    } else {
+        notification.sound.clone().unwrap_or_else(|| "default".to_string())
+    };
+
     let apns_config = FcmApnsConfig {
         headers: apns_headers,
         payload: FcmApnsPayload {
@@ -644,7 +672,7 @@ fn build_fcm_message(notification: &PushNotification) -> FcmMessage {
                     body: notification.body.clone(),
                 },
                 badge: notification.badge.unwrap_or(1),
-                sound: notification.sound.clone().unwrap_or_else(|| "default".to_string()),
+                sound,
                 content_available: 1,
                 mutable_content: 1,
             },
