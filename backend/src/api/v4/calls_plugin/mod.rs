@@ -1067,7 +1067,7 @@ async fn start_call(
             "start_at": now,
             "owner_id": encode_mm_id(auth.user_id),
             "host_id": encode_mm_id(auth.user_id),
-            "thread_id": thread_id.map(encode_mm_id),
+            "thread_id": thread_id.map(encode_mm_id).unwrap_or_default(),
         }),
         Some(auth.user_id), // Exclude sender
     )
@@ -2234,7 +2234,7 @@ async fn ring_users(
             "start_at": call.started_at,
             "owner_id": encode_mm_id(call.owner_id),
             "host_id": encode_mm_id(call.host_id),
-            "thread_id": thread_id.map(encode_mm_id),
+            "thread_id": thread_id.map(encode_mm_id).unwrap_or_default(),
             "call_id": encode_mm_id(call.call_id),
             "channel_id": encode_mm_id(channel_uuid),
             "user_id": encode_mm_id(call.owner_id),

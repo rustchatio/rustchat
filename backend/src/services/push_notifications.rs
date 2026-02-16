@@ -373,11 +373,13 @@ pub async fn send_call_ringing_notification(
     // - sub_type: "calls" (this triggers the ringing UI)
     // - channel_id, post_id (call_id used as post_id for navigation)
     // - sender_name (for display)
+    //
+    // IMPORTANT: channel_id must be Mattermost-encoded to match the mobile app's database
     let data = serde_json::json!({
         "type": "message",
         "sub_type": "calls",
         "version": "2",
-        "channel_id": channel_id.to_string(),
+        "channel_id": crate::mattermost_compat::id::encode_mm_id(channel_id),
         "post_id": call_id.to_string(),
         "call_id": call_id.to_string(),
         "sender_name": caller_name,
@@ -414,10 +416,11 @@ pub async fn send_message_notification(
     // Generate a post_id for navigation (mobile requires this field)
     let post_id = uuid::Uuid::new_v4().to_string();
 
+    // IMPORTANT: channel_id must be Mattermost-encoded to match the mobile app's database
     let data = serde_json::json!({
         "type": "message",
         "version": "2",
-        "channel_id": channel_id.to_string(),
+        "channel_id": crate::mattermost_compat::id::encode_mm_id(channel_id),
         "post_id": post_id,
         "channel_name": channel_name,
         "sender_name": sender_name,
