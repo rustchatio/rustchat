@@ -357,6 +357,21 @@ pub async fn send_push_to_user(
     Ok(sent_count)
 }
 
+/// Get the site URL from server config
+async fn get_site_url(state: &AppState) -> String {
+    let result: Option<(serde_json::Value,)> = sqlx::query_as(
+        "SELECT site FROM server_config WHERE id = 'default'"
+    )
+    .fetch_optional(&state.db)
+    .await
+    .ok()
+    .flatten();
+    
+    result
+        .and_then(|(site,)| site.get("site_url").and_then(|v| v.as_str().map(|s| s.to_string())))
+        .unwrap_or_default()
+}
+
 /// Send call ringing notification to a user
 pub async fn send_call_ringing_notification(
     state: &AppState,
@@ -368,22 +383,32 @@ pub async fn send_call_ringing_notification(
     let title = format!("Incoming call from {}", caller_name);
     let body = "Tap to answer".to_string();
 
+    // Get the call's thread_id (which is the post_id of the call post)
+    let thread_id = state.call_state_manager.get_thread_id(call_id).await;
+    let post_id = thread_id.map(|id| crate::mattermost_compat::id::encode_mm_id(id))
+        .unwrap_or_else(|| call_id.to_string());
+
+    // Get server URL for the mobile app to identify which server
+    let server_url = get_site_url(state).await;
+
     // Mattermost mobile expects:
     // - type: "message" (not "call_ringing")
     // - sub_type: "calls" (this triggers the ringing UI)
-    // - channel_id, post_id (call_id used as post_id for navigation)
+    // - channel_id, post_id (thread_id/post_id of the call post for navigation)
     // - sender_name (for display)
+    // - server_url (so the app knows which server to navigate to)
     //
-    // IMPORTANT: channel_id must be Mattermost-encoded to match the mobile app's database
+    // IMPORTANT: channel_id and post_id must be Mattermost-encoded to match the mobile app's database
     let data = serde_json::json!({
         "type": "message",
         "sub_type": "calls",
         "version": "2",
         "channel_id": crate::mattermost_compat::id::encode_mm_id(channel_id),
-        "post_id": call_id.to_string(),
+        "post_id": post_id,
         "call_id": call_id.to_string(),
         "sender_name": caller_name,
         "channel_name": "Call",
+        "server_url": server_url,
     });
 
     send_push_to_user(
@@ -416,6 +441,9 @@ pub async fn send_message_notification(
     // Generate a post_id for navigation (mobile requires this field)
     let post_id = uuid::Uuid::new_v4().to_string();
 
+    // Get server URL for the mobile app to identify which server
+    let server_url = get_site_url(state).await;
+
     // IMPORTANT: channel_id must be Mattermost-encoded to match the mobile app's database
     let data = serde_json::json!({
         "type": "message",
@@ -424,6 +452,7 @@ pub async fn send_message_notification(
         "post_id": post_id,
         "channel_name": channel_name,
         "sender_name": sender_name,
+        "server_url": server_url,
     });
 
     send_push_to_user(
