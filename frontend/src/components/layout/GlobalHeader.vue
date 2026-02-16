@@ -6,7 +6,6 @@ import { useUIStore } from '../../stores/ui';
 import SearchModal from '../modals/SearchModal.vue';
 import SetStatusModal from '../modals/SetStatusModal.vue';
 import RcAvatar from '../ui/RcAvatar.vue';
-import PresenceSelector from '../ui/PresenceSelector.vue';
 import NotificationsDropdown from './NotificationsDropdown.vue';
 import { useConfigStore } from '../../stores/config';
 import { usePresenceStore } from '../../stores/presence';
@@ -134,10 +133,6 @@ const statusLabel = computed(() => {
         <div v-if="showNotifications" class="fixed inset-0 z-40" @click="showNotifications = false"></div>
       </div>
       
-      <!-- Presence Switcher -->
-      <div>
-        <PresenceSelector />
-      </div>
 
       <!-- User Menu -->
       <div class="ml-2 relative">
@@ -151,83 +146,89 @@ const statusLabel = computed(() => {
         </div>
 
         <!-- Dropdown -->
-        <div v-if="showUserMenu" class="absolute top-full right-0 mt-2 w-64 bg-gray-800 border border-gray-700 rounded-lg shadow-xl py-1 z-50 origin-top-right focus:outline-none">
-            <!-- User Info -->
-            <div class="px-4 py-3 border-b border-gray-700">
-                <p class="text-sm font-medium text-white truncate">{{ auth.user?.display_name || auth.user?.username }}</p>
-                <div class="flex items-center mt-1">
-                    <div class="h-2 w-2 rounded-full mr-2" :class="statusColor"></div>
-                    <p class="text-xs text-gray-400">{{ statusLabel }}</p>
+        <div v-if="showUserMenu" class="absolute top-full right-0 mt-3 w-72 glass-panel rounded-2xl shadow-2xl py-2 z-50 origin-top-right focus:outline-none animate-fade-in ring-1 ring-black/5">
+            <!-- User Info Section -->
+            <div class="px-5 py-4 border-b border-black/5 dark:border-white/5 bg-black/5 dark:bg-white/5">
+                <div class="flex items-center space-x-3">
+                    <RcAvatar 
+                      :userId="auth.user?.id"
+                      :src="auth.user?.avatar_url" 
+                      :username="auth.user?.username" 
+                      size="lg"
+                      class="ring-2 ring-primary/20"
+                    />
+                    <div class="flex-1 min-w-0">
+                        <p class="text-[15px] font-bold text-gray-900 dark:text-white truncate">{{ auth.user?.display_name || auth.user?.username }}</p>
+                        <div class="flex items-center mt-1">
+                            <div class="h-2 w-2 rounded-full mr-2" :class="statusColor"></div>
+                            <p class="text-xs font-medium text-gray-500 dark:text-gray-400 capitalize">{{ statusLabel }}</p>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <!-- Custom Status -->
-            <div class="px-1 py-1">
+            <!-- Custom Status Button -->
+            <div class="p-2">
                 <button 
                     @click="showSetStatus = true; showUserMenu = false"
-                    class="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white rounded-md flex items-center transition-colors border border-gray-700 bg-gray-700/30"
+                    class="w-full text-left px-3 py-2.5 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-primary/10 hover:text-primary dark:hover:text-primary-hover rounded-xl flex items-center transition-standard group focus-ring bg-white/50 dark:bg-black/20 border border-black/5 dark:border-white/5"
                 >
-                    <span v-if="auth.user?.status_emoji" class="mr-2">{{ auth.user.status_emoji }}</span>
-                    <Smile v-else class="w-4 h-4 mr-2" />
-                    <span class="truncate">{{ auth.user?.status_text || 'Update your status' }}</span>
+                    <span v-if="auth.user?.status_emoji" class="mr-2 text-lg">{{ auth.user.status_emoji }}</span>
+                    <Smile v-else class="w-4.5 h-4.5 mr-2 opacity-60 group-hover:opacity-100" />
+                    <span class="truncate">{{ auth.user?.status_text || 'Set a custom status' }}</span>
                 </button>
             </div>
 
-            <div class="border-t border-gray-700 my-1"></div>
-
-            <!-- Presence Options -->
-            <div class="px-1 py-1">
-                 <button @click="setPresence('online')" class="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white rounded-md flex items-center justify-between group">
-                    <div class="flex items-center">
-                        <div class="h-2 w-2 rounded-full bg-green-500 mr-2"></div>
-                        Online
-                    </div>
-                </button>
-                <button @click="setPresence('away')" class="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white rounded-md flex items-center justify-between group">
-                    <div class="flex items-center">
-                        <div class="h-2 w-2 rounded-full bg-yellow-500 mr-2"></div>
-                        Away
-                    </div>
-                </button>
-                 <button @click="setPresence('dnd')" class="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white rounded-md flex items-center justify-between group">
-                    <div class="flex items-center">
-                        <div class="h-2 w-2 rounded-full bg-red-500 mr-2"></div>
-                        Do not disturb
-                    </div>
-                </button>
-                 <button @click="setPresence('offline')" class="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white rounded-md flex items-center justify-between group">
-                    <div class="flex items-center">
-                        <div class="h-2 w-2 rounded-full ring-1 ring-gray-400 mr-2"></div>
-                        Offline
-                    </div>
-                </button>
+            <div class="px-2 pb-2">
+                <div class="text-[10px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-widest px-3 py-2">
+                    Availability
+                </div>
+                <!-- Presence Options Grid -->
+                <div class="grid grid-cols-2 gap-1 px-1">
+                     <button @click="setPresence('online')" class="flex items-center space-x-2 px-3 py-2 text-xs font-semibold rounded-lg transition-standard focus-ring group" :class="userPresence === 'online' ? 'bg-primary/10 text-primary' : 'text-gray-600 dark:text-gray-400 hover:bg-black/5 dark:hover:bg-white/5'">
+                        <div class="h-2 w-2 rounded-full bg-green-500 group-hover:scale-125 transition-transform"></div>
+                        <span>Online</span>
+                    </button>
+                    <button @click="setPresence('away')" class="flex items-center space-x-2 px-3 py-2 text-xs font-semibold rounded-lg transition-standard focus-ring group" :class="userPresence === 'away' ? 'bg-amber-100/50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400' : 'text-gray-600 dark:text-gray-400 hover:bg-black/5 dark:hover:bg-white/5'">
+                        <div class="h-2 w-2 rounded-full bg-amber-500 group-hover:scale-125 transition-transform"></div>
+                        <span>Away</span>
+                    </button>
+                     <button @click="setPresence('dnd')" class="flex items-center space-x-2 px-3 py-2 text-xs font-semibold rounded-lg transition-standard focus-ring group" :class="userPresence === 'dnd' ? 'bg-red-100/50 dark:bg-red-900/20 text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-gray-400 hover:bg-black/5 dark:hover:bg-white/5'">
+                        <div class="h-2 w-2 rounded-full bg-red-500 group-hover:scale-125 transition-transform"></div>
+                        <span>Busy</span>
+                    </button>
+                     <button @click="setPresence('offline')" class="flex items-center space-x-2 px-3 py-2 text-xs font-semibold rounded-lg transition-standard focus-ring group" :class="userPresence === 'offline' ? 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300' : 'text-gray-600 dark:text-gray-400 hover:bg-black/5 dark:hover:bg-white/5'">
+                        <div class="h-2 w-2 rounded-full bg-gray-400 group-hover:scale-125 transition-transform"></div>
+                        <span>Invisible</span>
+                    </button>
+                </div>
             </div>
 
-            <div class="border-t border-gray-700 my-1"></div>
+            <div class="border-t border-black/5 dark:border-white/10 my-1"></div>
 
-            <!-- Links -->
-            <div class="px-1 py-1">
+            <!-- Settings & Account -->
+            <div class="p-2 space-y-0.5">
                 <button
                   v-if="auth.user?.role === 'system_admin' || auth.user?.role === 'org_admin'"
                   @click="$router.push('/admin'); showUserMenu = false"
-                  class="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white rounded-md flex items-center transition-colors"
+                  class="w-full text-left px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-primary/10 hover:text-primary rounded-xl flex items-center transition-standard focus-ring"
                 >
-                    <Shield class="w-4 h-4 mr-2" />
-                    System Console
+                    <Shield class="w-4.5 h-4.5 mr-2.5 opacity-60" />
+                    Admin Console
                 </button>
                 <button 
                   @click="ui.openSettings(); showUserMenu = false"
-                  class="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white rounded-md flex items-center transition-colors"
+                  class="w-full text-left px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-primary/10 hover:text-primary rounded-xl flex items-center transition-standard focus-ring"
                 >
-                    <Settings class="w-4 h-4 mr-2" />
-                    Profile & Preferences
+                    <Settings class="w-4.5 h-4.5 mr-2.5 opacity-60" />
+                    Preferences
                 </button>
                 <button 
                     @click="auth.logout()"
-                     class="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white rounded-md flex items-center transition-colors"
+                     class="w-full text-left px-3 py-2 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl flex items-center transition-standard focus-ring"
                 >
-                    <LogOut class="w-4 h-4 mr-2" />
-                    Sign out
+                    <LogOut class="w-4.5 h-4.5 mr-2.5 opacity-60" />
+                    Sign Out
                 </button>
             </div>
         </div>
