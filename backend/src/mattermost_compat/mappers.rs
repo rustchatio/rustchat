@@ -316,6 +316,7 @@ mod tests {
             status_emoji: None,
             status_expires_at: None,
             custom_status: None,
+            notify_props: serde_json::json!({}),
             last_login_at: None,
             created_at: now,
             updated_at: now,

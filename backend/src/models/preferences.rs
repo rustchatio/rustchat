@@ -1,14 +1,20 @@
 //! User preferences and status models
 
+use std::time::SystemTime;
+
 use chrono::{DateTime, NaiveTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use uuid::Uuid;
 
 /// User status (displayed to other users)
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserStatus {
     pub presence: Option<String>, // 'online', 'away', 'dnd', 'offline'
+    #[serde(default)]
+    pub manual: bool,
+    #[serde(default = "SystemTime::now")]
+    pub last_activity: SystemTime,
     pub text: Option<String>,
     pub emoji: Option<String>,
     pub expires_at: Option<DateTime<Utc>>,

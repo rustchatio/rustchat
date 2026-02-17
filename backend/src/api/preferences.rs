@@ -6,6 +6,7 @@ use axum::{
     Json, Router,
 };
 use chrono::{Duration, Utc};
+use std::time::{Duration as StdDuration, SystemTime, UNIX_EPOCH};
 use uuid::Uuid;
 
 use super::AppState;
@@ -46,6 +47,19 @@ pub fn router() -> Router<AppState> {
         )
 }
 
+fn to_system_time(last_activity: Option<chrono::DateTime<Utc>>) -> SystemTime {
+    last_activity
+        .and_then(|value| {
+            let millis = value.timestamp_millis();
+            if millis >= 0 {
+                Some(UNIX_EPOCH + StdDuration::from_millis(millis as u64))
+            } else {
+                None
+            }
+        })
+        .unwrap_or_else(SystemTime::now)
+}
+
 /// Get current user's status
 async fn get_my_status(
     State(state): State<AppState>,
@@ -55,12 +69,14 @@ async fn get_my_status(
         _,
         (
             String,
+            bool,
+            Option<chrono::DateTime<Utc>>,
             Option<String>,
             Option<String>,
             Option<chrono::DateTime<Utc>>,
         ),
     >(
-        "SELECT presence, status_text, status_emoji, status_expires_at FROM users WHERE id = $1",
+        "SELECT presence, COALESCE(presence_manual, false), last_login_at, status_text, status_emoji, status_expires_at FROM users WHERE id = $1",
     )
     .bind(auth.user_id)
     .fetch_optional(&state.db)
@@ -69,9 +85,11 @@ async fn get_my_status(
 
     Ok(Json(UserStatus {
         presence: Some(user.0),
-        text: user.1,
-        emoji: user.2,
-        expires_at: user.3,
+        manual: user.1,
+        last_activity: to_system_time(user.2),
+        text: user.3,
+        emoji: user.4,
+        expires_at: user.5,
     }))
 }
 
@@ -97,6 +115,7 @@ async fn update_my_status(
         builder.push_bind(p);
         builder.push(", presence_manual = ");
         builder.push_bind(crate::api::websocket_core::status_is_manual(p));
+        builder.push(", last_login_at = NOW()");
     }
 
     if payload.text.is_some() || payload.emoji.is_some() {
@@ -126,10 +145,12 @@ async fn update_my_status(
 
     builder.push(" WHERE id = ");
     builder.push_bind(auth.user_id);
-    builder.push(" RETURNING presence, status_text, status_emoji, status_expires_at");
+    builder.push(" RETURNING presence, COALESCE(presence_manual, false), last_login_at, status_text, status_emoji, status_expires_at");
 
     let query = builder.build_query_as::<(
         String,
+        bool,
+        Option<chrono::DateTime<Utc>>,
         Option<String>,
         Option<String>,
         Option<chrono::DateTime<Utc>>,
@@ -144,9 +165,11 @@ async fn update_my_status(
 
     let user_status = UserStatus {
         presence: Some(user.0.clone()),
-        text: user.1.clone(),
-        emoji: user.2.clone(),
-        expires_at: user.3,
+        manual: user.1,
+        last_activity: to_system_time(user.2),
+        text: user.3.clone(),
+        emoji: user.4.clone(),
+        expires_at: user.5,
     };
 
     // Broadcast presence change
@@ -181,8 +204,8 @@ async fn clear_my_status(
     State(state): State<AppState>,
     auth: AuthUser,
 ) -> ApiResult<Json<UserStatus>> {
-    let user = sqlx::query_as::<_, (String, Option<String>, Option<String>, Option<chrono::DateTime<Utc>>)>(
-        "UPDATE users SET status_text = NULL, status_emoji = NULL, status_expires_at = NULL, updated_at = NOW() WHERE id = $1 RETURNING presence, status_text, status_emoji, status_expires_at"
+    let user = sqlx::query_as::<_, (String, bool, Option<chrono::DateTime<Utc>>, Option<String>, Option<String>, Option<chrono::DateTime<Utc>>)>(
+        "UPDATE users SET status_text = NULL, status_emoji = NULL, status_expires_at = NULL, updated_at = NOW() WHERE id = $1 RETURNING presence, COALESCE(presence_manual, false), last_login_at, status_text, status_emoji, status_expires_at"
     )
     .bind(auth.user_id)
     .fetch_one(&state.db)
@@ -196,9 +219,11 @@ async fn clear_my_status(
 
     let user_status = UserStatus {
         presence: Some(user.0.clone()),
-        text: user.1.clone(),
-        emoji: user.2.clone(),
-        expires_at: user.3,
+        manual: user.1,
+        last_activity: to_system_time(user.2),
+        text: user.3.clone(),
+        emoji: user.4.clone(),
+        expires_at: user.5,
     };
 
     // Broadcast presence change
@@ -238,12 +263,14 @@ async fn get_user_status(
         _,
         (
             String,
+            bool,
+            Option<chrono::DateTime<Utc>>,
             Option<String>,
             Option<String>,
             Option<chrono::DateTime<Utc>>,
         ),
     >(
-        "SELECT presence, status_text, status_emoji, status_expires_at FROM users WHERE id = $1",
+        "SELECT presence, COALESCE(presence_manual, false), last_login_at, status_text, status_emoji, status_expires_at FROM users WHERE id = $1",
     )
     .bind(user_id)
     .fetch_optional(&state.db)
@@ -251,9 +278,9 @@ async fn get_user_status(
     .ok_or_else(|| AppError::NotFound("User not found".to_string()))?;
 
     // Check if status has expired
-    let mut text = user.1;
-    let mut emoji = user.2;
-    let expires = user.3;
+    let mut text = user.3;
+    let mut emoji = user.4;
+    let expires = user.5;
 
     if let Some(exp) = expires {
         if exp < Utc::now() {
@@ -264,6 +291,8 @@ async fn get_user_status(
 
     Ok(Json(UserStatus {
         presence: Some(user.0),
+        manual: user.1,
+        last_activity: to_system_time(user.2),
         text,
         emoji,
         expires_at: expires,

@@ -6,7 +6,7 @@
 
 use axum::http::HeaderMap;
 use chrono::Utc;
-use tokio::time::{sleep, Duration};
+use deadpool_redis::redis::AsyncCommands;
 use uuid::Uuid;
 
 use crate::api::AppState;
@@ -57,20 +57,105 @@ pub async fn get_max_simultaneous_connections(state: &AppState) -> usize {
     }
 }
 
-pub async fn get_presence_offline_grace_seconds(state: &AppState) -> u64 {
-    let value: Option<String> = sqlx::query_scalar(
-        "SELECT site->>'mobile_presence_disconnect_grace_seconds' FROM server_config WHERE id = 'default'",
-    )
-    .fetch_optional(&state.db)
-    .await
-    .ok()
-    .flatten();
+async fn is_manual_presence(state: &AppState, user_id: Uuid) -> bool {
+    sqlx::query_scalar::<_, Option<bool>>("SELECT presence_manual FROM users WHERE id = $1")
+        .bind(user_id)
+        .fetch_optional(&state.db)
+        .await
+        .ok()
+        .flatten()
+        .flatten()
+        .unwrap_or(false)
+}
 
-    match value.and_then(|val| val.parse::<i64>().ok()) {
-        Some(seconds) if seconds >= 0 => seconds as u64,
-        // Default to 5 minutes so mobile background socket churn does not
-        // immediately force offline presence.
-        _ => 300,
+fn presence_connection_key(user_id: Uuid) -> String {
+    format!("rustchat:presence:user:{user_id}:connections")
+}
+
+pub async fn register_presence_connection(state: &AppState, user_id: Uuid, connection_id: &str) {
+    let connection_id = connection_id.trim();
+    if connection_id.is_empty() {
+        return;
+    }
+
+    let mut conn = match state.redis.get().await {
+        Ok(conn) => conn,
+        Err(err) => {
+            tracing::warn!(
+                user_id = %user_id,
+                connection_id = connection_id,
+                error = %err,
+                "Presence registry unavailable while registering websocket connection",
+            );
+            return;
+        }
+    };
+
+    let key = presence_connection_key(user_id);
+    if let Err(err) = conn.sadd::<_, _, usize>(&key, connection_id).await {
+        tracing::warn!(
+            user_id = %user_id,
+            connection_id = connection_id,
+            error = %err,
+            "Failed to register websocket connection in presence registry",
+        );
+    }
+}
+
+pub async fn unregister_presence_connection(state: &AppState, user_id: Uuid, connection_id: &str) {
+    let connection_id = connection_id.trim();
+    if connection_id.is_empty() {
+        return;
+    }
+
+    let mut conn = match state.redis.get().await {
+        Ok(conn) => conn,
+        Err(err) => {
+            tracing::warn!(
+                user_id = %user_id,
+                connection_id = connection_id,
+                error = %err,
+                "Presence registry unavailable while unregistering websocket connection",
+            );
+            return;
+        }
+    };
+
+    let key = presence_connection_key(user_id);
+    if let Err(err) = conn.srem::<_, _, usize>(&key, connection_id).await {
+        tracing::warn!(
+            user_id = %user_id,
+            connection_id = connection_id,
+            error = %err,
+            "Failed to unregister websocket connection from presence registry",
+        );
+    }
+}
+
+async fn global_presence_connection_count(state: &AppState, user_id: Uuid) -> Option<usize> {
+    let mut conn = match state.redis.get().await {
+        Ok(conn) => conn,
+        Err(err) => {
+            tracing::warn!(
+                user_id = %user_id,
+                error = %err,
+                "Presence registry unavailable while reading global connection count",
+            );
+            return None;
+        }
+    };
+
+    let key = presence_connection_key(user_id);
+    match conn.scard::<_, usize>(&key).await {
+        Ok(count) => Some(count),
+        Err(err) => {
+            tracing::warn!(
+                user_id = %user_id,
+                error = %err,
+                "Failed to read global presence connection count",
+            );
+            None
+        }
     }
 }
 
@@ -159,26 +244,35 @@ pub async fn initialize_connection_state(
     subscribe_channels: bool,
 ) {
     subscribe_default_scopes(state, user_id, subscribe_channels).await;
+    if is_manual_presence(state, user_id).await {
+        return;
+    }
     persist_presence_and_broadcast(state, user_id, "online", false).await;
 }
 
-pub async fn set_offline_if_last_connection(state: &AppState, user_id: Uuid) {
+pub async fn handle_disconnect(state: &AppState, user_id: Uuid, connection_id: &str) {
+    unregister_presence_connection(state, user_id, connection_id).await;
+
+    // Local short-circuit: still connected on this node.
     if state.ws_hub.user_connection_count(user_id).await > 0 {
         return;
     }
-    let grace_seconds = get_presence_offline_grace_seconds(state).await;
-    if grace_seconds == 0 {
-        persist_presence_and_broadcast(state, user_id, "offline", false).await;
+
+    // Manual presence (busy/dnd/away/offline set by user) must not be
+    // overwritten by disconnect-driven offline updates.
+    if is_manual_presence(state, user_id).await {
         return;
     }
 
-    let state = state.clone();
-    tokio::spawn(async move {
-        sleep(Duration::from_secs(grace_seconds)).await;
-        if state.ws_hub.user_connection_count(user_id).await == 0 {
-            persist_presence_and_broadcast(&state, user_id, "offline", false).await;
-        }
-    });
+    let Some(global_count) = global_presence_connection_count(state, user_id).await else {
+        // Conservative behavior: if we cannot determine global connection count,
+        // do not force an offline transition.
+        return;
+    };
+
+    if global_count == 0 {
+        persist_presence_and_broadcast(state, user_id, "offline", false).await;
+    }
 }
 
 pub async fn persist_presence_and_broadcast(

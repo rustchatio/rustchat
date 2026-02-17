@@ -2,7 +2,7 @@
 //!
 //! Implements:
 //! - Protocol-level Ping/Pong (WebSocket control frames)
-//! - 60s ping interval, 100s pong timeout, 30s write deadline
+//! - 30s ping interval, 2 missed-heartbeat timeout, 30s write deadline
 //! - Session resumption support
 //! - Graceful shutdown with proper close codes
 
@@ -22,13 +22,13 @@ use uuid::Uuid;
 use crate::mattermost_compat::models as mm;
 use crate::realtime::connection_store::{ConnectionState, ConnectionStore};
 
-// Mattermost WebSocket constants from web_conn.go
+// Heartbeat constants
 /// Write timeout for WebSocket operations (30 seconds)
 const WRITE_WAIT: Duration = Duration::from_secs(30);
-/// Time to wait for Pong response after Ping (100 seconds)
-const PONG_WAIT: Duration = Duration::from_secs(100);
-/// Interval between Ping frames (60 seconds)
-const PING_INTERVAL: Duration = Duration::from_secs(60);
+/// Interval between Ping frames (30 seconds)
+const PING_INTERVAL: Duration = Duration::from_secs(30);
+/// Number of missed heartbeat windows tolerated before closing.
+const MAX_MISSED_HEARTBEATS: u32 = 2;
 
 fn is_benign_disconnect_error(error: &str) -> bool {
     let e = error.to_ascii_lowercase();
@@ -533,9 +533,12 @@ impl ActorTask {
                     }
 
                     let last_pong_time = *last_pong.lock().unwrap();
-                    if Instant::now().duration_since(last_pong_time) > PONG_WAIT {
+                    let heartbeat_deadline =
+                        PING_INTERVAL.saturating_mul(MAX_MISSED_HEARTBEATS);
+                    if Instant::now().duration_since(last_pong_time) > heartbeat_deadline {
                         warn!(
                             connection_id = %self.connection_id,
+                            missed_heartbeats = MAX_MISSED_HEARTBEATS,
                             "Pong timeout - closing connection"
                         );
                         break;

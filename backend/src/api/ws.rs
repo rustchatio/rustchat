@@ -93,6 +93,8 @@ async fn handle_socket(socket: WebSocket, user_id: uuid::Uuid, username: String,
 
     // Add connection to hub
     let (connection_id, mut rx) = state.ws_hub.add_connection(user_id, username.clone()).await;
+    let connection_id_str = connection_id.to_string();
+    websocket_core::register_presence_connection(&state, user_id, &connection_id_str).await;
 
     websocket_core::initialize_connection_state(&state, user_id, true).await;
 
@@ -146,5 +148,5 @@ async fn handle_socket(socket: WebSocket, user_id: uuid::Uuid, username: String,
 
     // Cleanup
     state.ws_hub.remove_connection(user_id, connection_id).await;
-    websocket_core::set_offline_if_last_connection(&state, user_id).await;
+    websocket_core::handle_disconnect(&state, user_id, &connection_id_str).await;
 }

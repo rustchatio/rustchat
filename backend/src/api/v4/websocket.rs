@@ -262,6 +262,7 @@ async fn run_connection(
 
     // Add connection to hub
     let (hub_conn_id, mut hub_rx) = state.ws_hub.add_connection(user_id, username.clone()).await;
+    websocket_core::register_presence_connection(&state, user_id, &actor_connection_id).await;
 
     websocket_core::initialize_connection_state(&state, user_id, true).await;
 
@@ -474,8 +475,7 @@ async fn run_connection(
 
     // Remove from hub
     state.ws_hub.remove_connection(user_id, hub_conn_id).await;
-
-    websocket_core::set_offline_if_last_connection(&state, user_id).await;
+    websocket_core::handle_disconnect(&state, user_id, &actor_connection_id).await;
 
     info!(
         connection_id = %actor_connection_id,

@@ -3,7 +3,10 @@ use std::time::{Duration, Instant};
 use futures_util::StreamExt;
 use reqwest::StatusCode;
 use rustchat::mattermost_compat::id::encode_mm_id;
-use tokio_tungstenite::{connect_async, tungstenite::Message};
+use tokio_tungstenite::{
+    connect_async,
+    tungstenite::{client::IntoClientRequest, http::HeaderValue, Message},
+};
 use uuid::Uuid;
 
 use crate::common::spawn_app;
@@ -14,33 +17,19 @@ type WsClient =
     tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>;
 
 #[tokio::test]
-async fn mobile_presence_lifecycle_resets_manual_status_on_disconnect() {
+async fn websocket_disconnect_sets_offline_for_non_manual_status() {
     let app = spawn_app().await;
-    configure_presence_grace_seconds(&app, 1).await;
 
     let org_id = insert_org(&app, "Presence Lifecycle Org").await;
-    let (token, user_id) =
+    let (token, _user_id) =
         register_and_login(&app, org_id, "presence_user", "presence_user@example.com").await;
 
     let mut ws = connect_ws_v4(&app.address, &token).await;
     let _ = wait_for_event(&mut ws, "hello", Duration::from_secs(5)).await;
 
-    let set_dnd = app
-        .api_client
-        .put(format!("{}/api/v4/users/me/status", app.address))
-        .header("Authorization", format!("Bearer {token}"))
-        .json(&serde_json::json!({
-            "user_id": encode_mm_id(user_id),
-            "status": "dnd"
-        }))
-        .send()
-        .await
-        .expect("status update should succeed");
-    assert_eq!(set_dnd.status(), StatusCode::OK);
-
-    let dnd_status = poll_my_status(&app, &token, Duration::from_secs(3)).await;
-    assert_eq!(dnd_status["status"], "dnd");
-    assert_eq!(dnd_status["manual"], true);
+    let online_before_disconnect = poll_my_status(&app, &token, Duration::from_secs(3)).await;
+    assert_eq!(online_before_disconnect["status"], "online");
+    assert_eq!(online_before_disconnect["manual"], false);
 
     ws.close(None)
         .await
@@ -64,9 +53,8 @@ async fn mobile_presence_lifecycle_resets_manual_status_on_disconnect() {
 }
 
 #[tokio::test]
-async fn mobile_background_disconnect_does_not_flip_offline_within_grace_window() {
+async fn websocket_disconnect_preserves_manual_status() {
     let app = spawn_app().await;
-    configure_presence_grace_seconds(&app, 20).await;
 
     let org_id = insert_org(&app, "Presence Grace Org").await;
     let (token, user_id) = register_and_login(
@@ -107,31 +95,54 @@ async fn mobile_background_disconnect_does_not_flip_offline_within_grace_window(
     let mut ws_reconnected = connect_ws_v4(&app.address, &token).await;
     let _ = wait_for_event(&mut ws_reconnected, "hello", Duration::from_secs(5)).await;
 
-    let online_status =
-        wait_for_status(&app, &token, "online", false, Duration::from_secs(8)).await;
-    assert_eq!(online_status["status"], "online");
-    assert_eq!(online_status["manual"], false);
+    let status_after_reconnect = poll_my_status(&app, &token, Duration::from_secs(3)).await;
+    assert_eq!(status_after_reconnect["status"], "dnd");
+    assert_eq!(status_after_reconnect["manual"], true);
 
     let _ = ws_reconnected.close(None).await;
 }
 
-async fn configure_presence_grace_seconds(app: &common::TestApp, seconds: i32) {
-    sqlx::query(
-        r#"
-        UPDATE server_config
-        SET site = jsonb_set(
-            COALESCE(site, '{}'::jsonb),
-            '{mobile_presence_disconnect_grace_seconds}',
-            to_jsonb($1::int),
-            true
-        )
-        WHERE id = 'default'
-        "#,
+#[tokio::test]
+async fn user_stays_online_until_last_websocket_disconnects() {
+    let app = spawn_app().await;
+
+    let org_id = insert_org(&app, "Presence Mobile Keep Online Org").await;
+    let (token, _user_id) = register_and_login(
+        &app,
+        org_id,
+        "presence_mobile_keep_online",
+        "presence_mobile_keep_online@example.com",
     )
-    .bind(seconds)
-    .execute(&app.db_pool)
-    .await
-    .expect("failed to update presence grace seconds");
+    .await;
+
+    let mut ws_one = connect_ws_v4_mobile(&app.address, &token).await;
+    let _ = wait_for_event(&mut ws_one, "hello", Duration::from_secs(5)).await;
+
+    let mut ws_two = connect_ws_v4(&app.address, &token).await;
+    let _ = wait_for_event(&mut ws_two, "hello", Duration::from_secs(5)).await;
+
+    ws_one
+        .close(None)
+        .await
+        .expect("websocket close frame should be sent");
+    drop(ws_one);
+
+    tokio::time::sleep(Duration::from_secs(2)).await;
+
+    let status_with_second_connection = poll_my_status(&app, &token, Duration::from_secs(3)).await;
+    assert_eq!(status_with_second_connection["status"], "online");
+    assert_eq!(status_with_second_connection["manual"], false);
+
+    ws_two
+        .close(None)
+        .await
+        .expect("websocket close frame should be sent");
+    drop(ws_two);
+
+    let offline_status =
+        wait_for_status(&app, &token, "offline", false, Duration::from_secs(8)).await;
+    assert_eq!(offline_status["status"], "offline");
+    assert_eq!(offline_status["manual"], false);
 }
 
 async fn poll_my_status(app: &common::TestApp, token: &str, within: Duration) -> serde_json::Value {
@@ -216,9 +227,37 @@ async fn wait_for_event(
 }
 
 async fn connect_ws_v4(base_http_url: &str, token: &str) -> WsClient {
+    connect_ws_v4_with_user_agent(base_http_url, token, None).await
+}
+
+async fn connect_ws_v4_mobile(base_http_url: &str, token: &str) -> WsClient {
+    connect_ws_v4_with_user_agent(
+        base_http_url,
+        token,
+        Some("RustChat Mobile/2.38.0+720 (Android; 16; CPH2653)"),
+    )
+    .await
+}
+
+async fn connect_ws_v4_with_user_agent(
+    base_http_url: &str,
+    token: &str,
+    user_agent: Option<&str>,
+) -> WsClient {
     let ws_base = base_http_url.replacen("http://", "ws://", 1);
     let ws_url = format!("{ws_base}/api/v4/websocket?token={token}");
-    let (ws_stream, _) = connect_async(ws_url)
+
+    let mut request = ws_url
+        .into_client_request()
+        .expect("websocket request should be valid");
+    if let Some(ua) = user_agent {
+        request.headers_mut().insert(
+            "User-Agent",
+            HeaderValue::from_str(ua).expect("valid user-agent"),
+        );
+    }
+
+    let (ws_stream, _) = connect_async(request)
         .await
         .expect("websocket connection should succeed");
     ws_stream
