@@ -845,7 +845,8 @@ fn map_envelope_to_mm(env: &WsEnvelope) -> Option<mm::WebSocketMessage> {
                 let parent_id = typing.thread_root_id.map(encode_mm_id).unwrap_or_default();
                 Some(mm::WebSocketMessage {
                     seq,
-                    event: "user_typing".to_string(),
+                    // Mattermost clients (web/mobile) dispatch typing indicators from `typing`.
+                    event: "typing".to_string(),
                     data: json!({
                         "parent_id": parent_id,
                         "user_id": encode_mm_id(typing.user_id),
@@ -865,7 +866,8 @@ fn map_envelope_to_mm(env: &WsEnvelope) -> Option<mm::WebSocketMessage> {
                 let parent_id = typing.thread_root_id.map(encode_mm_id).unwrap_or_default();
                 Some(mm::WebSocketMessage {
                     seq,
-                    event: "user_typing_stop".to_string(),
+                    // Mattermost clients dispatch stop-typing from `stop_typing`.
+                    event: "stop_typing".to_string(),
                     data: json!({
                         "parent_id": parent_id,
                         "user_id": encode_mm_id(typing.user_id),
@@ -1072,6 +1074,7 @@ fn map_broadcast(b_opt: Option<&crate::realtime::WsBroadcast>) -> mm::Broadcast 
 mod tests {
     use super::map_envelope_to_mm;
     use super::parse_authentication_challenge;
+    use crate::mattermost_compat::id::encode_mm_id;
     use crate::mattermost_compat::models as mm;
     use crate::realtime::{WsBroadcast, WsEnvelope};
     use uuid::Uuid;
@@ -1167,5 +1170,67 @@ mod tests {
         assert_eq!(post.id, "post123");
         assert_eq!(post.root_id, "root123");
         assert_eq!(post.message, "hello from mm payload");
+    }
+
+    #[test]
+    fn map_envelope_to_mm_maps_typing_event_name_to_typing() {
+        let channel_id = Uuid::new_v4();
+        let user_id = Uuid::new_v4();
+        let root_id = Uuid::new_v4();
+        let env = WsEnvelope {
+            msg_type: "event".to_string(),
+            event: "typing_start".to_string(),
+            seq: None,
+            channel_id: Some(channel_id),
+            data: serde_json::json!({
+                "user_id": user_id,
+                "display_name": "alice",
+                "thread_root_id": root_id
+            }),
+            broadcast: Some(WsBroadcast {
+                channel_id: Some(channel_id),
+                team_id: None,
+                user_id: None,
+                exclude_user_id: Some(user_id),
+            }),
+        };
+
+        let mapped = map_envelope_to_mm(&env).expect("typing event should map");
+        assert_eq!(mapped.event, "typing");
+        assert_eq!(mapped.data["user_id"], serde_json::json!(encode_mm_id(user_id)));
+        assert_eq!(mapped.data["parent_id"], serde_json::json!(encode_mm_id(root_id)));
+        assert_eq!(
+            mapped.broadcast.channel_id,
+            encode_mm_id(channel_id),
+            "typing channel must be routed via broadcast.channel_id"
+        );
+    }
+
+    #[test]
+    fn map_envelope_to_mm_maps_typing_stop_event_name_to_stop_typing() {
+        let channel_id = Uuid::new_v4();
+        let user_id = Uuid::new_v4();
+        let env = WsEnvelope {
+            msg_type: "event".to_string(),
+            event: "typing_stop".to_string(),
+            seq: None,
+            channel_id: Some(channel_id),
+            data: serde_json::json!({
+                "user_id": user_id,
+                "display_name": "alice",
+                "thread_root_id": serde_json::Value::Null
+            }),
+            broadcast: Some(WsBroadcast {
+                channel_id: Some(channel_id),
+                team_id: None,
+                user_id: None,
+                exclude_user_id: Some(user_id),
+            }),
+        };
+
+        let mapped = map_envelope_to_mm(&env).expect("stop typing event should map");
+        assert_eq!(mapped.event, "stop_typing");
+        assert_eq!(mapped.data["user_id"], serde_json::json!(encode_mm_id(user_id)));
+        assert_eq!(mapped.data["parent_id"], serde_json::json!(""));
     }
 }

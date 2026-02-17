@@ -14,6 +14,11 @@ export interface WsEnvelope {
     event: string
     seq?: number
     channel_id?: string
+    broadcast?: {
+        channel_id?: string
+        team_id?: string
+        user_id?: string
+    }
     data: any
 }
 
@@ -109,10 +114,21 @@ function normalizeWsPost(data: any, envelopeChannelId?: string): Post | null {
 }
 
 function normalizeWsEnvelope(envelope: WsEnvelope): WsEnvelope {
+    const broadcastChannelId = normalizeEntityId(envelope.broadcast?.channel_id) ?? envelope.broadcast?.channel_id
+    const channelId = normalizeEntityId(envelope.channel_id) ?? envelope.channel_id ?? broadcastChannelId
+
     return {
         ...envelope,
-        channel_id: normalizeEntityId(envelope.channel_id) ?? envelope.channel_id,
+        channel_id: channelId,
         data: normalizeIdsDeep(envelope.data),
+        broadcast: envelope.broadcast
+            ? {
+                ...envelope.broadcast,
+                channel_id: broadcastChannelId,
+                team_id: normalizeEntityId(envelope.broadcast.team_id) ?? envelope.broadcast.team_id,
+                user_id: normalizeEntityId(envelope.broadcast.user_id) ?? envelope.broadcast.user_id,
+            }
+            : envelope.broadcast,
     }
 }
 
@@ -331,20 +347,29 @@ export function useWebSocket() {
             case 'user_typing':
             case 'typing': // Compatibility with some mobile clients
                 if (envelope.data) {
+                    const typingChannelId = envelope.channel_id || envelope.broadcast?.channel_id || envelope.data.channel_id
+                    if (!typingChannelId) {
+                        break
+                    }
                     presenceStore.addTypingUser(
                         envelope.data.user_id,
                         envelope.data.display_name || envelope.data.username || 'Someone',
-                        envelope.channel_id || envelope.data.channel_id,
+                        typingChannelId,
                         envelope.data.thread_root_id
                     )
                 }
                 break
 
             case 'user_typing_stop':
+            case 'stop_typing':
                 if (envelope.data) {
+                    const typingChannelId = envelope.channel_id || envelope.broadcast?.channel_id || envelope.data.channel_id
+                    if (!typingChannelId) {
+                        break
+                    }
                     presenceStore.removeTypingUser(
                         envelope.data.user_id,
-                        envelope.channel_id || envelope.data.channel_id,
+                        typingChannelId,
                         envelope.data.thread_root_id
                     )
                 }
