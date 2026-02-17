@@ -139,15 +139,15 @@ async fn test_notifications(
     auth: crate::api::v4::extractors::MmAuthUser,
 ) -> ApiResult<Json<serde_json::Value>> {
     use tracing::info;
-    
+
     info!(user_id = %auth.user_id, "Test notification requested");
-    
+
     // Try to send a test push notification to the user's devices
     // Use 'message' type with all required fields for Mattermost mobile compatibility
     // Generate unique IDs for channel_id and post_id so clicking the notification works
     let test_channel_id = "test_channel_".to_string() + &uuid::Uuid::new_v4().to_string();
     let test_post_id = "test_post_".to_string() + &uuid::Uuid::new_v4().to_string();
-    
+
     let result = crate::services::push_notifications::send_push_to_user(
         &state,
         auth.user_id,
@@ -162,8 +162,9 @@ async fn test_notifications(
             "channel_name": "Test Notifications"
         }),
         crate::services::push_notifications::PushPriority::Normal,
-    ).await;
-    
+    )
+    .await;
+
     match result {
         Ok(count) if count > 0 => {
             info!(user_id = %auth.user_id, count = count, "Test notification sent successfully");
@@ -171,11 +172,15 @@ async fn test_notifications(
         }
         Ok(_) => {
             info!(user_id = %auth.user_id, "Test notification: No devices found");
-            Ok(Json(serde_json::json!({"status": "OK", "sent": 0, "message": "No devices registered"})))
+            Ok(Json(
+                serde_json::json!({"status": "OK", "sent": 0, "message": "No devices registered"}),
+            ))
         }
         Err(e) => {
             info!(user_id = %auth.user_id, error = %e, "Test notification failed");
-            Ok(Json(serde_json::json!({"status": "OK", "error": e.to_string()})))
+            Ok(Json(
+                serde_json::json!({"status": "OK", "error": e.to_string()}),
+            ))
         }
     }
 }

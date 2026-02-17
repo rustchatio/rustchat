@@ -134,7 +134,10 @@ impl WsHub {
         };
 
         // Debug logging for important events
-        if envelope.event == "typing" || envelope.event == "stop_typing" || envelope.event == "status_change" {
+        if envelope.event == "typing"
+            || envelope.event == "stop_typing"
+            || envelope.event == "status_change"
+        {
             tracing::debug!(
                 event = %envelope.event,
                 has_broadcast = envelope.broadcast.is_some(),

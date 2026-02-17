@@ -9,10 +9,10 @@
 //! - Call ringing notifications when app is in background
 //! - Message notifications for mentions and direct messages
 
-use std::collections::HashMap;
 use serde::Serialize;
-use uuid::Uuid;
+use std::collections::HashMap;
 use tracing::{debug, error, info, warn};
+use uuid::Uuid;
 
 use crate::api::AppState;
 
@@ -103,7 +103,7 @@ pub async fn send_push_notification(
     // First, try to use the push proxy service
     let proxy_url = get_push_proxy_url();
     info!(proxy_url = ?proxy_url, "Checking push proxy configuration");
-    
+
     if let Some(proxy_url) = proxy_url {
         info!(%proxy_url, "Attempting to send via push proxy");
         match send_via_push_proxy(&proxy_url, &notification).await {
@@ -146,39 +146,55 @@ async fn send_via_push_proxy(
     let url = format!("{}/send", proxy_url.trim_end_matches('/'));
 
     // Extract channel_id and type from data payload
-    let channel_id = notification.data.get("channel_id")
+    let channel_id = notification
+        .data
+        .get("channel_id")
         .and_then(|v| v.as_str())
         .unwrap_or("")
         .to_string();
-    
-    let notification_type = notification.data.get("type")
+
+    let notification_type = notification
+        .data
+        .get("type")
         .and_then(|v| v.as_str())
         .unwrap_or("message")
         .to_string();
 
-    let post_id = notification.data.get("call_id")
+    let post_id = notification
+        .data
+        .get("call_id")
         .or_else(|| notification.data.get("post_id"))
         .and_then(|v| v.as_str())
         .unwrap_or("")
         .to_string();
 
     // Extract additional fields for mobile app compatibility
-    let sub_type = notification.data.get("sub_type")
+    let sub_type = notification
+        .data
+        .get("sub_type")
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
-    
-    let sender_id = notification.data.get("sender_id")
+
+    let sender_id = notification
+        .data
+        .get("sender_id")
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
-    
-    let sender_name = notification.data.get("sender_name")
+
+    let sender_name = notification
+        .data
+        .get("sender_name")
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
-    
-    let is_crt_enabled = notification.data.get("is_crt_enabled")
+
+    let is_crt_enabled = notification
+        .data
+        .get("is_crt_enabled")
         .and_then(|v| v.as_bool());
-    
-    let server_url = notification.data.get("server_url")
+
+    let server_url = notification
+        .data
+        .get("server_url")
         .and_then(|v| v.as_str())
         .map(|s| s.to_string());
 
@@ -200,40 +216,38 @@ async fn send_via_push_proxy(
     };
 
     let client = reqwest::Client::new();
-    let response = client
-        .post(&url)
-        .json(&payload)
-        .send()
-        .await
-        .map_err(|e| {
-            if e.is_connect() || e.is_timeout() {
-                PushNotificationError::NotConfigured
-            } else {
-                PushNotificationError::NetworkError(format!("Push proxy connection failed: {}", e))
-            }
-        })?;
+    let response = client.post(&url).json(&payload).send().await.map_err(|e| {
+        if e.is_connect() || e.is_timeout() {
+            PushNotificationError::NotConfigured
+        } else {
+            PushNotificationError::NetworkError(format!("Push proxy connection failed: {}", e))
+        }
+    })?;
 
     let status = response.status();
-    
+
     if status.is_success() {
         info!("Successfully sent notification via push proxy");
         Ok(())
     } else {
         let body = response.text().await.unwrap_or_default();
         let status_code = status.as_u16();
-        
+
         // Check for invalid token errors (410 = unregistered, 400 with INVALID_ARGUMENT = bad token)
         if status_code == 410 || (status_code == 400 && body.contains("INVALID_ARGUMENT")) {
             warn!(status = %status_code, body = %body, "FCM returned invalid token error");
             return Err(PushNotificationError::InvalidToken);
         }
-        
+
         error!(
             status = %status,
             body = %body,
             "Push proxy returned error"
         );
-        Err(PushNotificationError::ProxyError(format!("HTTP {}: {}", status, body)))
+        Err(PushNotificationError::ProxyError(format!(
+            "HTTP {}: {}",
+            status, body
+        )))
     }
 }
 
@@ -270,18 +284,12 @@ async fn send_push_notification_direct(
 }
 
 /// Delete a device registration when its token is invalid
-async fn delete_invalid_device(
-    state: &AppState,
-    user_id: Uuid,
-    device_token: &str,
-) {
-    match sqlx::query(
-        "DELETE FROM user_devices WHERE user_id = $1 AND token = $2"
-    )
-    .bind(user_id)
-    .bind(device_token)
-    .execute(&state.db)
-    .await
+async fn delete_invalid_device(state: &AppState, user_id: Uuid, device_token: &str) {
+    match sqlx::query("DELETE FROM user_devices WHERE user_id = $1 AND token = $2")
+        .bind(user_id)
+        .bind(device_token)
+        .execute(&state.db)
+        .await
     {
         Ok(result) => {
             if result.rows_affected() > 0 {
@@ -308,7 +316,7 @@ pub async fn send_push_to_user(
     priority: PushPriority,
 ) -> Result<usize, PushNotificationError> {
     info!(user_id = %user_id, title = %title, "send_push_to_user called");
-    
+
     // Get user's devices
     let devices = get_user_devices(state, user_id).await?;
 
@@ -316,7 +324,7 @@ pub async fn send_push_to_user(
         info!(user_id = %user_id, "No devices found for user, skipping push notification");
         return Ok(0);
     }
-    
+
     info!(user_id = %user_id, device_count = devices.len(), "Found devices for user");
 
     let mut sent_count = 0;
@@ -367,16 +375,18 @@ pub async fn send_push_to_user(
 
 /// Get the site URL from server config
 async fn get_site_url(state: &AppState) -> String {
-    let result: Option<(serde_json::Value,)> = sqlx::query_as(
-        "SELECT site FROM server_config WHERE id = 'default'"
-    )
-    .fetch_optional(&state.db)
-    .await
-    .ok()
-    .flatten();
-    
+    let result: Option<(serde_json::Value,)> =
+        sqlx::query_as("SELECT site FROM server_config WHERE id = 'default'")
+            .fetch_optional(&state.db)
+            .await
+            .ok()
+            .flatten();
+
     result
-        .and_then(|(site,)| site.get("site_url").and_then(|v| v.as_str().map(|s| s.to_string())))
+        .and_then(|(site,)| {
+            site.get("site_url")
+                .and_then(|v| v.as_str().map(|s| s.to_string()))
+        })
         .unwrap_or_default()
 }
 
@@ -393,7 +403,8 @@ pub async fn send_call_ringing_notification(
 
     // Get the call's thread_id (which is the post_id of the call post)
     let thread_id = state.call_state_manager.get_thread_id(call_id).await;
-    let post_id = thread_id.map(|id| crate::mattermost_compat::id::encode_mm_id(id))
+    let post_id = thread_id
+        .map(|id| crate::mattermost_compat::id::encode_mm_id(id))
         .unwrap_or_else(|| call_id.to_string());
 
     // Get server URL for the mobile app to identify which server
@@ -463,15 +474,7 @@ pub async fn send_message_notification(
         "server_url": server_url,
     });
 
-    send_push_to_user(
-        state,
-        user_id,
-        title,
-        body,
-        data,
-        PushPriority::Normal,
-    )
-    .await
+    send_push_to_user(state, user_id, title, body, data, PushPriority::Normal).await
 }
 
 /// Device info from database
@@ -487,7 +490,7 @@ async fn get_user_devices(
     user_id: Uuid,
 ) -> Result<Vec<DeviceInfo>, PushNotificationError> {
     let devices: Vec<(String, String)> = sqlx::query_as(
-        "SELECT token, platform FROM user_devices WHERE user_id = $1 AND token IS NOT NULL"
+        "SELECT token, platform FROM user_devices WHERE user_id = $1 AND token IS NOT NULL",
     )
     .bind(user_id)
     .fetch_all(&state.db)
@@ -575,7 +578,7 @@ struct FcmConfig {
 async fn get_fcm_config(state: &AppState) -> Option<FcmConfig> {
     // Try to get from database first
     let config: Option<(String, String)> = sqlx::query_as(
-        "SELECT fcm_project_id, fcm_access_token FROM server_config WHERE id = 'default'"
+        "SELECT fcm_project_id, fcm_access_token FROM server_config WHERE id = 'default'",
     )
     .fetch_optional(&state.db)
     .await
@@ -608,9 +611,8 @@ async fn get_fcm_config(state: &AppState) -> Option<FcmConfig> {
 /// Build FCM message from notification
 fn build_fcm_message(notification: &PushNotification) -> FcmMessage {
     let is_high_priority = matches!(notification.priority, PushPriority::High);
-    let is_call_notification = notification.data.get("sub_type")
-        .and_then(|v| v.as_str())
-        == Some("calls");
+    let is_call_notification =
+        notification.data.get("sub_type").and_then(|v| v.as_str()) == Some("calls");
 
     let mut data_map = HashMap::new();
     if let serde_json::Value::Object(map) = &notification.data {
@@ -636,10 +638,13 @@ fn build_fcm_message(notification: &PushNotification) -> FcmMessage {
                 // NOTE: Previously used "calls" which does NOT exist in the mobile app,
                 // causing Android to fall back to a silent notification on locked screens.
                 channel_id: "channel_01".to_string(),
-                sound: if is_call_notification { 
-                    "default".to_string() 
-                } else { 
-                    notification.sound.clone().unwrap_or_else(|| "default".to_string()) 
+                sound: if is_call_notification {
+                    "default".to_string()
+                } else {
+                    notification
+                        .sound
+                        .clone()
+                        .unwrap_or_else(|| "default".to_string())
                 },
                 priority: "high".to_string(),
             },
@@ -649,20 +654,33 @@ fn build_fcm_message(notification: &PushNotification) -> FcmMessage {
             priority: "normal".to_string(),
             notification: FcmAndroidNotification {
                 channel_id: "channel_01".to_string(),
-                sound: notification.sound.clone().unwrap_or_else(|| "default".to_string()),
+                sound: notification
+                    .sound
+                    .clone()
+                    .unwrap_or_else(|| "default".to_string()),
                 priority: "default".to_string(),
             },
         })
     };
 
     let mut apns_headers = HashMap::new();
-    apns_headers.insert("apns-priority".to_string(), if is_high_priority { "10".to_string() } else { "5".to_string() });
+    apns_headers.insert(
+        "apns-priority".to_string(),
+        if is_high_priority {
+            "10".to_string()
+        } else {
+            "5".to_string()
+        },
+    );
 
     // For call notifications, use a specific sound and category
     let sound = if is_call_notification {
-        "calls_ringtone.caf".to_string()  // Custom ringtone for calls
+        "calls_ringtone.caf".to_string() // Custom ringtone for calls
     } else {
-        notification.sound.clone().unwrap_or_else(|| "default".to_string())
+        notification
+            .sound
+            .clone()
+            .unwrap_or_else(|| "default".to_string())
     };
 
     let apns_config = FcmApnsConfig {
@@ -688,7 +706,11 @@ fn build_fcm_message(notification: &PushNotification) -> FcmMessage {
                 title: notification.title.clone(),
                 body: notification.body.clone(),
             }),
-            data: if data_map.is_empty() { None } else { Some(data_map) },
+            data: if data_map.is_empty() {
+                None
+            } else {
+                Some(data_map)
+            },
             android: android_config,
             apns: Some(apns_config),
         },
@@ -726,14 +748,15 @@ async fn send_fcm_message(
         Ok(())
     } else {
         let status_code = status.as_u16();
-        
+
         // Check for invalid token errors
         // 404 = not found, 400 with INVALID_ARGUMENT = bad token
-        if status_code == 404 || (status_code == 400 && response_text.contains("INVALID_ARGUMENT")) {
+        if status_code == 404 || (status_code == 400 && response_text.contains("INVALID_ARGUMENT"))
+        {
             warn!(status = %status_code, "FCM returned invalid token error");
             return Err(PushNotificationError::InvalidToken);
         }
-        
+
         error!(
             status = %status,
             response = %response_text,

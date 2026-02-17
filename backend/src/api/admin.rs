@@ -1321,7 +1321,6 @@ async fn delete_admin_channel(
     Ok(Json(serde_json::json!({"status": "deleted"})))
 }
 
-
 // ============ Email Testing ============
 
 #[derive(Debug, serde::Deserialize)]
@@ -1341,15 +1340,16 @@ async fn test_email_config(
     require_admin(&auth)?;
 
     // Get email config
-    let config = sqlx::query_as::<_, (sqlx::types::Json<crate::models::server_config::EmailConfig>,)>(
-        "SELECT email FROM server_config WHERE id = 'default'"
-    )
-    .fetch_optional(&state.db)
-    .await
-    .ok()
-    .flatten()
-    .map(|row| row.0 .0)
-    .unwrap_or_default();
+    let config =
+        sqlx::query_as::<_, (sqlx::types::Json<crate::models::server_config::EmailConfig>,)>(
+            "SELECT email FROM server_config WHERE id = 'default'",
+        )
+        .fetch_optional(&state.db)
+        .await
+        .ok()
+        .flatten()
+        .map(|row| row.0 .0)
+        .unwrap_or_default();
 
     // Check if email notifications are enabled
     if !config.send_email_notifications {
@@ -1375,7 +1375,8 @@ async fn test_email_config(
     }
 
     // Determine test recipient (use 'to' field or 'email' field, fallback to admin's email)
-    let test_email = payload.to_email
+    let test_email = payload
+        .to_email
         .or(payload.email)
         .unwrap_or_else(|| auth.email.clone());
 

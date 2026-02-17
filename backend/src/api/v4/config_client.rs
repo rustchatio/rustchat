@@ -41,16 +41,27 @@ pub async fn get_client_config(
         ));
     }
 
-    let (site, auth, email) = sqlx::query_as::<
-        _,
-        (sqlx::types::Json<SiteConfig>, sqlx::types::Json<AuthConfig>, sqlx::types::Json<EmailConfig>),
-    >("SELECT site, authentication, email FROM server_config WHERE id = 'default'")
-    .fetch_optional(&state.db)
-    .await
-    .ok()
-    .flatten()
-    .map(|row| (row.0 .0, row.1 .0, row.2 .0))
-    .unwrap_or_else(|| (SiteConfig::default(), AuthConfig::default(), EmailConfig::default()));
+    let (site, auth, email) =
+        sqlx::query_as::<
+            _,
+            (
+                sqlx::types::Json<SiteConfig>,
+                sqlx::types::Json<AuthConfig>,
+                sqlx::types::Json<EmailConfig>,
+            ),
+        >("SELECT site, authentication, email FROM server_config WHERE id = 'default'")
+        .fetch_optional(&state.db)
+        .await
+        .ok()
+        .flatten()
+        .map(|row| (row.0 .0, row.1 .0, row.2 .0))
+        .unwrap_or_else(|| {
+            (
+                SiteConfig::default(),
+                AuthConfig::default(),
+                EmailConfig::default(),
+            )
+        });
 
     let diagnostic_id = diagnostic_id(&site);
     Ok((
@@ -80,7 +91,12 @@ pub async fn get_client_license(
     Ok(Json(body))
 }
 
-fn legacy_config(site: &SiteConfig, auth: &AuthConfig, email: &EmailConfig, diagnostic_id: &str) -> serde_json::Value {
+fn legacy_config(
+    site: &SiteConfig,
+    auth: &AuthConfig,
+    email: &EmailConfig,
+    diagnostic_id: &str,
+) -> serde_json::Value {
     use serde_json::{json, Map, Value};
 
     let mut map = Map::new();
@@ -328,11 +344,7 @@ fn legacy_config(site: &SiteConfig, auth: &AuthConfig, email: &EmailConfig, diag
     // Mobile defaults to `false` when missing, which disables typing emits.
     insert(&mut map, "EnableUserTypingMessages", "true");
     // Activity-based typing emits every 2s to avoid per-keystroke websocket traffic.
-    insert(
-        &mut map,
-        "TimeBetweenUserTypingUpdatesMilliseconds",
-        "2000",
-    );
+    insert(&mut map, "TimeBetweenUserTypingUpdatesMilliseconds", "2000");
     insert(&mut map, "MaxNotificationsPerChannel", "1000");
 
     // Add calls-related settings for mobile app
@@ -340,24 +352,48 @@ fn legacy_config(site: &SiteConfig, auth: &AuthConfig, email: &EmailConfig, diag
     insert(&mut map, "AllowEnableCalls", "true");
     insert(&mut map, "DefaultEnabled", "true");
     insert(&mut map, "EnableRinging", "true");
-    
+
     // Push notifications settings
-    insert(&mut map, "SendPushNotifications", bool_str(site.send_push_notifications));
-    insert(&mut map, "EnablePushNotifications", bool_str(site.send_push_notifications));
-    insert(&mut map, "PushNotificationServer", "https://push.mattermost.com");  // Dummy value, actual push goes through our proxy
-    insert(&mut map, "PushNotificationContents", "full");  // full, generic, or id
-    
+    insert(
+        &mut map,
+        "SendPushNotifications",
+        bool_str(site.send_push_notifications),
+    );
+    insert(
+        &mut map,
+        "EnablePushNotifications",
+        bool_str(site.send_push_notifications),
+    );
+    insert(
+        &mut map,
+        "PushNotificationServer",
+        "https://push.mattermost.com",
+    ); // Dummy value, actual push goes through our proxy
+    insert(&mut map, "PushNotificationContents", "full"); // full, generic, or id
+
     // Email notifications settings
-    insert(&mut map, "SendEmailNotifications", bool_str(email.send_email_notifications));
-    insert(&mut map, "EnableEmailBatching", bool_str(email.enable_email_batching));
-    insert(&mut map, "EmailNotificationContentsType", &email.email_notification_content);
-    
+    insert(
+        &mut map,
+        "SendEmailNotifications",
+        bool_str(email.send_email_notifications),
+    );
+    insert(
+        &mut map,
+        "EnableEmailBatching",
+        bool_str(email.enable_email_batching),
+    );
+    insert(
+        &mut map,
+        "EmailNotificationContentsType",
+        &email.email_notification_content,
+    );
+
     // WebSocket settings for stable connections
     insert(&mut map, "WebsocketURL", &site.websocket_url);
     insert(&mut map, "WebsocketPort", &site.websocket_port);
     insert(&mut map, "WebsocketSecurePort", &site.websocket_secure_port);
     insert(&mut map, "EnableReliableWebSockets", "true");
-    
+
     // Add PluginSettings for calls plugin (required by mobile app)
     map.insert(
         "PluginSettings".to_string(),

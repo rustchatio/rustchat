@@ -192,8 +192,14 @@ async fn create_post(
     Path(channel_id): Path<Uuid>,
     Json(input): Json<CreatePost>,
 ) -> ApiResult<Json<PostResponse>> {
-    let post =
-        crate::services::posts::create_post(&state, auth.user_id, channel_id, input.clone(), input.client_msg_id).await?;
+    let post = crate::services::posts::create_post(
+        &state,
+        auth.user_id,
+        channel_id,
+        input.clone(),
+        input.client_msg_id,
+    )
+    .await?;
     Ok(Json(post))
 }
 

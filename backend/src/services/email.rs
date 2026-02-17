@@ -81,7 +81,10 @@ pub async fn test_smtp_connection(config: &EmailConfig) -> Result<(), String> {
             Ok(())
         }
         Ok(false) => {
-            warn!("SMTP connection test returned false for {}", config.smtp_host);
+            warn!(
+                "SMTP connection test returned false for {}",
+                config.smtp_host
+            );
             Err("SMTP connection test failed".to_string())
         }
         Err(e) => {
@@ -113,7 +116,10 @@ async fn build_smtp_transport(
     let mailer: AsyncSmtpTransport<Tokio1Executor> = match config.smtp_security.as_str() {
         "tls" => {
             // Direct TLS connection (SMTPS/SSL)
-            info!("Building SMTP transport with TLS (SMTPS) for {}:{}", host, port);
+            info!(
+                "Building SMTP transport with TLS (SMTPS) for {}:{}",
+                host, port
+            );
             AsyncSmtpTransport::<Tokio1Executor>::relay(host)
                 .map_err(|e| format!("Failed to create TLS transport: {}", e))?
                 .credentials(creds)
@@ -123,7 +129,10 @@ async fn build_smtp_transport(
         }
         "none" => {
             // No encryption (plaintext)
-            warn!("Building SMTP transport without encryption for {}:{}", host, port);
+            warn!(
+                "Building SMTP transport without encryption for {}:{}",
+                host, port
+            );
             AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(host)
                 .port(port)
                 .credentials(creds)
@@ -131,7 +140,10 @@ async fn build_smtp_transport(
         }
         _ => {
             // Default: STARTTLS (upgrade to TLS after connection)
-            info!("Building SMTP transport with STARTTLS for {}:{}", host, port);
+            info!(
+                "Building SMTP transport with STARTTLS for {}:{}",
+                host, port
+            );
             AsyncSmtpTransport::<Tokio1Executor>::relay(host)
                 .map_err(|e| format!("Failed to create STARTTLS transport: {}", e))?
                 .credentials(creds)

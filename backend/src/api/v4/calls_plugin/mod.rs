@@ -2908,17 +2908,10 @@ async fn handle_ws_join_call(
             None,
         )
         .await;
-        
+
         // Send ringing notifications via push for mobile apps
         // WebSocket join doesn't go through HTTP /start endpoint, so we need to trigger ringing here
-        broadcast_ringing_event(
-            state,
-            channel_uuid,
-            call.call_id,
-            user_id,
-            Some(user_id),
-        )
-        .await;
+        broadcast_ringing_event(state, channel_uuid, call.call_id, user_id, Some(user_id)).await;
     }
 
     broadcast_call_event(
@@ -3716,7 +3709,7 @@ async fn broadcast_ringing_event(
 ) {
     // Fetch sender info for better mobile client support
     let sender_info: Option<(String, String)> = sqlx::query_as(
-        "SELECT username, COALESCE(display_name, '') as display_name FROM users WHERE id = $1"
+        "SELECT username, COALESCE(display_name, '') as display_name FROM users WHERE id = $1",
     )
     .bind(sender_id)
     .fetch_optional(&state.db)
@@ -3724,9 +3717,8 @@ async fn broadcast_ringing_event(
     .ok()
     .flatten();
 
-    let (username, display_name) = sender_info.unwrap_or_else(|| {
-        (encode_mm_id(sender_id), String::new())
-    });
+    let (username, display_name) =
+        sender_info.unwrap_or_else(|| (encode_mm_id(sender_id), String::new()));
 
     info!(
         call_id = %call_id,
@@ -3755,15 +3747,17 @@ async fn broadcast_ringing_event(
 
     // Also send push notifications to offline/mobile users
     // Get channel members to notify
-    let members: Vec<(Uuid,)> = sqlx::query_as(
-        "SELECT user_id FROM channel_members WHERE channel_id = $1"
-    )
-    .bind(channel_id)
-    .fetch_all(&state.db)
-    .await
-    .unwrap_or_default();
+    let members: Vec<(Uuid,)> =
+        sqlx::query_as("SELECT user_id FROM channel_members WHERE channel_id = $1")
+            .bind(channel_id)
+            .fetch_all(&state.db)
+            .await
+            .unwrap_or_default();
 
-    info!(member_count = members.len(), "Found channel members for push notification");
+    info!(
+        member_count = members.len(),
+        "Found channel members for push notification"
+    );
 
     let caller_name = if !display_name.is_empty() {
         display_name.clone()
@@ -3779,7 +3773,11 @@ async fn broadcast_ringing_event(
         }
 
         // Skip users who have dismissed this notification
-        if state.call_state_manager.is_notification_dismissed(call_id, user_id).await {
+        if state
+            .call_state_manager
+            .is_notification_dismissed(call_id, user_id)
+            .await
+        {
             info!(user_id = %user_id, "Skipping user who dismissed notification");
             continue;
         }
@@ -3796,7 +3794,9 @@ async fn broadcast_ringing_event(
                 channel_id,
                 call_id,
                 caller_name_clone,
-            ).await {
+            )
+            .await
+            {
                 Ok(count) if count > 0 => {
                     info!(
                         user_id = %user_id,

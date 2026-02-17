@@ -273,12 +273,12 @@ pub async fn create_post(
         } else {
             response.message.clone()
         };
-        
+
         // Get channel members to notify
         let members_to_notify: Vec<Uuid> = if is_dm {
             // For DMs, notify the other participant
             sqlx::query_scalar::<_, Uuid>(
-                "SELECT user_id FROM channel_members WHERE channel_id = $1 AND user_id != $2"
+                "SELECT user_id FROM channel_members WHERE channel_id = $1 AND user_id != $2",
             )
             .bind(channel_id)
             .bind(user_id)
@@ -317,7 +317,7 @@ pub async fn create_post(
             let state_clone = state.clone();
             let sender_name_clone = sender_name.clone();
             let message_preview_clone = message_preview.clone();
-            
+
             tokio::spawn(async move {
                 match crate::services::push_notifications::send_message_notification(
                     &state_clone,
@@ -327,7 +327,9 @@ pub async fn create_post(
                     sender_name_clone,
                     message_preview_clone,
                     is_dm,
-                ).await {
+                )
+                .await
+                {
                     Ok(count) if count > 0 => {
                         tracing::debug!(
                             user_id = %target_user_id,

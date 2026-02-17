@@ -1,4 +1,8 @@
-use axum::{extract::State, routing::{get, post}, Json, Router};
+use axum::{
+    extract::State,
+    routing::{get, post},
+    Json, Router,
+};
 use serde::Deserialize;
 
 pub fn router() -> Router<AppState> {
@@ -35,7 +39,6 @@ pub async fn get_audits(
     Ok(Json(audits))
 }
 
-
 #[derive(Debug, Deserialize)]
 pub struct TestEmailRequest {
     pub email: Option<String>,
@@ -49,15 +52,16 @@ pub async fn test_email_config(
     Json(payload): Json<TestEmailRequest>,
 ) -> ApiResult<Json<serde_json::Value>> {
     // Get email config
-    let config = sqlx::query_as::<_, (sqlx::types::Json<crate::models::server_config::EmailConfig>,)>(
-        "SELECT email FROM server_config WHERE id = 'default'"
-    )
-    .fetch_optional(&state.db)
-    .await
-    .ok()
-    .flatten()
-    .map(|row| row.0 .0)
-    .unwrap_or_default();
+    let config =
+        sqlx::query_as::<_, (sqlx::types::Json<crate::models::server_config::EmailConfig>,)>(
+            "SELECT email FROM server_config WHERE id = 'default'",
+        )
+        .fetch_optional(&state.db)
+        .await
+        .ok()
+        .flatten()
+        .map(|row| row.0 .0)
+        .unwrap_or_default();
 
     // Check if email notifications are enabled
     if !config.send_email_notifications {
@@ -83,7 +87,8 @@ pub async fn test_email_config(
     }
 
     // Determine test recipient (use 'to' field or 'email' field, fallback to user's email)
-    let test_email = payload.to_email
+    let test_email = payload
+        .to_email
         .or(payload.email)
         .unwrap_or_else(|| auth.email.clone());
 

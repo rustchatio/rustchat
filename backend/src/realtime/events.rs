@@ -1,8 +1,8 @@
 //! WebSocket event types
 
+use crate::mattermost_compat::id::parse_mm_or_uuid;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use crate::mattermost_compat::id::parse_mm_or_uuid;
 
 /// WebSocket event envelope
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -128,9 +128,9 @@ where
     let raw = Option::<String>::deserialize(deserializer)?;
     match raw {
         None => Ok(None),
-        Some(id) => parse_mm_or_uuid(&id).ok_or_else(|| {
-            serde::de::Error::custom(format!("invalid uuid/mattermost id: {}", id))
-        }).map(Some),
+        Some(id) => parse_mm_or_uuid(&id)
+            .ok_or_else(|| serde::de::Error::custom(format!("invalid uuid/mattermost id: {}", id)))
+            .map(Some),
     }
 }
 

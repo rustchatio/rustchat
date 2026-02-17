@@ -280,7 +280,10 @@ impl CallStateManager {
 
     /// Get call thread root post ID.
     pub async fn get_thread_id(&self, call_id: Uuid) -> Option<Uuid> {
-        self.get_call(call_id).await.map(|call| call.thread_id).flatten()
+        self.get_call(call_id)
+            .await
+            .map(|call| call.thread_id)
+            .flatten()
     }
 
     /// Mark a user as having dismissed incoming call notifications.
