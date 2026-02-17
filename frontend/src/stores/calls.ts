@@ -654,11 +654,50 @@ export const useCallsStore = defineStore('calls', () => {
             // Handle incoming tracks
             pc.ontrack = (event) => {
                 console.log('Received remote track:', event.track.kind, event.streams)
-                if (event.streams && event.streams[0] && currentCall.value) {
+                const active = currentCall.value
+                if (!active) {
+                    return
+                }
+
+                if (event.streams && event.streams[0]) {
                     const remoteStream = event.streams[0]
-                    // The stream ID contains the session ID if the SFU set it correctly
-                    // For now, we'll store it by its own ID or a fixed key if only 1 remote
-                    currentCall.value.remoteStreams.set(remoteStream.id, remoteStream)
+                    active.remoteStreams.set(remoteStream.id, remoteStream)
+                } else {
+                    // Some browsers can emit ontrack without an attached stream.
+                    // Build a synthetic stream so screen-share video is still renderable.
+                    const syntheticStreamId = `track-${event.track.id}`
+                    const existing = active.remoteStreams.get(syntheticStreamId)
+                    const synthetic = existing || new MediaStream()
+                    const hasTrack = synthetic
+                        .getTracks()
+                        .some((track) => track.id === event.track.id)
+                    if (!hasTrack) {
+                        synthetic.addTrack(event.track)
+                    }
+                    active.remoteStreams.set(syntheticStreamId, synthetic)
+                }
+
+                event.track.onended = () => {
+                    const call = currentCall.value
+                    if (!call) {
+                        return
+                    }
+
+                    for (const [key, stream] of call.remoteStreams.entries()) {
+                        const remainingTracks = stream
+                            .getTracks()
+                            .filter((track) => track.id !== event.track.id)
+                        if (remainingTracks.length === stream.getTracks().length) {
+                            continue
+                        }
+                        if (remainingTracks.length === 0) {
+                            call.remoteStreams.delete(key)
+                            continue
+                        }
+                        const replacement = new MediaStream()
+                        remainingTracks.forEach((track) => replacement.addTrack(track))
+                        call.remoteStreams.set(key, replacement)
+                    }
                 }
             }
 
