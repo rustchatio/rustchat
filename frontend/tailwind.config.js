@@ -3,8 +3,12 @@ export default {
   theme: {
     extend: {
       colors: {
-        primary: 'var(--theme-primary)',
-        accent: 'var(--theme-accent)',
+        primary: 'var(--color-primary)',
+        secondary: 'var(--color-secondary)',
+        'bg-main': 'var(--color-bg-main)',
+        'bg-sidebar': 'var(--color-bg-sidebar)',
+        'text-base': 'var(--color-text-base)',
+        accent: 'var(--color-accent)',
         surface: 'var(--theme-surface)',
         'surface-muted': 'var(--theme-surface-muted)',
         text: 'var(--theme-text)',
@@ -17,10 +21,10 @@ export default {
         figtree: ['var(--font-figtree)'],
         'jetbrains-mono': ['var(--font-jetbrains-mono)'],
         quicksand: ['var(--font-quicksand)'],
+        montserrat: ['var(--font-montserrat)'],
         'source-sans-3': ['var(--font-source-sans-3)'],
         nunito: ['var(--font-nunito)'],
         manrope: ['var(--font-manrope)'],
-        'public-sans': ['var(--font-public-sans)'],
         'work-sans': ['var(--font-work-sans)'],
         'ibm-plex-sans': ['var(--font-ibm-plex-sans)'],
       },

@@ -317,7 +317,7 @@ function formatFileSize(bytes: number): string {
 <template>
   <FileUploader 
     ref="fileUploaderRef"
-    class="p-4 pt-2 shrink-0 z-20"
+    class="p-2 pt-1 shrink-0 z-20"
     @files-selected="handleFiles"
   >
 
@@ -336,11 +336,11 @@ function formatFileSize(bytes: number): string {
         </div>
         
         <!-- Attached Files Preview -->
-        <div v-if="attachedFiles.length > 0" class="flex flex-wrap gap-3 p-3 border-b border-white/10 dark:border-white/5 bg-white/5">
+        <div v-if="attachedFiles.length > 0" class="flex flex-wrap gap-2 p-2 border-b border-white/10 dark:border-white/5 bg-white/5">
           <div 
             v-for="(attachment, index) in attachedFiles"
             :key="index"
-            class="relative flex flex-col space-y-2 bg-surface-dim dark:bg-slate-800/40 border border-border-dim dark:border-white/5 rounded-xl p-3 min-w-[200px] overflow-hidden group/file shadow-sm"
+            class="relative flex flex-col space-y-1.5 bg-surface-dim dark:bg-slate-800/40 border border-border-dim dark:border-white/5 rounded-xl p-2.5 min-w-[180px] overflow-hidden group/file shadow-sm"
           >
             <div class="flex items-center space-x-3">
                 <div class="p-2 bg-indigo-500/10 rounded-lg">
@@ -391,7 +391,7 @@ function formatFileSize(bytes: number): string {
               @keydown="handleKeydown"
               @input="handleInput"
               rows="1" 
-              class="w-full bg-transparent border-0 focus:ring-0 resize-none max-h-40 py-3.5 px-4 min-h-[48px] text-gray-800 dark:text-slate-200 placeholder-slate-400 placeholder:font-light" 
+              class="w-full bg-transparent border-0 focus:ring-0 resize-none max-h-36 py-2.5 px-3 min-h-[42px] text-gray-800 dark:text-slate-200 placeholder-slate-400 placeholder:font-light" 
               placeholder="Message... (Use @ to mention)"
               aria-label="Message composer"
           ></textarea>
@@ -406,7 +406,7 @@ function formatFileSize(bytes: number): string {
         </div>
 
         <!-- Footer Actions -->
-        <div class="flex justify-between items-center px-2 pb-2">
+        <div class="flex justify-between items-center px-1.5 pb-1.5">
             <div class="flex space-x-1 text-slate-400 relative">
                 <button 
                   @click="openFilePicker"

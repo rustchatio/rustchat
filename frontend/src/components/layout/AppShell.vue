@@ -15,16 +15,16 @@ const { isMobile, isMobileOrTablet } = useBreakpoints();
     <!-- Top Header -->
     <GlobalHeader class="z-30" />
 
-    <div class="flex flex-1 overflow-hidden relative">
+    <div class="flex flex-1 overflow-hidden relative gap-1 p-1">
         <!-- Team Rail (Leftmost) -->
-        <TeamRail v-if="!isMobile" class="border-r border-border-1" />
+        <TeamRail v-if="!isMobile" class="border border-border-1 rounded-r-2" />
 
         <!-- Channel Sidebar (LHS) -->
-        <ChannelSidebar v-if="!isMobile" class="border-r border-border-1" />
+        <ChannelSidebar v-if="!isMobile" class="border border-border-1 rounded-r-2" />
 
         <!-- Main Content (Center) -->
         <main 
-          class="flex-1 flex flex-col min-w-0 bg-bg-surface-1 relative transition-standard overflow-hidden"
+          class="flex-1 flex flex-col min-w-0 bg-bg-surface-1 relative transition-standard overflow-hidden border border-border-1 rounded-r-2"
           :class="{ 'shadow-2': ui.isRhsOpen && isMobileOrTablet }"
         >
             <slot />
@@ -48,11 +48,10 @@ const { isMobile, isMobileOrTablet } = useBreakpoints();
         >
           <RightSidebar 
             v-if="ui.isRhsOpen" 
-            class="fixed lg:relative top-0 right-0 h-full z-40 lg:z-10 shadow-2 lg:shadow-none bg-bg-surface-1 border-l border-border-1"
-            :class="[isMobileOrTablet ? 'w-[85%] sm:w-[400px]' : 'w-[400px]']"
+            class="fixed lg:relative top-0 right-0 h-full z-40 lg:z-10 shadow-2 lg:shadow-none bg-bg-surface-1 border border-border-1 rounded-r-2"
+            :class="[isMobileOrTablet ? 'w-[85%] sm:w-[360px]' : 'w-[360px]']"
           />
         </transition>
     </div>
   </div>
 </template>
-

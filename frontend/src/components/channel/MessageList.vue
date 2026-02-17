@@ -136,7 +136,7 @@ function handleOpenProfile(userId: string) {
     ref="containerRef"
     @scroll="handleScroll"
   >
-    <div class="max-w-[var(--msg-max-width)] mx-auto px-[var(--msg-gutter)] py-sp-4 space-y-sp-6">
+    <div class="max-w-[var(--msg-max-width)] mx-auto px-[var(--msg-gutter)] py-2 space-y-3">
         <!-- New Messages Floating Button -->
         <transition
           enter-active-class="transition-standard duration-200"
@@ -157,13 +157,13 @@ function handleOpenProfile(userId: string) {
         </transition>
 
         <!-- Loading State -->
-        <div v-if="messageStore.loading" class="text-center text-text-3 py-sp-7">
+        <div v-if="messageStore.loading" class="text-center text-text-3 py-6">
             <div class="animate-spin w-8 h-8 border-2 border-brand border-t-transparent rounded-full mx-auto mb-sp-2"></div>
             <p>Loading messages...</p>
         </div>
 
         <!-- Empty State -->
-        <div v-else-if="messages.length === 0" class="text-center text-text-3 py-sp-7">
+        <div v-else-if="messages.length === 0" class="text-center text-text-3 py-6">
             <p class="text-lg font-medium text-text-1">This is the start of the channel.</p>
             <p class="text-sm mt-sp-2">Send a message to start the conversation.</p>
         </div>
@@ -174,7 +174,7 @@ function handleOpenProfile(userId: string) {
                 <!-- New Messages Divider -->
                 <div 
                     v-if="readState?.first_unread_message_id && Number(msg.seq) === Number(readState.first_unread_message_id)" 
-                    class="flex items-center my-sp-6 py-sp-2"
+                    class="flex items-center my-4 py-1.5"
                 >
                     <div class="flex-1 h-px bg-rose-500/30"></div>
                     <div class="px-sp-3 flex items-center space-x-sp-2">

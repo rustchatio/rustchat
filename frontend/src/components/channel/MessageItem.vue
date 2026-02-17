@@ -220,7 +220,7 @@ async function toggleReaction(emoji: string) {
 
 <template>
   <!-- System Message -->
-  <div v-if="isSystemMessage" class="flex items-center px-5 py-1 -mx-5 hover:bg-surface-dim dark:hover:bg-gray-800/40 transition-standard">
+  <div v-if="isSystemMessage" class="flex items-center px-3 py-0.5 -mx-3 hover:bg-surface-dim dark:hover:bg-gray-800/40 transition-standard">
     <div class="flex items-center text-xs text-gray-500 dark:text-gray-400 italic w-full">
         <ArrowRight class="w-3.5 h-3.5 mr-2 text-gray-400" />
         <span v-html="formattedContent"></span>
@@ -231,14 +231,14 @@ async function toggleReaction(emoji: string) {
   </div>
 
   <!-- Video Call Message -->
-  <div v-else-if="isVideoCall" class="flex items-start group px-5 py-2 hover:bg-surface-dim dark:hover:bg-gray-800/40 -mx-5 transition-standard relative">
+  <div v-else-if="isVideoCall" class="flex items-start group px-3 py-1.5 hover:bg-surface-dim dark:hover:bg-gray-800/40 -mx-3 transition-standard relative">
     <div class="shrink-0 select-none mr-3 mt-1">
       <RcAvatar
         :userId="message.userId"
         :src="message.avatarUrl"
         :username="message.username"
         size="md"
-        class="w-9 h-9 rounded-md"
+        class="w-8 h-8 rounded-md"
       />
     </div>
     <div class="flex-1 min-w-0">
@@ -246,7 +246,7 @@ async function toggleReaction(emoji: string) {
             <span class="font-bold text-[15px] leading-tight text-gray-900 dark:text-gray-100 mr-2">{{ message.username }}</span>
             <span class="text-[11px] text-gray-500 font-medium tracking-tight">{{ format(new Date(message.timestamp), 'h:mm a') }}</span>
         </div>
-        <div class="bg-surface-dim dark:bg-slate-800/50 border border-border-dim dark:border-slate-700/50 rounded-xl p-4 inline-flex flex-col max-w-sm shadow-sm transition-all hover:border-primary/30">
+        <div class="bg-surface-dim dark:bg-slate-800/50 border border-border-dim dark:border-slate-700/50 rounded-xl p-3 inline-flex flex-col max-w-sm shadow-sm transition-all hover:border-primary/30">
             <div class="flex items-center gap-3 mb-3">
                 <div class="w-10 h-10 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center">
                     <Video class="w-5 h-5 text-green-600 dark:text-green-400" />
@@ -276,7 +276,7 @@ async function toggleReaction(emoji: string) {
   </div>
 
   <!-- mattermost calls plugin messages -->
-  <div v-else-if="isCallsProtocol" class="flex items-center px-5 py-1.5 -mx-5 hover:bg-surface-dim dark:hover:bg-gray-800/40 transition-standard group">
+  <div v-else-if="isCallsProtocol" class="flex items-center px-3 py-1 -mx-3 hover:bg-surface-dim dark:hover:bg-gray-800/40 transition-standard group">
     <div class="flex items-center text-[13px] text-gray-500 dark:text-gray-400 w-full">
         <div class="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center mr-3 shrink-0">
             <Phone class="w-4 h-4 text-blue-600 dark:text-blue-400" v-if="!message.props?.end_at" />
@@ -298,7 +298,7 @@ async function toggleReaction(emoji: string) {
     v-else
     class="flex items-start group transition-standard relative border-l-2 border-transparent"
     :class="[
-        uiStore.density === 'compact' ? 'py-sp-2' : 'py-sp-3',
+        uiStore.density === 'compact' ? 'py-1' : 'py-1.5',
         isMentioned ? 'bg-brand/5 border-l-brand' : 'hover:bg-bg-app border-l-transparent',
         { 
             'opacity-70': message.status === 'sending',
@@ -312,7 +312,7 @@ async function toggleReaction(emoji: string) {
     <div v-if="isMentioned" class="absolute left-0 top-0 bottom-0 w-1 bg-yellow-600"></div>
 
     <!-- Avatar -->
-    <div class="shrink-0 select-none mr-sp-3 mt-sp-1 cursor-pointer" @click="openUserProfile">
+    <div class="shrink-0 select-none mr-2 mt-0.5 cursor-pointer" @click="openUserProfile">
       <RcAvatar 
         :userId="message.userId"
         :src="message.avatarUrl" 
@@ -324,7 +324,7 @@ async function toggleReaction(emoji: string) {
 
     <div class="flex-1 min-w-0">
       <!-- Header -->
-      <div class="flex items-baseline mb-sp-1 space-x-sp-2">
+      <div class="flex items-baseline mb-0.5 space-x-1.5">
         <span 
           class="font-semibold text-sm leading-tight text-text-1 hover:underline cursor-pointer transition-colors hover:text-brand"
           @click="openUserProfile"
@@ -382,14 +382,14 @@ async function toggleReaction(emoji: string) {
 
       <div v-else class="relative group/content block">
         <div 
-          class="text-text-1 text-base mt-0.5 whitespace-pre-wrap leading-base max-w-[90%] break-words selection:bg-brand/20"
+          class="text-text-1 text-chat-base mt-0.5 whitespace-pre-wrap leading-normal max-w-[95%] break-words selection:bg-brand/20"
           :class="{ 'bg-yellow-50/50 dark:bg-yellow-900/10 -mx-2 px-2 py-1 rounded': isMentioned }"
           v-html="formattedContent"
         ></div>
 
       </div>
 
-      <div v-if="message.files && message.files.length > 0" class="mt-2 flex flex-wrap gap-2">
+      <div v-if="message.files && message.files.length > 0" class="mt-1.5 flex flex-wrap gap-1.5">
         <FilePreview
           v-for="file in message.files"
           :key="file.id"
@@ -399,7 +399,7 @@ async function toggleReaction(emoji: string) {
       </div>
       
       <!-- Thread Reply Count -->
-      <div v-if="message.threadCount && message.threadCount > 0" class="mt-2">
+      <div v-if="message.threadCount && message.threadCount > 0" class="mt-1.5">
         <button
           @click.stop="handleReply"
           class="flex items-center space-x-2 px-2 py-1 -ml-1 rounded-md hover:bg-blue-50 dark:hover:bg-blue-900/20 group/thread border border-transparent hover:border-blue-100 dark:hover:border-blue-800 transition-all"
@@ -420,7 +420,7 @@ async function toggleReaction(emoji: string) {
       </div>
 
       <!-- Reactions (Bottom Alignment) -->
-      <div v-if="message.reactions && message.reactions.length > 0 && !isEditing" class="flex items-center mt-2 space-x-1.5 flex-wrap">
+      <div v-if="message.reactions && message.reactions.length > 0 && !isEditing" class="flex items-center mt-1.5 space-x-1.5 flex-wrap">
         <div 
           v-for="reaction in message.reactions" 
           :key="reaction.emoji"
@@ -437,7 +437,7 @@ async function toggleReaction(emoji: string) {
     <!-- Hover Actions -->
     <div 
       v-show="showActions && !isEditing"
-      class="absolute left-14 bottom-0 translate-y-1/2 flex items-center bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-md z-10 px-1 py-0.5 transition-all duration-200 scale-95 origin-left hover:scale-100"
+      class="absolute left-12 bottom-0 translate-y-1/2 flex items-center bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-md z-10 px-1 py-0.5 transition-all duration-200 scale-95 origin-left hover:scale-100"
     >
       <!-- Quick Reactions -->
       <div class="flex items-center border-r border-gray-100 dark:border-gray-700 pr-1 mr-1">
@@ -507,13 +507,6 @@ async function toggleReaction(emoji: string) {
             {{ message.isPinned ? 'Unpin from channel' : 'Pin to channel' }}
           </button>
           <button
-            @click="handleMarkAsUnread"
-            class="w-full px-3 py-1.5 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"
-          >
-            <Check class="w-4 h-4 mr-2" />
-            Mark as unread
-          </button>
-          <button 
             @click="handleMarkAsUnread"
             class="w-full px-3 py-1.5 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"
           >

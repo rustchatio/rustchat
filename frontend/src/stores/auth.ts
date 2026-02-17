@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import { useStorage } from '@vueuse/core'
 import client from '../api/client'
 import { useRouter } from 'vue-router'
+import { useThemeStore } from './theme'
 
 export const useAuthStore = defineStore('auth', () => {
     const token = useStorage('auth_token', '')
@@ -42,6 +43,8 @@ export const useAuthStore = defineStore('auth', () => {
                 data.status_expires_at = data.custom_status.expires_at
             }
             user.value = data
+            const themeStore = useThemeStore()
+            await themeStore.syncFromServer()
         } catch (e) {
             logout()
         }

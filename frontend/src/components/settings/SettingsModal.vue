@@ -1,12 +1,20 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { X, User, Camera, LogOut, Activity, Sliders, Check } from 'lucide-vue-next'
 import BaseButton from '../atomic/BaseButton.vue'
 import BaseInput from '../atomic/BaseInput.vue'
-import ThemeToggle from '../ui/ThemeToggle.vue'
 import { useAuthStore } from '../../stores/auth'
 import { usersApi } from '../../api/users'
 import { filesApi } from '../../api/files'
+import {
+    useThemeStore,
+    THEME_OPTIONS,
+    FONT_OPTIONS,
+    FONT_SIZE_OPTIONS,
+    type ChatFont,
+    type ChatFontSize,
+    type Theme,
+} from '../../stores/theme'
 
 const props = defineProps<{
   isOpen: boolean
@@ -15,11 +23,14 @@ const props = defineProps<{
 const emit = defineEmits(['close'])
 
 const auth = useAuthStore()
+const themeStore = useThemeStore()
 const activeTab = ref('settings')
 const loading = ref(false)
 const error = ref('')
 const success = ref('')
 const fileInput = ref<HTMLInputElement | null>(null)
+const showFontDropdown = ref(false)
+const fontSearch = ref('')
 
 // Profile form fields
 const username = ref('')
@@ -49,6 +60,53 @@ const presenceOptions = [
   { id: 'offline', label: 'Offline', color: 'bg-gray-400' },
 ]
 
+const themes = THEME_OPTIONS
+const fonts = FONT_OPTIONS
+const fontSizes = FONT_SIZE_OPTIONS
+
+const selectedTheme = computed(() => themeStore.theme)
+const selectedFont = computed(() => themeStore.chatFont)
+const selectedFontSize = computed(() => themeStore.chatFontSize)
+const selectedFontLabel = computed(
+    () => fonts.find((font) => font.id === themeStore.chatFont)?.label || 'Inter',
+)
+
+const filteredFonts = computed(() => {
+    const query = fontSearch.value.trim().toLowerCase()
+    if (!query) return fonts
+    return fonts.filter((font) => font.label.toLowerCase().includes(query))
+})
+
+const selectedFontSizeIndex = computed({
+    get: () => {
+        const idx = fontSizes.indexOf(themeStore.chatFontSize)
+        return idx >= 0 ? idx : 1
+    },
+    set: (index: number) => {
+        const safeIndex = Math.max(0, Math.min(fontSizes.length - 1, Number(index)))
+        const size = fontSizes[safeIndex]
+        themeStore.setChatFontSize(size as ChatFontSize)
+    },
+})
+
+function setThemeChoice(theme: Theme) {
+    themeStore.setTheme(theme)
+}
+
+function setFontChoice(font: ChatFont) {
+    themeStore.setChatFont(font)
+    showFontDropdown.value = false
+    fontSearch.value = ''
+}
+
+function setFontSizeChoice(size: ChatFontSize) {
+    themeStore.setChatFontSize(size)
+}
+
+function optionFontStyle(cssVar: string) {
+    return { fontFamily: cssVar }
+}
+
 // Fetch auth policy
 async function fetchPolicy() {
     try {
@@ -75,6 +133,8 @@ watch(() => props.isOpen, (isOpen) => {
     
     // Fetch policy if not loaded
     if (!passwordPolicy.value) fetchPolicy()
+    showFontDropdown.value = false
+    fontSearch.value = ''
   }
 })
 
@@ -361,12 +421,94 @@ function requestNotifications() {
 
                 <!-- Preferences Tab -->
                 <div v-else-if="activeTab === 'preferences'" class="space-y-6">
-                    <div class="flex items-center justify-between py-4 px-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
+                    <div class="rounded-lg border border-border-1 bg-bg-surface-1 p-4 space-y-4">
                         <div>
-                            <h4 class="text-base font-medium text-gray-900 dark:text-white">Theme</h4>
-                            <p class="text-sm text-gray-500">Choose your preferred theme</p>
+                            <h4 class="text-sm font-semibold text-text-1">Theme Palette</h4>
+                            <p class="text-xs text-text-3">Select one of 8 app skins.</p>
                         </div>
-                        <ThemeToggle />
+
+                        <div class="grid grid-cols-4 gap-2">
+                            <button
+                                v-for="theme in themes"
+                                :key="theme.id"
+                                type="button"
+                                @click="setThemeChoice(theme.id)"
+                                class="flex flex-col items-center gap-1.5 py-1.5 transition-standard"
+                            >
+                                <span class="relative h-10 w-10 rounded-full border bg-bg-surface-1 overflow-hidden transition-standard"
+                                    :class="selectedTheme === theme.id ? 'border-brand ring-2 ring-brand/35 shadow-theme' : 'border-border-2 hover:border-border-1'">
+                                    <span class="absolute left-0 top-0 h-full w-1/2" :style="{ backgroundColor: theme.swatches.primary }"></span>
+                                    <span class="absolute right-0 top-0 h-1/2 w-1/2" :style="{ backgroundColor: theme.swatches.accent }"></span>
+                                    <span class="absolute right-0 bottom-0 h-1/2 w-1/2" :style="{ backgroundColor: theme.swatches.background }"></span>
+                                </span>
+                                <span class="text-[10px] font-medium text-text-2 text-center leading-tight">{{ theme.label }}</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="rounded-lg border border-border-1 bg-bg-surface-1 p-4 space-y-3 relative">
+                        <div>
+                            <h4 class="text-sm font-semibold text-text-1">Chat Font</h4>
+                            <p class="text-xs text-text-3">Search and preview the typeface before selecting.</p>
+                        </div>
+
+                        <button
+                            type="button"
+                            class="w-full rounded-lg border border-border-1 bg-bg-surface-2 px-3 py-2 text-left text-sm text-text-1 transition-standard hover:border-border-2"
+                            @click="showFontDropdown = !showFontDropdown"
+                            :style="optionFontStyle(fonts.find((f) => f.id === selectedFont)?.cssVar || 'var(--font-inter)')"
+                        >
+                            {{ selectedFontLabel }}
+                        </button>
+
+                        <div v-if="showFontDropdown" class="fixed inset-0 z-10" @click="showFontDropdown = false"></div>
+                        <div v-if="showFontDropdown" class="absolute left-4 right-4 top-[118px] z-20 rounded-lg border border-border-1 bg-bg-surface-1 shadow-theme p-2 space-y-2">
+                            <input
+                                v-model="fontSearch"
+                                type="text"
+                                placeholder="Search fonts..."
+                                class="w-full rounded-md border border-border-1 bg-bg-surface-2 px-2.5 py-1.5 text-xs text-text-1 placeholder:text-text-3 outline-none focus:ring-2 focus:ring-brand/25"
+                            />
+                            <div class="max-h-44 overflow-y-auto space-y-1 custom-scrollbar pr-1">
+                                <button
+                                    v-for="font in filteredFonts"
+                                    :key="font.id"
+                                    type="button"
+                                    class="w-full rounded-md px-2.5 py-1.5 text-left text-sm text-text-1 hover:bg-bg-surface-2 transition-standard"
+                                    :style="optionFontStyle(font.cssVar)"
+                                    @click="setFontChoice(font.id)"
+                                >
+                                    {{ font.label }}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="rounded-lg border border-border-1 bg-bg-surface-1 p-4 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <h4 class="text-sm font-semibold text-text-1">Text Density / Size</h4>
+                            <span class="text-xs font-medium text-text-2">{{ selectedFontSize }}px</span>
+                        </div>
+                        <input
+                            v-model="selectedFontSizeIndex"
+                            type="range"
+                            min="0"
+                            :max="fontSizes.length - 1"
+                            step="1"
+                            class="w-full accent-brand"
+                        />
+                        <div class="grid grid-cols-5 gap-2">
+                            <button
+                                v-for="size in fontSizes"
+                                :key="size"
+                                type="button"
+                                class="rounded-md border px-1.5 py-1 text-[11px] font-medium transition-standard"
+                                :class="selectedFontSize === size ? 'border-brand bg-brand/10 text-brand' : 'border-border-1 text-text-2 hover:border-border-2'"
+                                @click="setFontSizeChoice(size)"
+                            >
+                                {{ size }}px
+                            </button>
+                        </div>
                     </div>
 
                     <h4 class="text-sm font-semibold text-gray-900 dark:text-white uppercase tracking-wider border-b border-gray-200 dark:border-gray-700 pb-2 mt-8">Notifications</h4>

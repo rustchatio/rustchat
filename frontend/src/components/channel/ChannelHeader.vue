@@ -132,14 +132,14 @@ const handleLeave = async () => {
 </script>
 
 <template>
-  <header class="h-16 flex items-center justify-between px-6 shrink-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-gray-200/50 dark:border-white/5 sticky top-0 z-10 transition-colors duration-300">
+  <header class="h-12 flex items-center justify-between px-4 shrink-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-gray-200/50 dark:border-white/5 sticky top-0 z-10 transition-colors duration-300">
     <div class="flex flex-col justify-center min-w-0">
         <div class="flex items-center">
             <component 
               :is="channelType === 'private' ? Lock : Hash" 
-              class="w-5 h-5 text-indigo-500 mr-2" 
+              class="w-4 h-4 text-indigo-500 mr-1.5" 
             />
-            <h1 class="font-bold text-lg text-gray-900 dark:text-white tracking-tight truncate">{{ name }}</h1>
+            <h1 class="font-bold text-base text-gray-900 dark:text-white tracking-tight truncate">{{ name }}</h1>
         </div>
         <div v-if="topic" class="text-xs text-gray-500 dark:text-gray-400 truncate max-w-lg mt-0.5 font-medium">
             {{ topic }}
@@ -149,81 +149,81 @@ const handleLeave = async () => {
     <div class="flex items-center space-x-1 text-gray-400 dark:text-gray-400 shrink-0">
         <button 
           @click="toggleView('members')"
-          class="w-9 h-9 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-white/5 rounded-full transition-all duration-200"
+            class="w-8 h-8 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-white/5 rounded-full transition-all duration-200"
           :class="{ 'bg-gray-100 dark:bg-white/5 text-slate-900 dark:text-white': uiStore.rhsView === 'members' }"
           title="Members"
         >
-            <Users class="w-4.5 h-4.5" />
+            <Users class="w-4 h-4" />
         </button>
         
-        <div class="w-px h-5 bg-gray-200 dark:bg-white/10 mx-2"></div>
+        <div class="w-px h-4 bg-gray-200 dark:bg-white/10 mx-1.5"></div>
 
         <!-- Native Audio Call Button -->
         <button 
           v-if="hasActiveCall && !isInCurrentCall"
           @click="joinExistingCall"
-          class="w-9 h-9 flex items-center justify-center bg-green-500/20 text-green-600 dark:text-green-400 hover:bg-green-500/30 rounded-full transition-all duration-200 animate-pulse"
+          class="w-8 h-8 flex items-center justify-center bg-green-500/20 text-green-600 dark:text-green-400 hover:bg-green-500/30 rounded-full transition-all duration-200 animate-pulse"
           title="Join active call"
         >
-            <PhoneCall class="w-4.5 h-4.5" />
+            <PhoneCall class="w-4 h-4" />
         </button>
         <button 
           v-else-if="isInCurrentCall"
           @click="callsStore.isExpanded = true"
-          class="w-9 h-9 flex items-center justify-center bg-green-500/20 text-green-600 dark:text-green-400 hover:bg-green-500/30 rounded-full transition-all duration-200"
+          class="w-8 h-8 flex items-center justify-center bg-green-500/20 text-green-600 dark:text-green-400 hover:bg-green-500/30 rounded-full transition-all duration-200"
           title="Show call"
         >
-            <Phone class="w-4.5 h-4.5" />
+            <Phone class="w-4 h-4" />
         </button>
         <button 
           v-else
           @click="startNativeCall"
-          class="w-9 h-9 flex items-center justify-center hover:bg-green-50 dark:hover:bg-green-500/10 text-green-600 dark:text-green-400 rounded-full transition-all duration-200"
+          class="w-8 h-8 flex items-center justify-center hover:bg-green-50 dark:hover:bg-green-500/10 text-green-600 dark:text-green-400 rounded-full transition-all duration-200"
           title="Start audio call"
         >
-            <Phone class="w-4.5 h-4.5" />
+            <Phone class="w-4 h-4" />
         </button>
 
         <!-- MiroTalk Video Call Button -->
         <button 
           v-if="configStore.siteConfig.mirotalk_enabled"
           @click="startCall"
-          class="w-9 h-9 flex items-center justify-center hover:bg-blue-50 dark:hover:bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-full transition-all duration-200"
+          class="w-8 h-8 flex items-center justify-center hover:bg-blue-50 dark:hover:bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-full transition-all duration-200"
           title="Start video call"
         >
-            <PhoneCall class="w-4.5 h-4.5" />
+            <PhoneCall class="w-4 h-4" />
         </button>
         <button 
           @click="toggleView('search')"
-          class="w-9 h-9 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-full transition-all duration-200"
+          class="w-8 h-8 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-full transition-all duration-200"
           :class="{ 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white': uiStore.rhsView === 'search' }"
           title="Search"
         >
-            <Search class="w-4.5 h-4.5" />
+            <Search class="w-4 h-4" />
         </button>
         <button 
           @click="toggleView('pinned')"
-          class="w-9 h-9 flex items-center justify-center hover:bg-indigo-50 dark:hover:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-full transition-all duration-200"
+          class="w-8 h-8 flex items-center justify-center hover:bg-indigo-50 dark:hover:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-full transition-all duration-200"
           :class="{ 'bg-indigo-50 dark:bg-indigo-500/10': uiStore.rhsView === 'pinned' }"
           title="Pinned items"
         >
-            <Pin class="w-4.5 h-4.5" />
+            <Pin class="w-4 h-4" />
         </button>
         <button 
           @click="toggleView('saved')"
-          class="w-9 h-9 flex items-center justify-center hover:bg-amber-50 dark:hover:bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-full transition-all duration-200"
+          class="w-8 h-8 flex items-center justify-center hover:bg-amber-50 dark:hover:bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-full transition-all duration-200"
           :class="{ 'bg-amber-50 dark:bg-amber-500/10': uiStore.rhsView === 'saved' }"
           title="Saved items"
         >
-            <Bookmark class="w-4.5 h-4.5" />
+            <Bookmark class="w-4 h-4" />
         </button>
         <div class="relative">
              <button 
               @click="showMenu = !showMenu"
-              class="w-9 h-9 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-white/5 rounded-full transition-all duration-200"
+              class="w-8 h-8 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-white/5 rounded-full transition-all duration-200"
               title="More options"
             >
-                <MoreVertical class="w-4.5 h-4.5" />
+                <MoreVertical class="w-4 h-4" />
             </button>
             
             <div 

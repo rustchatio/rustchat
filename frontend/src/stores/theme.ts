@@ -16,10 +16,10 @@ export type ChatFont =
     | 'figtree'
     | 'jetbrains-mono'
     | 'quicksand'
+    | 'montserrat'
     | 'source-sans-3'
     | 'nunito'
     | 'manrope'
-    | 'public-sans'
     | 'work-sans'
     | 'ibm-plex-sans'
 
@@ -45,10 +45,10 @@ export const FONT_OPTIONS: Array<{ id: ChatFont; label: string; cssVar: string }
     { id: 'figtree', label: 'Figtree', cssVar: 'var(--font-figtree)' },
     { id: 'jetbrains-mono', label: 'JetBrains Mono', cssVar: 'var(--font-jetbrains-mono)' },
     { id: 'quicksand', label: 'Quicksand', cssVar: 'var(--font-quicksand)' },
+    { id: 'montserrat', label: 'Montserrat', cssVar: 'var(--font-montserrat)' },
     { id: 'source-sans-3', label: 'Source Sans 3', cssVar: 'var(--font-source-sans-3)' },
     { id: 'nunito', label: 'Nunito', cssVar: 'var(--font-nunito)' },
     { id: 'manrope', label: 'Manrope', cssVar: 'var(--font-manrope)' },
-    { id: 'public-sans', label: 'Public Sans', cssVar: 'var(--font-public-sans)' },
     { id: 'work-sans', label: 'Work Sans', cssVar: 'var(--font-work-sans)' },
     { id: 'ibm-plex-sans', label: 'IBM Plex Sans', cssVar: 'var(--font-ibm-plex-sans)' },
 ]
@@ -58,6 +58,13 @@ export const FONT_SIZE_OPTIONS: ChatFontSize[] = [13, 14, 16, 18, 20]
 const STORAGE_THEME = 'theme'
 const STORAGE_FONT = 'chat_font'
 const STORAGE_FONT_SIZE = 'chat_font_size'
+const AUTH_TOKEN_KEY = 'auth_token'
+
+const SERVER_PREFERENCE_URL = '/api/v4/users/me/preferences'
+const SERVER_PREFERENCE_CATEGORY = 'rustchat_display'
+const SERVER_PREFERENCE_THEME = 'theme'
+const SERVER_PREFERENCE_FONT = 'font'
+const SERVER_PREFERENCE_FONT_SIZE = 'font_size'
 
 const DARK_THEME_SET = new Set<Theme>(['dark', 'futuristic', 'high-contrast', 'dynamic'])
 
@@ -93,6 +100,73 @@ function normalizeFontSize(value: string | null): ChatFontSize {
     return 14
 }
 
+type MmPreference = {
+    user_id: string
+    category: string
+    name: string
+    value: string
+}
+
+type ServerAppearancePreferences = {
+    theme?: Theme
+    font?: ChatFont
+    fontSize?: ChatFontSize
+}
+
+function getAuthToken(): string {
+    if (typeof window === 'undefined') {
+        return ''
+    }
+    return localStorage.getItem(AUTH_TOKEN_KEY) || ''
+}
+
+function buildPreferencePayload(theme: Theme, font: ChatFont, fontSize: ChatFontSize): MmPreference[] {
+    return [
+        {
+            user_id: 'me',
+            category: SERVER_PREFERENCE_CATEGORY,
+            name: SERVER_PREFERENCE_THEME,
+            value: theme,
+        },
+        {
+            user_id: 'me',
+            category: SERVER_PREFERENCE_CATEGORY,
+            name: SERVER_PREFERENCE_FONT,
+            value: font,
+        },
+        {
+            user_id: 'me',
+            category: SERVER_PREFERENCE_CATEGORY,
+            name: SERVER_PREFERENCE_FONT_SIZE,
+            value: String(fontSize),
+        },
+    ]
+}
+
+function parseServerAppearancePreferences(rows: unknown): ServerAppearancePreferences {
+    if (!Array.isArray(rows)) {
+        return {}
+    }
+
+    const prefs = rows as MmPreference[]
+    const getValue = (name: string) =>
+        prefs.find((p) => p.category === SERVER_PREFERENCE_CATEGORY && p.name === name)?.value
+
+    const rawTheme = getValue(SERVER_PREFERENCE_THEME)
+    const rawFont = getValue(SERVER_PREFERENCE_FONT)
+    const rawFontSize = getValue(SERVER_PREFERENCE_FONT_SIZE)
+
+    return {
+        theme: isTheme(rawTheme) ? rawTheme : undefined,
+        font: isChatFont(rawFont) ? rawFont : undefined,
+        fontSize:
+            typeof rawFontSize === 'string' &&
+            FONT_SIZE_OPTIONS.includes(Number(rawFontSize) as ChatFontSize)
+                ? (Number(rawFontSize) as ChatFontSize)
+                : undefined,
+    }
+}
+
 export const useThemeStore = defineStore('theme', () => {
     const initialTheme =
         typeof window !== 'undefined' ? normalizeTheme(localStorage.getItem(STORAGE_THEME)) : 'light'
@@ -106,6 +180,7 @@ export const useThemeStore = defineStore('theme', () => {
     const theme = ref<Theme>(initialTheme)
     const chatFont = ref<ChatFont>(initialFont)
     const chatFontSize = ref<ChatFontSize>(initialFontSize)
+    const syncedServerToken = ref<string | null>(null)
 
     function applyTheme() {
         if (typeof window === 'undefined') {
@@ -136,6 +211,77 @@ export const useThemeStore = defineStore('theme', () => {
         applyTypography()
     }
 
+    async function persistToServer() {
+        if (typeof window === 'undefined') {
+            return
+        }
+
+        const token = getAuthToken()
+        if (!token) {
+            return
+        }
+
+        const payload = buildPreferencePayload(theme.value, chatFont.value, chatFontSize.value)
+
+        try {
+            await fetch(SERVER_PREFERENCE_URL, {
+                method: 'PUT',
+                headers: {
+                    Authorization: `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(payload),
+            })
+        } catch (error) {
+            console.debug('Failed to persist appearance preferences to server', error)
+        }
+    }
+
+    async function syncFromServer(force = false) {
+        if (typeof window === 'undefined') {
+            return
+        }
+
+        const token = getAuthToken()
+        if (!token) {
+            syncedServerToken.value = null
+            return
+        }
+        if (!force && syncedServerToken.value === token) {
+            return
+        }
+
+        try {
+            const response = await fetch(SERVER_PREFERENCE_URL, {
+                headers: { Authorization: `Bearer ${token}` },
+            })
+            if (!response.ok) {
+                return
+            }
+
+            const rows = await response.json()
+            const serverPrefs = parseServerAppearancePreferences(rows)
+
+            if (serverPrefs.theme) {
+                theme.value = serverPrefs.theme
+                localStorage.setItem(STORAGE_THEME, serverPrefs.theme)
+            }
+            if (serverPrefs.font) {
+                chatFont.value = serverPrefs.font
+                localStorage.setItem(STORAGE_FONT, serverPrefs.font)
+            }
+            if (serverPrefs.fontSize) {
+                chatFontSize.value = serverPrefs.fontSize
+                localStorage.setItem(STORAGE_FONT_SIZE, String(serverPrefs.fontSize))
+            }
+
+            applyAppearance()
+            syncedServerToken.value = token
+        } catch (error) {
+            console.debug('Failed to sync appearance preferences from server', error)
+        }
+    }
+
     function setTheme(newTheme: Theme | 'system' | 'light' | 'dark') {
         const normalized = newTheme === 'system' ? normalizeTheme('system') : normalizeTheme(newTheme)
         theme.value = normalized
@@ -143,6 +289,7 @@ export const useThemeStore = defineStore('theme', () => {
             localStorage.setItem(STORAGE_THEME, normalized)
         }
         applyTheme()
+        void persistToServer()
     }
 
     function setChatFont(newFont: ChatFont) {
@@ -155,6 +302,7 @@ export const useThemeStore = defineStore('theme', () => {
             localStorage.setItem(STORAGE_FONT, newFont)
         }
         applyTypography()
+        void persistToServer()
     }
 
     function setChatFontSize(newSize: ChatFontSize) {
@@ -167,6 +315,7 @@ export const useThemeStore = defineStore('theme', () => {
             localStorage.setItem(STORAGE_FONT_SIZE, String(newSize))
         }
         applyTypography()
+        void persistToServer()
     }
 
     if (typeof window !== 'undefined') {
@@ -182,5 +331,6 @@ export const useThemeStore = defineStore('theme', () => {
         setChatFontSize,
         applyTheme,
         applyAppearance,
+        syncFromServer,
     }
 })

@@ -4,10 +4,14 @@
 @theme {
   /* Variable-driven color tokens */
   --color-primary: var(--theme-primary);
+  --color-secondary: var(--theme-secondary);
   --color-accent: var(--theme-accent);
   --color-surface: var(--theme-surface);
   --color-text: var(--theme-text);
   --color-background: var(--theme-bg);
+  --color-bg-main: var(--theme-bg);
+  --color-bg-sidebar: var(--theme-surface-muted);
+  --color-text-base: var(--theme-text);
 
   /* Existing design-system token names used across the app */
   --color-bg-app: var(--bg-app);
@@ -63,10 +67,10 @@
     --font-figtree: "Figtree", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
     --font-jetbrains-mono: "JetBrains Mono", "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
     --font-quicksand: "Quicksand", "Avenir Next", "Segoe UI", sans-serif;
+    --font-montserrat: "Montserrat", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
     --font-source-sans-3: "Source Sans 3", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
     --font-nunito: "Nunito", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
     --font-manrope: "Manrope", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
-    --font-public-sans: "Public Sans", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
     --font-work-sans: "Work Sans", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
     --font-ibm-plex-sans: "IBM Plex Sans", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
 
@@ -87,6 +91,7 @@
 
     --theme-primary: #2563eb;
     --theme-primary-hover: #1d4ed8;
+    --theme-secondary: #1e40af;
     --theme-accent: #0ea5e9;
 
     --theme-danger: #dc2626;
@@ -111,11 +116,11 @@
     --r-3: 16px;
 
     /* Message Layout */
-    --msg-max-width: 860px;
-    --msg-gutter: 16px;
-    --msg-v-p-comfort: 12px;
-    --msg-v-p-compact: 8px;
-    --avatar-size: 32px;
+    --msg-max-width: 1040px;
+    --msg-gutter: 12px;
+    --msg-v-p-comfort: 9px;
+    --msg-v-p-compact: 6px;
+    --avatar-size: 30px;
   }
 
   :root,
@@ -155,6 +160,18 @@
 
   html[data-theme='light'] {
     color-scheme: light;
+    --theme-bg: #edf2fa;
+    --theme-surface: #ffffff;
+    --theme-surface-muted: #e2e8f3;
+    --theme-text: #0b1220;
+    --theme-text-muted: #1f2a3d;
+    --theme-text-soft: #475569;
+    --theme-border: #cbd5e1;
+    --theme-border-strong: #aeb9cb;
+    --theme-primary: #1d4ed8;
+    --theme-secondary: #1e3a8a;
+    --theme-primary-hover: #1e40af;
+    --theme-accent: #0284c7;
   }
 
   html[data-theme='dark'] {
@@ -168,6 +185,7 @@
     --theme-border: #23314e;
     --theme-border-strong: #334869;
     --theme-primary: #38bdf8;
+    --theme-secondary: #0f766e;
     --theme-primary-hover: #0ea5e9;
     --theme-accent: #22d3ee;
     --theme-danger: #f87171;
@@ -188,6 +206,7 @@
     --theme-border: #cfe3de;
     --theme-border-strong: #b8d3cc;
     --theme-primary: #0f766e;
+    --theme-secondary: #155e75;
     --theme-primary-hover: #0d5f59;
     --theme-accent: #14b8a6;
     --theme-danger: #dc2626;
@@ -208,6 +227,7 @@
     --theme-border: #b7c1cc;
     --theme-border-strong: #94a3b8;
     --theme-primary: #475569;
+    --theme-secondary: #1f2937;
     --theme-primary-hover: #334155;
     --theme-accent: #d97706;
     --theme-danger: #b91c1c;
@@ -228,6 +248,7 @@
     --theme-border: #1e293b;
     --theme-border-strong: #334155;
     --theme-primary: #06b6d4;
+    --theme-secondary: #22c55e;
     --theme-primary-hover: #0891b2;
     --theme-accent: #22c55e;
     --theme-danger: #fb7185;
@@ -248,6 +269,7 @@
     --theme-border: #ffffff;
     --theme-border-strong: #ffffff;
     --theme-primary: #00e5ff;
+    --theme-secondary: #ffd400;
     --theme-primary-hover: #7df9ff;
     --theme-accent: #ffd400;
     --theme-danger: #ff4d4d;
@@ -268,6 +290,7 @@
     --theme-border: #e7e5e4;
     --theme-border-strong: #d6d3d1;
     --theme-primary: #0369a1;
+    --theme-secondary: #166534;
     --theme-primary-hover: #075985;
     --theme-accent: #16a34a;
     --theme-danger: #dc2626;
@@ -288,6 +311,7 @@
     --theme-border: #334155;
     --theme-border-strong: #475569;
     --theme-primary: #e11d48;
+    --theme-secondary: #f59e0b;
     --theme-primary-hover: #be123c;
     --theme-accent: #f59e0b;
     --theme-danger: #fb7185;

@@ -11,9 +11,9 @@ const channelStore = useChannelStore();
 </script>
 
 <template>
-  <aside class="w-[400px] bg-surface dark:bg-surface-dim border-l border-border-dim dark:border-white/5 flex flex-col shadow-2xl z-20 shrink-0 transition-all duration-300">
+  <aside class="w-[360px] bg-surface dark:bg-surface-dim border-l border-border-dim dark:border-white/5 flex flex-col shadow-2xl z-20 shrink-0 transition-all duration-300">
     <!-- Header -->
-    <div class="h-14 border-b border-border-dim dark:border-white/5 flex items-center justify-between px-4 shrink-0 bg-surface-dim dark:bg-surface-dim/50">
+    <div class="h-12 border-b border-border-dim dark:border-white/5 flex items-center justify-between px-3 shrink-0 bg-surface-dim dark:bg-surface-dim/50">
         <h3 class="font-bold text-[15px] text-gray-900 dark:text-gray-100 uppercase tracking-wider">
             <span v-if="ui.rhsView === 'thread'">Thread</span>
             <span v-else-if="ui.rhsView === 'search'">Search</span>
