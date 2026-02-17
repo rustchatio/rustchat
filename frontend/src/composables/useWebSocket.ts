@@ -6,6 +6,7 @@ import { useUnreadStore } from '../stores/unreads'
 import { useChannelStore } from '../stores/channels'
 import { useToast } from './useToast'
 import { postsApi, type Post } from '../api/posts'
+import { normalizeEntityId, normalizeIdsDeep } from '../utils/idCompat'
 
 // Server -> Client
 export interface WsEnvelope {
@@ -33,58 +34,6 @@ const reconnectAttempts = ref(0)
 const maxReconnectAttempts = 10
 const subscriptions = ref<Set<string>>(new Set())
 const listeners = ref<Record<string, Set<(data: any) => void>>>({})
-const MM_ID_ALPHABET = 'ybndrfg8ejkmcpqxot1uwisza345h769'
-const MM_ID_RE = /^[a-z0-9]{26}$/i
-const UUID_RE =
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-
-function normalizeEntityId(value: unknown): string | undefined {
-    if (typeof value !== 'string' || value.length === 0) {
-        return undefined
-    }
-
-    if (UUID_RE.test(value)) {
-        return value.toLowerCase()
-    }
-
-    const decoded = decodeMattermostId(value)
-    return decoded ?? value
-}
-
-function decodeMattermostId(id: string): string | null {
-    if (!MM_ID_RE.test(id)) {
-        return null
-    }
-
-    let buffer = 0
-    let bits = 0
-    const bytes: number[] = []
-    const lower = id.toLowerCase()
-
-    for (let i = 0; i < lower.length; i++) {
-        const value = MM_ID_ALPHABET.indexOf(lower[i]!)
-        if (value < 0) {
-            return null
-        }
-        buffer = (buffer << 5) | value
-        bits += 5
-
-        while (bits >= 8) {
-            bytes.push((buffer >> (bits - 8)) & 0xff)
-            bits -= 8
-        }
-    }
-
-    if (bytes.length < 16) {
-        return null
-    }
-
-    const hex = bytes
-        .slice(0, 16)
-        .map((b) => b.toString(16).padStart(2, '0'))
-        .join('')
-    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`
-}
 
 function normalizeWsTimestamp(value: unknown, fallback: string): string {
     if (typeof value === 'number' && Number.isFinite(value)) {
@@ -125,37 +74,46 @@ function normalizeWsPost(data: any, envelopeChannelId?: string): Post | null {
     if (!rawPost || typeof rawPost.id !== 'string') {
         return null
     }
+    const normalizedRawPost = normalizeIdsDeep(rawPost) as Record<string, any>
 
     const fallbackTimestamp = new Date().toISOString()
-    const createdAt = normalizeWsTimestamp(rawPost.created_at ?? rawPost.create_at, fallbackTimestamp)
-    const updatedAt = normalizeWsTimestamp(rawPost.updated_at ?? rawPost.update_at, createdAt)
-    const postId = normalizeEntityId(rawPost.id) ?? rawPost.id
-    const channelId = normalizeEntityId(rawPost.channel_id)
+    const createdAt = normalizeWsTimestamp(normalizedRawPost.created_at ?? normalizedRawPost.create_at, fallbackTimestamp)
+    const updatedAt = normalizeWsTimestamp(normalizedRawPost.updated_at ?? normalizedRawPost.update_at, createdAt)
+    const postId = normalizeEntityId(normalizedRawPost.id) ?? normalizedRawPost.id
+    const channelId = normalizeEntityId(normalizedRawPost.channel_id)
         ?? normalizeEntityId(envelopeChannelId)
-        ?? rawPost.channel_id
+        ?? normalizedRawPost.channel_id
         ?? envelopeChannelId
-    const userId = normalizeEntityId(rawPost.user_id) ?? rawPost.user_id
-    const rootPostId = normalizeEntityId(rawPost.root_post_id ?? rawPost.root_id)
-        ?? rawPost.root_post_id
-        ?? rawPost.root_id
+    const userId = normalizeEntityId(normalizedRawPost.user_id) ?? normalizedRawPost.user_id
+    const rootPostId = normalizeEntityId(normalizedRawPost.root_post_id ?? normalizedRawPost.root_id)
+        ?? normalizedRawPost.root_post_id
+        ?? normalizedRawPost.root_id
 
     return {
-        ...rawPost,
+        ...normalizedRawPost,
         id: postId,
         channel_id: channelId,
         user_id: userId,
-        message: typeof rawPost.message === 'string' ? rawPost.message : '',
+        message: typeof normalizedRawPost.message === 'string' ? normalizedRawPost.message : '',
         root_post_id: rootPostId,
         root_id: rootPostId,
         created_at: createdAt,
         updated_at: updatedAt,
-        client_msg_id: rawPost.client_msg_id ?? rawPost.pending_post_id,
-        file_ids: Array.isArray(rawPost.file_ids)
-            ? rawPost.file_ids.map((id: unknown) => normalizeEntityId(id) ?? id)
+        client_msg_id: normalizedRawPost.client_msg_id ?? normalizedRawPost.pending_post_id,
+        file_ids: Array.isArray(normalizedRawPost.file_ids)
+            ? normalizedRawPost.file_ids.map((id: unknown) => normalizeEntityId(id) ?? id)
             : [],
-        is_pinned: typeof rawPost.is_pinned === 'boolean' ? rawPost.is_pinned : false,
-        seq: rawPost.seq ?? 0,
+        is_pinned: typeof normalizedRawPost.is_pinned === 'boolean' ? normalizedRawPost.is_pinned : false,
+        seq: normalizedRawPost.seq ?? 0,
     } as unknown as Post
+}
+
+function normalizeWsEnvelope(envelope: WsEnvelope): WsEnvelope {
+    return {
+        ...envelope,
+        channel_id: normalizeEntityId(envelope.channel_id) ?? envelope.channel_id,
+        data: normalizeIdsDeep(envelope.data),
+    }
 }
 
 export function useWebSocket() {
@@ -177,7 +135,8 @@ export function useWebSocket() {
 
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
         const host = window.location.host
-        const url = `${protocol}//${host}/api/v1/ws?token=${authStore.token}`
+        // Align with Mattermost mobile websocket endpoint semantics.
+        const url = `${protocol}//${host}/api/v4/websocket?token=${authStore.token}`
 
         try {
             // Pass token in protocols array as a fallback for browsers like Brave
@@ -235,7 +194,8 @@ export function useWebSocket() {
 
             socket.onmessage = (event) => {
                 try {
-                    const envelope: WsEnvelope = JSON.parse(event.data)
+                    const rawEnvelope: WsEnvelope = JSON.parse(event.data)
+                    const envelope = normalizeWsEnvelope(rawEnvelope)
                     handleMessage(envelope)
                 } catch (e) {
                     console.error('Failed to parse WebSocket message:', e)
