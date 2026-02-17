@@ -3,10 +3,19 @@ import { ref, computed } from 'vue';
 import { useAuthStore } from '../../stores/auth';
 import { Camera, Save, Trash2, ArrowLeft } from 'lucide-vue-next';
 import RcAvatar from '../../components/ui/RcAvatar.vue';
-import ThemeToggle from '../../components/ui/ThemeToggle.vue';
 import api from '../../api/client';
+import {
+    useThemeStore,
+    THEME_OPTIONS,
+    FONT_OPTIONS,
+    FONT_SIZE_OPTIONS,
+    type Theme,
+    type ChatFont,
+    type ChatFontSize,
+} from '../../stores/theme';
 
 const authStore = useAuthStore();
+const themeStore = useThemeStore();
 const user = computed(() => authStore.user);
 
 const firstName = ref(user.value?.first_name || '');
@@ -21,6 +30,28 @@ const error = ref<string | null>(null);
 const success = ref(false);
 
 const fileInput = ref<HTMLInputElement | null>(null);
+
+const selectedTheme = computed(() => themeStore.theme);
+const selectedFont = computed({
+    get: () => themeStore.chatFont,
+    set: (value: ChatFont) => themeStore.setChatFont(value),
+});
+const selectedFontSize = computed({
+    get: () => themeStore.chatFontSize,
+    set: (value: ChatFontSize) => themeStore.setChatFontSize(value),
+});
+
+const themes = THEME_OPTIONS;
+const fonts = FONT_OPTIONS;
+const fontSizes = FONT_SIZE_OPTIONS;
+
+function setTheme(theme: Theme) {
+    themeStore.setTheme(theme);
+}
+
+function optionFontStyle(cssVar: string) {
+    return { fontFamily: cssVar };
+}
 
 async function handleUpdateProfile() {
     if (!user.value) return;
@@ -238,14 +269,83 @@ async function removeAvatar() {
                             <p class="text-xs text-gray-500">Email address cannot be changed.</p>
                         </div>
 
-                        <div class="space-y-4 pt-6 mt-6 border-t border-gray-100 dark:border-gray-800">
+                        <div class="space-y-5 pt-6 mt-6 border-t border-gray-100 dark:border-gray-800">
                             <label class="text-sm font-semibold text-gray-700 dark:text-gray-300">Appearance</label>
-                            <div class="flex items-center justify-between">
-                                <div>
-                                    <p class="text-sm font-medium text-gray-900 dark:text-gray-100">Theme</p>
-                                    <p class="text-xs text-gray-500">Choose how RustChat looks to you.</p>
+
+                            <div class="space-y-2">
+                                <p class="text-sm font-medium text-gray-900 dark:text-gray-100">Theme Palette</p>
+                                <p class="text-xs text-gray-500">Pick one of 8 color themes.</p>
+                                <div class="grid grid-cols-4 gap-3">
+                                    <button
+                                        v-for="theme in themes"
+                                        :key="theme.id"
+                                        type="button"
+                                        @click="setTheme(theme.id)"
+                                        class="rounded-lg border p-2 transition-all text-left"
+                                        :class="selectedTheme === theme.id
+                                            ? 'border-brand shadow-[0_0_0_2px_rgba(37,99,235,0.18)]'
+                                            : 'border-border-1 hover:border-border-2'"
+                                    >
+                                        <div class="flex items-center gap-1.5">
+                                            <span
+                                                class="h-3.5 w-3.5 rounded-full border border-black/10"
+                                                :style="{ backgroundColor: theme.swatches.primary }"
+                                            ></span>
+                                            <span
+                                                class="h-3.5 w-3.5 rounded-full border border-black/10"
+                                                :style="{ backgroundColor: theme.swatches.accent }"
+                                            ></span>
+                                            <span
+                                                class="h-3.5 w-3.5 rounded-full border border-black/10"
+                                                :style="{ backgroundColor: theme.swatches.background }"
+                                            ></span>
+                                        </div>
+                                        <p class="mt-2 text-[11px] font-medium text-text-2">{{ theme.label }}</p>
+                                    </button>
                                 </div>
-                                <ThemeToggle />
+                            </div>
+
+                            <div class="space-y-2">
+                                <label class="text-sm font-medium text-gray-900 dark:text-gray-100">Font Preview</label>
+                                <select
+                                    v-model="selectedFont"
+                                    class="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all dark:text-white"
+                                >
+                                    <option
+                                        v-for="font in fonts"
+                                        :key="font.id"
+                                        :value="font.id"
+                                        :style="optionFontStyle(font.cssVar)"
+                                    >
+                                        {{ font.label }}
+                                    </option>
+                                </select>
+                            </div>
+
+                            <div class="space-y-2">
+                                <label class="text-sm font-medium text-gray-900 dark:text-gray-100">Chat Font Size</label>
+                                <div class="grid grid-cols-5 gap-2">
+                                    <label
+                                        v-for="size in fontSizes"
+                                        :key="size"
+                                        class="cursor-pointer"
+                                    >
+                                        <input
+                                            v-model="selectedFontSize"
+                                            type="radio"
+                                            class="sr-only"
+                                            :value="size"
+                                        />
+                                        <div
+                                            class="rounded-lg border px-2 py-2 text-center text-xs font-semibold transition-all"
+                                            :class="selectedFontSize === size
+                                                ? 'border-brand bg-brand/10 text-brand'
+                                                : 'border-border-1 text-text-2 hover:border-border-2'"
+                                        >
+                                            {{ size }}px
+                                        </div>
+                                    </label>
+                                </div>
                             </div>
                         </div>
                     </div>
