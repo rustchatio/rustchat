@@ -20,6 +20,8 @@ marked.use({
     gfm: true
 });
 
+import { replaceEmojiNames } from './emoji';
+
 /**
  * Renders markdown string to safe HTML.
  * @param markdown - The raw markdown string from the message
@@ -29,8 +31,11 @@ marked.use({
 export function renderMarkdown(markdown: string, highlightMentions?: string): string {
     if (!markdown) return '';
 
-    // Step 1: Parse Markdown (returns string synchronously since no async features used)
-    const html = marked.parse(markdown) as string;
+    // Step 0: Replace inline emoji names
+    const emojified = replaceEmojiNames(markdown);
+
+    // Step 1: Parse Markdown
+    const html = marked.parse(emojified) as string;
 
     // Step 2: Sanitize HTML
     const sanitizedHtml = DOMPurify.sanitize(html, {

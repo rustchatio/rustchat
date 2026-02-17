@@ -24,7 +24,7 @@ const userPresence = computed(() => {
 });
 
 const currentPresence = computed<Presence>(() => {
-  return userPresence.value?.presence || 'offline';
+  return (userPresence.value?.presence?.toLowerCase() as Presence) || 'offline';
 });
 
 const initials = computed(() => {

@@ -114,8 +114,10 @@ async fn list_posts(
                p.last_reply_at, p.seq,
                u.username, u.avatar_url, u.email
         FROM posts p
+        JOIN channels c ON p.channel_id = c.id
         LEFT JOIN users u ON p.user_id = u.id
-        WHERE p.channel_id = $1 AND p.deleted_at IS NULL AND p.root_post_id IS NULL
+        WHERE p.channel_id = $1 AND p.deleted_at IS NULL
+        AND (p.root_post_id IS NULL OR c.type IN ('direct', 'group'))
     "#,
     );
 

@@ -12,6 +12,7 @@ import EmojiPicker from '../atomic/EmojiPicker.vue'
 import FilePreview from '../atomic/FilePreview.vue'
 import RcAvatar from '../ui/RcAvatar.vue'
 import ImageGallery from '../atomic/ImageGallery.vue'
+import { getEmojiChar } from '../../utils/emoji'
 import type { FileUploadResponse } from '../../api/files'
 
 import { renderMarkdown } from '../../utils/markdown'
@@ -427,7 +428,7 @@ async function toggleReaction(emoji: string) {
           class="bg-blue-50/80 dark:bg-blue-900/40 border border-blue-100/50 dark:border-blue-800/50 hover:border-blue-300 dark:hover:border-blue-600 rounded-lg px-2 py-0.5 text-[11px] cursor-pointer flex items-center space-x-1.5 transition-all select-none hover:scale-105 active:scale-95"
           :class="{ 'bg-brand/10 dark:bg-brand/20 border-brand/50 dark:border-brand/40 shadow-sm': reaction.users.includes(authStore.user?.id || '') }"
         >
-          <span class="text-sm">{{ reaction.emoji }}</span>
+          <span class="text-sm">{{ getEmojiChar(reaction.emoji) }}</span>
           <span class="font-bold text-blue-600 dark:text-blue-400" :class="{ 'text-brand dark:text-brand': reaction.users.includes(authStore.user?.id || '') }">{{ reaction.count }}</span>
         </div>
       </div>
