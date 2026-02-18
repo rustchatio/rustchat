@@ -3,6 +3,7 @@ import { ref, watch, computed, nextTick } from 'vue'
 import { ArrowDown } from 'lucide-vue-next'
 import { useMessageStore } from '../../stores/messages'
 import { useUnreadStore } from '../../stores/unreads'
+import { usePresence, extractUserIds } from '../../composables/usePresence'
 import MessageItem from './MessageItem.vue'
 
 const props = defineProps<{
@@ -18,12 +19,23 @@ const emit = defineEmits<{
 
 const messageStore = useMessageStore()
 const unreadStore = useUnreadStore()
+const presence = usePresence() // For batch fetching
 const containerRef = ref<HTMLElement | null>(null)
 const shouldAutoScroll = ref(true)
 const showNewMessagesBtn = ref(false)
 
 const messages = computed(() => messageStore.messagesByChannel[props.channelId] || [])
 const readState = computed(() => unreadStore.getChannelReadState(props.channelId))
+
+// Batch fetch user statuses when messages change
+watch(() => messages.value, (newMessages) => {
+    if (newMessages.length > 0) {
+        const userIds = extractUserIds(newMessages)
+        if (userIds.length > 0) {
+            presence.fetchMissing(userIds)
+        }
+    }
+}, { immediate: true })
 
 // Handle scroll events to detect if user is at bottom or top (infinite scroll)
 async function handleScroll() {

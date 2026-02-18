@@ -120,7 +120,6 @@ const presenceColorClass = computed(() => {
     default: return 'bg-gray-400';
   }
 });
-
 </script>
 
 <template>

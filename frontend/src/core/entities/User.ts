@@ -1,0 +1,42 @@
+// Core User Entity - Domain model, framework-agnostic
+
+export type UserId = string
+export type PresenceStatus = 'online' | 'away' | 'dnd' | 'offline'
+
+export interface User {
+  id: UserId
+  username: string
+  email: string
+  displayName?: string
+  avatarUrl?: string
+  role: 'system_admin' | 'org_admin' | 'user' | 'guest'
+  presence: PresenceStatus
+  isBot?: boolean
+  timezone?: string
+  locale?: string
+  customStatus?: {
+    emoji: string
+    text: string
+    expiresAt?: Date
+  }
+  createdAt: Date
+  updatedAt: Date
+}
+
+// Reference to a user (for embedding in other entities)
+export interface UserRef {
+  id: UserId
+  username: string
+  displayName?: string
+  avatarUrl?: string
+}
+
+// Helper to create a user reference from full user
+export function toUserRef(user: User): UserRef {
+  return {
+    id: user.id,
+    username: user.username,
+    displayName: user.displayName,
+    avatarUrl: user.avatarUrl
+  }
+}
