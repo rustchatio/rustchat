@@ -1,0 +1,179 @@
+// Channel Repository - Data access for channels
+// Maps API responses to domain entities
+
+import { channelsApi } from '../../../api/channels'
+import type { 
+  Channel, 
+  ChannelId, 
+  ChannelType,
+  ChannelMember,
+  TeamId 
+} from '../../../core/entities/Channel'
+import type { UserId } from '../../../core/entities/User'
+import { withRetry } from '../../../core/services/retry'
+import { AppError } from '../../../core/errors/AppError'
+
+export interface CreateChannelRequest {
+  teamId: TeamId
+  name: string
+  displayName: string
+  type: ChannelType
+  header?: string
+  purpose?: string
+  targetUserId?: UserId
+}
+
+export interface ChannelUnreadCounts {
+  channelId: ChannelId
+  unreadCount: number
+  mentionCount: number
+}
+
+export const channelRepository = {
+  // List channels for a team
+  async listByTeam(teamId: TeamId): Promise<Channel[]> {
+    return withRetry(async () => {
+      const response = await channelsApi.list(teamId)
+      return response.data.map(normalizeChannel)
+    })
+  },
+
+  // List joinable channels
+  async listJoinable(teamId: TeamId): Promise<Channel[]> {
+    return withRetry(async () => {
+      const response = await channelsApi.listJoinable(teamId)
+      return response.data.map(normalizeChannel)
+    })
+  },
+
+  // Get single channel
+  async getById(channelId: ChannelId): Promise<Channel | null> {
+    return withRetry(async () => {
+      try {
+        const response = await channelsApi.get(channelId)
+        return normalizeChannel(response.data)
+      } catch (error: any) {
+        if (error?.response?.status === 404) {
+          return null
+        }
+        throw error
+      }
+    })
+  },
+
+  // Create channel
+  async create(data: CreateChannelRequest): Promise<Channel> {
+    return withRetry(async () => {
+      const response = await channelsApi.create({
+        team_id: data.teamId,
+        name: data.name,
+        display_name: data.displayName,
+        channel_type: data.type,
+        header: data.header,
+        purpose: data.purpose,
+        target_user_id: data.targetUserId
+      })
+      return normalizeChannel(response.data)
+    })
+  },
+
+  // Update channel
+  async update(
+    channelId: ChannelId, 
+    data: Partial<CreateChannelRequest>
+  ): Promise<Channel> {
+    return withRetry(async () => {
+      const response = await channelsApi.update(channelId, {
+        team_id: data.teamId,
+        name: data.name,
+        display_name: data.displayName,
+        channel_type: data.type,
+        header: data.header,
+        purpose: data.purpose,
+        target_user_id: data.targetUserId
+      })
+      return normalizeChannel(response.data)
+    })
+  },
+
+  // Delete/archive channel
+  async delete(channelId: ChannelId): Promise<void> {
+    await withRetry(() => channelsApi.delete(channelId))
+  },
+
+  // Join channel
+  async join(channelId: ChannelId, userId: UserId): Promise<void> {
+    await withRetry(() => channelsApi.join(channelId, userId))
+  },
+
+  // Leave channel
+  async leave(channelId: ChannelId): Promise<void> {
+    await withRetry(() => channelsApi.leave(channelId))
+  },
+
+  // Remove member (host/admin only)
+  async removeMember(channelId: ChannelId, userId: UserId): Promise<void> {
+    await withRetry(() => channelsApi.removeMember(channelId, userId))
+  },
+
+  // Get channel members
+  async getMembers(channelId: ChannelId): Promise<ChannelMember[]> {
+    return withRetry(async () => {
+      const response = await channelsApi.getMembers(channelId)
+      return response.data.map(normalizeChannelMember)
+    })
+  },
+
+  // Get unread counts for all channels
+  async getUnreadCounts(): Promise<ChannelUnreadCounts[]> {
+    return withRetry(async () => {
+      const response = await channelsApi.getUnreadCounts()
+      return response.data.map(item => ({
+        channelId: item.channel_id as ChannelId,
+        unreadCount: item.count,
+        mentionCount: 0 // API returns separate mention counts
+      }))
+    })
+  },
+
+  // Mark channel as read
+  async markAsRead(
+    channelId: ChannelId, 
+    targetSeq?: string | number | null
+  ): Promise<void> {
+    await withRetry(() => channelsApi.markAsRead(channelId, targetSeq))
+  }
+}
+
+// Normalize API Channel to domain entity
+function normalizeChannel(raw: any): Channel {
+  return {
+    id: raw.id as ChannelId,
+    teamId: raw.team_id,
+    name: raw.name,
+    displayName: raw.display_name,
+    type: raw.channel_type,
+    purpose: raw.purpose,
+    header: raw.header,
+    creatorId: raw.creator_id as UserId,
+    createdAt: new Date(raw.created_at),
+    updatedAt: new Date(raw.updated_at || raw.created_at),
+    isArchived: false, // Will be added to API later
+    memberCount: raw.member_count
+  }
+}
+
+function normalizeChannelMember(raw: any): ChannelMember {
+  return {
+    channelId: raw.channel_id as ChannelId,
+    userId: raw.user_id as UserId,
+    roles: raw.roles || [],
+    joinedAt: new Date(raw.joined_at),
+    lastViewedAt: raw.last_viewed_at ? new Date(raw.last_viewed_at) : undefined,
+    notifyProps: {
+      desktop: raw.notify_props?.desktop || 'default',
+      mobile: raw.notify_props?.mobile || 'default',
+      markUnread: raw.notify_props?.mark_unread || 'all'
+    }
+  }
+}

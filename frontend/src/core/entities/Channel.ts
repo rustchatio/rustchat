@@ -23,6 +23,10 @@ export interface Channel {
   
   // For DM/Group channels
   participantIds?: UserId[]
+  
+  // Unread state (client-side only)
+  unreadCount?: number
+  mentionCount?: number
 }
 
 export interface ChannelMember {
