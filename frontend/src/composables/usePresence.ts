@@ -1,5 +1,6 @@
 import { computed, watchEffect } from 'vue'
-import { usePresenceStore, type Presence } from '../stores/presence'
+import { usePresenceStore } from '../features/presence'
+import type { PresenceStatus } from '../core/entities/User'
 import { usersApi } from '../api/users'
 
 // Track pending fetches globally to prevent duplicate requests
@@ -15,10 +16,10 @@ const pendingFetches = new Set<string>()
 export function usePresence(userId?: string) {
     const store = usePresenceStore()
 
-    const presence = computed<Presence>(() => {
+    const presence = computed(() => {
         if (!userId) return 'offline'
         const user = store.getUserPresence(userId).value
-        return (user?.presence?.toLowerCase() as Presence) || 'offline'
+        return (user?.presence?.toLowerCase()) || 'offline'
     })
 
     const isLoading = computed(() => {
@@ -65,25 +66,17 @@ export async function fetchMissingStatuses(userIds: string[]) {
 
         // Update store with fetched statuses
         for (const status of statuses) {
-            store.presenceMap.set(status.user_id, {
-                userId: status.user_id,
-                username: '',
-                presence: (status.status?.toLowerCase() as Presence) || 'offline',
-                lastActiveAt: status.last_activity_at
-                    ? new Date(status.last_activity_at).toISOString()
-                    : new Date().toISOString()
-            })
+            store.setUserPresence(
+                status.user_id,
+                '',
+                (status.status?.toLowerCase() as PresenceStatus) || 'offline'
+            )
         }
 
         // Mark missing users as offline to prevent re-fetching
         for (const id of missingIds) {
             if (!store.presenceMap.has(id)) {
-                store.presenceMap.set(id, {
-                    userId: id,
-                    username: '',
-                    presence: 'offline',
-                    lastActiveAt: new Date().toISOString()
-                })
+                store.setUserPresence(id, '', 'offline' as PresenceStatus)
             }
         }
     } catch (e) {

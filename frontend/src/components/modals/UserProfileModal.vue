@@ -189,6 +189,18 @@ function handleClose() {
               <span class="text-gray-700 dark:text-gray-300">{{ user.email }}</span>
             </div>
 
+            <!-- Nickname -->
+            <div v-if="user.nickname" class="flex items-center space-x-3 text-sm">
+              <span class="text-gray-400 text-xs uppercase tracking-wider w-16">Nickname</span>
+              <span class="text-gray-700 dark:text-gray-300">{{ user.nickname }}</span>
+            </div>
+
+            <!-- First & Last Name -->
+            <div v-if="user.first_name || user.last_name" class="flex items-center space-x-3 text-sm">
+              <span class="text-gray-400 text-xs uppercase tracking-wider w-16">Full Name</span>
+              <span class="text-gray-700 dark:text-gray-300">{{ user.first_name }} {{ user.last_name }}</span>
+            </div>
+
             <!-- Position -->
             <div v-if="user.position" class="flex items-center space-x-3 text-sm">
               <Briefcase class="w-4 h-4 text-gray-400" />
