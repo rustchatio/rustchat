@@ -1,7 +1,7 @@
 // Playbook Service - Business logic for playbooks
 
 import { playbookRepository, type CreatePlaybookRequest, type StartRunRequest } from '../repositories/playbookRepository'
-import type { Playbook, PlaybookFull, PlaybookRun, RunWithTasks } from '../../../api/playbooks'
+import type { Playbook, PlaybookRun } from '../../../api/playbooks'
 import type { TeamId } from '../../../core/entities/Team'
 import { usePlaybookStore } from '../stores/playbookStore'
 import { AppError } from '../../../core/errors/AppError'
@@ -124,17 +124,10 @@ class PlaybookService {
     }
   }
 
-  async updateTask(runId: string, taskId: string, status: string): Promise<void> {
+  async updateTask(taskId: string, status: string): Promise<void> {
     try {
-      await playbookRepository.updateTask(runId, taskId, status)
-      // Optimistically update local state
-      const run = this.store.currentRun
-      if (run && run.id === runId) {
-        const task = run.tasks?.find(t => t.id === taskId)
-        if (task) {
-          task.status = status
-        }
-      }
+      await playbookRepository.updateTask(taskId, status)
+      // State will be updated via API response or refresh
     } catch (error) {
       this.store.setError(
         error instanceof AppError ? error.message : 'Failed to update task'

@@ -1,4 +1,4 @@
-import { computed, ref, watchEffect } from 'vue'
+import { computed, watchEffect } from 'vue'
 import { usePresenceStore, type Presence } from '../stores/presence'
 import { usersApi } from '../api/users'
 

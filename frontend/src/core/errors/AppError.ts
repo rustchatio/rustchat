@@ -1,83 +1,48 @@
-// Base error class for application
+// Error hierarchy for different error types
 
 export type ErrorCode = 
   | 'NETWORK_ERROR'
-  | 'AUTH_ERROR'
   | 'NOT_FOUND'
   | 'VALIDATION_ERROR'
-  | 'RATE_LIMITED'
-  | 'SERVER_ERROR'
-  | 'OFFLINE'
-  | 'UNKNOWN'
+  | 'AUTH_REQUIRED'
+  | 'CALLS_NOT_AVAILABLE'
+  | 'NO_ACTIVE_CALL'
+  | 'CALL_STATE_ERROR'
+  | 'SESSION_ERROR'
+  | 'UNKNOWN_ERROR'
 
 export class AppError extends Error {
   readonly code: ErrorCode
-  readonly statusCode?: number
+  readonly recoverable: boolean
   readonly isRetryable: boolean
-  readonly context?: Record<string, any>
 
   constructor(
     message: string,
-    code: ErrorCode = 'UNKNOWN',
-    options?: {
-      statusCode?: number
-      isRetryable?: boolean
-      cause?: Error
-      context?: Record<string, any>
-    }
+    code: ErrorCode = 'UNKNOWN_ERROR',
+    recoverable: boolean = false
   ) {
-    super(message, { cause: options?.cause })
+    super(message)
     this.name = 'AppError'
     this.code = code
-    this.statusCode = options?.statusCode
-    this.isRetryable = options?.isRetryable ?? this.defaultRetryable(code)
-    this.context = options?.context
-  }
-
-  private defaultRetryable(code: ErrorCode): boolean {
-    switch (code) {
-      case 'NETWORK_ERROR':
-      case 'RATE_LIMITED':
-      case 'SERVER_ERROR':
-      case 'OFFLINE':
-        return true
-      default:
-        return false
-    }
-  }
-
-  static network(cause?: Error): AppError {
-    return new AppError('Network connection failed', 'NETWORK_ERROR', {
-      isRetryable: true,
-      cause
-    })
-  }
-
-  static notFound(resource: string): AppError {
-    return new AppError(`${resource} not found`, 'NOT_FOUND', {
-      isRetryable: false,
-      context: { resource }
-    })
-  }
-
-  static auth(message = 'Authentication required'): AppError {
-    return new AppError(message, 'AUTH_ERROR', { isRetryable: false })
-  }
-
-  static offline(): AppError {
-    return new AppError('You are offline', 'OFFLINE', { isRetryable: true })
+    this.recoverable = recoverable
+    this.isRetryable = recoverable
   }
 }
 
-// Helper to wrap unknown errors
-export function toAppError(error: unknown): AppError {
-  if (error instanceof AppError) {
-    return error
+export class NetworkError extends AppError {
+  constructor(message: string = 'Network error') {
+    super(message, 'NETWORK_ERROR', true)
   }
-  
-  if (error instanceof Error) {
-    return new AppError(error.message, 'UNKNOWN', { cause: error })
+}
+
+export class NotFoundError extends AppError {
+  constructor(resource: string, id: string) {
+    super(`${resource} not found: ${id}`, 'NOT_FOUND', false)
   }
-  
-  return new AppError(String(error), 'UNKNOWN')
+}
+
+export class ValidationError extends AppError {
+  constructor(message: string) {
+    super(message, 'VALIDATION_ERROR', false)
+  }
 }

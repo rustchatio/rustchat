@@ -118,7 +118,7 @@ function normalizePost(post: any): Message {
     files: normalizeFiles(post.metadata?.files || post.files || []),
     isPinned: post.is_pinned ?? false,
     isSaved: post.is_saved ?? false,
-    status: 'sent',
+    status: 'delivered',
     clientId: post.props?.client_msg_id,
     createdAt: new Date(post.create_at),
     updatedAt: post.update_at ? new Date(post.update_at) : undefined,

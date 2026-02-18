@@ -6,9 +6,10 @@ import type { TeamId } from '../../../core/entities/Team'
 import { withRetry } from '../../../core/services/retry'
 
 export interface CreatePlaybookRequest {
-  title: string
+  name: string
   description?: string
-  stages?: unknown[]
+  icon?: string
+  isPublic?: boolean
 }
 
 export interface StartRunRequest {
@@ -82,7 +83,7 @@ export const playbookRepository = {
   },
 
   // Update run task
-  async updateTask(runId: string, taskId: string, status: string): Promise<void> {
-    await withRetry(() => playbooksApi.updateTask(runId, taskId, { status }))
+  async updateTask(taskId: string, status: string): Promise<void> {
+    await withRetry(() => playbooksApi.updateTask(taskId, { status }))
   }
 }

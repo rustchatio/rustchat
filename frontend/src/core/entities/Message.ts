@@ -48,6 +48,7 @@ export interface Message {
   
   // Metadata
   editedAt?: Date
+  updatedAt?: Date  // Alias for editedAt
   createdAt: Date
   
   // Client state
@@ -66,6 +67,7 @@ export interface MessageDraft {
   content: string
   rootId?: MessageId
   fileIds?: string[]
+  clientId?: string
   props?: Record<string, any>
 }
 

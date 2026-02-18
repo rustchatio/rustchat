@@ -1,7 +1,6 @@
 import type { Message, MessageId, MessageDraft } from '../../../core/entities/Message'
 import type { ChannelId } from '../../../core/entities/Channel'
 import { postsApi, type Post, type CreatePostRequest } from '../../../api/posts'
-import { AppError } from '../../../core/errors/AppError'
 import { withRetry } from '../../../core/services/retry'
 
 export interface MessageQueryOptions {
@@ -50,9 +49,18 @@ export const messageRepository = {
         .map(postToMessage)
         .reverse()
 
+      // Convert API ReadState to MessageReadState
+      const apiReadState = response.data.read_state
+      const readState: MessageReadState | undefined = apiReadState ? {
+        lastReadMessageId: apiReadState.last_read_message_id?.toString(),
+        lastReadSeq: apiReadState.last_read_message_id ?? undefined,
+        unreadCount: 0, // Will be populated from other API calls
+        mentionCount: 0
+      } : undefined
+
       return {
         messages,
-        readState: response.data.read_state
+        readState
       }
     })
   },
@@ -71,9 +79,9 @@ export const messageRepository = {
       const payload: CreatePostRequest = {
         channel_id: draft.channelId,
         message: draft.content,
-        root_id: draft.rootId,
+        root_post_id: draft.rootId,
         file_ids: draft.fileIds,
-        props: draft.props
+        client_msg_id: draft.clientId
       }
 
       const response = await postsApi.create(payload)
@@ -180,8 +188,8 @@ export function postToMessage(post: Post): Message {
       url: f.url,
       size: f.size,
       mimeType: f.mime_type,
-      width: f.width,
-      height: f.height
+      width: (f as any).width,
+      height: (f as any).height
     })),
     reactions: (rawPost.reactions || []).map((r: any) => ({
       emoji: r.emoji,

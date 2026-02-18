@@ -35,7 +35,7 @@ export const useCallStore = defineStore('callStore', () => {
   })
 
   const currentCallParticipants = computed((): CallParticipant[] => {
-    if (!currentCall.value) return []
+    if (!currentCall.value?.call) return []
     return Array.from(currentCall.value.call.participants.values())
   })
 

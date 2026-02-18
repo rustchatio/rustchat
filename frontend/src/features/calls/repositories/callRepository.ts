@@ -5,16 +5,15 @@ import callsApi from '../../../api/calls'
 import type { 
   CallState, 
   CallConfig, 
-  CallId, 
   CallParticipant, 
-  SessionId,
-  createCallId,
-  createSessionId
+  SessionId
 } from '../../../core/entities/Call'
+import { createCallId, createSessionId } from '../../../core/entities/Call'
 import type { ChannelId } from '../../../core/entities/Channel'
 import type { UserId } from '../../../core/entities/User'
 import { withRetry } from '../../../core/services/retry'
 import { AppError } from '../../../core/errors/AppError'
+
 
 export interface CallChannelState {
   channelId: ChannelId
@@ -99,12 +98,12 @@ export const callRepository = {
   // Call lifecycle
   async startCall(channelId: ChannelId): Promise<CallState> {
     return withRetry(async () => {
-      const response = await callsApi.startCall(channelId)
+      await callsApi.startCall(channelId)
       
       // Fetch the full call state after starting
       const channelState = await this.getCallForChannel(channelId)
       if (!channelState?.call) {
-        throw new AppError('Call started but state could not be loaded', 'CALL_STATE_ERROR')
+        throw new AppError('Call started but state could not be loaded')
       }
       
       return channelState.call
@@ -151,7 +150,10 @@ export const callRepository = {
   // WebRTC Signaling
   async sendOffer(channelId: ChannelId, sdp: string): Promise<{ sdp: string; type: string }> {
     const response = await withRetry(() => callsApi.sendOffer(channelId, sdp))
-    return response.data
+    return {
+      sdp: response.data.sdp,
+      type: response.data.type_
+    }
   },
 
   async sendIceCandidate(

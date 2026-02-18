@@ -2,7 +2,8 @@
 // Handles channel selection, persistence, and orchestration
 
 import { channelRepository, type CreateChannelRequest } from '../repositories/channelRepository'
-import type { Channel, ChannelId, TeamId } from '../../../core/entities/Channel'
+import type { Channel, ChannelId } from '../../../core/entities/Channel'
+import type { TeamId } from '../../../core/entities/Team'
 import type { UserId } from '../../../core/entities/User'
 import { useChannelStore } from '../stores/channelStore'
 import { AppError } from '../../../core/errors/AppError'

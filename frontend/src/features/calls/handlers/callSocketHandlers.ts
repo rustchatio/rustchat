@@ -4,7 +4,7 @@
 import { callService } from '../services/callService'
 import type { ChannelId } from '../../../core/entities/Channel'
 import type { UserId } from '../../../core/entities/User'
-import type { SessionId, createSessionId } from '../../../core/entities/Call'
+import type { SessionId } from '../../../core/entities/Call'
 
 interface WebSocketCallEvent {
   event: string

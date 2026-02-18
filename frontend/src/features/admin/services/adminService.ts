@@ -1,7 +1,7 @@
 // Admin Service - Business logic for admin functions
 
 import { adminRepository, type AuditLogQuery } from '../repositories/adminRepository'
-import type { ServerConfig, AdminUser, AuditLog, SystemStats, HealthStatus } from '../../../api/admin'
+import type { AdminUser } from '../../../api/admin'
 import { useAdminStore } from '../stores/adminStore'
 import { AppError } from '../../../core/errors/AppError'
 
@@ -67,8 +67,9 @@ class AdminService {
   async createUser(data: {
     email: string
     username: string
-    password?: string
+    password: string
     role?: string
+    displayName?: string
   }): Promise<AdminUser> {
     this.store.setLoading(true)
     this.store.clearError()

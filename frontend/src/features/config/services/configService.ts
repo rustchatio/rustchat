@@ -1,7 +1,6 @@
 // Config Service - Business logic for site config
 
 import { configRepository } from '../repositories/configRepository'
-import type { PublicConfig } from '../../../api/site'
 import { useConfigStore } from '../stores/configStore'
 import { wsManager } from '../../../core/websocket/WebSocketManager'
 

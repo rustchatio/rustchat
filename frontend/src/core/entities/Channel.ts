@@ -1,13 +1,12 @@
 import type { UserId } from './User'
 
 export type ChannelId = string
-export type TeamId = string
 
 export type ChannelType = 'public' | 'private' | 'direct' | 'group'
 
 export interface Channel {
   id: ChannelId
-  teamId?: TeamId
+  teamId?: string  // Use string instead of TeamId to avoid circular dependency
   name: string
   displayName: string
   type: ChannelType
@@ -28,6 +27,9 @@ export interface Channel {
   unreadCount?: number
   mentionCount?: number
 }
+
+// Alias for DM channels
+export type DMChannel = Channel & { type: 'direct' | 'group' }
 
 export interface ChannelMember {
   channelId: ChannelId

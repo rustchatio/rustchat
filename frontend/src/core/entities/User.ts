@@ -3,6 +3,9 @@
 export type UserId = string
 export type PresenceStatus = 'online' | 'away' | 'dnd' | 'offline'
 
+// Export Presence as alias for PresenceStatus for compatibility
+export type Presence = PresenceStatus
+
 export interface User {
   id: UserId
   username: string

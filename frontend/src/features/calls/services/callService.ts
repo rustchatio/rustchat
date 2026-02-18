@@ -5,10 +5,7 @@ import { callRepository } from '../repositories/callRepository'
 import type { 
   CallState, 
   CallConfig,
-  CurrentCallSession,
-  IncomingCall,
-  SessionId,
-  createSessionId
+  SessionId
 } from '../../../core/entities/Call'
 import type { ChannelId } from '../../../core/entities/Channel'
 import type { UserId } from '../../../core/entities/User'
@@ -74,7 +71,7 @@ class CallService {
   async startCall(channelId: ChannelId): Promise<void> {
     const config = await this.loadConfig()
     if (!config) {
-      throw new AppError('Calls plugin not available', 'CALLS_NOT_AVAILABLE')
+      throw new AppError('Calls plugin not available')
     }
 
     try {
@@ -97,12 +94,12 @@ class CallService {
     // Check if there's an active call
     const channelState = await callRepository.getCallForChannel(channelId)
     if (!channelState?.call) {
-      throw new AppError('No active call in this channel', 'NO_ACTIVE_CALL')
+      throw new AppError('No active call in this channel')
     }
 
     const config = await this.loadConfig()
     if (!config) {
-      throw new AppError('Calls plugin not available', 'CALLS_NOT_AVAILABLE')
+      throw new AppError('Calls plugin not available')
     }
 
     try {
@@ -112,7 +109,7 @@ class CallService {
       await this.loadCallForChannel(channelId)
       const call = this.store.getActiveCall(channelId)
       if (!call) {
-        throw new AppError('Could not resolve your call session', 'SESSION_ERROR')
+        throw new AppError('Could not resolve your call session')
       }
 
       this.store.setCurrentCall(channelId, call)
@@ -571,7 +568,7 @@ class CallService {
 
   private handleTrackEnded(trackId: string): void {
     for (const [key, stream] of this.store.remoteStreams) {
-      const remainingTracks = stream.getTracks().filter(t => t.id !== trackId)
+      const remainingTracks = stream.getTracks().filter((t: MediaStreamTrack) => t.id !== trackId)
       
       if (remainingTracks.length === stream.getTracks().length) {
         continue // Track not in this stream
@@ -581,7 +578,7 @@ class CallService {
         this.store.removeRemoteStream(key)
       } else {
         const replacement = new MediaStream()
-        remainingTracks.forEach(t => replacement.addTrack(t))
+        remainingTracks.forEach((t: MediaStreamTrack) => replacement.addTrack(t))
         this.store.addRemoteStream(key, replacement)
       }
     }

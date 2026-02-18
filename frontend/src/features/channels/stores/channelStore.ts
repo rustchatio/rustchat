@@ -3,7 +3,8 @@
 
 import { defineStore } from 'pinia'
 import { ref, computed, readonly } from 'vue'
-import type { Channel, ChannelId, TeamId, ChannelType } from '../../../core/entities/Channel'
+import type { Channel, ChannelId, ChannelType } from '../../../core/entities/Channel'
+import type { TeamId } from '../../../core/entities/Team'
 import type { ChannelUnreadCounts } from '../repositories/channelRepository'
 
 export const useChannelStore = defineStore('channelStore', () => {

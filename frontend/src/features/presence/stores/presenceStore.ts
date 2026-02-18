@@ -136,6 +136,11 @@ export const usePresenceStore = defineStore('presenceStore', () => {
     typingUsers.value.clear()
   }
 
+  // Internal method for service to access raw map
+  function getTypingUsersMap() {
+    return typingUsers.value
+  }
+
   return {
     // State (readonly)
     self: readonly(self),
@@ -153,6 +158,7 @@ export const usePresenceStore = defineStore('presenceStore', () => {
     removeTypingUser,
     getTypingUsersForChannel,
     getUserPresence,
+    getTypingUsersMap,
     clear
   }
 })

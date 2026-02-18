@@ -6,12 +6,11 @@ import type {
   Channel, 
   ChannelId, 
   ChannelType,
-  ChannelMember,
-  TeamId 
+  ChannelMember
 } from '../../../core/entities/Channel'
+import type { TeamId } from '../../../core/entities/Team'
 import type { UserId } from '../../../core/entities/User'
 import { withRetry } from '../../../core/services/retry'
-import { AppError } from '../../../core/errors/AppError'
 
 export interface CreateChannelRequest {
   teamId: TeamId

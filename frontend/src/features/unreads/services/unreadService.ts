@@ -108,7 +108,7 @@ class UnreadService {
   }
 
   // Private: Recalculate team unread total
-  private recalculateTeamUnread(teamId: TeamId): void {
+  private recalculateTeamUnread(_teamId: TeamId): void {
     // This would need access to channel-team mappings
     // For now, the next overview fetch will correct it
   }

@@ -2,7 +2,7 @@
 // Handles login flow, session management, and status updates
 
 import { authRepository, type LoginCredentials, type UpdateStatusRequest } from '../repositories/authRepository'
-import type { User, UserId } from '../../../core/entities/User'
+import type { User } from '../../../core/entities/User'
 import { useAuthStore } from '../stores/authStore'
 import { AppError } from '../../../core/errors/AppError'
 
@@ -124,17 +124,18 @@ class AuthService {
       // Update local user state
       const user = this.store.user
       if (user) {
-        if (result.presence) {
-          user.presence = result.presence as any
+        const updatedUser: User = {
+          ...user,
+          ...(result.presence && { presence: result.presence as any }),
+          ...(result.text !== undefined || result.emoji !== undefined ? {
+            customStatus: {
+              emoji: result.emoji || '',
+              text: result.text || '',
+              expiresAt: result.expiresAt ? new Date(result.expiresAt) : undefined
+            }
+          } : {})
         }
-        if (result.text !== undefined || result.emoji !== undefined) {
-          user.customStatus = {
-            emoji: result.emoji || '',
-            text: result.text || '',
-            expiresAt: result.expiresAt ? new Date(result.expiresAt) : undefined
-          }
-        }
-        this.store.setUser({ ...user })
+        this.store.setUser(updatedUser)
       }
     } catch (error) {
       console.error('Failed to update status', error)

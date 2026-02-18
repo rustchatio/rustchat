@@ -24,6 +24,9 @@ export interface CallParticipant {
   joinedAt: Date
 }
 
+// Export Call as alias for CallState for compatibility
+export type Call = CallState
+
 export interface CallState {
   id: CallId
   channelId: ChannelId
@@ -60,6 +63,7 @@ export interface CurrentCallSession {
   callId: CallId
   channelId: ChannelId
   mySessionId: SessionId
+  call?: CallState  // The actual call state
   peerConnection?: RTCPeerConnection
   screenSender?: RTCRtpSender | null
   localStream?: MediaStream

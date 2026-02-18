@@ -18,11 +18,6 @@ export interface Team {
 export interface TeamMember {
   teamId: TeamId
   userId: UserId
-  username: string
-  displayName?: string
-  avatarUrl?: string
-  role: 'team_admin' | 'member' | 'guest'
+  roles: string[]
   joinedAt: Date
-  // Denormalized for display
-  presence?: 'online' | 'away' | 'dnd' | 'offline'
 }

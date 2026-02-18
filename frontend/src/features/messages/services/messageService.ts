@@ -116,7 +116,7 @@ class MessageService {
     this.store.removeMessage(channelId, messageId)
   }
 
-  async togglePin(messageId: MessageId, channelId: ChannelId, isPinned: boolean) {
+  async togglePin(messageId: MessageId, _channelId: ChannelId, isPinned: boolean) {
     const message = await messageRepository.update(messageId, { isPinned })
     this.store.updateMessage(message)
   }

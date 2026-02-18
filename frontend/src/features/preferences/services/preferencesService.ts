@@ -2,7 +2,6 @@
 
 import {
   preferencesRepository,
-  type UserStatus,
   type UserPreferences,
   type StatusPreset
 } from '../repositories/preferencesRepository'

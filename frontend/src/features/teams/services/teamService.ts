@@ -1,7 +1,7 @@
 // Team Service - Business logic for teams
 
 import { teamRepository, type CreateTeamRequest } from '../repositories/teamRepository'
-import type { Team, TeamId, TeamMember } from '../../../core/entities/Team'
+import type { Team, TeamId } from '../../../core/entities/Team'
 import { useTeamStore } from '../stores/teamStore'
 import { AppError } from '../../../core/errors/AppError'
 
@@ -22,8 +22,9 @@ class TeamService {
       this.store.setTeams(teams)
 
       // Auto-select first team if none selected
-      if (!this.store.currentTeamId && teams.length > 0) {
-        this.selectTeam(teams[0].id)
+      const firstTeam = teams[0]
+      if (!this.store.currentTeamId && firstTeam) {
+        this.selectTeam(firstTeam.id)
       }
     } catch (error) {
       this.store.setError(

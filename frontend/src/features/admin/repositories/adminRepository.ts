@@ -50,11 +50,18 @@ export const adminRepository = {
   async createUser(data: {
     email: string
     username: string
-    password?: string
+    password: string
     role?: string
+    displayName?: string
   }): Promise<AdminUser> {
     return withRetry(async () => {
-      const response = await adminApi.createUser(data)
+      const response = await adminApi.createUser({
+        email: data.email,
+        username: data.username,
+        password: data.password,
+        role: data.role,
+        display_name: data.displayName
+      })
       return response.data
     })
   },

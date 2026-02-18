@@ -30,9 +30,9 @@ export const preferencesRepository = {
     return withRetry(async () => {
       const response = await preferencesApi.getMyStatus()
       return {
-        emoji: response.data.emoji,
-        text: response.data.text,
-        expiresAt: response.data.expires_at
+        emoji: response.data.emoji ?? undefined,
+        text: response.data.text ?? undefined,
+        expiresAt: response.data.expires_at ?? undefined
       }
     })
   },
@@ -50,9 +50,9 @@ export const preferencesRepository = {
         duration_minutes: data.durationMinutes
       })
       return {
-        emoji: response.data.emoji,
-        text: response.data.text,
-        expiresAt: response.data.expires_at
+        emoji: response.data.emoji ?? undefined,
+        text: response.data.text ?? undefined,
+        expiresAt: response.data.expires_at ?? undefined
       }
     })
   },
@@ -62,9 +62,9 @@ export const preferencesRepository = {
     return withRetry(async () => {
       const response = await preferencesApi.clearMyStatus()
       return {
-        emoji: response.data.emoji,
-        text: response.data.text,
-        expiresAt: response.data.expires_at
+        emoji: response.data.emoji ?? undefined,
+        text: response.data.text ?? undefined,
+        expiresAt: response.data.expires_at ?? undefined
       }
     })
   },

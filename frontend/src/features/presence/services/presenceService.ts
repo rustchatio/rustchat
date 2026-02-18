@@ -15,7 +15,7 @@ class PresenceService {
     return usePresenceStore()
   }
 
-  private cleanupTimer: NodeJS.Timeout | null = null
+  private cleanupTimer: ReturnType<typeof setInterval> | null = null
 
   // Initialize presence system
   initialize(): void {
@@ -109,14 +109,17 @@ class PresenceService {
     const now = Date.now()
     const staleKeys: string[] = []
 
-    for (const [key, user] of this.store.typingUsers.entries()) {
+    // Access the raw map through the store's internal state
+    const typingUsers = this.store.getTypingUsersMap()
+    
+    for (const [key, user] of typingUsers.entries()) {
       if (now - user.timestamp > TYPING_TIMEOUT) {
         staleKeys.push(key)
       }
     }
 
     for (const key of staleKeys) {
-      this.store.typingUsers.delete(key)
+      typingUsers.delete(key)
     }
   }
 }

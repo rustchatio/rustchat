@@ -5,7 +5,6 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import type { Message, MessageId } from '../../../core/entities/Message'
 import type { ChannelId } from '../../../core/entities/Channel'
-import type { Reaction } from '../../../core/entities/Message'
 
 export const useMessageStore = defineStore('messageStore', () => {
   // State
@@ -83,7 +82,7 @@ export const useMessageStore = defineStore('messageStore', () => {
 
   function patchMessage(messageId: MessageId, updates: Partial<Message>) {
     // Search in all channels
-    for (const [channelId, messages] of messagesByChannel.value) {
+    for (const [, messages] of messagesByChannel.value) {
       const message = messages.find(m => m.id === messageId)
       if (message) {
         Object.assign(message, updates)
@@ -184,12 +183,14 @@ export const useMessageStore = defineStore('messageStore', () => {
         const index = message.reactions.findIndex(r => r.emoji === emoji)
         if (index !== -1) {
           const reaction = message.reactions[index]
-          const userIndex = reaction.users.indexOf(userId)
-          if (userIndex !== -1) {
-            reaction.users.splice(userIndex, 1)
-            reaction.count--
-            if (reaction.count <= 0) {
-              message.reactions.splice(index, 1)
+          if (reaction) {
+            const userIndex = reaction.users.indexOf(userId)
+            if (userIndex !== -1) {
+              reaction.users.splice(userIndex, 1)
+              reaction.count--
+              if (reaction.count <= 0) {
+                message.reactions.splice(index, 1)
+              }
             }
           }
         }

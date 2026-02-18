@@ -3,7 +3,6 @@
 import client from '../../../api/client'
 import type { User, UserId } from '../../../core/entities/User'
 import { withRetry } from '../../../core/services/retry'
-import { AppError } from '../../../core/errors/AppError'
 
 export interface LoginCredentials {
   email?: string

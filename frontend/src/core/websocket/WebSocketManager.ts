@@ -5,20 +5,21 @@ import { ref, computed, markRaw } from 'vue'
 
 export type ConnectionState = 'connecting' | 'open' | 'closed' | 'error'
 
-interface WebSocketEvent {
+export interface WebSocketEvent {
   event: string
   data: string
   broadcast: {
     channel_id: string
     user_id: string
   }
+  seq?: number
 }
 
-type EventHandler = (event: WebSocketEvent) => void
+export type EventHandler = (event: WebSocketEvent) => void
 
 class WebSocketManager {
   private ws: WebSocket | null = null
-  private reconnectTimer: NodeJS.Timeout | null = null
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null
   private handlers = new Map<string, Set<EventHandler>>()
   private pendingMessages: string[] = []
 
@@ -155,7 +156,7 @@ class WebSocketManager {
     }, 5000)
   }
 
-  private heartbeatTimer: NodeJS.Timeout | null = null
+  private heartbeatTimer: ReturnType<typeof setInterval> | null = null
 
   private startHeartbeat() {
     this.stopHeartbeat()
