@@ -60,11 +60,13 @@ async function handleUpdateProfile() {
     success.value = false;
     try {
         // Use Mattermost-compatible patch endpoint
-        await api.put('/api/v4/users/me/patch', {
+        await api.put('/users/me/patch', {
             first_name: firstName.value || undefined,
             last_name: lastName.value || undefined,
             nickname: nickname.value || undefined,
             position: position.value || undefined,
+        }, {
+            baseURL: '/api/v4',
         });
         // Also update username/display_name via our endpoint
         await api.put(`/users/${user.value.id}`, {

@@ -234,11 +234,13 @@ async function handleSaveProfile() {
     const nicknameValue = nickname.value.trim()
     const positionValue = position.value.trim()
 
-    await api.put('/api/v4/users/me/patch', {
+    await api.put('/users/me/patch', {
       first_name: firstNameValue || undefined,
       last_name: lastNameValue || undefined,
       nickname: nicknameValue || undefined,
       position: positionValue || undefined,
+    }, {
+      baseURL: '/api/v4',
     })
 
     const response = await usersApi.update(auth.user.id, {
