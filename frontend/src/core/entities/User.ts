@@ -10,7 +10,11 @@ export interface User {
   id: UserId
   username: string
   email: string
+  firstName?: string
+  lastName?: string
   displayName?: string
+  nickname?: string
+  position?: string
   avatarUrl?: string
   role: 'system_admin' | 'org_admin' | 'user' | 'guest'
   presence: PresenceStatus

@@ -13,7 +13,11 @@ export interface User {
 
 export interface UpdateUserRequest {
     username?: string
+    first_name?: string
+    last_name?: string
     display_name?: string
+    nickname?: string
+    position?: string
     avatar_url?: string
 }
 

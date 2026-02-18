@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { usePresenceStore, type Presence } from '../../stores/presence';
+import { usePresenceStore } from '../../features/presence';
+import type { PresenceStatus } from '../../core/entities/User';
 
 interface Props {
   userId?: string;
@@ -23,8 +24,8 @@ const userPresence = computed(() => {
   return presenceStore.getUserPresence(props.userId).value;
 });
 
-const currentPresence = computed<Presence>(() => {
-  return (userPresence.value?.presence?.toLowerCase() as Presence) || 'offline';
+const currentPresence = computed<PresenceStatus>(() => {
+  return (userPresence.value?.presence?.toLowerCase() as PresenceStatus) || 'offline';
 });
 
 const initials = computed(() => {
