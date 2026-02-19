@@ -600,6 +600,8 @@ async fn hydrate_direct_channel_display_name(
 struct MyTeamChannelsQuery {
     #[serde(default)]
     last_delete_at: i64,
+    #[serde(default)]
+    include_deleted: bool,
 }
 
 async fn my_team_channels(
@@ -617,13 +619,32 @@ async fn my_team_channels(
         "Fetching channels for user"
     );
 
-    let mut channels: Vec<Channel> = if query.last_delete_at > 0 {
+    // Determine the filter condition for deleted channels based on query parameters:
+    // 1. If include_deleted is true: return all channels (including deleted ones)
+    // 2. If last_delete_at > 0: return non-deleted channels AND channels deleted since last_delete_at
+    //    This allows mobile clients to sync deleted channels for cache invalidation
+    // 3. Default: only return non-deleted channels
+    let mut channels: Vec<Channel> = if query.include_deleted {
+        // Return all channels including deleted ones
+        sqlx::query_as(
+            r#"
+            SELECT c.* FROM channels c
+            JOIN channel_members cm ON c.id = cm.channel_id
+            WHERE c.team_id = $1 AND cm.user_id = $2
+            "#,
+        )
+        .bind(team_id)
+        .bind(auth.user_id)
+        .fetch_all(&state.db)
+        .await?
+    } else if query.last_delete_at > 0 {
         let ts = chrono::DateTime::from_timestamp_millis(query.last_delete_at).unwrap_or_default();
         sqlx::query_as(
             r#"
             SELECT c.* FROM channels c
             JOIN channel_members cm ON c.id = cm.channel_id
-            WHERE c.team_id = $1 AND cm.user_id = $2 AND c.updated_at >= $3
+            WHERE c.team_id = $1 AND cm.user_id = $2
+              AND (c.delete_at = 0 OR c.delete_at >= $3)
             "#,
         )
         .bind(team_id)
@@ -632,11 +653,12 @@ async fn my_team_channels(
         .fetch_all(&state.db)
         .await?
     } else {
+        // Default: only return non-deleted channels
         sqlx::query_as(
             r#"
             SELECT c.* FROM channels c
             JOIN channel_members cm ON c.id = cm.channel_id
-            WHERE c.team_id = $1 AND cm.user_id = $2
+            WHERE c.team_id = $1 AND cm.user_id = $2 AND c.delete_at = 0
             "#,
         )
         .bind(team_id)
