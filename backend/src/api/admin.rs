@@ -12,22 +12,12 @@ use super::AppState;
 use crate::auth::AuthUser;
 use crate::error::{ApiResult, AppError};
 use crate::models::{
-    AddTeamMember,
-    AuditLog,
-    AuditLogQuery,
-    CreateChannel,
-    CreateRetentionPolicy,
-    CreateSsoConfig,
-    Permission,
-    RetentionPolicy,
-    ServerConfig,
-    ServerConfigResponse,
-    // SiteConfig, AuthConfig, IntegrationsConfig, ComplianceConfig, EmailConfig,
-    SsoConfig,
-    TeamMember,
-    TeamMemberResponse,
-    UpdateChannel,
+    AddTeamMember, AuditLog, AuditLogQuery, CreateChannel, CreateRetentionPolicy,
+    CreateSsoConfig, Permission, RetentionPolicy, ServerConfig,
+    ServerConfigResponse, SsoConfig, SsoConfigResponse, SsoProviderType, SsoTestResult,
+    TeamMember, TeamMemberResponse, UpdateChannel, UpdateSsoConfig,
 };
+use crate::services::oidc_discovery::OidcDiscoveryService;
 use sqlx::FromRow;
 
 /// Build admin routes
@@ -38,13 +28,15 @@ pub fn router() -> Router<AppState> {
         .route("/admin/config/{category}", patch(update_config))
         // Audit logs
         .route("/admin/audit", get(list_audit_logs))
-        // SSO
+        // SSO - new endpoints
+        .route("/admin/sso", get(list_sso_configs).post(create_sso_config))
         .route(
-            "/admin/sso",
+            "/admin/sso/{id}",
             get(get_sso_config)
-                .post(create_sso_config)
-                .put(update_sso_config),
+                .put(update_sso_config)
+                .delete(delete_sso_config),
         )
+        .route("/admin/sso/{id}/test", post(test_sso_config))
         // Retention
         .route(
             "/admin/retention",
@@ -113,179 +105,67 @@ fn require_admin(auth: &AuthUser) -> ApiResult<()> {
     Ok(())
 }
 
-// ... existing code ...
+// ============ Server Configuration ============
 
-async fn list_team_members(
+async fn get_config(
     State(state): State<AppState>,
     auth: AuthUser,
-    Path(id): Path<Uuid>,
-) -> ApiResult<Json<Vec<TeamMemberResponse>>> {
+) -> ApiResult<Json<ServerConfigResponse>> {
     require_admin(&auth)?;
 
-    let members = sqlx::query_as::<_, TeamMemberResponse>(
-        r#"
-        SELECT tm.team_id, tm.user_id, tm.role, tm.created_at,
-               u.username, u.display_name, u.avatar_url
-        FROM team_members tm
-        JOIN users u ON tm.user_id = u.id
-        WHERE tm.team_id = $1
-        ORDER BY u.username
-        "#,
-    )
-    .bind(id)
-    .fetch_all(&state.db)
-    .await?;
+    let config: ServerConfig = sqlx::query_as("SELECT * FROM server_config WHERE id = 'default'")
+        .fetch_one(&state.db)
+        .await?;
 
-    Ok(Json(members))
+    Ok(Json(config.into()))
 }
 
-async fn add_team_member(
+async fn update_config(
     State(state): State<AppState>,
     auth: AuthUser,
-    Path(id): Path<Uuid>,
-    Json(payload): Json<AddTeamMember>,
-) -> ApiResult<Json<TeamMember>> {
-    require_admin(&auth)?;
-
-    let member = sqlx::query_as::<_, TeamMember>(
-        r#"
-        INSERT INTO team_members (team_id, user_id, role)
-        VALUES ($1, $2, $3)
-        RETURNING *
-        "#,
-    )
-    .bind(id)
-    .bind(payload.user_id)
-    .bind(payload.role.unwrap_or_else(|| "member".into()))
-    .fetch_one(&state.db)
-    .await?;
-
-    // Also add user to all public channels in the team
-    sqlx::query(
-        r#"
-        INSERT INTO channel_members (channel_id, user_id)
-        SELECT c.id, $1 FROM channels c
-        WHERE c.team_id = $2 AND c.channel_type = 'public'::channel_type
-        ON CONFLICT (channel_id, user_id) DO NOTHING
-        "#,
-    )
-    .bind(payload.user_id)
-    .bind(id)
-    .execute(&state.db)
-    .await?;
-
-    Ok(Json(member))
-}
-
-async fn remove_team_member(
-    State(state): State<AppState>,
-    auth: AuthUser,
-    Path((id, user_id)): Path<(Uuid, Uuid)>,
+    Path(category): Path<String>,
+    Json(body): Json<serde_json::Value>,
 ) -> ApiResult<Json<serde_json::Value>> {
     require_admin(&auth)?;
 
-    sqlx::query("DELETE FROM team_members WHERE team_id = $1 AND user_id = $2")
-        .bind(id)
-        .bind(user_id)
-        .execute(&state.db)
-        .await?;
-
-    Ok(Json(serde_json::json!({"status": "removed"})))
-}
-
-async fn create_admin_channel(
-    State(state): State<AppState>,
-    auth: AuthUser,
-    Json(input): Json<CreateChannel>,
-) -> ApiResult<Json<crate::models::channel::Channel>> {
-    require_admin(&auth)?;
-
-    // Create channel
-    let channel: crate::models::channel::Channel = sqlx::query_as(
-        r#"
-        INSERT INTO channels (team_id, name, display_name, purpose, type, creator_id)
-        VALUES ($1, $2, $3, $4, $5, $6)
-        RETURNING *
-        "#,
-    )
-    .bind(input.team_id)
-    .bind(&input.name)
-    .bind(&input.display_name)
-    .bind(&input.purpose)
-    .bind(input.channel_type)
-    .bind(auth.user_id)
-    .fetch_one(&state.db)
-    .await?;
-
-    // Broadcast event
-    let broadcast = if channel.channel_type == crate::models::ChannelType::Public {
-        // Broadcast to entire team
-        crate::realtime::WsBroadcast {
-            team_id: Some(input.team_id),
-            channel_id: None,
-            user_id: None,
-            exclude_user_id: None,
-        }
-    } else {
-        // Private channel: broadcast only to creator (admin)
-        crate::realtime::WsBroadcast {
-            user_id: Some(auth.user_id),
-            channel_id: None,
-            team_id: None,
-            exclude_user_id: None,
+    let column = match category.as_str() {
+        "site" => "site",
+        "authentication" => "authentication",
+        "integrations" => "integrations",
+        "compliance" => "compliance",
+        "email" => "email",
+        "experimental" => "experimental",
+        _ => {
+            return Err(AppError::BadRequest(format!(
+                "Invalid config category: {}",
+                category
+            )))
         }
     };
 
-    let event = crate::realtime::WsEnvelope::event(
-        crate::realtime::EventType::ChannelCreated,
-        channel.clone(),
-        Some(channel.id),
-    )
-    .with_broadcast(broadcast);
+    let query = format!(
+        "UPDATE server_config SET {} = $1, updated_at = NOW(), updated_by = $2 WHERE id = 'default' RETURNING {}",
+        column, column
+    );
 
+    let result: (sqlx::types::Json<serde_json::Value>,) = sqlx::query_as(&query)
+        .bind(sqlx::types::Json(&body))
+        .bind(auth.user_id)
+        .fetch_one(&state.db)
+        .await?;
+
+    // Broadcast config update to all connected users
+    let event = crate::realtime::events::WsEnvelope::event(
+        crate::realtime::events::EventType::ConfigUpdated,
+        serde_json::json!({
+            "category": category,
+            "config": result.0.0
+        }),
+        None,
+    );
     state.ws_hub.broadcast(event).await;
 
-    Ok(Json(channel))
-}
-
-async fn update_admin_channel(
-    State(state): State<AppState>,
-    auth: AuthUser,
-    Path(id): Path<Uuid>,
-    Json(input): Json<UpdateChannel>,
-) -> ApiResult<Json<crate::models::channel::Channel>> {
-    require_admin(&auth)?;
-
-    // Update fields
-    if let Some(ref display_name) = input.display_name {
-        sqlx::query("UPDATE channels SET display_name = $1 WHERE id = $2")
-            .bind(display_name)
-            .bind(id)
-            .execute(&state.db)
-            .await?;
-    }
-    if let Some(ref purpose) = input.purpose {
-        sqlx::query("UPDATE channels SET purpose = $1 WHERE id = $2")
-            .bind(purpose)
-            .bind(id)
-            .execute(&state.db)
-            .await?;
-    }
-    if let Some(ref header) = input.header {
-        sqlx::query("UPDATE channels SET header = $1 WHERE id = $2")
-            .bind(header)
-            .bind(id)
-            .execute(&state.db)
-            .await?;
-    }
-
-    let channel: crate::models::channel::Channel =
-        sqlx::query_as("SELECT * FROM channels WHERE id = $1")
-            .bind(id)
-            .fetch_one(&state.db)
-            .await?;
-
-    Ok(Json(channel))
+    Ok(Json(result.0 .0))
 }
 
 // ============ Audit Logs ============
@@ -328,84 +208,495 @@ async fn list_audit_logs(
 
 // ============ SSO Configuration ============
 
+/// List all SSO configurations
+async fn list_sso_configs(
+    State(state): State<AppState>,
+    auth: AuthUser,
+) -> ApiResult<Json<Vec<SsoConfigResponse>>> {
+    require_admin(&auth)?;
+
+    let configs: Vec<SsoConfig> = sqlx::query_as(
+        r#"
+        SELECT 
+            id, org_id, provider, provider_key, provider_type, display_name,
+            issuer_url, client_id, client_secret_encrypted, scopes,
+            idp_metadata_url, idp_entity_id, is_active, auto_provision,
+            default_role, allow_domains, github_org, github_team,
+            groups_claim, role_mappings, created_at, updated_at
+        FROM sso_configs
+        ORDER BY provider_key
+        "#,
+    )
+    .fetch_all(&state.db)
+    .await?;
+
+    let responses: Vec<SsoConfigResponse> = configs.into_iter().map(Into::into).collect();
+    Ok(Json(responses))
+}
+
+/// Get a single SSO configuration
 async fn get_sso_config(
     State(state): State<AppState>,
     auth: AuthUser,
-) -> ApiResult<Json<Option<SsoConfig>>> {
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<SsoConfigResponse>> {
     require_admin(&auth)?;
 
-    let org_id = auth
-        .org_id
-        .ok_or_else(|| AppError::BadRequest("No organization context".to_string()))?;
+    let config: SsoConfig = sqlx::query_as(
+        r#"
+        SELECT 
+            id, org_id, provider, provider_key, provider_type, display_name,
+            issuer_url, client_id, client_secret_encrypted, scopes,
+            idp_metadata_url, idp_entity_id, is_active, auto_provision,
+            default_role, allow_domains, github_org, github_team,
+            groups_claim, role_mappings, created_at, updated_at
+        FROM sso_configs WHERE id = $1
+        "#,
+    )
+    .bind(id)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or_else(|| AppError::NotFound("SSO configuration not found".to_string()))?;
 
-    let config: Option<SsoConfig> = sqlx::query_as("SELECT * FROM sso_configs WHERE org_id = $1")
-        .bind(org_id)
-        .fetch_optional(&state.db)
-        .await?;
-
-    Ok(Json(config))
+    Ok(Json(config.into()))
 }
 
+/// Validate provider key (URL-safe: a-z, 0-9, -)
+fn validate_provider_key(key: &str) -> ApiResult<()> {
+    if key.is_empty() || key.len() > 64 {
+        return Err(AppError::Validation(
+            "Provider key must be 1-64 characters".to_string(),
+        ));
+    }
+    if !key
+        .chars()
+        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+    {
+        return Err(AppError::Validation(
+            "Provider key must be lowercase alphanumeric with hyphens only".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+/// Validate SSO configuration input
+fn validate_sso_config(input: &CreateSsoConfig, is_update: bool) -> ApiResult<SsoProviderType> {
+    let provider_type = SsoProviderType::from_str(&input.provider_type).ok_or_else(|| {
+        AppError::Validation(format!(
+            "Invalid provider_type '{}'. Must be one of: github, google, oidc",
+            input.provider_type
+        ))
+    })?;
+
+    // Validate provider_key for new configs
+    if !is_update {
+        validate_provider_key(&input.provider_key)?;
+    }
+
+    // Validate required fields based on provider type
+    match provider_type {
+        SsoProviderType::GitHub => {
+            if input.client_id.is_none() || input.client_id.as_ref().unwrap().is_empty() {
+                return Err(AppError::Validation(
+                    "GitHub requires client_id".to_string(),
+                ));
+            }
+            if input.client_secret.is_none() || input.client_secret.as_ref().unwrap().is_empty() {
+                return Err(AppError::Validation(
+                    "GitHub requires client_secret".to_string(),
+                ));
+            }
+        }
+        SsoProviderType::Google | SsoProviderType::Oidc => {
+            if input.issuer_url.is_none() || input.issuer_url.as_ref().unwrap().is_empty() {
+                return Err(AppError::Validation(format!(
+                    "{} requires issuer_url",
+                    provider_type.as_str()
+                )));
+            }
+            if input.client_id.is_none() || input.client_id.as_ref().unwrap().is_empty() {
+                return Err(AppError::Validation(format!(
+                    "{} requires client_id",
+                    provider_type.as_str()
+                )));
+            }
+            if input.client_secret.is_none() || input.client_secret.as_ref().unwrap().is_empty() {
+                return Err(AppError::Validation(format!(
+                    "{} requires client_secret",
+                    provider_type.as_str()
+                )));
+            }
+            // Ensure scopes include 'openid' for OIDC
+            let scopes = input.scopes.as_ref();
+            let has_openid = scopes.map_or(true, |s| s.iter().any(|scope| scope == "openid"));
+            if !has_openid {
+                return Err(AppError::Validation(
+                    "OIDC providers require 'openid' in scopes".to_string(),
+                ));
+            }
+        }
+        SsoProviderType::Saml => {
+            return Err(AppError::Validation(
+                "SAML is not supported via this API".to_string(),
+            ));
+        }
+    }
+
+    Ok(provider_type)
+}
+
+/// Create a new SSO configuration
 async fn create_sso_config(
     State(state): State<AppState>,
     auth: AuthUser,
     Json(input): Json<CreateSsoConfig>,
-) -> ApiResult<Json<SsoConfig>> {
+) -> ApiResult<Json<SsoConfigResponse>> {
     require_admin(&auth)?;
 
     let org_id = auth
         .org_id
         .ok_or_else(|| AppError::BadRequest("No organization context".to_string()))?;
 
-    // Validate provider
-    if input.provider != "oidc" && input.provider != "saml" {
-        return Err(AppError::Validation(
-            "Provider must be 'oidc' or 'saml'".to_string(),
-        ));
+    // Validate input
+    let provider_type = validate_sso_config(&input, false)?;
+
+    // Check for duplicate provider_key
+    let existing: Option<(Uuid,)> = sqlx::query_as(
+        "SELECT id FROM sso_configs WHERE provider_key = $1"
+    )
+    .bind(&input.provider_key)
+    .fetch_optional(&state.db)
+    .await?;
+
+    if existing.is_some() {
+        return Err(AppError::Validation(format!(
+            "Provider key '{}' already exists",
+            input.provider_key
+        )));
     }
 
-    let scopes = input.scopes.unwrap_or_else(|| {
-        vec![
-            "openid".to_string(),
-            "profile".to_string(),
-            "email".to_string(),
-        ]
-    });
-    let encrypted_client_secret = input
+    // Encrypt client secret
+    let encrypted_secret = input
         .client_secret
-        .as_deref()
-        .map(|secret| crate::crypto::encrypt(secret, &state.config.encryption_key));
+        .as_ref()
+        .map(|s| crate::crypto::encrypt(s, &state.config.encryption_key));
+
+    // Use default scopes if not provided
+    let scopes = input
+        .scopes
+        .clone()
+        .unwrap_or_else(|| provider_type.default_scopes());
 
     let config: SsoConfig = sqlx::query_as(
         r#"
-        INSERT INTO sso_configs (org_id, provider, display_name, issuer_url, client_id, client_secret_encrypted, scopes)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
-        ON CONFLICT (org_id) DO UPDATE SET
-            provider = $2, display_name = $3, issuer_url = $4, 
-            client_id = $5, client_secret_encrypted = $6, scopes = $7
-        RETURNING *
+        INSERT INTO sso_configs (
+            org_id, provider, provider_key, provider_type, display_name,
+            issuer_url, client_id, client_secret_encrypted, scopes,
+            is_active, auto_provision, default_role,
+            allow_domains, github_org, github_team,
+            groups_claim, role_mappings
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+        RETURNING 
+            id, org_id, provider, provider_key, provider_type, display_name,
+            issuer_url, client_id, client_secret_encrypted, scopes,
+            idp_metadata_url, idp_entity_id, is_active, auto_provision,
+            default_role, allow_domains, github_org, github_team,
+            groups_claim, role_mappings, created_at, updated_at
         "#,
     )
     .bind(org_id)
-    .bind(&input.provider)
+    .bind(&input.provider_type) // legacy provider field
+    .bind(&input.provider_key)
+    .bind(&input.provider_type)
     .bind(&input.display_name)
     .bind(&input.issuer_url)
     .bind(&input.client_id)
-    .bind(&encrypted_client_secret)
+    .bind(&encrypted_secret)
     .bind(&scopes)
+    .bind(input.is_active.unwrap_or(true))
+    .bind(input.auto_provision.unwrap_or(true))
+    .bind(input.default_role.as_ref().unwrap_or(&"member".to_string()))
+    .bind(&input.allow_domains)
+    .bind(&input.github_org)
+    .bind(&input.github_team)
+    .bind(&input.groups_claim)
+    .bind(&input.role_mappings)
     .fetch_one(&state.db)
-    .await?;
+    .await
+    .map_err(|e| {
+        if e.to_string().contains("unique") {
+            AppError::Validation(format!("Provider key '{}' already exists", input.provider_key))
+        } else {
+            AppError::Internal(format!("Failed to create SSO config: {}", e))
+        }
+    })?;
 
-    Ok(Json(config))
+    Ok(Json(config.into()))
 }
 
+/// Update an existing SSO configuration
 async fn update_sso_config(
     State(state): State<AppState>,
     auth: AuthUser,
-    Json(input): Json<CreateSsoConfig>,
-) -> ApiResult<Json<SsoConfig>> {
-    // Same as create with upsert
-    create_sso_config(State(state), auth, Json(input)).await
+    Path(id): Path<Uuid>,
+    Json(input): Json<UpdateSsoConfig>,
+) -> ApiResult<Json<SsoConfigResponse>> {
+    require_admin(&auth)?;
+
+    // Get existing config
+    let existing: SsoConfig = sqlx::query_as(
+        r#"
+        SELECT 
+            id, org_id, provider, provider_key, provider_type, display_name,
+            issuer_url, client_id, client_secret_encrypted, scopes,
+            idp_metadata_url, idp_entity_id, is_active, auto_provision,
+            default_role, allow_domains, github_org, github_team,
+            groups_claim, role_mappings, created_at, updated_at
+        FROM sso_configs WHERE id = $1
+        "#,
+    )
+    .bind(id)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or_else(|| AppError::NotFound("SSO configuration not found".to_string()))?;
+
+    // Validate new provider_key if changing
+    if let Some(ref new_key) = input.provider_key {
+        if new_key != &existing.provider_key {
+            validate_provider_key(new_key)?;
+            // Check for duplicates
+            let dup: Option<(Uuid,)> = sqlx::query_as(
+                "SELECT id FROM sso_configs WHERE provider_key = $1 AND id != $2"
+            )
+            .bind(new_key)
+            .bind(id)
+            .fetch_optional(&state.db)
+            .await?;
+            if dup.is_some() {
+                return Err(AppError::Validation(format!(
+                    "Provider key '{}' already exists",
+                    new_key
+                )));
+            }
+        }
+    }
+
+    // Encrypt new client secret if provided
+    let encrypted_secret = input.client_secret.as_ref().map(|s| {
+        crate::crypto::encrypt(s, &state.config.encryption_key)
+    });
+
+    let config: SsoConfig = sqlx::query_as(
+        r#"
+        UPDATE sso_configs SET
+            provider_key = COALESCE($1, provider_key),
+            display_name = COALESCE($2, display_name),
+            issuer_url = COALESCE($3, issuer_url),
+            client_id = COALESCE($4, client_id),
+            client_secret_encrypted = COALESCE($5, client_secret_encrypted),
+            scopes = COALESCE($6, scopes),
+            is_active = COALESCE($7, is_active),
+            auto_provision = COALESCE($8, auto_provision),
+            default_role = COALESCE($9, default_role),
+            allow_domains = COALESCE($10, allow_domains),
+            github_org = COALESCE($11, github_org),
+            github_team = COALESCE($12, github_team),
+            groups_claim = COALESCE($13, groups_claim),
+            role_mappings = COALESCE($14, role_mappings),
+            updated_at = NOW()
+        WHERE id = $15
+        RETURNING 
+            id, org_id, provider, provider_key, provider_type, display_name,
+            issuer_url, client_id, client_secret_encrypted, scopes,
+            idp_metadata_url, idp_entity_id, is_active, auto_provision,
+            default_role, allow_domains, github_org, github_team,
+            groups_claim, role_mappings, created_at, updated_at
+        "#,
+    )
+    .bind(&input.provider_key)
+    .bind(&input.display_name)
+    .bind(&input.issuer_url)
+    .bind(&input.client_id)
+    .bind(&encrypted_secret)
+    .bind(&input.scopes)
+    .bind(&input.is_active)
+    .bind(&input.auto_provision)
+    .bind(&input.default_role)
+    .bind(&input.allow_domains)
+    .bind(&input.github_org)
+    .bind(&input.github_team)
+    .bind(&input.groups_claim)
+    .bind(&input.role_mappings)
+    .bind(id)
+    .fetch_one(&state.db)
+    .await
+    .map_err(|e| AppError::Internal(format!("Failed to update SSO config: {}", e)))?;
+
+    Ok(Json(config.into()))
+}
+
+/// Delete an SSO configuration
+async fn delete_sso_config(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<serde_json::Value>> {
+    require_admin(&auth)?;
+
+    let result = sqlx::query("DELETE FROM sso_configs WHERE id = $1")
+        .bind(id)
+        .execute(&state.db)
+        .await?;
+
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound("SSO configuration not found".to_string()));
+    }
+
+    Ok(Json(serde_json::json!({"status": "deleted"})))
+}
+
+/// Test an SSO configuration
+async fn test_sso_config(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<SsoTestResult>> {
+    require_admin(&auth)?;
+
+    let config: SsoConfig = sqlx::query_as(
+        r#"
+        SELECT 
+            id, org_id, provider, provider_key, provider_type, display_name,
+            issuer_url, client_id, client_secret_encrypted, scopes,
+            idp_metadata_url, idp_entity_id, is_active, auto_provision,
+            default_role, allow_domains, github_org, github_team,
+            groups_claim, role_mappings, created_at, updated_at
+        FROM sso_configs WHERE id = $1
+        "#,
+    )
+    .bind(id)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or_else(|| AppError::NotFound("SSO configuration not found".to_string()))?;
+
+    let provider_type = match SsoProviderType::from_str(&config.provider_type) {
+        Some(t) => t,
+        None => {
+            return Ok(Json(SsoTestResult {
+                success: false,
+                message: format!("Unknown provider type: {}", config.provider_type),
+                details: None,
+            }));
+        }
+    };
+
+    // Test based on provider type
+    match provider_type {
+        SsoProviderType::GitHub => test_github_config(&config).await,
+        SsoProviderType::Google | SsoProviderType::Oidc => {
+            test_oidc_config(&config).await
+        }
+        SsoProviderType::Saml => Ok(Json(SsoTestResult {
+            success: false,
+            message: "SAML testing is not supported".to_string(),
+            details: None,
+        })),
+    }
+}
+
+/// Test GitHub OAuth configuration
+async fn test_github_config(config: &SsoConfig) -> ApiResult<Json<SsoTestResult>> {
+    let client = reqwest::Client::new();
+
+    // Test that we can reach GitHub's token endpoint
+    // We can't actually test authentication without a valid code,
+    // but we can verify the endpoint is reachable
+    let response = client
+        .get("https://api.github.com")
+        .header("User-Agent", "RustChat-SSO-Test")
+        .send()
+        .await;
+
+    match response {
+        Ok(resp) if resp.status().is_success() || resp.status().as_u16() == 401 => {
+            // 401 is expected since we didn't provide credentials
+            Ok(Json(SsoTestResult {
+                success: true,
+                message: "GitHub API is reachable".to_string(),
+                details: Some(serde_json::json!({
+                    "provider_key": config.provider_key,
+                    "client_id_configured": config.client_id.is_some(),
+                    "client_secret_configured": config.client_secret_encrypted.is_some(),
+                    "auth_url": "https://github.com/login/oauth/authorize",
+                })),
+            }))
+        }
+        Ok(resp) => Ok(Json(SsoTestResult {
+            success: false,
+            message: format!("GitHub API returned unexpected status: {}", resp.status()),
+            details: None,
+        })),
+        Err(e) => Ok(Json(SsoTestResult {
+            success: false,
+            message: format!("Failed to reach GitHub API: {}", e),
+            details: None,
+        })),
+    }
+}
+
+/// Test OIDC configuration via discovery
+async fn test_oidc_config(config: &SsoConfig) -> ApiResult<Json<SsoTestResult>> {
+    let issuer = match &config.issuer_url {
+        Some(url) => url,
+        None => {
+            return Ok(Json(SsoTestResult {
+                success: false,
+                message: "Issuer URL not configured".to_string(),
+                details: None,
+            }));
+        }
+    };
+
+    let discovery = OidcDiscoveryService::new();
+
+    // Attempt OIDC discovery
+    match discovery.discover(issuer).await {
+        Ok(result) => {
+            // Try to fetch JWKS to verify it's accessible
+            match discovery.fetch_jwks(&result.jwks_uri).await {
+                Ok(jwks) => Ok(Json(SsoTestResult {
+                    success: true,
+                    message: "OIDC discovery and JWKS fetch successful".to_string(),
+                    details: Some(serde_json::json!({
+                        "issuer": result.issuer,
+                        "authorization_endpoint": result.authorization_endpoint,
+                        "token_endpoint": result.token_endpoint,
+                        "userinfo_endpoint": result.userinfo_endpoint,
+                        "jwks_keys_count": jwks.keys.len(),
+                        "scopes_supported": result.scopes_supported,
+                        "response_types_supported": result.response_types_supported,
+                    })),
+                })),
+                Err(e) => Ok(Json(SsoTestResult {
+                    success: false,
+                    message: format!("OIDC discovery succeeded but JWKS fetch failed: {}", e),
+                    details: Some(serde_json::json!({
+                        "issuer": result.issuer,
+                        "jwks_uri": result.jwks_uri,
+                    })),
+                })),
+            }
+        }
+        Err(e) => Ok(Json(SsoTestResult {
+            success: false,
+            message: format!("OIDC discovery failed: {}", e),
+            details: Some(serde_json::json!({
+                "issuer_url": issuer,
+                "discovery_url": format!("{}/.well-known/openid-configuration", issuer.trim_end_matches('/')),
+            })),
+        })),
+    }
 }
 
 // ============ Retention Policies ============
@@ -502,207 +793,6 @@ async fn delete_retention_policy(
     Ok(Json(serde_json::json!({"status": "deleted"})))
 }
 
-// ============ Plugins - RustChat Calls Plugin ============
-
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
-#[allow(dead_code)]
-pub struct CallsPluginConfig {
-    pub enabled: bool,
-    pub turn_server_enabled: bool,
-    pub turn_server_url: String,
-    pub turn_server_username: String,
-    #[serde(skip_serializing)]
-    pub turn_server_credential: String,
-    pub udp_port: u16,
-    pub tcp_port: u16,
-    pub ice_host_override: Option<String>,
-    pub stun_servers: Vec<String>,
-}
-
-#[derive(Debug, serde::Deserialize)]
-pub struct UpdateCallsPluginConfig {
-    pub enabled: bool,
-    pub turn_server_enabled: bool,
-    pub turn_server_url: String,
-    pub turn_server_username: String,
-    pub turn_server_credential: Option<String>,
-    pub udp_port: u16,
-    pub tcp_port: u16,
-    pub ice_host_override: Option<String>,
-    pub stun_servers: Vec<String>,
-}
-
-#[derive(Debug, serde::Serialize)]
-pub struct CallsPluginConfigResponse {
-    pub plugin_id: String,
-    pub plugin_name: String,
-    pub settings: CallsPluginConfig,
-}
-
-async fn get_calls_plugin_config(
-    State(state): State<AppState>,
-    auth: AuthUser,
-) -> ApiResult<Json<CallsPluginConfigResponse>> {
-    require_admin(&auth)?;
-
-    // Get config from database (server_config table, plugins column)
-    let config: Option<(serde_json::Value,)> =
-        sqlx::query_as("SELECT plugins->'calls' FROM server_config WHERE id = 'default'")
-            .fetch_optional(&state.db)
-            .await?;
-
-    let calls_config = config
-        .and_then(|(json,)| json.as_object().cloned())
-        .map(|obj| CallsPluginConfig {
-            enabled: obj
-                .get("enabled")
-                .and_then(|v| v.as_bool())
-                .unwrap_or(state.config.calls.enabled),
-            turn_server_enabled: obj
-                .get("turn_server_enabled")
-                .and_then(|v| v.as_bool())
-                .unwrap_or(state.config.calls.turn_server_enabled),
-            turn_server_url: obj
-                .get("turn_server_url")
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string())
-                .unwrap_or_else(|| state.config.calls.turn_server_url.clone()),
-            turn_server_username: obj
-                .get("turn_server_username")
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string())
-                .unwrap_or_else(|| state.config.calls.turn_server_username.clone()),
-            turn_server_credential: obj
-                .get("turn_server_credential")
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string())
-                .unwrap_or_else(|| state.config.calls.turn_server_credential.clone()),
-            udp_port: obj
-                .get("udp_port")
-                .and_then(|v| v.as_u64())
-                .map(|v| v as u16)
-                .unwrap_or(state.config.calls.udp_port),
-            tcp_port: obj
-                .get("tcp_port")
-                .and_then(|v| v.as_u64())
-                .map(|v| v as u16)
-                .unwrap_or(state.config.calls.tcp_port),
-            ice_host_override: obj
-                .get("ice_host_override")
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string()),
-            stun_servers: obj
-                .get("stun_servers")
-                .and_then(|v| v.as_array())
-                .map(|arr| {
-                    arr.iter()
-                        .filter_map(|v| v.as_str())
-                        .map(|s| s.to_string())
-                        .collect()
-                })
-                .unwrap_or_else(|| state.config.calls.stun_servers.clone()),
-        })
-        .unwrap_or_else(|| CallsPluginConfig {
-            enabled: state.config.calls.enabled,
-            turn_server_enabled: state.config.calls.turn_server_enabled,
-            turn_server_url: state.config.calls.turn_server_url.clone(),
-            turn_server_username: state.config.calls.turn_server_username.clone(),
-            turn_server_credential: state.config.calls.turn_server_credential.clone(),
-            udp_port: state.config.calls.udp_port,
-            tcp_port: state.config.calls.tcp_port,
-            ice_host_override: state.config.calls.ice_host_override.clone(),
-            stun_servers: state.config.calls.stun_servers.clone(),
-        });
-
-    Ok(Json(CallsPluginConfigResponse {
-        plugin_id: "com.rustchat.calls".to_string(),
-        plugin_name: "RustChat Calls Plugin".to_string(),
-        settings: calls_config,
-    }))
-}
-
-async fn update_calls_plugin_config(
-    State(state): State<AppState>,
-    auth: AuthUser,
-    Json(payload): Json<serde_json::Value>,
-) -> ApiResult<Json<CallsPluginConfigResponse>> {
-    require_admin(&auth)?;
-
-    // Log the incoming payload for debugging
-    tracing::info!("Received Calls Plugin config update: {}", payload);
-
-    // Deserialize manually to get better error messages
-    let payload: UpdateCallsPluginConfig = serde_json::from_value(payload).map_err(|e| {
-        tracing::error!("Failed to deserialize Calls Plugin config: {}", e);
-        AppError::BadRequest(format!("Invalid configuration data: {}", e))
-    })?;
-
-    // Get existing credential if not provided in update
-    let credential = if let Some(ref cred) = payload.turn_server_credential {
-        cred.clone()
-    } else {
-        // Fetch existing credential from database
-        let existing: Option<(String,)> = sqlx::query_as(
-            "SELECT plugins->'calls'->>'turn_server_credential' FROM server_config WHERE id = 'default'"
-        )
-        .fetch_optional(&state.db)
-        .await?;
-        existing
-            .map(|(s,)| s)
-            .unwrap_or_else(|| state.config.calls.turn_server_credential.clone())
-    };
-
-    // Build JSON object for calls config
-    let calls_config_json = serde_json::json!({
-        "enabled": payload.enabled,
-        "turn_server_enabled": payload.turn_server_enabled,
-        "turn_server_url": payload.turn_server_url,
-        "turn_server_username": payload.turn_server_username,
-        "turn_server_credential": credential,
-        "udp_port": payload.udp_port,
-        "tcp_port": payload.tcp_port,
-        "ice_host_override": payload.ice_host_override,
-        "stun_servers": payload.stun_servers,
-    });
-
-    // Update server_config table
-    sqlx::query(
-        r#"
-        INSERT INTO server_config (id, plugins, updated_at, updated_by)
-        VALUES ('default', jsonb_build_object('calls', $1::jsonb), NOW(), $2)
-        ON CONFLICT (id) DO UPDATE SET
-            plugins = jsonb_set(
-                COALESCE(server_config.plugins, '{}'::jsonb),
-                '{calls}',
-                $1::jsonb,
-                true
-            ),
-            updated_at = NOW(),
-            updated_by = $2
-        "#,
-    )
-    .bind(calls_config_json)
-    .bind(auth.user_id)
-    .execute(&state.db)
-    .await?;
-
-    Ok(Json(CallsPluginConfigResponse {
-        plugin_id: "com.rustchat.calls".to_string(),
-        plugin_name: "RustChat Calls Plugin".to_string(),
-        settings: CallsPluginConfig {
-            enabled: payload.enabled,
-            turn_server_enabled: payload.turn_server_enabled,
-            turn_server_url: payload.turn_server_url,
-            turn_server_username: payload.turn_server_username,
-            turn_server_credential: credential,
-            udp_port: payload.udp_port,
-            tcp_port: payload.tcp_port,
-            ice_host_override: payload.ice_host_override,
-            stun_servers: payload.stun_servers,
-        },
-    }))
-}
-
 // ============ Permissions ============
 
 async fn list_permissions(
@@ -773,101 +863,6 @@ async fn update_role_permissions(
     tx.commit().await?;
 
     Ok(Json(valid_ids))
-}
-
-/// Helper function to log audit events
-#[allow(dead_code)]
-#[allow(clippy::too_many_arguments)]
-pub async fn log_audit_event(
-    db: &sqlx::PgPool,
-    actor_user_id: Option<Uuid>,
-    actor_ip: Option<String>,
-    action: &str,
-    target_type: &str,
-    target_id: Option<Uuid>,
-    old_values: Option<serde_json::Value>,
-    new_values: Option<serde_json::Value>,
-) -> Result<(), sqlx::Error> {
-    sqlx::query(
-        r#"
-        INSERT INTO audit_logs (actor_user_id, actor_ip, action, target_type, target_id, old_values, new_values)
-        VALUES ($1, $2, $3, $4, $5, $6, $7)
-        "#,
-    )
-    .bind(actor_user_id)
-    .bind(actor_ip)
-    .bind(action)
-    .bind(target_type)
-    .bind(target_id)
-    .bind(old_values)
-    .bind(new_values)
-    .execute(db)
-    .await?;
-
-    Ok(())
-}
-
-// ============ Server Configuration ============
-
-async fn get_config(
-    State(state): State<AppState>,
-    auth: AuthUser,
-) -> ApiResult<Json<ServerConfigResponse>> {
-    require_admin(&auth)?;
-
-    let config: ServerConfig = sqlx::query_as("SELECT * FROM server_config WHERE id = 'default'")
-        .fetch_one(&state.db)
-        .await?;
-
-    Ok(Json(config.into()))
-}
-
-async fn update_config(
-    State(state): State<AppState>,
-    auth: AuthUser,
-    Path(category): Path<String>,
-    Json(body): Json<serde_json::Value>,
-) -> ApiResult<Json<serde_json::Value>> {
-    require_admin(&auth)?;
-
-    let column = match category.as_str() {
-        "site" => "site",
-        "authentication" => "authentication",
-        "integrations" => "integrations",
-        "compliance" => "compliance",
-        "email" => "email",
-        "experimental" => "experimental",
-        _ => {
-            return Err(AppError::BadRequest(format!(
-                "Invalid config category: {}",
-                category
-            )))
-        }
-    };
-
-    let query = format!(
-        "UPDATE server_config SET {} = $1, updated_at = NOW(), updated_by = $2 WHERE id = 'default' RETURNING {}",
-        column, column
-    );
-
-    let result: (sqlx::types::Json<serde_json::Value>,) = sqlx::query_as(&query)
-        .bind(sqlx::types::Json(&body))
-        .bind(auth.user_id)
-        .fetch_one(&state.db)
-        .await?;
-
-    // Broadcast config update to all connected users
-    let event = crate::realtime::events::WsEnvelope::event(
-        crate::realtime::events::EventType::ConfigUpdated,
-        serde_json::json!({
-            "category": category,
-            "config": result.0.0
-        }),
-        None,
-    );
-    state.ws_hub.broadcast(event).await;
-
-    Ok(Json(result.0 .0))
 }
 
 // ============ User Management ============
@@ -1243,6 +1238,84 @@ async fn delete_admin_team(
     Ok(Json(serde_json::json!({"status": "deleted"})))
 }
 
+async fn list_team_members(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<Vec<TeamMemberResponse>>> {
+    require_admin(&auth)?;
+
+    let members = sqlx::query_as::<_, TeamMemberResponse>(
+        r#"
+        SELECT tm.team_id, tm.user_id, tm.role, tm.created_at,
+               u.username, u.display_name, u.avatar_url
+        FROM team_members tm
+        JOIN users u ON tm.user_id = u.id
+        WHERE tm.team_id = $1
+        ORDER BY u.username
+        "#,
+    )
+    .bind(id)
+    .fetch_all(&state.db)
+    .await?;
+
+    Ok(Json(members))
+}
+
+async fn add_team_member(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(payload): Json<AddTeamMember>,
+) -> ApiResult<Json<TeamMember>> {
+    require_admin(&auth)?;
+
+    let member = sqlx::query_as::<_, TeamMember>(
+        r#"
+        INSERT INTO team_members (team_id, user_id, role)
+        VALUES ($1, $2, $3)
+        RETURNING *
+        "#,
+    )
+    .bind(id)
+    .bind(payload.user_id)
+    .bind(payload.role.unwrap_or_else(|| "member".into()))
+    .fetch_one(&state.db)
+    .await?;
+
+    // Also add user to all public channels in the team
+    sqlx::query(
+        r#"
+        INSERT INTO channel_members (channel_id, user_id)
+        SELECT c.id, $1 FROM channels c
+        WHERE c.team_id = $2 AND c.channel_type = 'public'::channel_type
+        ON CONFLICT (channel_id, user_id) DO NOTHING
+        "#,
+    )
+    .bind(payload.user_id)
+    .bind(id)
+    .execute(&state.db)
+    .await?;
+
+    Ok(Json(member))
+}
+
+async fn remove_team_member(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path((id, user_id)): Path<(Uuid, Uuid)>,
+) -> ApiResult<Json<serde_json::Value>> {
+    require_admin(&auth)?;
+
+    sqlx::query("DELETE FROM team_members WHERE team_id = $1 AND user_id = $2")
+        .bind(id)
+        .bind(user_id)
+        .execute(&state.db)
+        .await?;
+
+    Ok(Json(serde_json::json!({"status": "removed"})))
+}
+
 #[derive(Debug, serde::Deserialize)]
 pub struct ListChannelsQuery {
     pub team_id: Option<Uuid>,
@@ -1306,6 +1379,101 @@ async fn list_admin_channels(
     }))
 }
 
+async fn create_admin_channel(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Json(input): Json<CreateChannel>,
+) -> ApiResult<Json<crate::models::channel::Channel>> {
+    require_admin(&auth)?;
+
+    // Create channel
+    let channel: crate::models::channel::Channel = sqlx::query_as(
+        r#"
+        INSERT INTO channels (team_id, name, display_name, purpose, type, creator_id)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        RETURNING *
+        "#,
+    )
+    .bind(input.team_id)
+    .bind(&input.name)
+    .bind(&input.display_name)
+    .bind(&input.purpose)
+    .bind(input.channel_type)
+    .bind(auth.user_id)
+    .fetch_one(&state.db)
+    .await?;
+
+    // Broadcast event
+    let broadcast = if channel.channel_type == crate::models::ChannelType::Public {
+        // Broadcast to entire team
+        crate::realtime::WsBroadcast {
+            team_id: Some(input.team_id),
+            channel_id: None,
+            user_id: None,
+            exclude_user_id: None,
+        }
+    } else {
+        // Private channel: broadcast only to creator (admin)
+        crate::realtime::WsBroadcast {
+            user_id: Some(auth.user_id),
+            channel_id: None,
+            team_id: None,
+            exclude_user_id: None,
+        }
+    };
+
+    let event = crate::realtime::WsEnvelope::event(
+        crate::realtime::events::EventType::ChannelCreated,
+        channel.clone(),
+        Some(channel.id),
+    )
+    .with_broadcast(broadcast);
+
+    state.ws_hub.broadcast(event).await;
+
+    Ok(Json(channel))
+}
+
+async fn update_admin_channel(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(input): Json<UpdateChannel>,
+) -> ApiResult<Json<crate::models::channel::Channel>> {
+    require_admin(&auth)?;
+
+    // Update fields
+    if let Some(ref display_name) = input.display_name {
+        sqlx::query("UPDATE channels SET display_name = $1 WHERE id = $2")
+            .bind(display_name)
+            .bind(id)
+            .execute(&state.db)
+            .await?;
+    }
+    if let Some(ref purpose) = input.purpose {
+        sqlx::query("UPDATE channels SET purpose = $1 WHERE id = $2")
+            .bind(purpose)
+            .bind(id)
+            .execute(&state.db)
+            .await?;
+    }
+    if let Some(ref header) = input.header {
+        sqlx::query("UPDATE channels SET header = $1 WHERE id = $2")
+            .bind(header)
+            .bind(id)
+            .execute(&state.db)
+            .await?;
+    }
+
+    let channel: crate::models::channel::Channel =
+        sqlx::query_as("SELECT * FROM channels WHERE id = $1")
+            .bind(id)
+            .fetch_one(&state.db)
+            .await?;
+
+    Ok(Json(channel))
+}
+
 async fn delete_admin_channel(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -1319,6 +1487,207 @@ async fn delete_admin_channel(
         .await?;
 
     Ok(Json(serde_json::json!({"status": "deleted"})))
+}
+
+// ============ Plugins - RustChat Calls Plugin ============
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[allow(dead_code)]
+pub struct CallsPluginConfig {
+    pub enabled: bool,
+    pub turn_server_enabled: bool,
+    pub turn_server_url: String,
+    pub turn_server_username: String,
+    #[serde(skip_serializing)]
+    pub turn_server_credential: String,
+    pub udp_port: u16,
+    pub tcp_port: u16,
+    pub ice_host_override: Option<String>,
+    pub stun_servers: Vec<String>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct UpdateCallsPluginConfig {
+    pub enabled: bool,
+    pub turn_server_enabled: bool,
+    pub turn_server_url: String,
+    pub turn_server_username: String,
+    pub turn_server_credential: Option<String>,
+    pub udp_port: u16,
+    pub tcp_port: u16,
+    pub ice_host_override: Option<String>,
+    pub stun_servers: Vec<String>,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct CallsPluginConfigResponse {
+    pub plugin_id: String,
+    pub plugin_name: String,
+    pub settings: CallsPluginConfig,
+}
+
+async fn get_calls_plugin_config(
+    State(state): State<AppState>,
+    auth: AuthUser,
+) -> ApiResult<Json<CallsPluginConfigResponse>> {
+    require_admin(&auth)?;
+
+    // Get config from database (server_config table, plugins column)
+    let config: Option<(serde_json::Value,)> =
+        sqlx::query_as("SELECT plugins->'calls' FROM server_config WHERE id = 'default'")
+            .fetch_optional(&state.db)
+            .await?;
+
+    let calls_config = config
+        .and_then(|(json,)| json.as_object().cloned())
+        .map(|obj| CallsPluginConfig {
+            enabled: obj
+                .get("enabled")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(state.config.calls.enabled),
+            turn_server_enabled: obj
+                .get("turn_server_enabled")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(state.config.calls.turn_server_enabled),
+            turn_server_url: obj
+                .get("turn_server_url")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| state.config.calls.turn_server_url.clone()),
+            turn_server_username: obj
+                .get("turn_server_username")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| state.config.calls.turn_server_username.clone()),
+            turn_server_credential: obj
+                .get("turn_server_credential")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| state.config.calls.turn_server_credential.clone()),
+            udp_port: obj
+                .get("udp_port")
+                .and_then(|v| v.as_u64())
+                .map(|v| v as u16)
+                .unwrap_or(state.config.calls.udp_port),
+            tcp_port: obj
+                .get("tcp_port")
+                .and_then(|v| v.as_u64())
+                .map(|v| v as u16)
+                .unwrap_or(state.config.calls.tcp_port),
+            ice_host_override: obj
+                .get("ice_host_override")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string()),
+            stun_servers: obj
+                .get("stun_servers")
+                .and_then(|v| v.as_array())
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str())
+                        .map(|s| s.to_string())
+                        .collect()
+                })
+                .unwrap_or_else(|| state.config.calls.stun_servers.clone()),
+        })
+        .unwrap_or_else(|| CallsPluginConfig {
+            enabled: state.config.calls.enabled,
+            turn_server_enabled: state.config.calls.turn_server_enabled,
+            turn_server_url: state.config.calls.turn_server_url.clone(),
+            turn_server_username: state.config.calls.turn_server_username.clone(),
+            turn_server_credential: state.config.calls.turn_server_credential.clone(),
+            udp_port: state.config.calls.udp_port,
+            tcp_port: state.config.calls.tcp_port,
+            ice_host_override: state.config.calls.ice_host_override.clone(),
+            stun_servers: state.config.calls.stun_servers.clone(),
+        });
+
+    Ok(Json(CallsPluginConfigResponse {
+        plugin_id: "com.rustchat.calls".to_string(),
+        plugin_name: "RustChat Calls Plugin".to_string(),
+        settings: calls_config,
+    }))
+}
+
+async fn update_calls_plugin_config(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Json(payload): Json<serde_json::Value>,
+) -> ApiResult<Json<CallsPluginConfigResponse>> {
+    require_admin(&auth)?;
+
+    // Log the incoming payload for debugging
+    tracing::info!("Received Calls Plugin config update: {}", payload);
+
+    // Deserialize manually to get better error messages
+    let payload: UpdateCallsPluginConfig = serde_json::from_value(payload).map_err(|e| {
+        tracing::error!("Failed to deserialize Calls Plugin config: {}", e);
+        AppError::BadRequest(format!("Invalid configuration data: {}", e))
+    })?;
+
+    // Get existing credential if not provided in update
+    let credential = if let Some(ref cred) = payload.turn_server_credential {
+        cred.clone()
+    } else {
+        // Fetch existing credential from database
+        let existing: Option<(String,)> = sqlx::query_as(
+            "SELECT plugins->'calls'->>'turn_server_credential' FROM server_config WHERE id = 'default'"
+        )
+        .fetch_optional(&state.db)
+        .await?;
+        existing
+            .map(|(s,)| s)
+            .unwrap_or_else(|| state.config.calls.turn_server_credential.clone())
+    };
+
+    // Build JSON object for calls config
+    let calls_config_json = serde_json::json!({
+        "enabled": payload.enabled,
+        "turn_server_enabled": payload.turn_server_enabled,
+        "turn_server_url": payload.turn_server_url,
+        "turn_server_username": payload.turn_server_username,
+        "turn_server_credential": credential,
+        "udp_port": payload.udp_port,
+        "tcp_port": payload.tcp_port,
+        "ice_host_override": payload.ice_host_override,
+        "stun_servers": payload.stun_servers,
+    });
+
+    // Update server_config table
+    sqlx::query(
+        r#"
+        INSERT INTO server_config (id, plugins, updated_at, updated_by)
+        VALUES ('default', jsonb_build_object('calls', $1::jsonb), NOW(), $2)
+        ON CONFLICT (id) DO UPDATE SET
+            plugins = jsonb_set(
+                COALESCE(server_config.plugins, '{}'::jsonb),
+                '{calls}',
+                $1::jsonb,
+                true
+            ),
+            updated_at = NOW(),
+            updated_by = $2
+        "#,
+    )
+    .bind(calls_config_json)
+    .bind(auth.user_id)
+    .execute(&state.db)
+    .await?;
+
+    Ok(Json(CallsPluginConfigResponse {
+        plugin_id: "com.rustchat.calls".to_string(),
+        plugin_name: "RustChat Calls Plugin".to_string(),
+        settings: CallsPluginConfig {
+            enabled: payload.enabled,
+            turn_server_enabled: payload.turn_server_enabled,
+            turn_server_url: payload.turn_server_url,
+            turn_server_username: payload.turn_server_username,
+            turn_server_credential: credential,
+            udp_port: payload.udp_port,
+            tcp_port: payload.tcp_port,
+            ice_host_override: payload.ice_host_override,
+            stun_servers: payload.stun_servers,
+        },
+    }))
 }
 
 // ============ Email Testing ============

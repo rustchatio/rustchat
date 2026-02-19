@@ -3,6 +3,7 @@
 pub mod auth_config;
 pub mod email;
 pub mod mirotalk;
+pub mod oidc_discovery;
 pub mod posts;
 pub mod push_notifications;
 pub mod unreads;

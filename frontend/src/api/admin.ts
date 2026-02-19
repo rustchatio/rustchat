@@ -197,6 +197,77 @@ export interface Permission {
     category: string | null;
 }
 
+// SSO Configuration
+export interface SsoConfig {
+    id: string;
+    org_id: string;
+    provider_key: string;
+    provider_type: 'github' | 'google' | 'oidc' | 'saml';
+    display_name: string | null;
+    issuer_url: string | null;
+    client_id: string | null;
+    scopes: string[];
+    is_active: boolean;
+    auto_provision: boolean;
+    default_role: string | null;
+    allow_domains: string[] | null;
+    github_org: string | null;
+    github_team: string | null;
+    groups_claim: string | null;
+    role_mappings: Record<string, string> | null;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface SsoProviderInfo {
+    id: string;
+    provider_key: string;
+    provider_type: string;
+    display_name: string;
+    login_url: string;
+}
+
+export interface SsoTestResult {
+    success: boolean;
+    message: string;
+    details: Record<string, any> | null;
+}
+
+export interface CreateSsoConfigRequest {
+    provider_key: string;
+    provider_type: 'github' | 'google' | 'oidc';
+    display_name?: string;
+    issuer_url?: string;
+    client_id?: string;
+    client_secret?: string;
+    scopes?: string[];
+    is_active?: boolean;
+    auto_provision?: boolean;
+    default_role?: string;
+    allow_domains?: string[];
+    github_org?: string;
+    github_team?: string;
+    groups_claim?: string;
+    role_mappings?: Record<string, string>;
+}
+
+export interface UpdateSsoConfigRequest {
+    provider_key?: string;
+    display_name?: string;
+    issuer_url?: string;
+    client_id?: string;
+    client_secret?: string;
+    scopes?: string[];
+    is_active?: boolean;
+    auto_provision?: boolean;
+    default_role?: string;
+    allow_domains?: string[];
+    github_org?: string;
+    github_team?: string;
+    groups_claim?: string;
+    role_mappings?: Record<string, string>;
+}
+
 // API functions
 export const adminApi = {
     // Config
@@ -293,6 +364,14 @@ export const adminApi = {
     // Calls Plugin
     getCallsPluginConfig: () => api.get<CallsPluginConfigResponse>('/admin/plugins/calls'),
     updateCallsPluginConfig: (config: CallsPluginConfig) => api.put<CallsPluginConfigResponse>('/admin/plugins/calls', config),
+
+    // SSO Configuration
+    getSsoConfigs: () => api.get<SsoConfig[]>('/admin/sso'),
+    getSsoConfig: (id: string) => api.get<SsoConfig>(`/admin/sso/${id}`),
+    createSsoConfig: (data: CreateSsoConfigRequest) => api.post<SsoConfig>('/admin/sso', data),
+    updateSsoConfig: (id: string, data: UpdateSsoConfigRequest) => api.put<SsoConfig>(`/admin/sso/${id}`, data),
+    deleteSsoConfig: (id: string) => api.delete(`/admin/sso/${id}`),
+    testSsoConfig: (id: string) => api.post<SsoTestResult>(`/admin/sso/${id}/test`),
 };
 
 export default adminApi;

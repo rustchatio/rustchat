@@ -50,6 +50,7 @@ regex = "1.10"
 dashmap = "6.1"
 once_cell = "1.18"
 libc = "0.2"
+rand = "0.8"
 
 # S3 Storage
 aws-sdk-s3 = { version = "1.68", features = ["behavior-version-latest"] }

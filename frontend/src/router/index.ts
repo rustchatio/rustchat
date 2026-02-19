@@ -78,6 +78,11 @@ const router = createRouter({
                     component: () => import('../views/admin/EmailSettings.vue'),
                 },
                 {
+                    path: 'sso',
+                    name: 'admin-sso',
+                    component: () => import('../views/admin/SsoSettings.vue'),
+                },
+                {
                     path: 'health',
                     name: 'admin-health',
                     component: () => import('../views/admin/SystemHealth.vue'),

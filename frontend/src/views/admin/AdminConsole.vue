@@ -3,7 +3,8 @@ import { useRouter, useRoute, RouterView } from 'vue-router';
 import { useAuthStore } from '../../stores/auth';
 import { 
     LayoutDashboard, Users, Building2, Settings, Shield, 
-    Puzzle, Scale, FileText, Mail, Activity, ArrowLeft
+    Puzzle, Scale, FileText, Mail, Activity, ArrowLeft,
+    KeyRound
 } from 'lucide-vue-next';
 
 const router = useRouter();
@@ -19,6 +20,7 @@ const navItems = [
     { path: '/admin/settings', name: 'Server Settings', icon: Settings },
     { path: '/admin/security', name: 'Security', icon: Shield },
     { path: '/admin/permissions', name: 'Permissions', icon: Shield },
+    { path: '/admin/sso', name: 'SSO / OAuth', icon: KeyRound },
     { path: '/admin/integrations', name: 'Integrations', icon: Puzzle },
     { path: '/admin/compliance', name: 'Compliance', icon: Scale },
     { path: '/admin/audit', name: 'Audit Logs', icon: FileText },
