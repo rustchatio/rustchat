@@ -341,15 +341,13 @@ fn can_manage_call(auth: &MmAuthUser, call: &CallState) -> bool {
     call.host_id == auth.user_id || is_system_admin(auth)
 }
 
-fn is_host_session_active(state: &AppState, call: &CallState) -> bool {
-    let Some(host_participant) = call.participants.get(&call.host_id) else {
-        return false;
-    };
-    state
-        .connection_store
-        .get_connection(&host_participant.session_id.to_string())
-        .map(|connection| connection.is_active.load(Ordering::SeqCst))
-        .unwrap_or(false)
+fn is_host_session_active(_state: &AppState, call: &CallState) -> bool {
+    // The host has an active session if they're in the participants list.
+    // We don't check the connection_store here because:
+    // 1. The call session_id is different from the WebSocket connection_id
+    // 2. A participant in the call should be considered "active" regardless of
+    //    their WebSocket connection state (they might reconnect via WS but stay in the call)
+    call.participants.contains_key(&call.host_id)
 }
 
 // WebRTC Signaling Request/Response structs
