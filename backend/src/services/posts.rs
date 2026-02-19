@@ -268,11 +268,7 @@ pub async fn create_post(
     if let Some((channel_name, channel_display_name, channel_type)) = channel_info {
         let is_dm = channel_type == "direct";
         let sender_name = username_for_push.clone();
-        let message_preview = if response.message.len() > 100 {
-            format!("{}...", &response.message[..100])
-        } else {
-            response.message.clone()
-        };
+        let message_preview = truncate_preview(&response.message, 100);
 
         // Get channel members to notify
         let members_to_notify: Vec<Uuid> = if is_dm {
@@ -352,6 +348,29 @@ pub async fn create_post(
     }
 
     Ok(response)
+}
+
+fn truncate_preview(message: &str, max_chars: usize) -> String {
+    let mut chars = message.chars();
+    let truncated: String = chars.by_ref().take(max_chars).collect();
+    if chars.next().is_some() {
+        format!("{truncated}...")
+    } else {
+        truncated
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::truncate_preview;
+
+    #[test]
+    fn truncate_preview_keeps_valid_utf8_boundaries() {
+        let input = "🙂".repeat(101);
+        let truncated = truncate_preview(&input, 100);
+
+        assert_eq!(truncated, format!("{}...", "🙂".repeat(100)));
+    }
 }
 
 async fn ensure_permission(state: &AppState, user_id: Uuid, permission: &str) -> ApiResult<()> {

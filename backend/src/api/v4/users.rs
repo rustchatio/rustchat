@@ -889,6 +889,17 @@ fn parse_mobile_device_id(device_id: &str) -> (String, String, String) {
     }
 }
 
+fn resolve_device_token(parsed_token: &str, request_token: Option<&str>) -> Option<String> {
+    if !parsed_token.is_empty() {
+        return Some(parsed_token.to_string());
+    }
+
+    request_token
+        .map(str::trim)
+        .filter(|token| !token.is_empty())
+        .map(ToString::to_string)
+}
+
 async fn attach_device(
     State(state): State<AppState>,
     auth: MmAuthUser,
@@ -920,13 +931,14 @@ async fn attach_device(
     // Only insert if we have device_id
     if let Some(device_id) = input.device_id {
         // Parse device_id to extract FCM token (it's embedded in the device_id!)
-        let (device_id_stored, token, platform) = parse_mobile_device_id(&device_id);
+        let (device_id_stored, parsed_token, platform) = parse_mobile_device_id(&device_id);
+        let resolved_token = resolve_device_token(&parsed_token, input.token.as_deref());
 
         info!(
             user_id = %auth.user_id,
             device_id = %device_id_stored,
-            has_token = !token.is_empty(),
-            token_preview = %&token[..20.min(token.len())],
+            has_token = resolved_token.is_some(),
+            token_preview = %resolved_token.as_deref().map(|token| &token[..20.min(token.len())]).unwrap_or(""),
             platform = %platform,
             "Extracted token from device_id"
         );
@@ -941,13 +953,34 @@ async fn attach_device(
         )
         .bind(auth.user_id)
         .bind(&device_id_stored)
-        .bind(if token.is_empty() { None } else { Some(&token) })
+        .bind(resolved_token.as_deref())
         .bind(&platform)
         .execute(&state.db)
         .await;
     }
 
     Ok(Json(serde_json::json!({"status": "OK"})))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::resolve_device_token;
+
+    #[test]
+    fn resolve_device_token_uses_request_token_when_parsed_token_missing() {
+        assert_eq!(
+            resolve_device_token("", Some("request-token")),
+            Some("request-token".to_string())
+        );
+    }
+
+    #[test]
+    fn resolve_device_token_prefers_parsed_token() {
+        assert_eq!(
+            resolve_device_token("parsed-token", Some("request-token")),
+            Some("parsed-token".to_string())
+        );
+    }
 }
 
 #[derive(Deserialize)]
