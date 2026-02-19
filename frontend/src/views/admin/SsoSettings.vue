@@ -2,7 +2,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useToast } from '../../composables/useToast'
 import { adminApi, type SsoConfig, type CreateSsoConfigRequest, type AuthConfig } from '../../api/admin'
-import { Shield, Plus, Edit2, Trash2, TestTube, AlertCircle, CheckCircle, ExternalLink, HelpCircle } from 'lucide-vue-next'
+import { Shield, Plus, Edit2, Trash2, TestTube, AlertCircle, CheckCircle, HelpCircle } from 'lucide-vue-next'
 
 const toast = useToast()
 
@@ -19,7 +19,26 @@ const editingConfig = ref<SsoConfig | null>(null)
 const siteUrl = ref('')
 
 // Form state for creating/editing
-const form = ref<CreateSsoConfigRequest & { id?: string }>({
+interface FormState {
+  id?: string
+  provider_type: 'github' | 'google' | 'oidc'
+  provider_key: string
+  display_name: string
+  issuer_url: string
+  client_id: string
+  client_secret: string
+  scopes: string[]
+  is_active: boolean
+  auto_provision: boolean
+  default_role: string
+  allow_domains: string[]
+  github_org: string
+  github_team: string
+  groups_claim: string
+  role_mappings: Record<string, string>
+}
+
+const form = ref<FormState>({
   provider_type: 'oidc',
   provider_key: '',
   display_name: '',
@@ -102,15 +121,17 @@ function openAddModal() {
 
 function openEditModal(config: SsoConfig) {
   editingConfig.value = config
+  // Handle SAML configs by defaulting to oidc for editing (SAML not editable via this UI)
+  const editableType: 'github' | 'google' | 'oidc' = config.provider_type === 'saml' ? 'oidc' : config.provider_type as 'github' | 'google' | 'oidc'
   form.value = {
     id: config.id,
-    provider_type: config.provider_type,
+    provider_type: editableType,
     provider_key: config.provider_key,
     display_name: config.display_name || '',
     issuer_url: config.issuer_url || '',
     client_id: config.client_id || '',
     client_secret: '', // Don't populate secret
-    scopes: config.scopes?.length ? config.scopes : defaultScopes[config.provider_type as keyof typeof defaultScopes],
+    scopes: config.scopes?.length ? config.scopes : defaultScopes[editableType],
     is_active: config.is_active,
     auto_provision: config.auto_provision,
     default_role: config.default_role || 'member',
@@ -118,20 +139,21 @@ function openEditModal(config: SsoConfig) {
     github_org: config.github_org || '',
     github_team: config.github_team || '',
     groups_claim: config.groups_claim || 'groups',
-    role_mappings: config.role_mappings || {},
+    role_mappings: (config.role_mappings as Record<string, string>) || {},
   }
   showEditModal.value = true
 }
 
 function resetForm() {
+  const type: 'github' | 'google' | 'oidc' = 'oidc'
   form.value = {
-    provider_type: 'oidc',
+    provider_type: type,
     provider_key: '',
     display_name: '',
     issuer_url: '',
     client_id: '',
     client_secret: '',
-    scopes: [...defaultScopes.oidc],
+    scopes: [...defaultScopes[type]],
     is_active: true,
     auto_provision: true,
     default_role: 'member',
@@ -145,8 +167,8 @@ function resetForm() {
 }
 
 function onProviderTypeChange() {
-  const type = form.value.provider_type
-  form.value.scopes = [...defaultScopes[type as keyof typeof defaultScopes]]
+  const type: 'github' | 'google' | 'oidc' = form.value.provider_type
+  form.value.scopes = [...defaultScopes[type]]
   
   // Set default display name
   if (!form.value.display_name) {
@@ -163,9 +185,21 @@ async function saveConfig() {
   loading.value = true
   try {
     const payload: CreateSsoConfigRequest = {
-      ...form.value,
-      // Only include non-empty arrays
+      provider_key: form.value.provider_key,
+      provider_type: form.value.provider_type,
+      display_name: form.value.display_name || undefined,
+      issuer_url: form.value.issuer_url || undefined,
+      client_id: form.value.client_id || undefined,
+      client_secret: form.value.client_secret || undefined,
+      scopes: form.value.scopes,
+      is_active: form.value.is_active,
+      auto_provision: form.value.auto_provision,
+      default_role: form.value.default_role || undefined,
       allow_domains: form.value.allow_domains?.filter(Boolean) || undefined,
+      github_org: form.value.github_org || undefined,
+      github_team: form.value.github_team || undefined,
+      groups_claim: form.value.groups_claim || undefined,
+      role_mappings: Object.keys(form.value.role_mappings).length > 0 ? form.value.role_mappings : undefined,
     }
 
     // Remove empty strings for optional fields
@@ -178,7 +212,7 @@ async function saveConfig() {
       // For updates, we use update API
       const updatePayload: any = { ...payload }
       delete updatePayload.provider_type // Can't change type on edit
-      delete updatePayload.id
+      delete updatePayload.provider_key // Can't change key on edit
       
       // Only include client_secret if provided
       if (!updatePayload.client_secret) {
