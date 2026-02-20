@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { siteApi, type PublicConfig } from '../api/site'
-import { adminApi, type AuthConfig } from '../api/admin'
+import { type AuthConfig } from '../api/admin'
 import { useWebSocket } from '../composables/useWebSocket'
 
 export interface FullConfig {
@@ -13,7 +13,9 @@ export const useConfigStore = defineStore('config', () => {
     const siteConfig = ref<PublicConfig>({
         site_name: 'RustChat',
         logo_url: undefined,
-        mirotalk_enabled: false
+        mirotalk_enabled: false,
+        enable_sso: false,
+        require_sso: false
     })
     
     const authConfig = ref<AuthConfig | null>(null)
@@ -42,41 +44,34 @@ export const useConfigStore = defineStore('config', () => {
         
         await fetchPublicConfig()
         
-        // Try to load auth config - this might fail if not authenticated
-        // but that's okay, we just won't have SSO info
-        try {
-            const { data } = await adminApi.getConfig()
-            authConfig.value = data.authentication
-        } catch (e) {
-            // Not authenticated or endpoint not available
-            // Set default auth config
-            authConfig.value = {
-                enable_email_password: true,
-                enable_sso: false,
-                require_sso: false,
-                allow_registration: true,
-                enable_sign_in_with_email: true,
-                enable_sign_in_with_username: true,
-                enable_sign_up_with_email: true,
-                enable_sign_up_with_gitlab: false,
-                enable_sign_up_with_google: false,
-                enable_sign_up_with_office365: false,
-                enable_sign_up_with_openid: false,
-                enable_user_creation: true,
-                enable_open_server: false,
-                enable_guest_accounts: false,
-                enable_multifactor_authentication: false,
-                enforce_multifactor_authentication: false,
-                enable_saml: false,
-                enable_ldap: false,
-                password_min_length: 8,
-                password_require_lowercase: true,
-                password_require_uppercase: true,
-                password_require_number: true,
-                password_require_symbol: false,
-                password_enable_forgot_link: true,
-                session_length_hours: 24,
-            }
+        // Auth config is now included in public site info
+        // This allows login page to know SSO status without authentication
+        authConfig.value = {
+            enable_email_password: true,
+            enable_sso: siteConfig.value.enable_sso ?? false,
+            require_sso: siteConfig.value.require_sso ?? false,
+            allow_registration: true,
+            enable_sign_in_with_email: true,
+            enable_sign_in_with_username: true,
+            enable_sign_up_with_email: true,
+            enable_sign_up_with_gitlab: false,
+            enable_sign_up_with_google: false,
+            enable_sign_up_with_office365: false,
+            enable_sign_up_with_openid: false,
+            enable_user_creation: true,
+            enable_open_server: false,
+            enable_guest_accounts: false,
+            enable_multifactor_authentication: false,
+            enforce_multifactor_authentication: false,
+            enable_saml: false,
+            enable_ldap: false,
+            password_min_length: 8,
+            password_require_lowercase: true,
+            password_require_uppercase: true,
+            password_require_number: true,
+            password_require_symbol: false,
+            password_enable_forgot_link: true,
+            session_length_hours: 24,
         }
         
         configLoaded.value = true

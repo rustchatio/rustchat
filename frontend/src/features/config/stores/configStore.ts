@@ -7,7 +7,9 @@ import type { PublicConfig } from '../../../api/site'
 const DEFAULT_CONFIG: PublicConfig = {
   site_name: 'RustChat',
   logo_url: undefined,
-  mirotalk_enabled: false
+  mirotalk_enabled: false,
+  enable_sso: false,
+  require_sso: false
 }
 
 export const useConfigStore = defineStore('configStore', () => {

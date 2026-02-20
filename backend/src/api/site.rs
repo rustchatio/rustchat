@@ -10,6 +10,8 @@ pub struct PublicConfig {
     pub site_name: String,
     pub logo_url: Option<String>,
     pub mirotalk_enabled: bool,
+    pub enable_sso: bool,
+    pub require_sso: bool,
 }
 
 pub fn router() -> Router<AppState> {
@@ -29,9 +31,20 @@ async fn get_site_info(State(state): State<AppState>) -> ApiResult<Json<PublicCo
 
     let mirotalk_enabled = mirotalk_mode.map(|m| m != "disabled").unwrap_or(false);
 
+    // Fetch authentication settings
+    let auth: (sqlx::types::Json<serde_json::Value>,) =
+        sqlx::query_as("SELECT authentication FROM server_config WHERE id = 'default'")
+            .fetch_one(&state.db)
+            .await?;
+    
+    let enable_sso = auth.0.get("enable_sso").and_then(|v| v.as_bool()).unwrap_or(false);
+    let require_sso = auth.0.get("require_sso").and_then(|v| v.as_bool()).unwrap_or(false);
+
     Ok(Json(PublicConfig {
         site_name: config.0.site_name.clone(),
         logo_url: config.0.logo_url.clone(),
         mirotalk_enabled,
+        enable_sso,
+        require_sso,
     }))
 }
