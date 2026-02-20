@@ -129,7 +129,7 @@ router.beforeEach(async (to, _from, next) => {
     const urlParams = new URLSearchParams(window.location.search)
     const token = urlParams.get('token')
     if (token) {
-        localStorage.setItem('token', token)
+        localStorage.setItem('auth_token', token)  // Use correct key for auth store
         window.history.replaceState({}, document.title, window.location.pathname)
         // Reload to reinitialize with new token
         window.location.reload()
