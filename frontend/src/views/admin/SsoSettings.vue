@@ -195,7 +195,7 @@ async function saveConfig() {
       is_active: form.value.is_active,
       auto_provision: form.value.auto_provision,
       default_role: form.value.default_role || undefined,
-      allow_domains: form.value.allow_domains?.filter(Boolean) || undefined,
+      allow_domains: form.value.allow_domains?.filter(Boolean) ?? undefined,
       github_org: form.value.github_org || undefined,
       github_team: form.value.github_team || undefined,
       groups_claim: form.value.groups_claim || undefined,

@@ -915,16 +915,19 @@ async fn exchange_oidc_token(
     // Check domain restrictions for Google
     if config.provider_type == "google" {
         if let Some(ref allowed_domains) = config.allow_domains {
-            let email_domain = email
-                .split('@')
-                .nth(1)
-                .ok_or_else(|| AppError::BadRequest("Invalid email format".to_string()))?;
+            // Empty array means no restrictions (same as None)
+            if !allowed_domains.is_empty() {
+                let email_domain = email
+                    .split('@')
+                    .nth(1)
+                    .ok_or_else(|| AppError::BadRequest("Invalid email format".to_string()))?;
 
-            if !allowed_domains.contains(&email_domain.to_string()) {
-                return Err(AppError::Forbidden(format!(
-                    "Email domain '{}' not allowed",
-                    email_domain
-                )));
+                if !allowed_domains.contains(&email_domain.to_string()) {
+                    return Err(AppError::Forbidden(format!(
+                        "Email domain '{}' not allowed",
+                        email_domain
+                    )));
+                }
             }
         }
     }
