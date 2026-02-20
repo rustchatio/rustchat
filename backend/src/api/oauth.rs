@@ -44,6 +44,8 @@ struct OAuthStatePayload {
     // PKCE
     code_verifier: Option<String>,
     code_challenge_method: Option<String>,
+    // Mobile app flag
+    is_mobile: bool,
 }
 
 /// OAuth callback query parameters
@@ -59,6 +61,7 @@ pub struct OAuthCallbackQuery {
 #[derive(Debug, Deserialize)]
 pub struct OAuthLoginQuery {
     pub redirect_uri: Option<String>,
+    pub mobile: Option<bool>, // If true, redirect to mobile app scheme instead of web
 }
 
 /// Token response from OAuth provider
@@ -334,6 +337,7 @@ async fn oauth_login(
         nonce: nonce.clone(),
         code_verifier: code_verifier.clone(),
         code_challenge_method: code_challenge.as_ref().map(|_| "S256".to_string()),
+        is_mobile: query.mobile.unwrap_or(false),
     };
 
     // Store state in Redis
@@ -588,11 +592,15 @@ async fn oauth_callback(
     )
     .map_err(|e| AppError::Internal(format!("Failed to create token: {}", e)))?;
 
+    // Mobile apps need custom URL scheme redirect
+    let redirect_url = if stored_state.is_mobile {
+        format!("mattermost://oauth/complete?token={}", urlencoding::encode(&token))
+    } else {
+        append_token_query(&stored_state.redirect_after, &token)
+    };
+
     // Redirect with token
-    Ok(Redirect::temporary(&append_token_query(
-        &stored_state.redirect_after,
-        &token,
-    )))
+    Ok(Redirect::temporary(&redirect_url))
 }
 
 /// User info extracted from OAuth provider

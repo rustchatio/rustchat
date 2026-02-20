@@ -24,6 +24,20 @@ const showSsoButtons = computed(() => enableSso.value && ssoProviders.value.leng
 const showPasswordLogin = computed(() => !requireSso.value)
 
 onMounted(async () => {
+  // Check if we have a token from OAuth callback (e.g., ?token=xxx)
+  const urlParams = new URLSearchParams(window.location.search)
+  const token = urlParams.get('token')
+  
+  if (token) {
+    // Store the token and redirect to home
+    localStorage.setItem('token', token)
+    // Remove token from URL
+    window.history.replaceState({}, document.title, window.location.pathname)
+    // Reload to initialize auth state
+    window.location.href = '/'
+    return
+  }
+  
   // Load config first to check SSO settings
   await configStore.loadConfig()
   
