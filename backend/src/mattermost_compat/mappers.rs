@@ -322,7 +322,7 @@ mod tests {
             org_id: None,
             username: "testuser".to_string(),
             email: "test@example.com".to_string(),
-            password_hash: "hash".to_string(),
+            password_hash: Some("hash".to_string()),
             display_name: Some("Test User".to_string()),
             avatar_url: None,
             first_name: Some("Test".to_string()),

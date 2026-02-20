@@ -117,8 +117,11 @@ async fn login(
         .await?
         .ok_or_else(|| AppError::Unauthorized("Invalid email or password".to_string()))?;
 
-    // Verify password
-    if !verify_password(&input.password, &user.password_hash)? {
+    // Verify password (OAuth users without password cannot login with password)
+    let password_hash = user.password_hash.as_deref()
+        .ok_or_else(|| AppError::Unauthorized("Please use SSO to login".to_string()))?;
+    
+    if !verify_password(&input.password, password_hash)? {
         return Err(AppError::Unauthorized(
             "Invalid email or password".to_string(),
         ));

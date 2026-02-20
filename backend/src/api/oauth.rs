@@ -601,6 +601,7 @@ struct UserInfo {
     name: Option<String>,
     preferred_username: Option<String>,
     groups: Vec<String>,
+    external_id: Option<String>, // Provider's user ID (e.g., Google 'sub', GitHub 'id')
 }
 
 /// Exchange code for GitHub token and get user info
@@ -775,6 +776,7 @@ async fn exchange_github_token(
         name: github_user.name,
         preferred_username: Some(github_user.login),
         groups: vec![],
+        external_id: Some(github_user.id.to_string()),
     };
 
     Ok((email, user_info))
@@ -863,6 +865,7 @@ async fn exchange_oidc_token(
             name: c.name.clone(),
             preferred_username: c.preferred_username.clone(),
             groups: extract_groups(c, config.groups_claim.as_deref()),
+            external_id: Some(c.sub.clone()),
         }
     } else if let Some(ref userinfo_url) = discovery_result.userinfo_endpoint {
         // Fall back to userinfo endpoint
@@ -894,6 +897,7 @@ async fn exchange_oidc_token(
             name,
             preferred_username,
             groups,
+            external_id: Some(userinfo.sub.clone()),
         }
     } else {
         return Err(AppError::Internal(
@@ -1164,14 +1168,14 @@ async fn find_or_create_user(
     // Ensure username is unique by appending numbers if needed
     let unique_username = generate_unique_username(&state.db, &username).await?;
 
-    // Create new user
+    // Create new user (OAuth users have NULL password_hash)
     let user: User = sqlx::query_as(
         r#"
         INSERT INTO users (
             username, email, display_name, role, 
-            is_active, auth_provider, org_id
+            is_active, auth_provider, auth_provider_id, org_id
         )
-        VALUES ($1, $2, $3, $4, true, $5, $6)
+        VALUES ($1, $2, $3, $4, true, $5, $6, $7)
         RETURNING *
         "#,
     )
@@ -1180,6 +1184,7 @@ async fn find_or_create_user(
     .bind(user_info.name.as_ref())
     .bind(&role)
     .bind(provider_key)
+    .bind(user_info.external_id.as_ref())
     .bind(config.org_id)
     .fetch_one(&state.db)
     .await

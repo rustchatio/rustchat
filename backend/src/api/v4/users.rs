@@ -299,7 +299,11 @@ async fn login(
     let user =
         user.ok_or_else(|| AppError::Unauthorized("Invalid login credentials".to_string()))?;
 
-    if !verify_password(&input.password, &user.password_hash)? {
+    // Verify password (OAuth users without password cannot login with password)
+    let password_hash = user.password_hash.as_deref()
+        .ok_or_else(|| AppError::Unauthorized("Please use SSO to login".to_string()))?;
+    
+    if !verify_password(&input.password, password_hash)? {
         return Err(AppError::Unauthorized(
             "Invalid login credentials".to_string(),
         ));
@@ -2271,7 +2275,9 @@ async fn update_user_password(
     }
 
     if let Some(current) = input.current_password.as_deref() {
-        if !verify_password(current, &user.password_hash)? {
+        let password_hash = user.password_hash.as_deref()
+            .ok_or_else(|| AppError::BadRequest("No existing password to change".to_string()))?;
+        if !verify_password(current, password_hash)? {
             return Err(AppError::BadRequest("Invalid current password".to_string()));
         }
     }
