@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref, watch } from 'vue'
+import { ref } from 'vue'
 
 export type Theme =
     | 'light'
@@ -157,7 +157,17 @@ export const THEME_OPTIONS: Array<{
 
 export function getThemeColors(themeId: Theme): ThemeColors {
     const theme = THEME_OPTIONS.find(t => t.id === themeId)
-    return theme?.colors ?? THEME_OPTIONS[0].colors
+    return theme?.colors ?? DEFAULT_THEME_COLORS
+}
+
+const DEFAULT_THEME_COLORS: ThemeColors = {
+    sidebarBg: '#1e325c',
+    sidebarText: '#ffffff',
+    centerChannelBg: '#ffffff',
+    centerChannelColor: '#3d3c40',
+    linkColor: '#166de0',
+    buttonBg: '#166de0',
+    buttonColor: '#ffffff',
 }
 
 export const FONT_OPTIONS: Array<{ id: ChatFont; label: string; cssVar: string }> = [
