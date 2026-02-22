@@ -22,7 +22,12 @@ use sqlx::FromRow;
 
 /// Build admin routes
 pub fn router() -> Router<AppState> {
+    // Email routes
+    let email_routes = super::admin_email::router();
+
     Router::new()
+        // Merge email routes
+        .merge(email_routes)
         // Server config
         .route("/admin/config", get(get_config))
         .route("/admin/config/{category}", patch(update_config))
@@ -102,14 +107,14 @@ pub fn router() -> Router<AppState> {
 }
 
 /// Check if user is admin
-fn require_admin(auth: &AuthUser) -> ApiResult<()> {
+pub fn require_admin(auth: &AuthUser) -> ApiResult<()> {
     if auth.role != "system_admin" && auth.role != "org_admin" {
         return Err(AppError::Forbidden("Admin access required".to_string()));
     }
     Ok(())
 }
 
-fn require_global_admin(auth: &AuthUser) -> ApiResult<()> {
+pub fn require_global_admin(auth: &AuthUser) -> ApiResult<()> {
     if auth.role != "system_admin" {
         return Err(AppError::Forbidden(
             "Global admin access required".to_string(),

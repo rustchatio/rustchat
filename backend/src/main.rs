@@ -79,6 +79,10 @@ async fn main() -> anyhow::Result<()> {
 
     // Spawn background jobs
     rustchat::jobs::spawn_retention_job(db_pool.clone());
+    
+    // Spawn email worker
+    let email_worker_config = rustchat::jobs::EmailWorkerConfig::default();
+    rustchat::jobs::spawn_email_worker(db_pool.clone(), email_worker_config);
 
     // Build application router
     let app = api::router(

@@ -7,6 +7,7 @@ pub mod channel;
 pub mod channel_bookmark;
 pub mod channel_category;
 pub mod custom_profile_attribute;
+pub mod email;
 pub mod enterprise;
 pub mod file;
 pub mod integration;
