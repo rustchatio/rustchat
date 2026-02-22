@@ -42,7 +42,7 @@ async fn list_users(
         // System admin can see all users
         if let Some(term) = search_term {
             sqlx::query_as(
-                "SELECT * FROM users WHERE username ILIKE $1 OR display_name ILIKE $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3",
+                "SELECT * FROM users WHERE deleted_at IS NULL AND (username ILIKE $1 OR display_name ILIKE $1) ORDER BY created_at DESC LIMIT $2 OFFSET $3",
             )
             .bind(term)
             .bind(per_page as i64)
@@ -50,7 +50,7 @@ async fn list_users(
             .fetch_all(&state.db)
             .await?
         } else {
-            sqlx::query_as("SELECT * FROM users ORDER BY created_at DESC LIMIT $1 OFFSET $2")
+            sqlx::query_as("SELECT * FROM users WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT $1 OFFSET $2")
                 .bind(per_page as i64)
                 .bind(offset)
                 .fetch_all(&state.db)
@@ -60,7 +60,7 @@ async fn list_users(
         // Regular users see their org members
         if let Some(term) = search_term {
             sqlx::query_as(
-                "SELECT * FROM users WHERE org_id = $1 AND (username ILIKE $2 OR display_name ILIKE $2) ORDER BY created_at DESC LIMIT $3 OFFSET $4",
+                "SELECT * FROM users WHERE org_id = $1 AND deleted_at IS NULL AND (username ILIKE $2 OR display_name ILIKE $2) ORDER BY created_at DESC LIMIT $3 OFFSET $4",
             )
             .bind(org_id)
             .bind(term)
@@ -70,7 +70,7 @@ async fn list_users(
             .await?
         } else {
             sqlx::query_as(
-                "SELECT * FROM users WHERE org_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3",
+                "SELECT * FROM users WHERE org_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT $2 OFFSET $3",
             )
             .bind(org_id)
             .bind(per_page as i64)
@@ -91,7 +91,7 @@ async fn get_user(
     auth: AuthUser,
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<UserResponse>> {
-    let user: User = sqlx::query_as("SELECT * FROM users WHERE id = $1")
+    let user: User = sqlx::query_as("SELECT * FROM users WHERE id = $1 AND deleted_at IS NULL")
         .bind(id)
         .fetch_optional(&state.db)
         .await?

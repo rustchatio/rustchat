@@ -8,7 +8,7 @@ use axum::{
 use uuid::Uuid;
 
 use crate::api::AppState;
-use crate::auth::middleware::FromRef;
+use crate::auth::middleware::{ensure_user_access_active, FromRef};
 use crate::auth::{validate_token, Claims};
 use crate::error::AppError;
 
@@ -77,6 +77,7 @@ where
         };
 
         let token_data = validate_token(token, &app_state.jwt_secret)?;
+        ensure_user_access_active(&app_state, token_data.claims.sub).await?;
 
         Ok(MmAuthUser::from(token_data.claims))
     }

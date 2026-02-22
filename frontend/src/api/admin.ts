@@ -15,9 +15,11 @@ export interface EmailConfig {
     smtp_port: number;
     smtp_username: string;
     smtp_password_encrypted: string;
-    smtp_tls: boolean;
+    smtp_security?: 'starttls' | 'tls' | 'none' | string;
+    smtp_skip_cert_verify?: boolean;
     from_address: string;
     from_name: string;
+    reply_to?: string;
 }
 
 export interface SiteConfig {

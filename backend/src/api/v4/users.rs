@@ -276,7 +276,7 @@ async fn login(
         .ok_or_else(|| AppError::BadRequest("Missing login_id".to_string()))?;
 
     let user: Option<User> = sqlx::query_as(
-        "SELECT * FROM users WHERE (email = $1 OR username = $1) AND is_active = true",
+        "SELECT * FROM users WHERE (email = $1 OR username = $1) AND is_active = true AND deleted_at IS NULL",
     )
     .bind(&login_id)
     .fetch_optional(&state.db)
@@ -1394,7 +1394,7 @@ async fn get_users_by_ids(
     }
 
     let users: Vec<User> =
-        sqlx::query_as("SELECT * FROM users WHERE id = ANY($1) AND is_active = true")
+        sqlx::query_as("SELECT * FROM users WHERE id = ANY($1) AND (is_active = true OR deleted_at IS NOT NULL)")
             .bind(&uuids)
             .fetch_all(&state.db)
             .await?;

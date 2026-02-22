@@ -105,15 +105,21 @@ pub async fn test_email_config(
             config.from_address
         ),
     ).await {
-        Ok(_) => Ok(Json(serde_json::json!({
+        Ok(result) => Ok(Json(serde_json::json!({
             "status": "success",
             "message": format!("Test email sent successfully to {}", test_email),
+            "delivery": {
+                "accepted": result.accepted,
+                "message_id": result.message_id,
+                "server_response": result.server_response,
+            },
             "config": {
                 "smtp_host": config.smtp_host,
                 "smtp_port": config.smtp_port,
                 "smtp_security": config.smtp_security,
                 "from_address": config.from_address,
                 "from_name": config.from_name,
+                "reply_to": config.reply_to,
             }
         }))),
         Err(e) => Ok(Json(serde_json::json!({

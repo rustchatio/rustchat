@@ -11,9 +11,11 @@ const form = ref({
     smtp_port: 587,
     smtp_username: '',
     smtp_password_encrypted: '',
-    smtp_tls: true,
+    smtp_security: 'starttls',
+    smtp_skip_cert_verify: false,
     from_address: '',
     from_name: 'RustChat',
+    reply_to: '',
 });
 
 const testEmail = ref('');
@@ -28,15 +30,31 @@ const testError = ref('');
 onMounted(async () => {
     await adminStore.fetchConfig();
     if (adminStore.config?.email) {
-        form.value = { ...form.value, ...adminStore.config.email };
+        form.value = normalizeEmailConfig(adminStore.config.email);
     }
 });
 
 watch(() => adminStore.config?.email, (email) => {
     if (email) {
-        form.value = { ...form.value, ...email };
+        form.value = normalizeEmailConfig(email);
     }
 });
+
+function normalizeEmailConfig(email: Record<string, any>) {
+    const smtpSecurity = typeof email.smtp_security === 'string'
+        ? email.smtp_security
+        : email.smtp_tls === false
+            ? 'none'
+            : 'starttls';
+
+    return {
+        ...form.value,
+        ...email,
+        smtp_security: smtpSecurity,
+        smtp_skip_cert_verify: Boolean(email.smtp_skip_cert_verify),
+        reply_to: email.reply_to || '',
+    };
+}
 
 const saveSettings = async () => {
     saving.value = true;
@@ -61,11 +79,14 @@ const sendTestEmail = async () => {
     testSuccess.value = false;
 
     try {
-        await api.post('/admin/email/test', { to: testEmail.value });
+        const { data } = await api.post('/admin/email/test', { to: testEmail.value });
+        if (data?.status && data.status !== 'success') {
+            throw new Error(data.error || data.message || 'SMTP test failed');
+        }
         testSuccess.value = true;
         setTimeout(() => testSuccess.value = false, 5000);
     } catch (e: any) {
-        testError.value = e.response?.data?.message || 'Failed to send test email';
+        testError.value = e.response?.data?.error?.message || e.response?.data?.error || e.message || 'Failed to send test email';
     } finally {
         testing.value = false;
     }
@@ -159,10 +180,35 @@ const sendTestEmail = async () => {
                 </div>
             </div>
 
+            <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">SMTP Security</label>
+                    <select
+                        v-model="form.smtp_security"
+                        class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white"
+                    >
+                        <option value="starttls">STARTTLS (587)</option>
+                        <option value="tls">Implicit TLS (465)</option>
+                        <option value="none">Plain (no TLS)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Reply-To (optional)</label>
+                    <input
+                        v-model="form.reply_to"
+                        type="email"
+                        class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white"
+                        placeholder="support@example.com"
+                    />
+                </div>
+            </div>
+
             <div class="mt-4">
-                <label class="flex items-center">
-                    <input type="checkbox" v-model="form.smtp_tls" class="w-4 h-4 text-indigo-600 rounded mr-3" />
-                    <span class="text-gray-700 dark:text-gray-300">Use TLS</span>
+                <label class="flex items-start">
+                    <input type="checkbox" v-model="form.smtp_skip_cert_verify" class="w-4 h-4 text-indigo-600 rounded mr-3 mt-0.5" />
+                    <span class="text-gray-700 dark:text-gray-300 text-sm">
+                        Skip certificate verification (only for testing/self-signed certs)
+                    </span>
                 </label>
             </div>
         </div>

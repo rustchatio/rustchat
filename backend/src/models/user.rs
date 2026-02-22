@@ -55,6 +55,12 @@ pub struct User {
     #[sqlx(default)]
     pub timezone: Option<String>,
     pub last_login_at: Option<DateTime<Utc>>,
+    #[sqlx(default)]
+    pub deleted_at: Option<DateTime<Utc>>,
+    #[sqlx(default)]
+    pub deleted_by: Option<Uuid>,
+    #[sqlx(default)]
+    pub delete_reason: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -84,14 +90,44 @@ pub struct UserResponse {
     pub created_at: DateTime<Utc>,
 }
 
+impl User {
+    pub fn is_deleted(&self) -> bool {
+        self.deleted_at.is_some()
+    }
+
+    pub fn public_username(&self) -> String {
+        if self.is_deleted() {
+            "Deleted user".to_string()
+        } else {
+            self.username.clone()
+        }
+    }
+
+    pub fn public_display_name(&self) -> Option<String> {
+        if self.is_deleted() {
+            Some("Deleted user".to_string())
+        } else {
+            self.display_name.clone()
+        }
+    }
+
+    pub fn public_email(&self) -> String {
+        if self.is_deleted() {
+            "deleted-user@local".to_string()
+        } else {
+            self.email.clone()
+        }
+    }
+}
+
 impl From<User> for UserResponse {
     fn from(user: User) -> Self {
         Self {
             id: user.id,
             org_id: user.org_id,
-            username: user.username,
-            email: user.email,
-            display_name: user.display_name,
+            username: user.public_username(),
+            email: user.public_email(),
+            display_name: user.public_display_name(),
             avatar_url: user.avatar_url,
             first_name: user.first_name,
             last_name: user.last_name,

@@ -12,13 +12,20 @@ use tracing::{error, info, warn};
 
 use crate::models::server_config::EmailConfig;
 
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct EmailSendResult {
+    pub accepted: bool,
+    pub server_response: Option<String>,
+    pub message_id: Option<String>,
+}
+
 /// Send an email using the provided configuration
 pub async fn send_email(
     config: &EmailConfig,
     to_address: &str,
     subject: &str,
     body: &str,
-) -> Result<(), String> {
+) -> Result<EmailSendResult, String> {
     // Check if email notifications are enabled
     if !config.send_email_notifications {
         return Err("Email notifications are disabled".to_string());
@@ -28,7 +35,7 @@ pub async fn send_email(
         return Err("SMTP host not configured".to_string());
     }
 
-    let email = Message::builder()
+    let mut builder = Message::builder()
         .from(
             format!("{} <{}>", config.from_name, config.from_address)
                 .parse()
@@ -37,7 +44,17 @@ pub async fn send_email(
         .to(to_address
             .parse()
             .map_err(|e| format!("Invalid to address: {}", e))?)
-        .subject(subject)
+        .subject(subject);
+
+    if !config.reply_to.trim().is_empty() {
+        builder = builder.reply_to(
+            config.reply_to
+                .parse()
+                .map_err(|e| format!("Invalid reply-to address: {}", e))?,
+        );
+    }
+
+    let email = builder
         .body(body.to_string())
         .map_err(|e| format!("Failed to build email: {}", e))?;
 
@@ -51,9 +68,13 @@ pub async fn send_email(
 
     // Send the email
     match mailer.send(email).await {
-        Ok(_) => {
+        Ok(response) => {
             info!("Email sent successfully to {}", to_address);
-            Ok(())
+            Ok(EmailSendResult {
+                accepted: true,
+                server_response: Some(format!("{:?}", response)),
+                message_id: None,
+            })
         }
         Err(e) => {
             error!("Failed to send email to {}: {}", to_address, e);

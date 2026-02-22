@@ -112,7 +112,9 @@ async fn list_posts(
                p.is_pinned, p.created_at, p.edited_at, p.deleted_at,
                p.reply_count::int8 as reply_count,
                p.last_reply_at, p.seq,
-               u.username, u.avatar_url, u.email
+               CASE WHEN u.deleted_at IS NOT NULL THEN 'Deleted user' ELSE u.username END as username,
+               u.avatar_url,
+               CASE WHEN u.deleted_at IS NOT NULL THEN 'deleted-user@local' ELSE u.email END as email
         FROM posts p
         JOIN channels c ON p.channel_id = c.id
         LEFT JOIN users u ON p.user_id = u.id
@@ -382,7 +384,9 @@ async fn get_thread(
                p.is_pinned, p.created_at, p.edited_at, p.deleted_at,
                p.reply_count::int8 as reply_count,
                p.last_reply_at, p.seq,
-               u.username, u.avatar_url, u.email
+               CASE WHEN u.deleted_at IS NOT NULL THEN 'Deleted user' ELSE u.username END as username,
+               u.avatar_url,
+               CASE WHEN u.deleted_at IS NOT NULL THEN 'deleted-user@local' ELSE u.email END as email
         FROM posts p
         LEFT JOIN users u ON p.user_id = u.id
         WHERE p.root_post_id = $1 AND p.deleted_at IS NULL
@@ -727,7 +731,9 @@ async fn get_saved_posts(
                p.is_pinned, p.created_at, p.edited_at, p.deleted_at,
                p.reply_count::int8 as reply_count,
                p.last_reply_at, p.seq,
-               u.username, u.avatar_url, u.email
+               CASE WHEN u.deleted_at IS NOT NULL THEN 'Deleted user' ELSE u.username END as username,
+               u.avatar_url,
+               CASE WHEN u.deleted_at IS NOT NULL THEN 'deleted-user@local' ELSE u.email END as email
         FROM saved_posts s
         JOIN posts p ON s.post_id = p.id
         LEFT JOIN users u ON p.user_id = u.id

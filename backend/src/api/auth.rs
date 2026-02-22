@@ -114,7 +114,9 @@ async fn login(
     Json(input): Json<LoginRequest>,
 ) -> ApiResult<Json<AuthResponse>> {
     // Find user by email
-    let user: User = sqlx::query_as("SELECT * FROM users WHERE email = $1 AND is_active = true")
+    let user: User = sqlx::query_as(
+        "SELECT * FROM users WHERE email = $1 AND is_active = true AND deleted_at IS NULL",
+    )
         .bind(&input.email)
         .fetch_optional(&state.db)
         .await?

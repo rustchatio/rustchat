@@ -54,8 +54,24 @@ where
 
         // Validate token
         let token_data = validate_token(token, &app_state.jwt_secret)?;
+        ensure_user_access_active(&app_state, token_data.claims.sub).await?;
 
         Ok(AuthUser::from(token_data.claims))
+    }
+}
+
+pub async fn ensure_user_access_active(app_state: &AppState, user_id: Uuid) -> Result<(), AppError> {
+    let row: Option<(bool, Option<chrono::DateTime<chrono::Utc>>)> =
+        sqlx::query_as("SELECT is_active, deleted_at FROM users WHERE id = $1")
+            .bind(user_id)
+            .fetch_optional(&app_state.db)
+            .await?;
+
+    match row {
+        Some((true, None)) => Ok(()),
+        Some((false, _)) => Err(AppError::Unauthorized("Account is inactive".to_string())),
+        Some((_, Some(_))) => Err(AppError::Unauthorized("Account has been deleted".to_string())),
+        None => Err(AppError::Unauthorized("User not found".to_string())),
     }
 }
 

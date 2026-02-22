@@ -302,6 +302,8 @@ pub struct EmailConfig {
     pub from_address: String,
     #[serde(default = "default_site_name")]
     pub from_name: String,
+    #[serde(default)]
+    pub reply_to: String,
     /// Notification display content: "full", "generic", or "generic_with_subject"
     #[serde(default = "default_email_notification_content")]
     pub email_notification_content: String,

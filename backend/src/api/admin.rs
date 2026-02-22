@@ -2,7 +2,7 @@
 
 use axum::{
     extract::{Path, Query, State},
-    routing::{get, patch, post},
+    routing::{delete, get, patch, post},
     Json, Router,
 };
 use serde::Deserialize;
@@ -54,7 +54,10 @@ pub fn router() -> Router<AppState> {
         )
         // Users management
         .route("/admin/users", get(list_users).post(create_admin_user))
-        .route("/admin/users/{id}", patch(update_admin_user))
+        .route(
+            "/admin/users/{id}",
+            patch(update_admin_user).delete(delete_admin_user),
+        )
         .route(
             "/admin/users/{id}/deactivate",
             axum::routing::post(deactivate_user),
@@ -95,6 +98,7 @@ pub fn router() -> Router<AppState> {
         )
         // Email testing
         .route("/admin/email/test", post(test_email_config))
+        .route("/admin/email/events", get(list_email_events))
 }
 
 /// Check if user is admin
@@ -102,6 +106,40 @@ fn require_admin(auth: &AuthUser) -> ApiResult<()> {
     if auth.role != "system_admin" && auth.role != "org_admin" {
         return Err(AppError::Forbidden("Admin access required".to_string()));
     }
+    Ok(())
+}
+
+fn require_global_admin(auth: &AuthUser) -> ApiResult<()> {
+    if auth.role != "system_admin" {
+        return Err(AppError::Forbidden(
+            "Global admin access required".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+async fn insert_admin_audit_log(
+    db: &sqlx::PgPool,
+    actor_user_id: uuid::Uuid,
+    action: &str,
+    target_type: &str,
+    target_id: Option<uuid::Uuid>,
+    metadata: serde_json::Value,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        r#"
+        INSERT INTO audit_logs (actor_user_id, action, target_type, target_id, metadata)
+        VALUES ($1, $2, $3, $4, $5)
+        "#,
+    )
+    .bind(actor_user_id)
+    .bind(action)
+    .bind(target_type)
+    .bind(target_id)
+    .bind(metadata)
+    .execute(db)
+    .await?;
+
     Ok(())
 }
 
@@ -873,6 +911,7 @@ pub struct ListUsersQuery {
     pub status: Option<String>,
     pub role: Option<String>,
     pub search: Option<String>,
+    pub include_deleted: Option<bool>,
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -891,6 +930,7 @@ async fn list_users(
     let page = query.page.unwrap_or(1).max(1);
     let per_page = query.per_page.unwrap_or(20).min(100);
     let offset = (page - 1) * per_page;
+    let include_deleted = query.include_deleted.unwrap_or(false);
 
     let users: Vec<crate::models::User> = sqlx::query_as(
         r#"
@@ -898,8 +938,9 @@ async fn list_users(
         WHERE ($1::BOOL IS NULL OR is_active = $1)
           AND ($2::VARCHAR IS NULL OR role = $2)
           AND ($3::VARCHAR IS NULL OR username ILIKE '%' || $3 || '%' OR email ILIKE '%' || $3 || '%')
+          AND ($4::BOOL = TRUE OR deleted_at IS NULL)
         ORDER BY created_at DESC
-        LIMIT $4 OFFSET $5
+        LIMIT $5 OFFSET $6
         "#,
     )
     .bind(match query.status.as_deref() {
@@ -909,12 +950,29 @@ async fn list_users(
     })
     .bind(&query.role)
     .bind(&query.search)
+    .bind(include_deleted)
     .bind(per_page)
     .bind(offset)
     .fetch_all(&state.db)
     .await?;
 
-    let total: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM users")
+    let total: (i64,) = sqlx::query_as(
+        r#"
+        SELECT COUNT(*) FROM users
+        WHERE ($1::BOOL IS NULL OR is_active = $1)
+          AND ($2::VARCHAR IS NULL OR role = $2)
+          AND ($3::VARCHAR IS NULL OR username ILIKE '%' || $3 || '%' OR email ILIKE '%' || $3 || '%')
+          AND ($4::BOOL = TRUE OR deleted_at IS NULL)
+        "#,
+    )
+        .bind(match query.status.as_deref() {
+            Some("active") => Some(true),
+            Some("inactive") => Some(false),
+            _ => None,
+        })
+        .bind(&query.role)
+        .bind(&query.search)
+        .bind(include_deleted)
         .fetch_one(&state.db)
         .await?;
 
@@ -1022,6 +1080,112 @@ async fn reactivate_user(
         .await?;
 
     Ok(Json(serde_json::json!({"status": "reactivated"})))
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct DeleteAdminUserInput {
+    pub confirm: String,
+    pub reason: Option<String>,
+}
+
+async fn delete_admin_user(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(input): Json<DeleteAdminUserInput>,
+) -> ApiResult<Json<serde_json::Value>> {
+    require_global_admin(&auth)?;
+
+    if auth.user_id == id {
+        return Err(AppError::Conflict(
+            "You cannot delete your own account while logged in".to_string(),
+        ));
+    }
+
+    let target: crate::models::User = sqlx::query_as("SELECT * FROM users WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&state.db)
+        .await?
+        .ok_or_else(|| AppError::NotFound("User not found".to_string()))?;
+
+    if target.deleted_at.is_some() {
+        return Err(AppError::Conflict("User is already deleted".to_string()));
+    }
+
+    let confirm = input.confirm.trim();
+    if confirm != target.username && confirm != target.email {
+        return Err(AppError::BadRequest(
+            "Confirmation text must exactly match the user's username or email".to_string(),
+        ));
+    }
+
+    if target.role == "system_admin" {
+        let admin_count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM users WHERE role = 'system_admin' AND deleted_at IS NULL",
+        )
+        .fetch_one(&state.db)
+        .await?;
+
+        if admin_count <= 1 {
+            return Err(AppError::Conflict(
+                "Cannot delete the last remaining global admin".to_string(),
+            ));
+        }
+    }
+
+    let reason = input
+        .reason
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(ToOwned::to_owned);
+
+    let mut tx = state.db.begin().await?;
+
+    let deleted_user: crate::models::User = sqlx::query_as(
+        r#"
+        UPDATE users
+        SET is_active = false,
+            deleted_at = NOW(),
+            deleted_by = $2,
+            delete_reason = $3,
+            updated_at = NOW()
+        WHERE id = $1 AND deleted_at IS NULL
+        RETURNING *
+        "#,
+    )
+    .bind(id)
+    .bind(auth.user_id)
+    .bind(&reason)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    sqlx::query("DELETE FROM upload_sessions WHERE user_id = $1")
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+
+    insert_admin_audit_log(
+        &state.db,
+        auth.user_id,
+        "user.soft_delete",
+        "user",
+        Some(id),
+        serde_json::json!({
+            "username": target.username,
+            "email": target.email,
+            "reason": reason,
+        }),
+    )
+    .await?;
+
+    tx.commit().await?;
+
+    Ok(Json(serde_json::json!({
+        "status": "deleted",
+        "user_id": deleted_user.id,
+        "deleted_at": deleted_user.deleted_at,
+    })))
 }
 
 // ============ Stats & Health ============
@@ -1700,6 +1864,126 @@ pub struct TestEmailRequest {
     pub to_email: Option<String>,
 }
 
+#[derive(Debug, serde::Serialize, sqlx::FromRow)]
+struct EmailEventRow {
+    id: Uuid,
+    action: String,
+    created_at: chrono::DateTime<chrono::Utc>,
+    metadata: serde_json::Value,
+}
+
+#[derive(Debug, serde::Serialize)]
+struct EmailEventResponse {
+    id: Uuid,
+    created_at: chrono::DateTime<chrono::Utc>,
+    kind: String,
+    success: bool,
+    recipient: Option<String>,
+    smtp_host: Option<String>,
+    smtp_port: Option<i32>,
+    smtp_security: Option<String>,
+    message: Option<String>,
+    error_kind: Option<String>,
+}
+
+fn classify_email_error(message: &str) -> (&'static str, &'static str) {
+    let lower = message.to_ascii_lowercase();
+    if lower.contains("invalid peer certificate") || lower.contains("certificate") {
+        (
+            "tls_handshake_failed",
+            "TLS certificate validation failed. Use the certificate hostname (not an IP), or enable certificate-skip only for testing.",
+        )
+    } else if lower.contains("authentication") || lower.contains("auth") {
+        ("auth_failed", "SMTP authentication failed. Verify username/password and auth method.")
+    } else if lower.contains("dns") || lower.contains("name or service not known") || lower.contains("no such host") {
+        ("dns_error", "SMTP hostname lookup failed. Verify the SMTP host value.")
+    } else if lower.contains("timed out") || lower.contains("timeout") {
+        ("timeout", "SMTP connection timed out. Verify firewall, port, and SMTP host reachability.")
+    } else if lower.contains("relay") || lower.contains("denied") || lower.contains("not permitted") {
+        ("relay_denied", "SMTP server rejected relaying. Verify from address, recipient policy, and account permissions.")
+    } else if lower.contains("invalid from") || lower.contains("from address") {
+        ("invalid_from", "The configured from address is invalid or rejected by the SMTP server.")
+    } else if lower.contains("invalid to address") || lower.contains("mailbox") || lower.contains("recipient") {
+        ("invalid_recipient", "Recipient address is invalid or rejected by the SMTP server.")
+    } else if lower.contains("connection error") || lower.contains("refused") {
+        ("connect_failed", "SMTP connection failed. Verify host, port, and TLS mode.")
+    } else {
+        ("smtp_error", "SMTP request failed. Check server logs and SMTP settings.")
+    }
+}
+
+async fn record_email_test_event(
+    state: &AppState,
+    actor_user_id: Uuid,
+    config: &crate::models::server_config::EmailConfig,
+    recipient: &str,
+    success: bool,
+    message: Option<String>,
+    error_kind: Option<&str>,
+) {
+    let metadata = serde_json::json!({
+        "recipient": recipient,
+        "success": success,
+        "smtp_host": config.smtp_host,
+        "smtp_port": config.smtp_port,
+        "smtp_security": config.smtp_security,
+        "from_address": config.from_address,
+        "message": message,
+        "error_kind": error_kind,
+    });
+
+    if let Err(e) = insert_admin_audit_log(
+        &state.db,
+        actor_user_id,
+        if success { "email.test.success" } else { "email.test.failure" },
+        "email",
+        None,
+        metadata,
+    )
+    .await
+    {
+        tracing::warn!(error = %e, "Failed to record email test audit event");
+    }
+}
+
+async fn list_email_events(
+    State(state): State<AppState>,
+    auth: AuthUser,
+) -> ApiResult<Json<Vec<EmailEventResponse>>> {
+    require_admin(&auth)?;
+
+    let rows: Vec<EmailEventRow> = sqlx::query_as(
+        r#"
+        SELECT id, action, created_at, metadata
+        FROM audit_logs
+        WHERE target_type = 'email'
+          AND action IN ('email.test.success', 'email.test.failure')
+        ORDER BY created_at DESC
+        LIMIT 20
+        "#,
+    )
+    .fetch_all(&state.db)
+    .await?;
+
+    let events = rows
+        .into_iter()
+        .map(|row| EmailEventResponse {
+            id: row.id,
+            created_at: row.created_at,
+            kind: "test".to_string(),
+            success: row.action == "email.test.success",
+            recipient: row.metadata.get("recipient").and_then(|v| v.as_str()).map(str::to_string),
+            smtp_host: row.metadata.get("smtp_host").and_then(|v| v.as_str()).map(str::to_string),
+            smtp_port: row.metadata.get("smtp_port").and_then(|v| v.as_i64()).map(|v| v as i32),
+            smtp_security: row.metadata.get("smtp_security").and_then(|v| v.as_str()).map(str::to_string),
+            message: row.metadata.get("message").and_then(|v| v.as_str()).map(str::to_string),
+            error_kind: row.metadata.get("error_kind").and_then(|v| v.as_str()).map(str::to_string),
+        })
+        .collect();
+
+    Ok(Json(events))
+}
+
 async fn test_email_config(
     State(state): State<AppState>,
     auth: AuthUser,
@@ -1721,25 +2005,25 @@ async fn test_email_config(
 
     // Check if email notifications are enabled
     if !config.send_email_notifications {
-        return Ok(Json(serde_json::json!({
-            "status": "error",
-            "error": "Email notifications are disabled. Enable them in System Console > Notifications > Email."
-        })));
+        return Err(AppError::BadRequest(
+            "Email notifications are disabled. Enable them before sending a test email."
+                .to_string(),
+        ));
     }
 
     // Check if SMTP is configured
-    if config.smtp_host.is_empty() {
-        return Ok(Json(serde_json::json!({
-            "status": "error",
-            "error": "SMTP server not configured. Configure it in System Console > Notifications > Email."
-        })));
+    if config.smtp_host.trim().is_empty() {
+        return Err(AppError::BadRequest("SMTP host is required".to_string()));
     }
 
-    if config.from_address.is_empty() {
-        return Ok(Json(serde_json::json!({
-            "status": "error",
-            "error": "From address not configured. Set it in System Console > Notifications > Email."
-        })));
+    if config.from_address.trim().is_empty() {
+        return Err(AppError::BadRequest("From address is required".to_string()));
+    }
+
+    if payload.to_email.is_none() && payload.email.is_none() && auth.email.trim().is_empty() {
+        return Err(AppError::BadRequest(
+            "Test recipient email is required".to_string(),
+        ));
     }
 
     // Determine test recipient (use 'to' field or 'email' field, fallback to admin's email)
@@ -1754,11 +2038,20 @@ async fn test_email_config(
             tracing::info!("SMTP connection test successful");
         }
         Err(e) => {
-            return Ok(Json(serde_json::json!({
-                "status": "error",
-                "error": format!("SMTP connection failed: {}", e),
-                "details": "Check your SMTP host, port, username, and password."
-            })));
+            let (kind, hint) = classify_email_error(&e);
+            record_email_test_event(
+                &state,
+                auth.user_id,
+                &config,
+                &test_email,
+                false,
+                Some(e.clone()),
+                Some(kind),
+            )
+            .await;
+            return Err(AppError::ExternalService(format!(
+                "SMTP connection failed ({kind}): {e}. {hint}"
+            )));
         }
     }
 
@@ -1775,21 +2068,51 @@ async fn test_email_config(
             config.from_address
         ),
     ).await {
-        Ok(_) => Ok(Json(serde_json::json!({
+        Ok(result) => {
+            record_email_test_event(
+                &state,
+                auth.user_id,
+                &config,
+                &test_email,
+                true,
+                result.server_response.clone(),
+                None,
+            )
+            .await;
+
+            Ok(Json(serde_json::json!({
             "status": "success",
             "message": format!("Test email sent successfully to {}", test_email),
+            "delivery": {
+                "accepted": result.accepted,
+                "message_id": result.message_id,
+                "server_response": result.server_response,
+            },
             "config": {
                 "smtp_host": config.smtp_host,
                 "smtp_port": config.smtp_port,
                 "smtp_security": config.smtp_security,
                 "from_address": config.from_address,
                 "from_name": config.from_name,
+                "reply_to": config.reply_to,
             }
-        }))),
-        Err(e) => Ok(Json(serde_json::json!({
-            "status": "error",
-            "error": format!("Failed to send test email: {}", e),
-            "details": "Check your SMTP configuration and ensure the server allows sending."
-        }))),
+        })))
+        }
+        Err(e) => {
+            let (kind, hint) = classify_email_error(&e);
+            record_email_test_event(
+                &state,
+                auth.user_id,
+                &config,
+                &test_email,
+                false,
+                Some(e.clone()),
+                Some(kind),
+            )
+            .await;
+            Err(AppError::ExternalService(format!(
+                "Test email send failed ({kind}): {e}. {hint}"
+            )))
+        }
     }
 }
