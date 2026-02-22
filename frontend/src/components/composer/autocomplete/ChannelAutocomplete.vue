@@ -57,6 +57,10 @@ function selectCurrent() {
         return
     }
     const channel = filteredChannels.value[selectedIndex.value]
+    if (!channel) {
+        emit('close')
+        return
+    }
     emit('select', channel.name)
 }
 

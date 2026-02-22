@@ -4,7 +4,7 @@
  * Clear drafts on successful send
  */
 
-import { ref, watch, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 
 const STORAGE_KEY_PREFIX = 'rustchat_draft:'
 const MAX_DRAFT_AGE_MS = 7 * 24 * 60 * 60 * 1000 // 7 days

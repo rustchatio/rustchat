@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import { emojiMap, searchEmojis } from '../../../utils/emoji'
+import { ref, computed, watch } from 'vue'
+import { searchEmojis } from '../../../utils/emoji'
 
 const props = defineProps<{
     query: string
@@ -51,6 +51,10 @@ function selectCurrent() {
         return
     }
     const emoji = filteredEmojis.value[selectedIndex.value]
+    if (!emoji) {
+        emit('close')
+        return
+    }
     emit('select', emoji.name)
 }
 

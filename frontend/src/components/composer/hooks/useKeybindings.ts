@@ -51,7 +51,6 @@ export function useKeybindings(options: KeybindingOptions) {
         onBold,
         onItalic,
         onStrikethrough,
-        onHeading,
         onLink,
         onInlineCode,
         onCodeBlock,
@@ -70,7 +69,6 @@ export function useKeybindings(options: KeybindingOptions) {
         onAutocompleteClose,
         onAttachFile,
         isAutocompleteOpen = false,
-        isPreviewOpen = false
     } = options
 
     function handleKeydown(event: KeyboardEvent) {

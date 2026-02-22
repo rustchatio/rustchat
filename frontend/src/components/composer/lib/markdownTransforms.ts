@@ -116,7 +116,6 @@ export function toggleLinePrefix(
     prefix: string
 ): TransformResult {
     const beforeSelection = text.substring(0, selectionStart)
-    const selectedText = text.substring(selectionStart, selectionEnd)
     const afterSelection = text.substring(selectionEnd)
     
     // Find the start of the first line
@@ -194,11 +193,12 @@ export function makeCodeBlock(
         // Remove code block
         const lines = selectedText.split('\n')
         // Remove first line (language) if present
-        const codeLines = lines[0].trim() === lang || lines[0].startsWith('```') 
+        const firstLine = lines[0] ?? ''
+        const codeLines = firstLine.trim() === lang || firstLine.startsWith('```')
             ? lines.slice(1) 
             : lines
         // Remove closing ``` if present
-        const lastLine = codeLines[codeLines.length - 1]
+        const lastLine = codeLines[codeLines.length - 1] ?? ''
         const cleanLines = lastLine === '```' ? codeLines.slice(0, -1) : codeLines
         
         const newText = text.substring(0, selectionStart - beforeText.lastIndexOf('```') - 3) +
@@ -371,12 +371,12 @@ export function getWordAtCursor(text: string, cursorPos: number): { word: string
     let end = cursorPos
     
     // Move back to start of word
-    while (start > 0 && !/\s/.test(text[start - 1])) {
+    while (start > 0 && !/\s/.test(text.charAt(start - 1))) {
         start--
     }
     
     // Move forward to end of word
-    while (end < text.length && !/\s/.test(text[end])) {
+    while (end < text.length && !/\s/.test(text.charAt(end))) {
         end++
     }
     
