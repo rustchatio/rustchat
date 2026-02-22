@@ -38,7 +38,7 @@ pub mod ldap;
 pub mod oauth;
 pub mod plugins;
 pub mod posts;
-pub mod reactions;
+
 pub mod recaps;
 pub mod status;
 pub mod reports;
