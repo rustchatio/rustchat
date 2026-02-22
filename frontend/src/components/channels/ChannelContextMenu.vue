@@ -36,6 +36,7 @@ const props = defineProps<{
     isOwner?: boolean
     isAdmin?: boolean
     unreadCount?: number
+    triggerElement?: EventTarget | null
 }>()
 
 const emit = defineEmits<{
@@ -54,43 +55,78 @@ const authStore = useAuthStore()
 const menuRef = ref<HTMLElement | null>(null)
 const categories = ref<SidebarCategory[]>([])
 
-// Menu position state
+// Menu position state - using fixed positioning to overlay above all panels
 interface MenuPosition {
     left: string
-    marginLeft: string
-    top?: string
-    bottom?: string
+    top: string
 }
 
 const menuPosition = ref<MenuPosition>({
-    left: '100%',
-    marginLeft: '8px',
-    top: '0'
+    left: '0px',
+    top: '0px'
 })
 
-// Calculate menu position to keep it on screen
+// Calculate menu position based on trigger element
 async function calculatePosition() {
     await nextTick()
+    
+    let triggerRect: DOMRect | undefined
+    
+    // Get the trigger element's position
+    if (props.triggerElement instanceof HTMLElement) {
+        triggerRect = props.triggerElement.getBoundingClientRect()
+    } else {
+        // Fallback: try to find the button that triggered this menu
+        const buttons = document.querySelectorAll('button[title="More actions"]')
+        for (const btn of buttons) {
+            // Find the button closest to the channel we're showing menu for
+            const channelEl = btn.closest('[class*="group/item"]')
+            if (channelEl) {
+                const channelName = channelEl.textContent?.includes(props.channelName)
+                if (channelName) {
+                    triggerRect = btn.getBoundingClientRect()
+                    break
+                }
+            }
+        }
+    }
+    
     if (!menuRef.value) return
     
-    const rect = menuRef.value.getBoundingClientRect()
+    const menuWidth = 224 // w-56 = 14rem = 224px
+    const menuHeight = menuRef.value.offsetHeight || 350 // estimated height
+    const viewportWidth = window.innerWidth
     const viewportHeight = window.innerHeight
     
-    // Check if menu would go off the bottom of the screen
-    if (rect.bottom > viewportHeight - 16) {
-        // Position menu above the trigger instead, aligning bottom with trigger bottom
-        menuPosition.value = {
-            left: '100%',
-            marginLeft: '8px',
-            bottom: '0'
-        }
-    } else {
-        // Default position - align top with trigger top
-        menuPosition.value = {
-            left: '100%',
-            marginLeft: '8px',
-            top: '0'
-        }
+    // Default: position to the right of the trigger button
+    let left = triggerRect ? triggerRect.right + 8 : 240
+    let top = triggerRect ? triggerRect.top : 100
+    
+    // Check if menu would go off the right edge of screen
+    if (left + menuWidth > viewportWidth - 16) {
+        // Position to the left of the trigger instead
+        left = triggerRect ? triggerRect.left - menuWidth - 8 : left - menuWidth - 16
+    }
+    
+    // Check if menu would go off the bottom of screen
+    if (top + menuHeight > viewportHeight - 16) {
+        // Align bottom of menu with bottom of viewport
+        top = viewportHeight - menuHeight - 16
+    }
+    
+    // Ensure menu doesn't go off the left edge
+    if (left < 16) {
+        left = 16
+    }
+    
+    // Ensure menu doesn't go off the top
+    if (top < 16) {
+        top = 16
+    }
+    
+    menuPosition.value = {
+        left: `${left}px`,
+        top: `${top}px`
     }
 }
 
@@ -294,28 +330,18 @@ const menuItems = computed<ChannelMenuItem[]>(() => {
     return items
 })
 
-// Handle click outside
-function handleClickOutside(event: MouseEvent) {
-    if (menuRef.value && !menuRef.value.contains(event.target as Node)) {
-        emit('close')
-    }
-}
-
 onMounted(() => {
-    document.addEventListener('click', handleClickOutside)
     fetchCategories()
     calculatePosition()
-})
-
-onUnmounted(() => {
-    document.removeEventListener('click', handleClickOutside)
 })
 </script>
 
 <template>
+    <!-- Backdrop to capture clicks outside - covers entire screen -->
+    <div class="fixed inset-0 z-[9998]" @click="$emit('close')"></div>
     <div 
         ref="menuRef"
-        class="absolute z-50 w-56 bg-bg-surface-1 rounded-lg shadow-2xl border border-border-1 py-1 animate-fade-in"
+        class="fixed z-[9999] w-56 bg-bg-surface-1 rounded-lg shadow-2xl border border-border-1 py-1 animate-fade-in"
         :style="menuPosition"
         @click.stop
     >

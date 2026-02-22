@@ -45,6 +45,7 @@ const contextMenuChannel = ref<{
     unread: number;
     isOwner: boolean;
 } | null>(null);
+const contextMenuTrigger = ref<HTMLElement | null>(null);
 const showMoveToModal = ref(false);
 const moveToCategories = ref<SidebarCategory[]>([]);
 const moveToChannelId = ref('');
@@ -186,11 +187,13 @@ function openContextMenu(channel: any, event: MouseEvent) {
         unread: channel.unread,
         isOwner: isChannelOwner(channel)
     }
+    contextMenuTrigger.value = event.currentTarget as HTMLElement
 }
 
 // Close context menu
 function closeContextMenu() {
     contextMenuChannel.value = null
+    contextMenuTrigger.value = null
 }
 
 // Handle context menu action
@@ -444,21 +447,23 @@ async function handleLeaveTeam() {
                  <MoreVertical class="w-4 h-4 text-text-3" />
                </button>
 
-               <!-- Context Menu -->
-               <ChannelContextMenu
-                 v-if="contextMenuChannel?.id === channel.id"
-                 :channel-id="contextMenuChannel!.id"
-                 :channel-name="contextMenuChannel!.name"
-                 :channel-type="contextMenuChannel!.type"
-                 :is-owner="contextMenuChannel!.isOwner"
-                 :is-admin="isUserAdmin()"
-                 :unread-count="channel.unread"
-                 @close="closeContextMenu"
-                 @action="handleContextMenuAction"
-                 @open-add-members="handleOpenAddMembers"
-                 @open-move-to="handleOpenMoveTo"
-                 @open-details="handleOpenChannelDetails"
-               />
+               <!-- Context Menu (teleported to body to overlay above all panels) -->
+               <Teleport to="body" v-if="contextMenuChannel?.id === channel.id">
+                 <ChannelContextMenu
+                   :channel-id="contextMenuChannel!.id"
+                   :channel-name="contextMenuChannel!.name"
+                   :channel-type="contextMenuChannel!.type"
+                   :is-owner="contextMenuChannel!.isOwner"
+                   :is-admin="isUserAdmin()"
+                   :unread-count="channel.unread"
+                   :trigger-element="contextMenuTrigger"
+                   @close="closeContextMenu"
+                   @action="handleContextMenuAction"
+                   @open-add-members="handleOpenAddMembers"
+                   @open-move-to="handleOpenMoveTo"
+                   @open-details="handleOpenChannelDetails"
+                 />
+               </Teleport>
             </div>
           </div>
           
