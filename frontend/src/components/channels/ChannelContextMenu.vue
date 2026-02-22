@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import { 
     Check, 
     Star, 
@@ -51,6 +51,46 @@ const authStore = useAuthStore()
 
 const menuRef = ref<HTMLElement | null>(null)
 const categories = ref<SidebarCategory[]>([])
+
+// Menu position state
+interface MenuPosition {
+    left: string
+    marginLeft: string
+    top?: string
+    bottom?: string
+}
+
+const menuPosition = ref<MenuPosition>({
+    left: '100%',
+    marginLeft: '8px',
+    top: '0'
+})
+
+// Calculate menu position to keep it on screen
+async function calculatePosition() {
+    await nextTick()
+    if (!menuRef.value) return
+    
+    const rect = menuRef.value.getBoundingClientRect()
+    const viewportHeight = window.innerHeight
+    
+    // Check if menu would go off the bottom of the screen
+    if (rect.bottom > viewportHeight - 16) {
+        // Position menu above the trigger instead, aligning bottom with trigger bottom
+        menuPosition.value = {
+            left: '100%',
+            marginLeft: '8px',
+            bottom: '0'
+        }
+    } else {
+        // Default position - align top with trigger top
+        menuPosition.value = {
+            left: '100%',
+            marginLeft: '8px',
+            top: '0'
+        }
+    }
+}
 
 // Check if favorited
 const isFavorite = computed(() => channelPrefsStore.isFavorite(props.channelId))
@@ -248,6 +288,7 @@ function handleClickOutside(event: MouseEvent) {
 onMounted(() => {
     document.addEventListener('click', handleClickOutside)
     fetchCategories()
+    calculatePosition()
 })
 
 onUnmounted(() => {
@@ -258,8 +299,8 @@ onUnmounted(() => {
 <template>
     <div 
         ref="menuRef"
-        class="absolute z-50 w-56 bg-bg-surface-1 rounded-r-2 shadow-2xl border border-border-1 py-1 animate-fade-in"
-        :style="{ left: '100%', marginLeft: '8px', top: '0' }"
+        class="absolute z-50 w-56 bg-bg-surface-1 rounded-lg shadow-2xl border border-border-1 py-1 animate-fade-in"
+        :style="menuPosition"
         @click.stop
     >
         <template v-for="item in menuItems" :key="item.id">

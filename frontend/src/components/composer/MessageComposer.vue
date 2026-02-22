@@ -344,14 +344,14 @@ function formatFileSize(bytes: number): string {
     @files-selected="handleFiles"
   >
 
-    <div class="relative rounded-2xl bg-surface dark:bg-surface-dim border border-border-dim dark:border-white/5 shadow-lg ring-1 ring-black/5 overflow-hidden transition-slow focus-within:ring-2 focus-within:ring-primary/5 focus-within:border-primary/50">
+    <div class="relative rounded-2xl bg-bg-surface-1 border border-border-1 shadow-lg ring-1 ring-black/5 overflow-hidden transition-slow focus-within:ring-2 focus-within:ring-primary/5 focus-within:border-primary/50">
         <!-- Formatting Toolbar -->
         <FormattingToolbar 
           v-if="showFormatting"
           :showPreview="showPreview"
           @format="applyFormat"
           @togglePreview="showPreview = !showPreview"
-          class="border-b border-border-dim dark:border-white/5 bg-surface-dim/50"
+          class="border-b border-border-1 bg-bg-surface-2/50"
         />
         
         <!-- Markdown Preview -->
@@ -360,27 +360,27 @@ function formatFileSize(bytes: number): string {
         </div>
         
         <!-- Attached Files Preview -->
-        <div v-if="attachedFiles.length > 0" class="flex flex-wrap gap-2 p-2 border-b border-white/10 dark:border-white/5 bg-white/5">
+        <div v-if="attachedFiles.length > 0" class="flex flex-wrap gap-2 p-2 border-b border-border-1 bg-surface/50">
           <div 
             v-for="(attachment, index) in attachedFiles"
             :key="index"
-            class="relative flex flex-col space-y-1.5 bg-surface-dim dark:bg-slate-800/40 border border-border-dim dark:border-white/5 rounded-xl p-2.5 min-w-[180px] overflow-hidden group/file shadow-sm"
+            class="relative flex flex-col space-y-1.5 bg-bg-surface-2 border border-border-1 rounded-xl p-2.5 min-w-[180px] overflow-hidden group/file shadow-sm"
           >
             <div class="flex items-center space-x-3">
-                <div class="p-2 bg-indigo-500/10 rounded-lg">
-                    <FileIcon class="w-5 h-5 text-indigo-400" />
+                <div class="p-2 bg-primary/10 rounded-lg">
+                    <FileIcon class="w-5 h-5 text-primary" />
                 </div>
                 <div class="flex-1 min-w-0">
-                    <div class="text-[13px] font-semibold text-gray-800 dark:text-slate-100 truncate pr-4">
+                    <div class="text-[13px] font-semibold text-text-1 truncate pr-4">
                         {{ attachment.file.name }}
                     </div>
-                    <div class="text-[11px] text-gray-500 dark:text-slate-400">
+                    <div class="text-[11px] text-text-3">
                         {{ formatFileSize(attachment.file.size) }}
                     </div>
                 </div>
                 <button 
                   @click="removeAttachment(index)"
-                  class="absolute top-2 right-2 p-1.5 hover:bg-red-500/10 hover:text-red-500 rounded-lg text-slate-500 transition-colors opacity-0 group-hover/file:opacity-100"
+                  class="absolute top-2 right-2 p-1.5 hover:bg-danger/10 hover:text-danger rounded-lg text-text-3 transition-colors opacity-0 group-hover/file:opacity-100"
                 >
                   <X class="w-4 h-4" />
                 </button>
@@ -389,19 +389,19 @@ function formatFileSize(bytes: number): string {
             <!-- Upload Progress -->
             <div v-if="attachment.uploading" class="space-y-1.5">
                 <div class="flex justify-between text-[10px] uppercase tracking-wider font-bold">
-                    <span class="text-indigo-400">Uploading...</span>
-                    <span class="text-slate-500">{{ attachment.progress }}%</span>
+                    <span class="text-primary">Uploading...</span>
+                    <span class="text-text-3">{{ attachment.progress }}%</span>
                 </div>
-                <div class="h-1.5 w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                <div class="h-1.5 w-full bg-border-1 rounded-full overflow-hidden">
                     <div 
-                        class="h-full bg-indigo-500 transition-all duration-300 ease-out"
+                        class="h-full bg-primary transition-all duration-300 ease-out"
                         :style="{ width: `${attachment.progress}%` }"
                     ></div>
                 </div>
             </div>
             
-            <div v-else-if="attachment.uploaded" class="text-[10px] text-green-500 flex items-center space-x-1 font-bold uppercase tracking-wider">
-                <div class="w-1 h-1 rounded-full bg-green-500"></div>
+            <div v-else-if="attachment.uploaded" class="text-[10px] text-success flex items-center space-x-1 font-bold uppercase tracking-wider">
+                <div class="w-1 h-1 rounded-full bg-success"></div>
                 <span>Ready</span>
             </div>
           </div>
@@ -415,7 +415,7 @@ function formatFileSize(bytes: number): string {
               @keydown="handleKeydown"
               @input="handleInput"
               rows="1" 
-              class="w-full bg-transparent border-0 focus:ring-0 resize-none max-h-36 py-2.5 px-3 min-h-[42px] text-gray-800 dark:text-slate-200 placeholder-slate-400 placeholder:font-light" 
+              class="w-full bg-transparent border-0 focus:ring-0 resize-none max-h-36 py-2.5 px-3 min-h-[42px] text-text-1 placeholder-text-3 placeholder:font-light" 
               placeholder="Message... (Use @ to mention)"
               aria-label="Message composer"
           ></textarea>
@@ -431,10 +431,10 @@ function formatFileSize(bytes: number): string {
 
         <!-- Footer Actions -->
         <div class="flex justify-between items-center px-1.5 pb-1.5">
-            <div class="flex space-x-1 text-slate-400 relative">
+            <div class="flex space-x-1 text-text-3 relative">
                 <button 
                   @click="openFilePicker"
-                  class="p-2 hover:bg-indigo-500/10 hover:text-indigo-400 rounded-lg transition-colors" 
+                  class="p-2 hover:bg-primary/10 hover:text-primary rounded-lg transition-colors" 
                   title="Attach file"
                 >
                     <Paperclip class="w-4.5 h-4.5" />
@@ -442,7 +442,7 @@ function formatFileSize(bytes: number): string {
                 <div class="relative">
                   <button 
                     @click="showEmojiPicker = !showEmojiPicker"
-                    class="p-2 hover:bg-yellow-500/10 hover:text-yellow-400 rounded-lg transition-colors" 
+                    class="p-2 hover:bg-amber-500/10 hover:text-amber-500 rounded-lg transition-colors" 
                     title="Emoji"
                   >
                       <Smile class="w-4.5 h-4.5" />
@@ -493,10 +493,10 @@ function formatFileSize(bytes: number): string {
             </div>
             
             <div class="flex items-center space-x-4">
-                 <div class="text-[10px] text-slate-500 hidden sm:block font-medium tracking-wide">
-                    <span class="bg-white/10 px-1 py-0.5 rounded text-xs mr-1">⌘B</span> 
-                    <span class="bg-white/10 px-1 py-0.5 rounded text-xs mr-1">⌘I</span>
-                    <span class="bg-white/10 px-1 py-0.5 rounded text-xs">⌘⌥T</span>
+                 <div class="text-[10px] text-text-3 hidden sm:block font-medium tracking-wide">
+                    <span class="bg-surface/50 px-1 py-0.5 rounded text-xs mr-1">⌘B</span> 
+                    <span class="bg-surface/50 px-1 py-0.5 rounded text-xs mr-1">⌘I</span>
+                    <span class="bg-surface/50 px-1 py-0.5 rounded text-xs">⌘⌥T</span>
                 </div>
                 <button 
                     @click="handleSend"

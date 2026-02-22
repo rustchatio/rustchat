@@ -154,10 +154,11 @@ async function onStartAudioCall() {
 <template>
   <AppShell>
       <div class="flex h-full relative overflow-hidden">
-          <!-- Background Gradient -->
-          <div class="absolute inset-0 bg-slate-900 pointer-events-none z-0">
-             <div class="absolute inset-0 bg-gradient-to-br from-indigo-900/20 via-slate-900 to-slate-900"></div>
-          </div>
+          <!-- Background - uses theme surface color -->
+          <div 
+            class="absolute inset-0 pointer-events-none z-0"
+            style="background-color: var(--bg-app);"
+          ></div>
 
           <!-- Main Channel Area -->
           <div class="relative flex flex-col flex-1 min-w-0 z-10 bg-transparent">

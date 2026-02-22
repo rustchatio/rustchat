@@ -132,31 +132,51 @@ const handleLeave = async () => {
 </script>
 
 <template>
-  <header class="h-12 flex items-center justify-between px-4 shrink-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-gray-200/50 dark:border-white/5 sticky top-0 z-10 transition-colors duration-300">
+  <header 
+    class="h-12 flex items-center justify-between px-4 shrink-0 backdrop-blur-md border-b sticky top-0 z-10 transition-colors duration-300"
+    :style="{ 
+      backgroundColor: 'color-mix(in srgb, var(--bg-surface-1) 95%, transparent)', 
+      borderColor: 'var(--border-1)',
+    }"
+  >
     <div class="flex flex-col justify-center min-w-0">
         <div class="flex items-center">
             <component 
               :is="channelType === 'private' ? Lock : Hash" 
-              class="w-4 h-4 text-indigo-500 mr-1.5" 
+              class="w-4 h-4 mr-1.5"
+              style="color: var(--brand);"
             />
-            <h1 class="font-bold text-base text-gray-900 dark:text-white tracking-tight truncate">{{ name }}</h1>
+            <h1 
+              class="font-bold text-base tracking-tight truncate"
+              style="color: var(--text-1);"
+            >{{ name }}</h1>
         </div>
-        <div v-if="topic" class="text-xs text-gray-500 dark:text-gray-400 truncate max-w-lg mt-0.5 font-medium">
+        <div 
+          v-if="topic" 
+          class="text-xs truncate max-w-lg mt-0.5 font-medium opacity-60"
+          style="color: var(--text-2);"
+        >
             {{ topic }}
         </div>
     </div>
     
-    <div class="flex items-center space-x-1 text-gray-400 dark:text-gray-400 shrink-0">
+    <div 
+      class="flex items-center space-x-1 shrink-0"
+      style="color: var(--text-2);"
+    >
         <button 
           @click="toggleView('members')"
-            class="w-8 h-8 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-white/5 rounded-full transition-all duration-200"
-          :class="{ 'bg-gray-100 dark:bg-white/5 text-slate-900 dark:text-white': uiStore.rhsView === 'members' }"
+          class="w-8 h-8 flex items-center justify-center rounded-full transition-all duration-200"
+          :class="{ 
+            'bg-brand text-white': uiStore.rhsView === 'members',
+            'hover:bg-surface-2 text-text-2': uiStore.rhsView !== 'members'
+          }"
           title="Members"
         >
             <Users class="w-4 h-4" />
         </button>
         
-        <div class="w-px h-4 bg-gray-200 dark:bg-white/10 mx-1.5"></div>
+        <div class="w-px h-4 bg-border-2 mx-1.5"></div>
 
         <!-- Native Audio Call Button -->
         <button 
@@ -195,24 +215,33 @@ const handleLeave = async () => {
         </button>
         <button 
           @click="toggleView('search')"
-          class="w-8 h-8 flex items-center justify-center hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-full transition-all duration-200"
-          :class="{ 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white': uiStore.rhsView === 'search' }"
+          class="w-8 h-8 flex items-center justify-center rounded-full transition-all duration-200"
+          :class="{ 
+            'bg-brand text-white': uiStore.rhsView === 'search',
+            'hover:bg-surface-2 text-text-2': uiStore.rhsView !== 'search'
+          }"
           title="Search"
         >
             <Search class="w-4 h-4" />
         </button>
         <button 
           @click="toggleView('pinned')"
-          class="w-8 h-8 flex items-center justify-center hover:bg-indigo-50 dark:hover:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-full transition-all duration-200"
-          :class="{ 'bg-indigo-50 dark:bg-indigo-500/10': uiStore.rhsView === 'pinned' }"
+          class="w-8 h-8 flex items-center justify-center rounded-full transition-all duration-200"
+          :class="{ 
+            'bg-brand text-white': uiStore.rhsView === 'pinned',
+            'hover:bg-surface-2 text-brand': uiStore.rhsView !== 'pinned'
+          }"
           title="Pinned items"
         >
             <Pin class="w-4 h-4" />
         </button>
         <button 
           @click="toggleView('saved')"
-          class="w-8 h-8 flex items-center justify-center hover:bg-amber-50 dark:hover:bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-full transition-all duration-200"
-          :class="{ 'bg-amber-50 dark:bg-amber-500/10': uiStore.rhsView === 'saved' }"
+          class="w-8 h-8 flex items-center justify-center rounded-full transition-all duration-200"
+          :class="{ 
+            'bg-brand text-white': uiStore.rhsView === 'saved',
+            'hover:bg-surface-2 text-amber-500': uiStore.rhsView !== 'saved'
+          }"
           title="Saved items"
         >
             <Bookmark class="w-4 h-4" />
@@ -220,7 +249,7 @@ const handleLeave = async () => {
         <div class="relative">
              <button 
               @click="showMenu = !showMenu"
-              class="w-8 h-8 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-white/5 rounded-full transition-all duration-200"
+              class="w-8 h-8 flex items-center justify-center rounded-full transition-all duration-200 text-text-2 hover:bg-surface-2"
               title="More options"
             >
                 <MoreVertical class="w-4 h-4" />
@@ -228,24 +257,24 @@ const handleLeave = async () => {
             
             <div 
                 v-if="showMenu"
-                class="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-20 py-1 origin-top-right backdrop-blur-sm"
+                class="absolute right-0 top-full mt-2 w-48 rounded-lg shadow-xl z-20 py-1 origin-top-right backdrop-blur-sm bg-bg-surface-1 border border-border-1"
             >
                 <!-- Close menu when clicking outside (handled by backdrop usually, or simple v-if logic for now) -->
                 <div class="fixed inset-0 z-[-1]" @click="showMenu = false"></div>
 
                 <button 
                     @click="$emit('openSettings'); showMenu = false"
-                    class="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"
+                    class="w-full px-4 py-2 text-left text-sm flex items-center transition-colors duration-200 text-text-2 hover:bg-surface-2"
                 >
                     <Info class="w-4 h-4 mr-2" />
                     Channel Details
                 </button>
                 
-                <hr class="my-1 border-gray-200 dark:border-gray-700" />
+                <hr class="my-1 border-border-1" />
                 
                 <button 
                     @click="handleLeave"
-                    class="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center"
+                    class="w-full px-4 py-2 text-left text-sm flex items-center transition-colors duration-200 text-danger hover:bg-danger/10"
                 >
                     <LogOut class="w-4 h-4 mr-2" />
                     Leave Channel

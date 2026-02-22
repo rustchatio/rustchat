@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 
 export type Theme =
     | 'light'
@@ -10,6 +10,16 @@ export type Theme =
     | 'high-contrast'
     | 'simple'
     | 'dynamic'
+
+export interface ThemeColors {
+    sidebarBg: string
+    sidebarText: string
+    centerChannelBg: string
+    centerChannelColor: string
+    linkColor: string
+    buttonBg: string
+    buttonColor: string
+}
 
 export type ChatFont =
     | 'inter'
@@ -29,16 +39,126 @@ export const THEME_OPTIONS: Array<{
     id: Theme
     label: string
     swatches: { primary: string; accent: string; background: string }
+    colors: ThemeColors
 }> = [
-    { id: 'light', label: 'Light', swatches: { primary: '#2563eb', accent: '#0ea5e9', background: '#f6f8fb' } },
-    { id: 'dark', label: 'Dark', swatches: { primary: '#38bdf8', accent: '#22d3ee', background: '#0b1220' } },
-    { id: 'modern', label: 'Modern', swatches: { primary: '#0f766e', accent: '#14b8a6', background: '#f3f7f6' } },
-    { id: 'metallic', label: 'Metallic', swatches: { primary: '#475569', accent: '#d97706', background: '#e7eaee' } },
-    { id: 'futuristic', label: 'Futuristic', swatches: { primary: '#06b6d4', accent: '#22c55e', background: '#030712' } },
-    { id: 'high-contrast', label: 'High Contrast', swatches: { primary: '#00e5ff', accent: '#ffd400', background: '#000000' } },
-    { id: 'simple', label: 'Simple', swatches: { primary: '#0369a1', accent: '#16a34a', background: '#fafaf9' } },
-    { id: 'dynamic', label: 'Dynamic', swatches: { primary: '#e11d48', accent: '#f59e0b', background: '#111827' } },
+    { 
+        id: 'light', 
+        label: 'Light', 
+        swatches: { primary: '#2563eb', accent: '#0ea5e9', background: '#f6f8fb' },
+        colors: {
+            sidebarBg: '#1e325c',
+            sidebarText: '#ffffff',
+            centerChannelBg: '#ffffff',
+            centerChannelColor: '#3d3c40',
+            linkColor: '#166de0',
+            buttonBg: '#166de0',
+            buttonColor: '#ffffff',
+        }
+    },
+    { 
+        id: 'dark', 
+        label: 'Dark', 
+        swatches: { primary: '#38bdf8', accent: '#22d3ee', background: '#0b1220' },
+        colors: {
+            sidebarBg: '#1f222a',
+            sidebarText: '#ffffff',
+            centerChannelBg: '#0b1220',
+            centerChannelColor: '#dddddd',
+            linkColor: '#38bdf8',
+            buttonBg: '#38bdf8',
+            buttonColor: '#ffffff',
+        }
+    },
+    { 
+        id: 'modern', 
+        label: 'Modern', 
+        swatches: { primary: '#0f766e', accent: '#14b8a6', background: '#f3f7f6' },
+        colors: {
+            sidebarBg: '#1a1d24',
+            sidebarText: '#e2e8f0',
+            centerChannelBg: '#f3f7f6',
+            centerChannelColor: '#0f172a',
+            linkColor: '#0f766e',
+            buttonBg: '#0f766e',
+            buttonColor: '#ffffff',
+        }
+    },
+    { 
+        id: 'metallic', 
+        label: 'Metallic', 
+        swatches: { primary: '#475569', accent: '#d97706', background: '#e7eaee' },
+        colors: {
+            sidebarBg: '#334155',
+            sidebarText: '#f1f5f9',
+            centerChannelBg: '#e7eaee',
+            centerChannelColor: '#1e293b',
+            linkColor: '#d97706',
+            buttonBg: '#475569',
+            buttonColor: '#ffffff',
+        }
+    },
+    { 
+        id: 'futuristic', 
+        label: 'Futuristic', 
+        swatches: { primary: '#06b6d4', accent: '#22c55e', background: '#030712' },
+        colors: {
+            sidebarBg: '#0f172a',
+            sidebarText: '#22c55e',
+            centerChannelBg: '#030712',
+            centerChannelColor: '#06b6d4',
+            linkColor: '#22c55e',
+            buttonBg: '#06b6d4',
+            buttonColor: '#000000',
+        }
+    },
+    { 
+        id: 'high-contrast', 
+        label: 'High Contrast', 
+        swatches: { primary: '#00e5ff', accent: '#ffd400', background: '#000000' },
+        colors: {
+            sidebarBg: '#000000',
+            sidebarText: '#ffffff',
+            centerChannelBg: '#000000',
+            centerChannelColor: '#ffffff',
+            linkColor: '#00e5ff',
+            buttonBg: '#00e5ff',
+            buttonColor: '#000000',
+        }
+    },
+    { 
+        id: 'simple', 
+        label: 'Simple', 
+        swatches: { primary: '#0369a1', accent: '#16a34a', background: '#fafaf9' },
+        colors: {
+            sidebarBg: '#44403c',
+            sidebarText: '#fafaf9',
+            centerChannelBg: '#fafaf9',
+            centerChannelColor: '#292524',
+            linkColor: '#0369a1',
+            buttonBg: '#16a34a',
+            buttonColor: '#ffffff',
+        }
+    },
+    { 
+        id: 'dynamic', 
+        label: 'Dynamic', 
+        swatches: { primary: '#e11d48', accent: '#f59e0b', background: '#111827' },
+        colors: {
+            sidebarBg: '#1f2937',
+            sidebarText: '#f9fafb',
+            centerChannelBg: '#111827',
+            centerChannelColor: '#e5e7eb',
+            linkColor: '#e11d48',
+            buttonBg: '#f59e0b',
+            buttonColor: '#000000',
+        }
+    },
 ]
+
+export function getThemeColors(themeId: Theme): ThemeColors {
+    const theme = THEME_OPTIONS.find(t => t.id === themeId)
+    return theme?.colors ?? THEME_OPTIONS[0].colors
+}
 
 export const FONT_OPTIONS: Array<{ id: ChatFont; label: string; cssVar: string }> = [
     { id: 'inter', label: 'Inter', cssVar: 'var(--font-inter)' },
@@ -194,6 +314,16 @@ export const useThemeStore = defineStore('theme', () => {
         } else {
             root.classList.remove('dark')
         }
+
+        // Apply theme color CSS variables
+        const colors = getThemeColors(theme.value)
+        root.style.setProperty('--theme-sidebar-bg', colors.sidebarBg)
+        root.style.setProperty('--theme-sidebar-text', colors.sidebarText)
+        root.style.setProperty('--theme-center-channel-bg', colors.centerChannelBg)
+        root.style.setProperty('--theme-center-channel-color', colors.centerChannelColor)
+        root.style.setProperty('--theme-link-color', colors.linkColor)
+        root.style.setProperty('--theme-button-bg', colors.buttonBg)
+        root.style.setProperty('--theme-button-color', colors.buttonColor)
     }
 
     function applyTypography() {
