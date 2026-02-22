@@ -28,11 +28,10 @@ mod helpers;
 mod view;
 
 use compat::{
-    create_channel_bookmark, delete_channel_bookmark, get_channel_access_control_attributes,
-    get_channel_bookmarks, get_channel_common_teams, get_channel_groups,
+    get_channel_access_control_attributes, get_channel_common_teams, get_channel_groups,
     get_channel_member_counts_by_group, get_channel_members_minus_group_members,
-    get_channel_moderations, patch_channel_bookmark, patch_channel_moderations,
-    search_group_channels, update_channel_bookmark_sort_order, update_channel_scheme,
+    get_channel_moderations, patch_channel_moderations,
+    search_group_channels, update_channel_scheme,
 };
 use helpers::normalize_notify_props;
 use view::{view_channel, view_channel_for_user};
@@ -132,18 +131,6 @@ pub fn router() -> Router<AppState> {
             get(get_channel_common_teams),
         )
         .route("/channels/{channel_id}/groups", get(get_channel_groups))
-        .route(
-            "/channels/{channel_id}/bookmarks",
-            get(get_channel_bookmarks).post(create_channel_bookmark),
-        )
-        .route(
-            "/channels/{channel_id}/bookmarks/{bookmark_id}",
-            axum::routing::patch(patch_channel_bookmark).delete(delete_channel_bookmark),
-        )
-        .route(
-            "/channels/{channel_id}/bookmarks/{bookmark_id}/sort_order",
-            post(update_channel_bookmark_sort_order),
-        )
         .route(
             "/channels/{channel_id}/access_control/attributes",
             get(get_channel_access_control_attributes),
