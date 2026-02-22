@@ -103,7 +103,6 @@ pub fn router() -> Router<AppState> {
         )
         // Email testing
         .route("/admin/email/test", post(test_email_config))
-        .route("/admin/email/events", get(list_email_events))
 }
 
 /// Check if user is admin
