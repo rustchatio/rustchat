@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
-import { Mail, Send, Save, AlertCircle, CheckCircle, Plus, Trash2, Star } from 'lucide-vue-next';
+import { Mail, Send, AlertCircle, CheckCircle, Plus, Trash2, Star } from 'lucide-vue-next';
 import api from '../../api/client';
 import type { MailProvider, CreateMailProviderRequest } from '../../api/admin';
 import EmailAdminWorkbench from '../../components/admin/EmailAdminWorkbench.vue';
