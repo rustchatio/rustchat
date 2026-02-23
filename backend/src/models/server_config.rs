@@ -13,7 +13,6 @@ pub struct ServerConfig {
     pub authentication: sqlx::types::Json<AuthConfig>,
     pub integrations: sqlx::types::Json<IntegrationsConfig>,
     pub compliance: sqlx::types::Json<ComplianceConfig>,
-    pub email: sqlx::types::Json<EmailConfig>,
     pub experimental: sqlx::types::Json<serde_json::Value>,
     pub updated_at: DateTime<Utc>,
     pub updated_by: Option<Uuid>,
@@ -272,58 +271,7 @@ pub struct ComplianceConfig {
     pub file_retention_days: i32,
 }
 
-/// Email/SMTP configuration
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct EmailConfig {
-    /// Enable email notifications (SendEmailNotifications)
-    #[serde(default = "default_true")]
-    pub send_email_notifications: bool,
-    /// Enable email batching (EnableEmailBatching)
-    #[serde(default)]
-    pub enable_email_batching: bool,
-    /// Email batching interval in seconds (default 15 minutes = 900)
-    #[serde(default = "default_email_batching_interval")]
-    pub email_batching_interval: i32,
-    #[serde(default)]
-    pub smtp_host: String,
-    #[serde(default = "default_smtp_port")]
-    pub smtp_port: i32,
-    #[serde(default)]
-    pub smtp_username: String,
-    #[serde(default)]
-    pub smtp_password_encrypted: String,
-    /// SMTP connection security: "tls", "starttls", or "none"
-    #[serde(default = "default_smtp_security")]
-    pub smtp_security: String,
-    /// Skip SMTP certificate verification (for self-signed certs)
-    #[serde(default)]
-    pub smtp_skip_cert_verify: bool,
-    #[serde(default)]
-    pub from_address: String,
-    #[serde(default = "default_site_name")]
-    pub from_name: String,
-    #[serde(default)]
-    pub reply_to: String,
-    /// Notification display content: "full", "generic", or "generic_with_subject"
-    #[serde(default = "default_email_notification_content")]
-    pub email_notification_content: String,
-}
 
-fn default_smtp_port() -> i32 {
-    587
-}
-
-fn default_smtp_security() -> String {
-    "starttls".to_string()
-}
-
-fn default_email_batching_interval() -> i32 {
-    900 // 15 minutes
-}
-
-fn default_email_notification_content() -> String {
-    "full".to_string()
-}
 
 /// DTO for updating a specific config category
 #[derive(Debug, Clone, Deserialize)]
@@ -333,7 +281,6 @@ pub enum ConfigUpdate {
     Auth(AuthConfig),
     Integrations(IntegrationsConfig),
     Compliance(ComplianceConfig),
-    Email(EmailConfig),
     Experimental(serde_json::Value),
 }
 
@@ -344,7 +291,6 @@ pub struct ServerConfigResponse {
     pub authentication: AuthConfig,
     pub integrations: IntegrationsConfig,
     pub compliance: ComplianceConfig,
-    pub email: EmailConfig,
     pub experimental: serde_json::Value,
 }
 
@@ -355,7 +301,6 @@ impl From<ServerConfig> for ServerConfigResponse {
             authentication: config.authentication.0,
             integrations: config.integrations.0,
             compliance: config.compliance.0,
-            email: config.email.0,
             experimental: config.experimental.0,
         }
     }

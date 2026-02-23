@@ -1,38 +1,44 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue';
-import { useAdminStore } from '../../stores/admin';
-import { Mail, Send, Save, AlertCircle, CheckCircle } from 'lucide-vue-next';
+import { ref, onMounted } from 'vue';
+import { Mail, Send, Save, AlertCircle, CheckCircle, Plus, Trash2, Star } from 'lucide-vue-next';
 import api from '../../api/client';
+import type { MailProvider, CreateMailProviderRequest } from '../../api/admin';
 import EmailAdminWorkbench from '../../components/admin/EmailAdminWorkbench.vue';
 
-const adminStore = useAdminStore();
-
-const form = ref({
-    smtp_host: '',
-    smtp_port: 587,
-    smtp_username: '',
-    smtp_password_encrypted: '',
-    smtp_security: 'starttls',
-    smtp_skip_cert_verify: false,
-    from_address: '',
-    from_name: 'RustChat',
-    reply_to: '',
-});
-
-const testEmail = ref('');
+const providers = ref<MailProvider[]>([]);
+const defaultProvider = ref<MailProvider | null>(null);
+const loading = ref(false);
 const saving = ref(false);
 const saveSuccess = ref(false);
 const saveError = ref('');
 
+const testEmail = ref('');
 const testing = ref(false);
 const testSuccess = ref(false);
 const testError = ref('');
+
+const showAddModal = ref(false);
+const editingProvider = ref<MailProvider | null>(null);
+
+const form = ref<CreateMailProviderRequest>({
+    provider_type: 'smtp',
+    host: '',
+    port: 587,
+    username: '',
+    password: '',
+    tls_mode: 'starttls',
+    skip_cert_verify: false,
+    from_address: '',
+    from_name: 'RustChat',
+    reply_to: '',
+    enabled: true,
+    is_default: false,
+});
 
 function extractUiErrorMessage(e: any, fallback: string) {
     if (!e?.response) {
         return `${fallback}: cannot connect to the RustChat server. Check the server URL/network and try again.`;
     }
-
     return (
         e.response?.data?.error?.message ||
         e.response?.data?.message ||
@@ -42,61 +48,116 @@ function extractUiErrorMessage(e: any, fallback: string) {
     );
 }
 
-onMounted(async () => {
-    await adminStore.fetchConfig();
-    if (adminStore.config?.email) {
-        form.value = normalizeEmailConfig(adminStore.config.email);
+async function fetchProviders() {
+    loading.value = true;
+    try {
+        const { data } = await api.get('/admin/email/providers');
+        providers.value = data;
+        defaultProvider.value = data.find((p: MailProvider) => p.is_default) || data[0] || null;
+    } catch (e: any) {
+        saveError.value = extractUiErrorMessage(e, 'Failed to load email providers');
+    } finally {
+        loading.value = false;
     }
-});
-
-watch(() => adminStore.config?.email, (email) => {
-    if (email) {
-        form.value = normalizeEmailConfig(email);
-    }
-});
-
-function normalizeEmailConfig(email: Record<string, any>) {
-    const smtpSecurity = typeof email.smtp_security === 'string'
-        ? email.smtp_security
-        : email.smtp_tls === false
-            ? 'none'
-            : 'starttls';
-
-    return {
-        ...form.value,
-        ...email,
-        smtp_security: smtpSecurity,
-        smtp_skip_cert_verify: Boolean(email.smtp_skip_cert_verify),
-        reply_to: email.reply_to || '',
-    };
 }
 
-const saveSettings = async () => {
+onMounted(fetchProviders);
+
+function resetForm() {
+    form.value = {
+        provider_type: 'smtp',
+        host: '',
+        port: 587,
+        username: '',
+        password: '',
+        tls_mode: 'starttls',
+        skip_cert_verify: false,
+        from_address: '',
+        from_name: 'RustChat',
+        reply_to: '',
+        enabled: true,
+        is_default: providers.value.length === 0, // First provider is default
+    };
+    editingProvider.value = null;
+}
+
+function editProvider(provider: MailProvider) {
+    editingProvider.value = provider;
+    form.value = {
+        provider_type: provider.provider_type,
+        host: provider.host,
+        port: provider.port,
+        username: provider.username,
+        password: '', // Don't show existing password
+        tls_mode: provider.tls_mode,
+        skip_cert_verify: provider.skip_cert_verify,
+        from_address: provider.from_address,
+        from_name: provider.from_name,
+        reply_to: provider.reply_to || '',
+        enabled: provider.enabled,
+        is_default: provider.is_default,
+    };
+    showAddModal.value = true;
+}
+
+const saveProvider = async () => {
     saving.value = true;
     saveError.value = '';
     saveSuccess.value = false;
     
     try {
-        await adminStore.updateConfig('email', form.value);
+        if (editingProvider.value) {
+            // Update existing - only send password if provided
+            const data: Partial<CreateMailProviderRequest> = { ...form.value };
+            if (!data.password) delete data.password;
+            await api.put(`/admin/email/providers/${editingProvider.value.id}`, data);
+        } else {
+            // Create new
+            await api.post('/admin/email/providers', form.value);
+        }
+        await fetchProviders();
         saveSuccess.value = true;
+        showAddModal.value = false;
+        resetForm();
         setTimeout(() => saveSuccess.value = false, 3000);
     } catch (e: any) {
-        saveError.value = extractUiErrorMessage(e, 'Failed to save email settings');
+        saveError.value = extractUiErrorMessage(e, 'Failed to save email provider');
     } finally {
         saving.value = false;
     }
 };
 
+const deleteProvider = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this provider?')) return;
+    try {
+        await api.delete(`/admin/email/providers/${id}`);
+        await fetchProviders();
+    } catch (e: any) {
+        saveError.value = extractUiErrorMessage(e, 'Failed to delete provider');
+    }
+};
+
+const setDefault = async (id: string) => {
+    try {
+        await api.post(`/admin/email/providers/${id}/default`);
+        await fetchProviders();
+    } catch (e: any) {
+        saveError.value = extractUiErrorMessage(e, 'Failed to set default provider');
+    }
+};
+
 const sendTestEmail = async () => {
-    if (!testEmail.value) return;
+    if (!testEmail.value || !defaultProvider.value) return;
     testing.value = true;
     testError.value = '';
     testSuccess.value = false;
 
     try {
-        const { data } = await api.post('/admin/email/test', { to: testEmail.value });
-        if (data?.status && data.status !== 'success') {
-            throw new Error(data.error || data.message || 'SMTP test failed');
+        const { data } = await api.post(`/admin/email/providers/${defaultProvider.value.id}/test`, { 
+            to_email: testEmail.value 
+        });
+        if (!data?.success) {
+            throw new Error(data?.error || 'SMTP test failed');
         }
         testSuccess.value = true;
         setTimeout(() => testSuccess.value = false, 5000);
@@ -113,19 +174,18 @@ const sendTestEmail = async () => {
         <div class="flex items-center justify-between">
             <div>
                 <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Email & SMTP</h1>
-                <p class="text-gray-500 dark:text-gray-400 mt-1">Configure email delivery settings</p>
+                <p class="text-gray-500 dark:text-gray-400 mt-1">Configure email delivery providers</p>
             </div>
             <div class="flex items-center gap-3">
                 <span v-if="saveSuccess" class="flex items-center text-green-600 text-sm">
                     <CheckCircle class="w-4 h-4 mr-1" /> Saved
                 </span>
                 <button 
-                    @click="saveSettings"
-                    :disabled="saving"
-                    class="flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-lg font-medium transition-colors"
+                    @click="showAddModal = true; resetForm()"
+                    class="flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors"
                 >
-                    <Save class="w-5 h-5 mr-2" />
-                    {{ saving ? 'Saving...' : 'Save Changes' }}
+                    <Plus class="w-5 h-5 mr-2" />
+                    Add Provider
                 </button>
             </div>
         </div>
@@ -136,100 +196,61 @@ const sendTestEmail = async () => {
             {{ saveError }}
         </div>
 
+        <!-- Providers List -->
         <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
             <div class="flex items-center mb-6">
                 <Mail class="w-5 h-5 text-gray-400 mr-2" />
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">SMTP Configuration</h2>
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Email Providers</h2>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">SMTP Host</label>
-                    <input 
-                        v-model="form.smtp_host"
-                        type="text"
-                        class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white"
-                        placeholder="smtp.example.com"
-                    />
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">SMTP Port</label>
-                    <input 
-                        v-model.number="form.smtp_port"
-                        type="number"
-                        class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white"
-                    />
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Username</label>
-                    <input 
-                        v-model="form.smtp_username"
-                        type="text"
-                        class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white"
-                    />
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Password</label>
-                    <input 
-                        v-model="form.smtp_password_encrypted"
-                        type="password"
-                        class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white"
-                    />
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">From Address</label>
-                    <input 
-                        v-model="form.from_address"
-                        type="email"
-                        class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white"
-                        placeholder="noreply@example.com"
-                    />
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">From Name</label>
-                    <input 
-                        v-model="form.from_name"
-                        type="text"
-                        class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white"
-                    />
-                </div>
+            <div v-if="loading" class="text-center py-8 text-gray-500">
+                Loading providers...
             </div>
 
-            <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">SMTP Security</label>
-                    <select
-                        v-model="form.smtp_security"
-                        class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white"
-                    >
-                        <option value="starttls">STARTTLS (587)</option>
-                        <option value="tls">Implicit TLS (465)</option>
-                        <option value="none">Plain (no TLS)</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Reply-To (optional)</label>
-                    <input
-                        v-model="form.reply_to"
-                        type="email"
-                        class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white"
-                        placeholder="support@example.com"
-                    />
-                </div>
+            <div v-else-if="providers.length === 0" class="text-center py-8 text-gray-500">
+                No email providers configured. Add one to enable email notifications.
             </div>
 
-            <div class="mt-4">
-                <label class="flex items-start">
-                    <input type="checkbox" v-model="form.smtp_skip_cert_verify" class="w-4 h-4 text-indigo-600 rounded mr-3 mt-0.5" />
-                    <span class="text-gray-700 dark:text-gray-300 text-sm">
-                        Skip certificate verification (only for testing/self-signed certs)
-                    </span>
-                </label>
+            <div v-else class="space-y-4">
+                <div v-for="provider in providers" :key="provider.id" 
+                     class="flex items-center justify-between p-4 border border-gray-200 dark:border-slate-700 rounded-lg"
+                     :class="{ 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-200 dark:border-indigo-800': provider.is_default }">
+                    <div class="flex items-center gap-4">
+                        <div class="w-10 h-10 rounded-full bg-gray-100 dark:bg-slate-700 flex items-center justify-center">
+                            <Mail class="w-5 h-5 text-gray-500" />
+                        </div>
+                        <div>
+                            <div class="flex items-center gap-2">
+                                <span class="font-medium text-gray-900 dark:text-white">{{ provider.host }}:{{ provider.port }}</span>
+                                <span v-if="provider.is_default" class="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 text-xs rounded-full">Default</span>
+                                <span v-if="!provider.enabled" class="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 text-xs rounded-full">Disabled</span>
+                            </div>
+                            <div class="text-sm text-gray-500 dark:text-gray-400">
+                                {{ provider.from_name }} &lt;{{ provider.from_address }}&gt; • {{ provider.tls_mode.toUpperCase() }}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button v-if="!provider.is_default" @click="setDefault(provider.id)"
+                                class="p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg"
+                                title="Set as default">
+                            <Star class="w-5 h-5" />
+                        </button>
+                        <button @click="editProvider(provider)"
+                                class="p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg">
+                            Edit
+                        </button>
+                        <button @click="deleteProvider(provider.id)"
+                                class="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg">
+                            <Trash2 class="w-5 h-5" />
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
 
         <!-- Test Email -->
-        <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
+        <div v-if="defaultProvider" class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
             <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Send Test Email</h3>
             
             <div v-if="testSuccess" class="mb-4 p-3 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-lg text-sm">
@@ -259,5 +280,95 @@ const sendTestEmail = async () => {
         </div>
 
         <EmailAdminWorkbench />
+
+        <!-- Add/Edit Modal -->
+        <div v-if="showAddModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div class="bg-white dark:bg-slate-800 rounded-xl shadow-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                <div class="p-6 border-b border-gray-200 dark:border-slate-700">
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+                        {{ editingProvider ? 'Edit Provider' : 'Add Email Provider' }}
+                    </h3>
+                </div>
+                
+                <div class="p-6 space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">SMTP Host</label>
+                            <input v-model="form.host" type="text" placeholder="smtp.example.com"
+                                   class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white" />
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">SMTP Port</label>
+                            <input v-model.number="form.port" type="number"
+                                   class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white" />
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Username</label>
+                            <input v-model="form.username" type="text"
+                                   class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white" />
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                Password {{ editingProvider ? '(leave blank to keep existing)' : '' }}
+                            </label>
+                            <input v-model="form.password" type="password"
+                                   class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white" />
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">From Address</label>
+                            <input v-model="form.from_address" type="email" placeholder="noreply@example.com"
+                                   class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white" />
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">From Name</label>
+                            <input v-model="form.from_name" type="text"
+                                   class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white" />
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">SMTP Security</label>
+                            <select v-model="form.tls_mode"
+                                    class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white">
+                                <option value="starttls">STARTTLS (587)</option>
+                                <option value="implicit_tls">Implicit TLS (465)</option>
+                                <option value="none">Plain (no TLS)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Reply-To (optional)</label>
+                            <input v-model="form.reply_to" type="email" placeholder="support@example.com"
+                                   class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white" />
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-4">
+                        <label class="flex items-center">
+                            <input type="checkbox" v-model="form.enabled" class="w-4 h-4 text-indigo-600 rounded mr-2" />
+                            <span class="text-gray-700 dark:text-gray-300 text-sm">Enabled</span>
+                        </label>
+                        <label class="flex items-center">
+                            <input type="checkbox" v-model="form.is_default" class="w-4 h-4 text-indigo-600 rounded mr-2" />
+                            <span class="text-gray-700 dark:text-gray-300 text-sm">Set as default</span>
+                        </label>
+                        <label class="flex items-center">
+                            <input type="checkbox" v-model="form.skip_cert_verify" class="w-4 h-4 text-indigo-600 rounded mr-2" />
+                            <span class="text-gray-700 dark:text-gray-300 text-sm">Skip cert verify (testing only)</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="p-6 border-t border-gray-200 dark:border-slate-700 flex justify-end gap-3">
+                    <button @click="showAddModal = false" class="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg">
+                        Cancel
+                    </button>
+                    <button @click="saveProvider" :disabled="saving || !form.host"
+                            class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-lg font-medium">
+                        {{ saving ? 'Saving...' : (editingProvider ? 'Update' : 'Create') }}
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 </template>

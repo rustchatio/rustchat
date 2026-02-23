@@ -1,7 +1,6 @@
 //! Services module
 
 pub mod auth_config;
-pub mod email;
 pub mod email_provider;
 pub mod email_service;
 pub mod mirotalk;

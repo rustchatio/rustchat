@@ -2,7 +2,7 @@
 
 use axum::{
     extract::{Path, Query, State},
-    routing::{delete, get, patch, post},
+    routing::{get, patch, post},
     Json, Router,
 };
 use serde::Deserialize;
@@ -17,6 +17,7 @@ use crate::models::{
     ServerConfigResponse, SsoConfig, SsoConfigResponse, SsoProviderType, SsoTestResult,
     TeamMember, TeamMemberResponse, UpdateChannel, UpdateSsoConfig,
 };
+use crate::services::email_provider::{EmailAddress, EmailContent, MailProvider, SmtpProvider};
 use crate::services::oidc_discovery::OidcDiscoveryService;
 use sqlx::FromRow;
 
@@ -175,7 +176,6 @@ async fn update_config(
         "authentication" => "authentication",
         "integrations" => "integrations",
         "compliance" => "compliance",
-        "email" => "email",
         "experimental" => "experimental",
         _ => {
             return Err(AppError::BadRequest(format!(
@@ -1916,10 +1916,10 @@ fn classify_email_error(message: &str) -> (&'static str, &'static str) {
     }
 }
 
-async fn record_email_test_event(
+async fn record_provider_email_test_event(
     state: &AppState,
     actor_user_id: Uuid,
-    config: &crate::models::server_config::EmailConfig,
+    provider: &crate::models::email::MailProviderSettings,
     recipient: &str,
     success: bool,
     message: Option<String>,
@@ -1928,10 +1928,11 @@ async fn record_email_test_event(
     let metadata = serde_json::json!({
         "recipient": recipient,
         "success": success,
-        "smtp_host": config.smtp_host,
-        "smtp_port": config.smtp_port,
-        "smtp_security": config.smtp_security,
-        "from_address": config.from_address,
+        "smtp_host": provider.host,
+        "smtp_port": provider.port,
+        "smtp_security": provider.tls_mode.as_str(),
+        "from_address": provider.from_address,
+        "provider_id": provider.id,
         "message": message,
         "error_kind": error_kind,
     });
@@ -1995,33 +1996,26 @@ async fn test_email_config(
 ) -> ApiResult<Json<serde_json::Value>> {
     require_admin(&auth)?;
 
-    // Get email config
-    let config =
-        sqlx::query_as::<_, (sqlx::types::Json<crate::models::server_config::EmailConfig>,)>(
-            "SELECT email FROM server_config WHERE id = 'default'",
-        )
-        .fetch_optional(&state.db)
-        .await
-        .ok()
-        .flatten()
-        .map(|row| row.0 .0)
-        .unwrap_or_default();
-
-    // Check if email notifications are enabled
-    if !config.send_email_notifications {
-        return Err(AppError::BadRequest(
-            "Email notifications are disabled. Enable them before sending a test email."
-                .to_string(),
-        ));
-    }
+    // Get default provider from the new provider system
+    let provider_settings: crate::models::email::MailProviderSettings = sqlx::query_as(
+        r#"
+        SELECT * FROM mail_provider_settings
+        WHERE enabled = true AND is_default = true
+        ORDER BY tenant_id NULLS LAST
+        LIMIT 1
+        "#
+    )
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or_else(|| AppError::Config("No default mail provider configured. Please configure an email provider first.".to_string()))?;
 
     // Check if SMTP is configured
-    if config.smtp_host.trim().is_empty() {
-        return Err(AppError::BadRequest("SMTP host is required".to_string()));
+    if provider_settings.host.trim().is_empty() {
+        return Err(AppError::BadRequest("SMTP host is not configured in the default provider".to_string()));
     }
 
-    if config.from_address.trim().is_empty() {
-        return Err(AppError::BadRequest("From address is required".to_string()));
+    if provider_settings.from_address.trim().is_empty() {
+        return Err(AppError::BadRequest("From address is not configured in the default provider".to_string()));
     }
 
     if payload.to_email.is_none() && payload.email.is_none() && auth.email.trim().is_empty() {
@@ -2036,86 +2030,94 @@ async fn test_email_config(
         .or(payload.email)
         .unwrap_or_else(|| auth.email.clone());
 
-    // First test the connection
-    match crate::services::email::test_smtp_connection(&config).await {
-        Ok(_) => {
-            tracing::info!("SMTP connection test successful");
-        }
-        Err(e) => {
-            let (kind, hint) = classify_email_error(&e);
-            record_email_test_event(
-                &state,
-                auth.user_id,
-                &config,
-                &test_email,
-                false,
-                Some(e.clone()),
-                Some(kind),
-            )
-            .await;
-            return Err(AppError::ExternalService(format!(
-                "SMTP connection failed ({kind}): {e}. {hint}"
-            )));
-        }
+    // Create provider and test
+    let provider = SmtpProvider::new(provider_settings.clone())
+        .await
+        .map_err(|e| AppError::Config(format!("Failed to create SMTP provider: {}", e)))?;
+
+    // Test connection first
+    if let Err(e) = provider.test_connection().await {
+        let error_msg = e.to_string();
+        let (kind, hint) = classify_email_error(&error_msg);
+        record_provider_email_test_event(
+            &state,
+            auth.user_id,
+            &provider_settings,
+            &test_email,
+            false,
+            Some(error_msg.clone()),
+            Some(&kind),
+        )
+        .await;
+        return Err(AppError::ExternalService(format!(
+            "SMTP connection failed ({}): {}. {}", kind, error_msg, hint
+        )));
     }
 
+    tracing::info!("SMTP connection test successful");
+
     // Send test email
-    match crate::services::email::send_email(
-        &config,
-        &test_email,
-        "RustChat Test Email",
-        &format!(
-            "This is a test email from RustChat.\n\nIf you received this, your email configuration is working correctly!\n\nConfiguration used:\n- SMTP Server: {}:{}\n- Security: {}\n- From: {}\n",
-            config.smtp_host,
-            config.smtp_port,
-            config.smtp_security,
-            config.from_address
+    let from = EmailAddress::with_name(&provider_settings.from_address, &provider_settings.from_name);
+    let to = EmailAddress::new(&test_email);
+    let content = EmailContent {
+        subject: "RustChat Test Email".to_string(),
+        body_text: format!(
+            "This is a test email from RustChat.\n\nIf you received this, your email configuration is working correctly!\n\nConfiguration used:\n- SMTP Server: {}:{}\n- TLS: {}\n- From: {}\n",
+            provider_settings.host,
+            provider_settings.port,
+            provider_settings.tls_mode.as_str(),
+            provider_settings.from_address
         ),
-    ).await {
+        body_html: None,
+        headers: vec![],
+    };
+
+    match provider.send_email(&from, &to, &content).await {
         Ok(result) => {
-            record_email_test_event(
+            record_provider_email_test_event(
                 &state,
                 auth.user_id,
-                &config,
+                &provider_settings,
                 &test_email,
                 true,
-                result.server_response.clone(),
+                Some(result.server_response.clone()),
                 None,
             )
             .await;
 
             Ok(Json(serde_json::json!({
-            "status": "success",
-            "message": format!("Test email sent successfully to {}", test_email),
-            "delivery": {
-                "accepted": result.accepted,
-                "message_id": result.message_id,
-                "server_response": result.server_response,
-            },
-            "config": {
-                "smtp_host": config.smtp_host,
-                "smtp_port": config.smtp_port,
-                "smtp_security": config.smtp_security,
-                "from_address": config.from_address,
-                "from_name": config.from_name,
-                "reply_to": config.reply_to,
-            }
-        })))
+                "status": "success",
+                "message": format!("Test email sent successfully to {}", test_email),
+                "delivery": {
+                    "accepted": true,
+                    "message_id": result.message_id,
+                    "server_response": result.server_response,
+                },
+                "config": {
+                    "smtp_host": provider_settings.host,
+                    "smtp_port": provider_settings.port,
+                    "smtp_security": provider_settings.tls_mode.as_str(),
+                    "from_address": provider_settings.from_address,
+                    "from_name": provider_settings.from_name,
+                    "reply_to": provider_settings.reply_to.as_deref().unwrap_or(""),
+                }
+            })))
         }
         Err(e) => {
-            let (kind, hint) = classify_email_error(&e);
-            record_email_test_event(
+            let error_msg = e.to_string();
+            let (kind, hint) = classify_email_error(&error_msg);
+            record_provider_email_test_event(
                 &state,
                 auth.user_id,
-                &config,
+                &provider_settings,
                 &test_email,
                 false,
-                Some(e.clone()),
-                Some(kind),
+                Some(error_msg.clone()),
+                Some(&kind),
             )
             .await;
             Err(AppError::ExternalService(format!(
-                "Test email send failed ({kind}): {e}. {hint}"
+                "Test email send failed ({}): {}. {}", kind, error_msg, hint
             )))
         }
     }

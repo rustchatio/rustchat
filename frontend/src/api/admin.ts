@@ -6,20 +6,45 @@ export interface ServerConfig {
     authentication: AuthConfig;
     integrations: IntegrationsConfig;
     compliance: ComplianceConfig;
-    email: EmailConfig;
     experimental: Record<string, boolean>;
 }
 
-export interface EmailConfig {
-    smtp_host: string;
-    smtp_port: number;
-    smtp_username: string;
-    smtp_password_encrypted: string;
-    smtp_security?: 'starttls' | 'tls' | 'none' | string;
-    smtp_skip_cert_verify?: boolean;
+// Email Provider (new provider-based system)
+export interface MailProvider {
+    id: string;
+    provider_type: 'smtp' | 'ses' | 'sendgrid';
+    host: string;
+    port: number;
+    username: string;
+    has_password: boolean;
+    tls_mode: 'starttls' | 'implicit_tls' | 'none';
+    skip_cert_verify: boolean;
+    from_address: string;
+    from_name: string;
+    reply_to: string | null;
+    max_emails_per_minute: number;
+    max_emails_per_hour: number;
+    enabled: boolean;
+    is_default: boolean;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface CreateMailProviderRequest {
+    provider_type: string;
+    host: string;
+    port: number;
+    username: string;
+    password: string;
+    tls_mode: string;
+    skip_cert_verify?: boolean;
     from_address: string;
     from_name: string;
     reply_to?: string;
+    max_emails_per_minute?: number;
+    max_emails_per_hour?: number;
+    enabled?: boolean;
+    is_default?: boolean;
 }
 
 export interface SiteConfig {
@@ -361,7 +386,16 @@ export const adminApi = {
     removeTeamMember: (teamId: string, userId: string) => 
         api.delete(`/admin/teams/${teamId}/members/${userId}`),
 
-    // Email
+    // Email Providers
+    listMailProviders: () => api.get<MailProvider[]>('/admin/email/providers'),
+    getMailProvider: (id: string) => api.get<MailProvider>(`/admin/email/providers/${id}`),
+    createMailProvider: (data: CreateMailProviderRequest) => api.post<MailProvider>('/admin/email/providers', data),
+    updateMailProvider: (id: string, data: Partial<CreateMailProviderRequest>) => api.put<MailProvider>(`/admin/email/providers/${id}`, data),
+    deleteMailProvider: (id: string) => api.delete(`/admin/email/providers/${id}`),
+    testMailProvider: (id: string, toEmail: string) => api.post(`/admin/email/providers/${id}/test`, { to_email: toEmail }),
+    setDefaultMailProvider: (id: string) => api.post(`/admin/email/providers/${id}/default`),
+    
+    // Legacy email test (uses default provider)
     testEmail: (to: string) => api.post('/admin/email/test', { to }),
 
     // MiroTalk Integration

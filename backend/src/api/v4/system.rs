@@ -1,6 +1,7 @@
 use crate::api::AppState;
 use crate::error::{ApiResult, AppError};
 use crate::mattermost_compat::MM_VERSION;
+use crate::models::email::MailProviderSettings;
 use axum::{
     extract::{Path, Query, State},
     response::IntoResponse,
@@ -285,6 +286,20 @@ async fn get_config(
             .fetch_one(&state.db)
             .await
             .map_err(|_| crate::error::AppError::NotFound("Config not found".to_string()))?;
+    
+    // Fetch default email provider settings
+    let provider_settings: Option<MailProviderSettings> = sqlx::query_as(
+        r#"
+        SELECT * FROM mail_provider_settings
+        WHERE enabled = true AND is_default = true
+        ORDER BY tenant_id NULLS LAST
+        LIMIT 1
+        "#
+    )
+    .fetch_optional(&state.db)
+    .await
+    .ok()
+    .flatten();
 
     // Convert to Mattermost-compatible format
     let response = serde_json::json!({
@@ -326,18 +341,18 @@ async fn get_config(
             "EnableSignUpWithEmail": config.authentication.0.enable_sign_up_with_email,
             "EnableSignInWithEmail": config.authentication.0.enable_sign_in_with_email,
             "EnableSignInWithUsername": config.authentication.0.enable_sign_in_with_username,
-            "SendEmailNotifications": !config.email.0.smtp_host.is_empty(),
+            "SendEmailNotifications": provider_settings.as_ref().map(|p| p.enabled && !p.host.is_empty()).unwrap_or(false),
             "RequireEmailVerification": false,
-            "FeedbackName": config.email.0.from_name,
-            "FeedbackEmail": config.email.0.from_address,
-            "SMTPServer": config.email.0.smtp_host,
-            "SMTPPort": config.email.0.smtp_port.to_string(),
-            "SMTPUsername": config.email.0.smtp_username,
-            "ConnectionSecurity": match config.email.0.smtp_security.as_str() {
-                "tls" => "TLS",
-                "starttls" => "STARTTLS",
-                _ => "",
-            },
+            "FeedbackName": provider_settings.as_ref().map(|p| p.from_name.clone()).unwrap_or_else(|| "RustChat".to_string()),
+            "FeedbackEmail": provider_settings.as_ref().map(|p| p.from_address.clone()).unwrap_or_default(),
+            "SMTPServer": provider_settings.as_ref().map(|p| p.host.clone()).unwrap_or_default(),
+            "SMTPPort": provider_settings.as_ref().map(|p| p.port.to_string()).unwrap_or_else(|| "587".to_string()),
+            "SMTPUsername": provider_settings.as_ref().map(|p| p.username.clone()).unwrap_or_default(),
+            "ConnectionSecurity": provider_settings.as_ref().map(|p| match p.tls_mode {
+                crate::models::email::TlsMode::ImplicitTls => "TLS",
+                crate::models::email::TlsMode::Starttls => "STARTTLS",
+                crate::models::email::TlsMode::None => "",
+            }).unwrap_or("STARTTLS"),
             "PasswordResetSalt": "",
             "EnablePasswordReset": config.authentication.0.password_enable_forgot_link,
         },
