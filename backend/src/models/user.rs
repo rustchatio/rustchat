@@ -56,6 +56,10 @@ pub struct User {
     pub timezone: Option<String>,
     pub last_login_at: Option<DateTime<Utc>>,
     #[sqlx(default)]
+    pub email_verified: bool,
+    #[sqlx(default)]
+    pub email_verified_at: Option<DateTime<Utc>>,
+    #[sqlx(default)]
     pub deleted_at: Option<DateTime<Utc>>,
     #[sqlx(default)]
     pub deleted_by: Option<Uuid>,
@@ -87,6 +91,7 @@ pub struct UserResponse {
     pub custom_status: Option<serde_json::Value>,
     pub notify_props: serde_json::Value,
     pub timezone: Option<String>,
+    pub email_verified: bool,
     pub created_at: DateTime<Utc>,
 }
 
@@ -142,6 +147,7 @@ impl From<User> for UserResponse {
             custom_status: user.custom_status,
             notify_props: user.notify_props,
             timezone: user.timezone,
+            email_verified: user.email_verified,
             created_at: user.created_at,
         }
     }

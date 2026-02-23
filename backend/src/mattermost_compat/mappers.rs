@@ -361,6 +361,8 @@ mod tests {
             notify_props: serde_json::json!({}),
             timezone: Some("UTC".to_string()),
             last_login_at: None,
+            email_verified: true,
+            email_verified_at: Some(now),
             deleted_at: None,
             deleted_by: None,
             delete_reason: None,

@@ -1,21 +1,28 @@
 //! Auth API endpoints
 
 use axum::{
-    extract::State,
+    extract::{ConnectInfo, State},
     routing::{get, post},
     Json, Router,
 };
+use std::net::SocketAddr;
 
 use super::AppState;
 use crate::auth::{create_token, hash_password, verify_password, AuthUser};
 use crate::error::{ApiResult, AppError};
 use crate::models::{AuthResponse, CreateUser, LoginRequest, User, UserResponse};
+use crate::services::password_reset::{PasswordResetError, request_password_reset, reset_password, validate_token};
 
 /// Build auth routes
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/register", post(register))
         .route("/login", post(login))
+        .route("/verify-email", post(verify_email))
+        .route("/resend-verification", post(resend_verification))
+        .route("/password/forgot", post(forgot_password))
+        .route("/password/reset", post(reset_password_handler))
+        .route("/password/validate", post(validate_token_handler))
         .route("/me", get(me))
         .route("/policy", get(get_auth_policy))
 }
@@ -71,11 +78,11 @@ async fn register(
     // Hash password
     let password_hash = hash_password(&input.password)?;
 
-    // Insert user
+    // Insert user (email_verified defaults to false)
     let user: User = sqlx::query_as(
         r#"
-        INSERT INTO users (username, email, password_hash, display_name, org_id, role)
-        VALUES ($1, $2, $3, $4, $5, 'member')
+        INSERT INTO users (username, email, password_hash, display_name, org_id, role, email_verified)
+        VALUES ($1, $2, $3, $4, $5, 'member', false)
         RETURNING *
         "#,
     )
@@ -89,6 +96,40 @@ async fn register(
 
     // Seed default preferences for the new user
     seed_default_preferences(&state.db, user.id).await?;
+
+    // Send verification email if provider is configured
+    // Fetch site_url from server_config
+    let site_url: Option<String> = sqlx::query_scalar(
+        "SELECT site->>'site_url' FROM server_config WHERE id = 'default'"
+    )
+    .fetch_optional(&state.db)
+    .await
+    .ok()
+    .flatten()
+    .and_then(|url: String| if url.is_empty() { None } else { Some(url) });
+    
+    if let Some(site_url) = site_url {
+        let verification_base_url = format!("{}/verify-email", site_url);
+        match crate::services::email_verification::send_verification_email(
+            &state.db,
+            user.id,
+            &user.username,
+            &user.email,
+            &verification_base_url,
+        )
+        .await
+        {
+            Ok(_) => {
+                tracing::info!("Verification email sent to {}", user.email);
+            }
+            Err(e) => {
+                // Log but don't fail registration - user can resend later
+                tracing::warn!("Failed to send verification email: {}", e);
+            }
+        }
+    } else {
+        tracing::warn!("site_url not configured, skipping verification email");
+    }
 
     // Generate token
     let token = create_token(
@@ -156,6 +197,105 @@ async fn login(
     }))
 }
 
+/// Verify email with token
+#[derive(Debug, serde::Deserialize)]
+struct VerifyEmailRequest {
+    token: String,
+}
+
+async fn verify_email(
+    State(state): State<AppState>,
+    Json(input): Json<VerifyEmailRequest>,
+) -> ApiResult<Json<serde_json::Value>> {
+    let user_id = crate::services::email_verification::verify_token(
+        &state.db,
+        &input.token,
+        "registration",
+    )
+    .await?;
+
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "message": "Email verified successfully",
+        "user_id": user_id.to_string()
+    })))
+}
+
+/// Resend verification email
+#[derive(Debug, serde::Deserialize)]
+struct ResendVerificationRequest {
+    email: String,
+}
+
+async fn resend_verification(
+    State(state): State<AppState>,
+    Json(input): Json<ResendVerificationRequest>,
+) -> ApiResult<Json<serde_json::Value>> {
+    // Find user by email
+    let user: Option<User> = sqlx::query_as(
+        "SELECT * FROM users WHERE email = $1 AND is_active = true AND deleted_at IS NULL"
+    )
+    .bind(&input.email)
+    .fetch_optional(&state.db)
+    .await?;
+
+    let user = match user {
+        Some(u) => u,
+        None => {
+            // Return success even if user not found to prevent email enumeration
+            return Ok(Json(serde_json::json!({
+                "success": true,
+                "message": "If the email exists, a verification email has been sent"
+            })));
+        }
+    };
+
+    if user.email_verified {
+        return Ok(Json(serde_json::json!({
+            "success": true,
+            "message": "Email is already verified"
+        })));
+    }
+
+    // Send verification email
+    // Fetch site_url from server_config
+    let site_url: Option<String> = sqlx::query_scalar(
+        "SELECT site->>'site_url' FROM server_config WHERE id = 'default'"
+    )
+    .fetch_optional(&state.db)
+    .await
+    .ok()
+    .flatten()
+    .and_then(|url: String| if url.is_empty() { None } else { Some(url) });
+    
+    let verification_result = if let Some(site_url) = site_url {
+        let verification_base_url = format!("{}/verify-email", site_url);
+        crate::services::email_verification::send_verification_email(
+            &state.db,
+            user.id,
+            &user.username,
+            &user.email,
+            &verification_base_url,
+        )
+        .await
+    } else {
+        tracing::warn!("site_url not configured, cannot send verification email");
+        Ok(())
+    };
+    
+    match verification_result
+    {
+        Ok(_) => Ok(Json(serde_json::json!({
+            "success": true,
+            "message": "Verification email sent"
+        }))),
+        Err(_) => Ok(Json(serde_json::json!({
+            "success": true,
+            "message": "If the email exists, a verification email has been sent"
+        }))),
+    }
+}
+
 /// Get current authenticated user
 async fn me(State(state): State<AppState>, auth: AuthUser) -> ApiResult<Json<UserResponse>> {
     let user: User = sqlx::query_as("SELECT * FROM users WHERE id = $1")
@@ -164,6 +304,111 @@ async fn me(State(state): State<AppState>, auth: AuthUser) -> ApiResult<Json<Use
         .await?;
 
     Ok(Json(UserResponse::from(user)))
+}
+
+// ============================================
+// Password Reset Handlers
+// ============================================
+
+#[derive(Debug, serde::Deserialize)]
+struct ForgotPasswordRequest {
+    email: String,
+}
+
+/// Request password reset email
+/// Returns same response regardless of email existence (anti-enumeration)
+async fn forgot_password(
+    State(state): State<AppState>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    Json(input): Json<ForgotPasswordRequest>,
+) -> ApiResult<Json<serde_json::Value>> {
+    // Get IP address from connection
+    let ip_address = Some(addr.ip());
+    
+    // Request password reset (always returns Ok for anti-enumeration)
+    let result = request_password_reset(
+        &state.db,
+        &input.email,
+        ip_address,
+        None, // user_agent could be extracted from headers if needed
+    )
+    .await;
+
+    // Log but don't expose errors
+    if let Err(ref e) = result {
+        tracing::debug!("Password reset request result: {:?}", e);
+    }
+
+    // Always return same response
+    Ok(Json(serde_json::json!({
+        "success": true,
+        "message": "If an account with that email exists, you will receive a password reset link"
+    })))
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct ResetPasswordRequest {
+    token: String,
+    new_password: String,
+}
+
+/// Reset password with token
+async fn reset_password_handler(
+    State(state): State<AppState>,
+    Json(input): Json<ResetPasswordRequest>,
+) -> ApiResult<Json<serde_json::Value>> {
+    match reset_password(&state.db, &input.token, &input.new_password).await {
+        Ok(user_id) => {
+            Ok(Json(serde_json::json!({
+                "success": true,
+                "message": "Password reset successful",
+                "user_id": user_id.to_string()
+            })))
+        }
+        Err(PasswordResetError::TokenNotFound | PasswordResetError::TokenExpired | PasswordResetError::TokenAlreadyUsed) => {
+            Err(AppError::BadRequest("Invalid or expired token".to_string()))
+        }
+        Err(PasswordResetError::InvalidPassword(msg)) => {
+            Err(AppError::Validation(msg))
+        }
+        Err(PasswordResetError::RateLimitExceeded) => {
+            Err(AppError::TooManyRequests("Too many attempts. Please try again later.".to_string()))
+        }
+        Err(e) => {
+            tracing::error!("Password reset error: {}", e);
+            Err(AppError::Internal("Failed to reset password".to_string()))
+        }
+    }
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct ValidateTokenRequest {
+    token: String,
+}
+
+/// Validate token without consuming it (for UI)
+async fn validate_token_handler(
+    State(state): State<AppState>,
+    Json(input): Json<ValidateTokenRequest>,
+) -> ApiResult<Json<serde_json::Value>> {
+    match validate_token(&state.db, &input.token).await {
+        Ok((user_id, email)) => {
+            Ok(Json(serde_json::json!({
+                "valid": true,
+                "user_id": user_id.to_string(),
+                "email": email
+            })))
+        }
+        Err(PasswordResetError::TokenNotFound | PasswordResetError::TokenExpired | PasswordResetError::TokenAlreadyUsed) => {
+            Ok(Json(serde_json::json!({
+                "valid": false
+            })))
+        }
+        Err(e) => {
+            tracing::error!("Token validation error: {}", e);
+            Err(AppError::Internal("Failed to validate token".to_string()))
+        }
+    }
 }
 
 /// Seed default preferences for a new user

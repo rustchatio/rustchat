@@ -2227,15 +2227,74 @@ async fn get_user_audits(
     Ok(Json(vec![]))
 }
 
+#[derive(Debug, Deserialize)]
+struct VerifyEmailRequest {
+    token: String,
+}
+
 async fn verify_member_email() -> ApiResult<Json<serde_json::Value>> {
     Ok(status_ok())
 }
 
-async fn verify_email() -> ApiResult<Json<serde_json::Value>> {
+async fn verify_email(
+    State(state): State<AppState>,
+    Json(input): Json<VerifyEmailRequest>,
+) -> ApiResult<Json<serde_json::Value>> {
+    crate::services::email_verification::verify_token(
+        &state.db,
+        &input.token,
+        "registration",
+    )
+    .await?;
+
     Ok(status_ok())
 }
 
-async fn send_email_verification() -> ApiResult<Json<serde_json::Value>> {
+#[derive(Debug, Deserialize)]
+struct SendVerificationRequest {
+    email: String,
+}
+
+async fn send_email_verification(
+    State(state): State<AppState>,
+    Json(input): Json<SendVerificationRequest>,
+) -> ApiResult<Json<serde_json::Value>> {
+    // Find user by email
+    let user: Option<User> = sqlx::query_as(
+        "SELECT * FROM users WHERE email = $1 AND is_active = true AND deleted_at IS NULL"
+    )
+    .bind(&input.email)
+    .fetch_optional(&state.db)
+    .await?;
+
+    if let Some(user) = user {
+        if !user.email_verified {
+            // Fetch site_url from server_config
+            let site_url: Option<String> = sqlx::query_scalar(
+                "SELECT site->>'site_url' FROM server_config WHERE id = 'default'"
+            )
+            .fetch_optional(&state.db)
+            .await
+            .ok()
+            .flatten()
+            .and_then(|url: String| if url.is_empty() { None } else { Some(url) });
+            
+            if let Some(site_url) = site_url {
+                let verification_base_url = format!("{}/verify-email", site_url);
+                // Send but ignore errors to prevent email enumeration
+                let _ = crate::services::email_verification::send_verification_email(
+                    &state.db,
+                    user.id,
+                    &user.username,
+                    &user.email,
+                    &verification_base_url,
+                )
+                .await;
+            }
+        }
+    }
+
+    // Always return success to prevent email enumeration
     Ok(status_ok())
 }
 

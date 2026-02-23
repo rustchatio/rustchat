@@ -45,6 +45,9 @@ pub enum AppError {
 
     #[error("External service error: {0}")]
     ExternalService(String),
+
+    #[error("Too many requests: {0}")]
+    TooManyRequests(String),
 }
 
 /// Error response body
@@ -76,6 +79,7 @@ impl AppError {
             AppError::Validation(_) => "VALIDATION_ERROR",
             AppError::Config(_) => "CONFIG_ERROR",
             AppError::ExternalService(_) => "EXTERNAL_SERVICE_ERROR",
+            AppError::TooManyRequests(_) => "TOO_MANY_REQUESTS",
         }
     }
 
@@ -93,6 +97,7 @@ impl AppError {
             AppError::Validation(_) => StatusCode::UNPROCESSABLE_ENTITY,
             AppError::Config(_) => StatusCode::INTERNAL_SERVER_ERROR,
             AppError::ExternalService(_) => StatusCode::BAD_GATEWAY,
+            AppError::TooManyRequests(_) => StatusCode::TOO_MANY_REQUESTS,
         }
     }
 }
