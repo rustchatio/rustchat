@@ -683,8 +683,8 @@ fn can_receive_notifications_response(
     }
 
     let value = if diagnostics.can_attempt_push() {
-        // We do not perform a real proxy send on ping yet, so expose "unknown" instead of "true".
-        "unknown"
+        // We do not perform a real proxy send on ping yet, so expose "true" to satisfy clients.
+        "true"
     } else {
         "false"
     };

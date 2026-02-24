@@ -2291,6 +2291,19 @@ async fn ring_users(
     // from calls_call_start and do not handle calls_ringing directly.
     // Note: thread_id is used as post_id for call posts in Mattermost
     let thread_id_str = thread_id.map(encode_mm_id).unwrap_or_default();
+    // Fetch caller info for better mobile client support
+    let caller_info: Option<(String, String)> = sqlx::query_as(
+        "SELECT username, COALESCE(display_name, '') as display_name FROM users WHERE id = $1",
+    )
+    .bind(auth.user_id)
+    .fetch_optional(&state.db)
+    .await
+    .ok()
+    .flatten();
+
+    let (username, display_name) =
+        caller_info.unwrap_or_else(|| (encode_mm_id(auth.user_id), String::new()));
+
     broadcast_call_event(
         &state,
         "custom_com.mattermost.calls_call_start",
@@ -2306,6 +2319,8 @@ async fn ring_users(
             "call_id": encode_mm_id(call.call_id),
             "channel_id": encode_mm_id(channel_uuid),
             "user_id": encode_mm_id(call.owner_id),
+            "sender_id": encode_mm_id(auth.user_id),
+            "caller_name": if display_name.is_empty() { username } else { display_name },
         }),
         Some(auth.user_id),
     )
