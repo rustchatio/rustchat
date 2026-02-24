@@ -8,14 +8,12 @@
 CREATE TABLE IF NOT EXISTS email_verification_tokens (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    token_hash VARCHAR(255) NOT NULL, -- Hashed token for security
-    email VARCHAR(255) NOT NULL, -- The email being verified
-    purpose VARCHAR(50) NOT NULL DEFAULT 'registration', -- 'registration', 'email_change', 'password_reset'
+    token_hash VARCHAR(255) NOT NULL,
+    email VARCHAR(255) NOT NULL,
+    purpose VARCHAR(50) NOT NULL DEFAULT 'registration',
     expires_at TIMESTAMPTZ NOT NULL,
     used_at TIMESTAMPTZ NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    
-    -- Each user can only have one active token per purpose
     CONSTRAINT unique_active_token UNIQUE (user_id, purpose)
 );
 
@@ -27,7 +25,6 @@ CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_expires ON email_verifi
 -- B) Add email_verified to users
 -- ============================================
 
--- Add email_verified column if not exists
 DO $$
 BEGIN
     IF NOT EXISTS (
@@ -38,7 +35,6 @@ BEGIN
     END IF;
 END $$;
 
--- Add email_verified_at timestamp
 DO $$
 BEGIN
     IF NOT EXISTS (
@@ -53,18 +49,15 @@ END $$;
 -- C) Create default email verification template
 -- ============================================
 
--- Add template family for email verification
 INSERT INTO email_template_families (id, key, name, description, workflow_key, is_system) VALUES
     ('00000000-0000-0000-0000-000000000105'::uuid, 'email_verification_default', 'Default Email Verification', 'Standard email verification template', 'email_verification', true)
 ON CONFLICT (tenant_id, key) DO NOTHING;
 
--- Link workflow to template family
 UPDATE notification_workflows 
     SET selected_template_family_id = '00000000-0000-0000-0000-000000000105'::uuid 
     WHERE workflow_key = 'email_verification' AND selected_template_family_id IS NULL;
 
--- Insert default template version for email verification
--- This uses the same basic structure as registration
+-- Insert default template - use simple string for JSON to avoid escaping issues
 INSERT INTO email_template_versions (
     family_id, version, status, locale, subject, body_text, body_html,
     variables_schema_json, is_compiled_from_mjml, created_by, published_at, published_by
@@ -75,15 +68,30 @@ SELECT
     'published'::varchar as status,
     'en'::varchar as locale,
     'Verify your email address' as subject,
-    E'Hello {{username}},\n\nPlease verify your email address by clicking the link below:\n\n{{verification_link}}\n\nThis link will expire in {{expiry_hours}} hours.\n\nIf you did not create an account, please ignore this email.\n\nBest regards,\n{{site_name}}' as body_text,
-    E'<html><body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">\n<h2>Hello {{username}},</h2>\n<p>Please verify your email address by clicking the link below:</p>\n<p style="margin: 20px 0;">\n<a href="{{verification_link}}" style="background: #00FFC2; color: #121213; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">Verify Email Address</a>\n</p>\n<p style="color: #666; font-size: 14px;">This link will expire in {{expiry_hours}} hours.</p>\n<p style="color: #666; font-size: 14px;">If you did not create an account, please ignore this email.</p>\n<br>\n<p>Best regards,<br>{{site_name}}</p>\n</body></html>' as body_html,
-    '[
-        {"name": "username", "required": true, "description": "User\'s username"},
-        {"name": "email", "required": true, "description": "User\'s email address"},
-        {"name": "verification_link", "required": true, "description": "Verification URL"},
-        {"name": "expiry_hours", "required": true, "description": "Token expiry in hours"},
-        {"name": "site_name", "required": true, "description": "Site name"}
-    ]'::jsonb as variables_schema_json,
+    E'Hello {{username}},
+
+Please verify your email address by clicking the link below:
+
+{{verification_link}}
+
+This link will expire in {{expiry_hours}} hours.
+
+If you did not create an account, please ignore this email.
+
+Best regards,
+{{site_name}}' as body_text,
+    E'<html><body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+<h2>Hello {{username}},</h2>
+<p>Please verify your email address by clicking the link below:</p>
+<p style="margin: 20px 0;">
+<a href="{{verification_link}}" style="background: #00FFC2; color: #121213; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">Verify Email Address</a>
+</p>
+<p style="color: #666; font-size: 14px;">This link will expire in {{expiry_hours}} hours.</p>
+<p style="color: #666; font-size: 14px;">If you did not create an account, please ignore this email.</p>
+<br>
+<p>Best regards,<br>{{site_name}}</p>
+</body></html>' as body_html,
+    '[{"name":"username","required":true,"description":"User username"},{"name":"email","required":true,"description":"User email"},{"name":"verification_link","required":true,"description":"Verification URL"},{"name":"expiry_hours","required":true,"description":"Expiry in hours"},{"name":"site_name","required":true,"description":"Site name"}]'::jsonb as variables_schema_json,
     false as is_compiled_from_mjml,
     NULL::uuid as created_by,
     NOW() as published_at,
@@ -107,15 +115,30 @@ SELECT
     'published'::varchar as status,
     'en'::varchar as locale,
     'Welcome to {{site_name}} - Verify your email' as subject,
-    E'Welcome to {{site_name}}, {{username}}!\n\nThank you for registering. Please verify your email address by clicking the link below:\n\n{{verification_link}}\n\nThis link will expire in {{expiry_hours}} hours.\n\nIf you did not create an account, please ignore this email.\n\nBest regards,\nThe {{site_name}} Team' as body_text,
-    E'<html><body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">\n<h2>Welcome to {{site_name}}, {{username}}!</h2>\n<p>Thank you for registering. Please verify your email address by clicking the link below:</p>\n<p style="margin: 20px 0;">\n<a href="{{verification_link}}" style="background: #00FFC2; color: #121213; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">Verify Email Address</a>\n</p>\n<p style="color: #666; font-size: 14px;">This link will expire in {{expiry_hours}} hours.</p>\n<p style="color: #666; font-size: 14px;">If you did not create an account, please ignore this email.</p>\n<br>\n<p>Best regards,<br>The {{site_name}} Team</p>\n</body></html>' as body_html,
-    '[
-        {"name": "username", "required": true, "description": "User\'s username"},
-        {"name": "email", "required": true, "description": "User\'s email address"},
-        {"name": "verification_link", "required": true, "description": "Verification URL"},
-        {"name": "expiry_hours", "required": true, "description": "Token expiry in hours"},
-        {"name": "site_name", "required": true, "description": "Site name"}
-    ]'::jsonb as variables_schema_json,
+    E'Welcome to {{site_name}}, {{username}}!
+
+Thank you for registering. Please verify your email address by clicking the link below:
+
+{{verification_link}}
+
+This link will expire in {{expiry_hours}} hours.
+
+If you did not create an account, please ignore this email.
+
+Best regards,
+The {{site_name}} Team' as body_text,
+    E'<html><body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+<h2>Welcome to {{site_name}}, {{username}}!</h2>
+<p>Thank you for registering. Please verify your email address by clicking the link below:</p>
+<p style="margin: 20px 0;">
+<a href="{{verification_link}}" style="background: #00FFC2; color: #121213; padding: 12px 24px; text-decoration: none; border-radius: 4px; display: inline-block;">Verify Email Address</a>
+</p>
+<p style="color: #666; font-size: 14px;">This link will expire in {{expiry_hours}} hours.</p>
+<p style="color: #666; font-size: 14px;">If you did not create an account, please ignore this email.</p>
+<br>
+<p>Best regards,<br>The {{site_name}} Team</p>
+</body></html>' as body_html,
+    '[{"name":"username","required":true,"description":"User username"},{"name":"email","required":true,"description":"User email"},{"name":"verification_link","required":true,"description":"Verification URL"},{"name":"expiry_hours","required":true,"description":"Expiry in hours"},{"name":"site_name","required":true,"description":"Site name"}]'::jsonb as variables_schema_json,
     false as is_compiled_from_mjml,
     NULL::uuid as created_by,
     NOW() as published_at,

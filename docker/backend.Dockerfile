@@ -20,11 +20,11 @@ RUN cargo build --release && rm -rf src
 # Copy actual source
 COPY src ./src
 COPY migrations ./migrations
-COPY .sqlx ./.sqlx
+# COPY .sqlx ./.sqlx
 
 # Build with cache mounts for faster rebuilds
 # BuildKit caches cargo registry and build artifacts between builds
-ENV SQLX_OFFLINE=true
+ENV SQLX_OFFLINE=false
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/app/target \
     touch src/main.rs && \
