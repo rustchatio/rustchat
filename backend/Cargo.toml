@@ -41,6 +41,9 @@ jsonwebtoken = "10.3.0"
 argon2 = "0.5"
 
 # Utils
+aes = "0.8"
+aes-gcm = "0.10"
+cbc = "0.1"
 uuid = { version = "1.11", features = ["v4", "v5", "serde"] }
 chrono = { version = "0.4", features = ["serde", "clock"] }
 thiserror = "2.0"
@@ -71,7 +74,6 @@ urlencoding = "2.1"
 
 # Email
 lettre = { version = "0.11", default-features = false, features = ["tokio1", "tokio1-rustls-tls", "builder", "smtp-transport", "pool"] }
-magic-crypt = "3.1.13"
 base64 = "0.22.1"
 url = "2.5.8"
 

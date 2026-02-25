@@ -420,7 +420,8 @@ async fn create_sso_config(
     let encrypted_secret = input
         .client_secret
         .as_ref()
-        .map(|s| crate::crypto::encrypt(s, &state.config.encryption_key));
+        .map(|s| crate::crypto::encrypt(s, &state.config.encryption_key))
+        .transpose()?;
 
     // Use default scopes if not provided
     let scopes = input
@@ -526,7 +527,7 @@ async fn update_sso_config(
     // Encrypt new client secret if provided
     let encrypted_secret = input.client_secret.as_ref().map(|s| {
         crate::crypto::encrypt(s, &state.config.encryption_key)
-    });
+    }).transpose()?;
 
     let config: SsoConfig = sqlx::query_as(
         r#"

@@ -138,7 +138,7 @@ async fn create_provider(
     let password_encrypted = if body.password.is_empty() {
         String::new()
     } else {
-        crate::crypto::encrypt(&body.password, &state.config.encryption_key)
+        crate::crypto::encrypt(&body.password, &state.config.encryption_key)?
     };
 
     // If this is set as default, clear other defaults
@@ -206,7 +206,7 @@ async fn update_provider(
         if password.is_empty() {
             None
         } else {
-            Some(crate::crypto::encrypt(password, &state.config.encryption_key))
+            Some(crate::crypto::encrypt(password, &state.config.encryption_key)?)
         }
     } else {
         None
