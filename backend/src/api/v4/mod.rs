@@ -73,6 +73,8 @@ pub fn router() -> Router<AppState> {
         .merge(config_client::router())
         .merge(hooks::router())
         .merge(bots::router())
+        // Email admin routes (must be before admin::router() to avoid fallback shadowing)
+        .merge(crate::api::admin_email::router())
         .merge(admin::router())
         .merge(saml::router())
         .merge(oauth::router())
