@@ -1,10 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 
-interface TurnstileResponse {
-  token: string
-}
-
 declare global {
   interface Window {
     turnstile?: {
