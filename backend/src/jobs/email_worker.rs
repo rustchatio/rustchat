@@ -59,15 +59,17 @@ pub struct WorkerStats {
 pub struct EmailWorker {
     db: PgPool,
     config: EmailWorkerConfig,
+    encryption_key: String,
     provider_cache: std::sync::Mutex<std::collections::HashMap<Uuid, SmtpProvider>>,
 }
 
 impl EmailWorker {
     /// Create a new email worker
-    pub fn new(db: PgPool, config: EmailWorkerConfig) -> Self {
+    pub fn new(db: PgPool, config: EmailWorkerConfig, encryption_key: String) -> Self {
         Self {
             db,
             config,
+            encryption_key,
             provider_cache: std::sync::Mutex::new(std::collections::HashMap::new()),
         }
     }
@@ -261,7 +263,7 @@ impl EmailWorker {
         }
 
         // Create new provider
-        let provider = SmtpProvider::new(settings.clone())
+        let provider = SmtpProvider::new(settings.clone(), &self.encryption_key)
             .await
             .map_err(|e| WorkerError::Configuration(format!("Failed to create provider: {}", e)))?;
 
@@ -549,9 +551,9 @@ fn classify_error(error: &str) -> String {
 }
 
 /// Spawn the email worker as a background task
-pub fn spawn_email_worker(db: PgPool, config: EmailWorkerConfig) {
+pub fn spawn_email_worker(db: PgPool, config: EmailWorkerConfig, encryption_key: String) {
     tokio::spawn(async move {
-        let worker = EmailWorker::new(db, config);
+        let worker = EmailWorker::new(db, config, encryption_key);
         worker.run().await;
     });
 

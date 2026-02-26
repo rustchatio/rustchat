@@ -344,7 +344,7 @@ async fn test_provider(
     .ok_or_else(|| AppError::NotFound("Provider not found".to_string()))?;
 
     // Create provider and test connection
-    let provider = SmtpProvider::new(settings.clone())
+    let provider = SmtpProvider::new(settings.clone(), &state.config.encryption_key)
         .await
         .map_err(|e| AppError::ExternalService(format!("Failed to create provider: {}", e)))?;
 
@@ -857,7 +857,7 @@ async fn send_preview_email(
         .map_err(|e| AppError::BadRequest(format!("Template render error: {}", e)))?;
 
     // Send via provider
-    let provider = SmtpProvider::new(settings.clone())
+    let provider = SmtpProvider::new(settings.clone(), &state.config.encryption_key)
         .await
         .map_err(|e| AppError::ExternalService(format!("Provider error: {}", e)))?;
 
@@ -1112,7 +1112,7 @@ async fn send_test_email(
     let settings = provider_settings
         .ok_or_else(|| AppError::Config("No mail provider found".to_string()))?;
 
-    let provider = SmtpProvider::new(settings.clone())
+    let provider = SmtpProvider::new(settings.clone(), &state.config.encryption_key)
         .await
         .map_err(|e| AppError::ExternalService(format!("Provider error: {}", e)))?;
 

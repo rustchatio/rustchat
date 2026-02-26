@@ -2032,7 +2032,7 @@ async fn test_email_config(
         .unwrap_or_else(|| auth.email.clone());
 
     // Create provider and test
-    let provider = SmtpProvider::new(provider_settings.clone())
+    let provider = SmtpProvider::new(provider_settings.clone(), &state.config.encryption_key)
         .await
         .map_err(|e| AppError::Config(format!("Failed to create SMTP provider: {}", e)))?;
 

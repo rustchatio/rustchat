@@ -99,7 +99,7 @@ pub async fn test_email_config(
         .unwrap_or_else(|| auth.email.clone());
 
     // Create provider and test
-    let provider = match SmtpProvider::new(provider_settings.clone()).await {
+    let provider = match SmtpProvider::new(provider_settings.clone(), &state.config.encryption_key).await {
         Ok(p) => p,
         Err(e) => {
             return Ok(Json(serde_json::json!({

@@ -127,9 +127,12 @@ pub struct SmtpProvider {
 
 impl SmtpProvider {
     /// Create a new SMTP provider from settings
-    pub async fn new(settings: MailProviderSettings) -> EmailProviderResult<Self> {
-        let transport = Self::build_transport(&settings).await?;
-        
+    pub async fn new(
+        settings: MailProviderSettings,
+        encryption_key: &str,
+    ) -> EmailProviderResult<Self> {
+        let transport = Self::build_transport(&settings, encryption_key).await?;
+
         Ok(Self {
             settings,
             transport,
@@ -139,6 +142,7 @@ impl SmtpProvider {
     /// Build the SMTP transport from settings
     async fn build_transport(
         settings: &MailProviderSettings,
+        encryption_key: &str,
     ) -> EmailProviderResult<AsyncSmtpTransport<Tokio1Executor>> {
         let host = &settings.host;
         let port = settings.port as u16;
@@ -188,8 +192,16 @@ impl SmtpProvider {
                 }
             }
         } else {
-            // With authentication
-            let creds = Credentials::new(settings.username.clone(), settings.password_encrypted.clone());
+            // With authentication - decrypt the password first
+            let password = if settings.password_encrypted.is_empty() {
+                String::new()
+            } else {
+                crate::crypto::decrypt(&settings.password_encrypted, encryption_key)
+                    .map_err(|e| EmailProviderError::ConfigurationError(
+                        format!("Failed to decrypt SMTP password: {}", e)
+                    ))?
+            };
+            let creds = Credentials::new(settings.username.clone(), password);
 
             match settings.tls_mode {
                 TlsMode::ImplicitTls => {
@@ -224,15 +236,19 @@ impl SmtpProvider {
     }
 
     /// Rebuild the transport (useful after settings change)
-    pub async fn rebuild_transport(&mut self) -> EmailProviderResult<()> {
-        self.transport = Self::build_transport(&self.settings).await?;
+    pub async fn rebuild_transport(&mut self, encryption_key: &str) -> EmailProviderResult<()> {
+        self.transport = Self::build_transport(&self.settings, encryption_key).await?;
         Ok(())
     }
 
     /// Update settings and rebuild transport
-    pub async fn update_settings(&mut self, settings: MailProviderSettings) -> EmailProviderResult<()> {
+    pub async fn update_settings(
+        &mut self,
+        settings: MailProviderSettings,
+        encryption_key: &str,
+    ) -> EmailProviderResult<()> {
         self.settings = settings;
-        self.rebuild_transport().await
+        self.rebuild_transport(encryption_key).await
     }
 
     /// Classify an SMTP error into our error types
@@ -357,10 +373,13 @@ pub struct MailProviderFactory;
 
 impl MailProviderFactory {
     /// Create a mail provider from settings
-    pub async fn create(settings: &MailProviderSettings) -> EmailProviderResult<Box<dyn MailProvider>> {
+    pub async fn create(
+        settings: &MailProviderSettings,
+        encryption_key: &str,
+    ) -> EmailProviderResult<Box<dyn MailProvider>> {
         match settings.provider_type {
             crate::models::email::MailProviderType::Smtp => {
-                let provider = SmtpProvider::new(settings.clone()).await?;
+                let provider = SmtpProvider::new(settings.clone(), encryption_key).await?;
                 Ok(Box::new(provider))
             }
             crate::models::email::MailProviderType::Ses => {
@@ -405,6 +424,7 @@ impl MailProviderManager {
     pub async fn get_or_create(
         &self,
         settings: &MailProviderSettings,
+        encryption_key: &str,
     ) -> EmailProviderResult<()> {
         let mut providers = self.providers.write().await;
         
@@ -412,12 +432,12 @@ impl MailProviderManager {
         if let Some(existing) = providers.get_mut(&settings.id) {
             if existing.provider_id() != format!("{}:{}:{}", settings.provider_type.as_str(), settings.host, settings.port) {
                 // Settings changed, recreate
-                let new_provider = MailProviderFactory::create(settings).await?;
+                let new_provider = MailProviderFactory::create(settings, encryption_key).await?;
                 providers.insert(settings.id, new_provider);
             }
         } else {
             // Create new provider
-            let provider = MailProviderFactory::create(settings).await?;
+            let provider = MailProviderFactory::create(settings, encryption_key).await?;
             providers.insert(settings.id, provider);
         }
         

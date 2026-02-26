@@ -82,7 +82,7 @@ async fn main() -> anyhow::Result<()> {
     
     // Spawn email worker
     let email_worker_config = rustchat::jobs::EmailWorkerConfig::default();
-    rustchat::jobs::spawn_email_worker(db_pool.clone(), email_worker_config);
+    rustchat::jobs::spawn_email_worker(db_pool.clone(), email_worker_config, config.encryption_key.clone());
 
     // Build application router
     let app = api::router(
