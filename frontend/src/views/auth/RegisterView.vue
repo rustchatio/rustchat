@@ -5,6 +5,7 @@ import client from '../../api/client'
 import AuthLayout from '../../layouts/AuthLayout.vue'
 import BaseInput from '../../components/atomic/BaseInput.vue'
 import BaseButton from '../../components/atomic/BaseButton.vue'
+import TurnstileWidget from '../../components/auth/TurnstileWidget.vue'
 import { useConfigStore } from '../../stores/config'
 
 const router = useRouter()
@@ -12,24 +13,66 @@ const configStore = useConfigStore()
 
 const username = ref('')
 const email = ref('')
+const website = ref('') // Honeypot field - should remain empty
+const turnstileToken = ref('')
 const loading = ref(false)
 const error = ref('')
 const success = ref(false)
 const registeredEmail = ref('')
 
-onMounted(() => {
+// Turnstile configuration
+const turnstileEnabled = ref(false)
+const turnstileSiteKey = ref('')
+const turnstileVerified = ref(false)
+
+onMounted(async () => {
   configStore.loadConfig()
+  
+  // Fetch Turnstile configuration
+  try {
+    const response = await client.get('/auth/config')
+    if (response.data.turnstile?.enabled) {
+      turnstileEnabled.value = true
+      turnstileSiteKey.value = response.data.turnstile.site_key
+    }
+  } catch {
+    // Ignore errors - Turnstile will be disabled
+  }
 })
 
+function onTurnstileVerify(token: string) {
+  turnstileToken.value = token
+  turnstileVerified.value = true
+}
+
+function onTurnstileError() {
+  turnstileVerified.value = false
+  error.value = 'Verification failed. Please try again.'
+}
+
 async function handleRegister() {
+  // Check honeypot
+  if (website.value) {
+    // Silently fail if honeypot is filled
+    error.value = 'Invalid request'
+    return
+  }
+
+  // Check Turnstile verification if enabled
+  if (turnstileEnabled.value && !turnstileVerified.value) {
+    error.value = 'Please complete the verification'
+    return
+  }
+
   loading.value = true
   error.value = ''
   try {
     const response = await client.post('/auth/register', {
       username: username.value,
       email: email.value,
-      display_name: username.value
-      // No password - user will set it via email link
+      display_name: username.value,
+      'cf-turnstile-response': turnstileToken.value || undefined,
+      website: website.value || undefined
     })
     
     registeredEmail.value = response.data.email || email.value
@@ -48,6 +91,9 @@ async function handleRegister() {
     }
   } catch (e: any) {
     error.value = e.response?.data?.message || 'Failed to register'
+    // Reset Turnstile on error
+    turnstileVerified.value = false
+    turnstileToken.value = ''
   } finally {
     loading.value = false
   }
@@ -93,6 +139,17 @@ async function handleRegister() {
         {{ error }}
       </div>
 
+      <!-- Honeypot field - hidden from humans -->
+      <div class="honeypot-field" aria-hidden="true">
+        <input
+          type="text"
+          name="website"
+          v-model="website"
+          tabindex="-1"
+          autocomplete="off"
+        />
+      </div>
+
       <BaseInput
         id="username"
         label="Username"
@@ -125,11 +182,37 @@ async function handleRegister() {
         </div>
       </div>
 
+      <!-- Turnstile Widget -->
+      <TurnstileWidget
+        v-if="turnstileEnabled && turnstileSiteKey"
+        :site-key="turnstileSiteKey"
+        @verify="onTurnstileVerify"
+        @error="onTurnstileError"
+      />
+
       <div>
-        <BaseButton type="submit" block :loading="loading">
+        <BaseButton 
+          type="submit" 
+          block 
+          :loading="loading"
+          :disabled="turnstileEnabled && !turnstileVerified"
+        >
           Create Account
         </BaseButton>
       </div>
     </form>
   </AuthLayout>
 </template>
+
+<style scoped>
+/* Hide honeypot field from humans */
+.honeypot-field {
+  position: absolute;
+  left: -9999px;
+  top: -9999px;
+  opacity: 0;
+  height: 0;
+  width: 0;
+  overflow: hidden;
+}
+</style>

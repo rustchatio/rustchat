@@ -78,6 +78,10 @@ pub struct Config {
     #[serde(default)]
     pub cors_allowed_origins: Option<String>,
 
+    /// Cloudflare Turnstile configuration
+    #[serde(default)]
+    pub turnstile: TurnstileConfig,
+
     /// Calls plugin configuration
     #[serde(default)]
     pub calls: CallsConfig,
@@ -189,6 +193,34 @@ fn default_stun_servers() -> Vec<String> {
 
 fn default_calls_state_backend() -> String {
     "auto".to_string()
+}
+
+/// Cloudflare Turnstile configuration
+#[derive(Debug, Clone, Deserialize)]
+pub struct TurnstileConfig {
+    /// Enable Turnstile protection
+    #[serde(default = "default_turnstile_enabled")]
+    pub enabled: bool,
+    /// Site key for frontend (public)
+    #[serde(default)]
+    pub site_key: String,
+    /// Secret key for backend verification
+    #[serde(default)]
+    pub secret_key: String,
+}
+
+impl Default for TurnstileConfig {
+    fn default() -> Self {
+        Self {
+            enabled: default_turnstile_enabled(),
+            site_key: String::new(),
+            secret_key: String::new(),
+        }
+    }
+}
+
+fn default_turnstile_enabled() -> bool {
+    false // Disabled by default
 }
 
 fn default_host() -> String {

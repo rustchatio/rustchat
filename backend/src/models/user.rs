@@ -161,6 +161,12 @@ pub struct CreateUser {
     pub password: Option<String>,
     pub display_name: Option<String>,
     pub org_id: Option<Uuid>,
+    /// Cloudflare Turnstile token (bot protection)
+    #[serde(rename = "cf-turnstile-response")]
+    pub turnstile_token: Option<String>,
+    /// Honeypot field - should be empty (bots usually fill this)
+    #[serde(rename = "website")]
+    pub honeypot: Option<String>,
 }
 
 /// DTO for updating a user

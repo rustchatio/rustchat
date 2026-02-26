@@ -10,5 +10,6 @@ pub mod oidc_discovery;
 pub mod posts;
 pub mod push_notifications;
 pub mod template_renderer;
+pub mod turnstile;
 pub mod unreads;
 pub mod webhooks;

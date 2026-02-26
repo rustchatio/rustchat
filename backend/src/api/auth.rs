@@ -12,6 +12,7 @@ use crate::auth::{create_token, hash_password, verify_password, AuthUser};
 use crate::error::{ApiResult, AppError};
 use crate::models::{AuthResponse, CreateUser, LoginRequest, User, UserResponse};
 use crate::services::password_reset::{PasswordResetError, request_password_reset, reset_password, validate_token, send_password_setup_email};
+use crate::services::turnstile;
 
 /// Build auth routes
 pub fn router() -> Router<AppState> {
@@ -25,6 +26,7 @@ pub fn router() -> Router<AppState> {
         .route("/password/validate", post(validate_token_handler))
         .route("/me", get(me))
         .route("/policy", get(get_auth_policy))
+        .route("/config", get(get_public_auth_config))
 }
 
 /// Get current authentication policy
@@ -35,14 +37,54 @@ async fn get_auth_policy(
     Ok(Json(config))
 }
 
+/// Get public auth configuration (safe to expose to frontend)
+async fn get_public_auth_config(
+    State(state): State<AppState>,
+) -> ApiResult<Json<serde_json::Value>> {
+    Ok(Json(serde_json::json!({
+        "turnstile": {
+            "enabled": state.config.turnstile.enabled,
+            "site_key": state.config.turnstile.site_key,
+        },
+        "registration_enabled": true,
+        "password_reset_enabled": true,
+    })))
+}
+
 /// Register a new user
 /// 
 /// If password is provided, user is registered with that password.
 /// If password is not provided, a password setup email is sent and user must set password via email link.
 async fn register(
     State(state): State<AppState>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
     Json(input): Json<CreateUser>,
 ) -> ApiResult<Json<serde_json::Value>> {
+    // Check honeypot - if filled, likely a bot
+    if let Some(ref honeypot) = input.honeypot {
+        if !honeypot.is_empty() {
+            tracing::warn!("Honeypot field filled, likely bot attempt from {}", addr.ip());
+            // Return generic error without revealing honeypot detection
+            return Err(AppError::Validation("Invalid request".to_string()));
+        }
+    }
+
+    // Verify Turnstile token if enabled
+    if state.config.turnstile.enabled {
+        let token = input.turnstile_token.as_deref()
+            .ok_or_else(|| AppError::Validation("Verification required".to_string()))?;
+        
+        let remote_ip = Some(addr.ip().to_string());
+        if let Err(e) = turnstile::verify_token(
+            &state.config.turnstile.secret_key,
+            token,
+            remote_ip.as_deref(),
+        ).await {
+            tracing::warn!("Turnstile verification failed: {}", e);
+            return Err(AppError::Validation("Verification failed. Please try again.".to_string()));
+        }
+    }
+
     // Validate input
     if input.username.len() < 3 {
         return Err(AppError::Validation(
@@ -386,6 +428,12 @@ async fn me(State(state): State<AppState>, auth: AuthUser) -> ApiResult<Json<Use
 #[derive(Debug, serde::Deserialize)]
 struct ForgotPasswordRequest {
     email: String,
+    /// Cloudflare Turnstile token (bot protection)
+    #[serde(rename = "cf-turnstile-response")]
+    turnstile_token: Option<String>,
+    /// Honeypot field - should be empty (bots usually fill this)
+    #[serde(rename = "website")]
+    honeypot: Option<String>,
 }
 
 /// Request password reset email
@@ -395,6 +443,45 @@ async fn forgot_password(
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     Json(input): Json<ForgotPasswordRequest>,
 ) -> ApiResult<Json<serde_json::Value>> {
+    // Check honeypot - if filled, likely a bot
+    if let Some(ref honeypot) = input.honeypot {
+        if !honeypot.is_empty() {
+            tracing::warn!("Honeypot field filled, likely bot attempt from {}", addr.ip());
+            // Return success response to not reveal honeypot detection
+            return Ok(Json(serde_json::json!({
+                "success": true,
+                "message": "If an account with that email exists, you will receive a password reset link"
+            })));
+        }
+    }
+
+    // Verify Turnstile token if enabled
+    if state.config.turnstile.enabled {
+        let token = match input.turnstile_token.as_deref() {
+            Some(t) if !t.is_empty() => t,
+            _ => {
+                return Ok(Json(serde_json::json!({
+                    "success": true,
+                    "message": "If an account with that email exists, you will receive a password reset link"
+                })));
+            }
+        };
+        
+        let remote_ip = Some(addr.ip().to_string());
+        if let Err(e) = turnstile::verify_token(
+            &state.config.turnstile.secret_key,
+            token,
+            remote_ip.as_deref(),
+        ).await {
+            tracing::warn!("Turnstile verification failed: {}", e);
+            // Return success response to not reveal verification failure
+            return Ok(Json(serde_json::json!({
+                "success": true,
+                "message": "If an account with that email exists, you will receive a password reset link"
+            })));
+        }
+    }
+
     // Get IP address from connection
     let ip_address = Some(addr.ip());
     
