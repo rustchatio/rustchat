@@ -143,7 +143,7 @@ async fn check_rate_limits(
         let ip_count: i64 = sqlx::query_scalar(
             r#"
             SELECT COUNT(*) FROM password_reset_tokens 
-            WHERE created_ip = $1 
+            WHERE created_ip = $1::inet 
               AND created_at > $2
             "#,
         )
