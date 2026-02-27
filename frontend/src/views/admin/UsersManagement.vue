@@ -2,7 +2,7 @@
 import { ref, onMounted, watch, computed } from 'vue';
 import { useAdminStore } from '../../stores/admin';
 import { useAuthStore } from '../../stores/auth';
-import { Users, Plus, Search, MoreHorizontal, UserCheck, UserX, Edit2, Trash2, AlertTriangle, X } from 'lucide-vue-next';
+import { Users, Plus, Search, MoreHorizontal, UserCheck, UserX, Edit2, Trash2, AlertTriangle, X, Eraser } from 'lucide-vue-next';
 import CreateUserModal from '../../components/modals/CreateUserModal.vue';
 import EditUserModal from '../../components/modals/EditUserModal.vue';
 import type { AdminUser } from '../../api/admin';
@@ -22,6 +22,10 @@ const deleteConfirmInput = ref('');
 const deleteReason = ref('');
 const deleteSubmitting = ref(false);
 const deleteError = ref('');
+const showWipeModal = ref(false);
+const wipingUser = ref<AdminUser | null>(null);
+const wipeSubmitting = ref(false);
+const wipeError = ref('');
 
 let searchTimeout: ReturnType<typeof setTimeout>;
 
@@ -125,6 +129,40 @@ async function confirmDeleteUser() {
         deleteError.value = e?.response?.data?.error?.message || e?.response?.data?.message || 'Failed to delete user';
     } finally {
         deleteSubmitting.value = false;
+    }
+}
+
+function openWipeModal(user: AdminUser) {
+    wipingUser.value = user;
+    wipeSubmitting.value = false;
+    wipeError.value = '';
+    showWipeModal.value = true;
+    activeMenuUserId.value = null;
+}
+
+function closeWipeModal() {
+    showWipeModal.value = false;
+    wipingUser.value = null;
+    wipeSubmitting.value = false;
+    wipeError.value = '';
+}
+
+async function confirmWipeUser() {
+    if (!wipingUser.value) return;
+    wipeSubmitting.value = true;
+    wipeError.value = '';
+    try {
+        await adminStore.wipeUser(wipingUser.value.id);
+        closeWipeModal();
+        await adminStore.fetchUsers({
+            status: statusFilter.value,
+            search: searchQuery.value || undefined,
+            include_deleted: includeDeleted.value,
+        });
+    } catch (e: any) {
+        wipeError.value = e?.response?.data?.error?.message || e?.response?.data?.message || 'Failed to wipe user';
+    } finally {
+        wipeSubmitting.value = false;
     }
 }
 
@@ -302,6 +340,14 @@ const isDeleted = (user: AdminUser) => Boolean(user.deleted_at);
                                         <Trash2 class="w-4 h-4 mr-2" />
                                         Delete User
                                     </button>
+                                    <button
+                                        v-if="isGlobalAdmin && isDeleted(user)"
+                                        @click.stop="openWipeModal(user)"
+                                        class="flex w-full items-center px-4 py-2 text-sm text-orange-700 hover:bg-gray-100 dark:hover:bg-slate-700 dark:text-orange-400"
+                                    >
+                                        <Eraser class="w-4 h-4 mr-2" />
+                                        Wipe User
+                                    </button>
                                 </div>
                             </div>
                         </td>
@@ -402,6 +448,66 @@ const isDeleted = (user: AdminUser) => Boolean(user.deleted_at);
                         class="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-medium"
                     >
                         {{ deleteSubmitting ? 'Deleting...' : 'Delete User' }}
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Wipe User Modal -->
+        <div
+            v-if="showWipeModal && wipingUser"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+            @click.self="closeWipeModal"
+        >
+            <div class="w-full max-w-lg rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-xl">
+                <div class="flex items-start justify-between p-5 border-b border-gray-200 dark:border-slate-700">
+                    <div class="flex items-start gap-3">
+                        <div class="rounded-full bg-orange-100 p-2 dark:bg-orange-900/30">
+                            <Eraser class="w-5 h-5 text-orange-700 dark:text-orange-300" />
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Wipe User</h3>
+                            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                Permanently delete this user from the database. This action cannot be undone.
+                            </p>
+                        </div>
+                    </div>
+                    <button @click="closeWipeModal" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                        <X class="w-5 h-5" />
+                    </button>
+                </div>
+
+                <div class="p-5 space-y-4">
+                    <div class="rounded-lg border border-orange-200 bg-orange-50 p-3 text-sm text-orange-800 dark:border-orange-900/40 dark:bg-orange-900/20 dark:text-orange-200">
+                        <p><strong>Warning:</strong> This will permanently remove the user record from the database. Only users with no messages can be wiped.</p>
+                    </div>
+
+                    <div class="text-sm text-gray-700 dark:text-gray-300">
+                        <p>You are about to wipe user:</p>
+                        <div class="mt-2 rounded-md bg-gray-50 dark:bg-slate-900 px-3 py-2 font-mono text-xs break-all">
+                            {{ wipingUser.username }} ({{ wipingUser.email }})
+                        </div>
+                        <p class="mt-2 text-xs text-gray-500">Deleted at: {{ formatDate(wipingUser.deleted_at) }}</p>
+                    </div>
+
+                    <div v-if="wipeError" class="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-900/40 dark:bg-rose-900/20 dark:text-rose-300">
+                        {{ wipeError }}
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-end gap-3 p-5 border-t border-gray-200 dark:border-slate-700">
+                    <button
+                        @click="closeWipeModal"
+                        class="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        @click="confirmWipeUser"
+                        :disabled="wipeSubmitting"
+                        class="px-4 py-2 rounded-lg bg-orange-600 hover:bg-orange-700 disabled:opacity-50 text-white font-medium"
+                    >
+                        {{ wipeSubmitting ? 'Wiping...' : 'Permanently Wipe User' }}
                     </button>
                 </div>
             </div>

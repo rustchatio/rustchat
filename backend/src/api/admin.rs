@@ -74,6 +74,10 @@ pub fn router() -> Router<AppState> {
             "/admin/users/{id}/reactivate",
             axum::routing::post(reactivate_user),
         )
+        .route(
+            "/admin/users/{id}/wipe",
+            axum::routing::post(wipe_user),
+        )
         // Teams & Channels management
         .route("/admin/teams", get(list_admin_teams))
         .route(
@@ -1210,6 +1214,123 @@ async fn delete_admin_user(
         "status": "deleted",
         "user_id": deleted_user.id,
         "deleted_at": deleted_user.deleted_at,
+    })))
+}
+
+/// Permanently wipe a soft-deleted user from the database.
+/// Only allowed if the user has no posts/messages.
+async fn wipe_user(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+) -> ApiResult<Json<serde_json::Value>> {
+    require_global_admin(&auth)?;
+
+    if auth.user_id == id {
+        return Err(AppError::Conflict(
+            "You cannot wipe your own account".to_string(),
+        ));
+    }
+
+    // Get the user and verify they are soft-deleted
+    let target: crate::models::User = sqlx::query_as("SELECT * FROM users WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&state.db)
+        .await?
+        .ok_or_else(|| AppError::NotFound("User not found".to_string()))?;
+
+    if target.deleted_at.is_none() {
+        return Err(AppError::Conflict(
+            "User must be soft-deleted before wiping. Use DELETE endpoint first.".to_string(),
+        ));
+    }
+
+    // Check if user has any posts
+    let post_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM posts WHERE user_id = $1")
+        .bind(id)
+        .fetch_one(&state.db)
+        .await?;
+
+    if post_count > 0 {
+        return Err(AppError::Conflict(format!(
+            "Cannot wipe user with {} post(s). User has messages in channels.",
+            post_count
+        )));
+    }
+
+    // Begin transaction to delete user and related data
+    let mut tx = state.db.begin().await?;
+
+    // Delete related data in proper order (respecting foreign keys)
+    // Delete user preferences
+    sqlx::query("DELETE FROM user_preferences WHERE user_id = $1")
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+
+    // Delete channel memberships
+    sqlx::query("DELETE FROM channel_members WHERE user_id = $1")
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+
+    // Delete team memberships
+    sqlx::query("DELETE FROM team_members WHERE user_id = $1")
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+
+    // Delete reactions by user
+    sqlx::query("DELETE FROM reactions WHERE user_id = $1")
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+
+    // Delete saved posts
+    sqlx::query("DELETE FROM saved_posts WHERE user_id = $1")
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+
+    // Delete upload sessions
+    sqlx::query("DELETE FROM upload_sessions WHERE user_id = $1")
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+
+    // Delete password reset tokens
+    sqlx::query("DELETE FROM password_reset_tokens WHERE user_id = $1")
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+
+    // Finally, permanently delete the user
+    sqlx::query("DELETE FROM users WHERE id = $1")
+        .bind(id)
+        .execute(&mut *tx)
+        .await?;
+
+    // Log the wipe action
+    insert_admin_audit_log(
+        &state.db,
+        auth.user_id,
+        "user.wipe",
+        "user",
+        Some(id),
+        serde_json::json!({
+            "username": target.username,
+            "email": target.email,
+            "deleted_at": target.deleted_at,
+        }),
+    )
+    .await?;
+
+    tx.commit().await?;
+
+    Ok(Json(serde_json::json!({
+        "status": "wiped",
+        "user_id": id,
+        "message": "User permanently deleted from database",
     })))
 }
 

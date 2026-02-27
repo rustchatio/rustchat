@@ -314,6 +314,7 @@ export const adminApi = {
     reactivateUser: (id: string) => api.post(`/admin/users/${id}/reactivate`),
     deleteUser: (id: string, data: { confirm: string; reason?: string }) =>
         api.delete(`/admin/users/${id}`, { data }),
+    wipeUser: (id: string) => api.post(`/admin/users/${id}/wipe`),
     resetPassword: (id: string) => api.post(`/admin/users/${id}/reset-password`),
 
     // Audit Logs
