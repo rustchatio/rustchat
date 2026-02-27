@@ -15,7 +15,7 @@ Generates a secure `.env` file with cryptographically strong random secrets.
 
 **Features:**
 - Generates 48-byte base64 secrets for JWT and encryption keys
-- Generates unique S3/RustFS access and secret keys
+- Generates S3 access and secret keys shared between backend (`RUSTCHAT_S3_*`) and bundled RustFS (`RUSTFS_*`)
 - Generates TURN server credentials
 - Warns before overwriting existing `.env` file
 - Creates automatic backup when overwriting
@@ -28,8 +28,8 @@ Generates a secure `.env` file with cryptographically strong random secrets.
 | `RUSTCHAT_ENCRYPTION_KEY` | 48 bytes | base64 |
 | `RUSTCHAT_S3_ACCESS_KEY` | 16 bytes | hex |
 | `RUSTCHAT_S3_SECRET_KEY` | 48 bytes | base64 |
-| `RUSTFS_ACCESS_KEY` | 16 bytes | hex |
-| `RUSTFS_SECRET_KEY` | 48 bytes | base64 |
+| `RUSTFS_ACCESS_KEY` | 16 bytes | hex (same value as `RUSTCHAT_S3_ACCESS_KEY`) |
+| `RUSTFS_SECRET_KEY` | 48 bytes | base64 (same value as `RUSTCHAT_S3_SECRET_KEY`) |
 | `TURN_SERVER_USERNAME` | 16 bytes | hex |
 | `TURN_SERVER_CREDENTIAL` | 48 bytes | base64 |
 

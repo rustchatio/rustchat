@@ -233,7 +233,11 @@ async fn enforce_rate_limit_for_request(
 }
 
 /// Centralized middleware for auth endpoint IP rate limiting.
-pub async fn auth_ip_rate_limit(State(state): State<AppState>, request: Request, next: Next) -> Response {
+pub async fn auth_ip_rate_limit(
+    State(state): State<AppState>,
+    request: Request,
+    next: Next,
+) -> Response {
     let client_ip = extract_client_ip_from_request(&request);
 
     let config = RateLimitConfig::auth_per_minute(state.config.security.rate_limit_auth_per_minute);
@@ -247,7 +251,11 @@ pub async fn auth_ip_rate_limit(State(state): State<AppState>, request: Request,
 }
 
 /// Stricter centralized middleware for registration endpoint IP limiting.
-pub async fn register_ip_rate_limit(State(state): State<AppState>, request: Request, next: Next) -> Response {
+pub async fn register_ip_rate_limit(
+    State(state): State<AppState>,
+    request: Request,
+    next: Next,
+) -> Response {
     let client_ip = extract_client_ip_from_request(&request);
 
     if let Some(response) = enforce_rate_limit_for_request(
@@ -266,7 +274,11 @@ pub async fn register_ip_rate_limit(State(state): State<AppState>, request: Requ
 }
 
 /// Centralized middleware for websocket upgrade attempt limiting.
-pub async fn websocket_ip_rate_limit(State(state): State<AppState>, request: Request, next: Next) -> Response {
+pub async fn websocket_ip_rate_limit(
+    State(state): State<AppState>,
+    request: Request,
+    next: Next,
+) -> Response {
     let client_ip = extract_client_ip_from_request(&request);
 
     let config =
@@ -281,7 +293,11 @@ pub async fn websocket_ip_rate_limit(State(state): State<AppState>, request: Req
 }
 
 /// Centralized middleware for password reset flow endpoint limiting.
-pub async fn password_reset_ip_rate_limit(State(state): State<AppState>, request: Request, next: Next) -> Response {
+pub async fn password_reset_ip_rate_limit(
+    State(state): State<AppState>,
+    request: Request,
+    next: Next,
+) -> Response {
     let client_ip = extract_client_ip_from_request(&request);
 
     if let Some(response) = enforce_rate_limit_for_request(

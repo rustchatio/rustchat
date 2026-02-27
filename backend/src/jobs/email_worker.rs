@@ -155,6 +155,7 @@ impl EmailWorker {
             WHERE status = 'queued'
               AND (scheduled_at IS NULL OR scheduled_at <= $1)
               AND (send_after IS NULL OR send_after <= $1)
+              AND (next_attempt_at IS NULL OR next_attempt_at <= $1)
             ORDER BY 
                 CASE priority 
                     WHEN 'high' THEN 1 
@@ -181,14 +182,21 @@ impl EmailWorker {
             .await?;
 
         // Get provider
-        let provider = self
+        let (provider, provider_settings) = match self
             .get_or_create_provider(email.provider_id, email.tenant_id)
-            .await?;
+            .await
+        {
+            Ok(provider_and_settings) => provider_and_settings,
+            Err(e) => {
+                self.handle_delivery_error(&email, &e.to_string()).await?;
+                return Err(e);
+            }
+        };
 
         // Build addresses
         let from = EmailAddress::with_name(
-            &email.recipient_email, // This should come from provider settings
-            "RustChat",
+            &provider_settings.from_address,
+            &provider_settings.from_name,
         );
         let to = EmailAddress::new(&email.recipient_email);
 
@@ -212,39 +220,47 @@ impl EmailWorker {
                 Ok(())
             }
             Err(e) => {
-                let error_msg = e.to_string();
-                let error_category = classify_error(&error_msg);
-
-                // Check if we should retry
-                if email.attempt_count < email.max_attempts.min(self.config.max_retries) {
-                    let next_attempt = calculate_backoff(
-                        email.attempt_count,
-                        self.config.retry_base_delay_secs,
-                        self.config.retry_max_delay_secs,
-                    );
-
-                    self.schedule_retry(email.id, &error_category, &error_msg, next_attempt)
-                        .await?;
-                    warn!(
-                        "Email failed, scheduled retry: id={}, attempt={}/{}, next_attempt={}",
-                        email.id,
-                        email.attempt_count + 1,
-                        email.max_attempts,
-                        next_attempt
-                    );
-                } else {
-                    // Max retries exceeded
-                    self.mark_failed(email.id, &error_category, &error_msg)
-                        .await?;
-                    error!(
-                        "Email failed permanently: id={}, attempts={}, error={}",
-                        email.id, email.attempt_count, error_msg
-                    );
-                }
-
-                Err(WorkerError::Provider(error_msg))
+                self.handle_delivery_error(&email, &e.to_string()).await?;
+                Err(WorkerError::Provider(e.to_string()))
             }
         }
+    }
+
+    async fn handle_delivery_error(
+        &self,
+        email: &EmailOutbox,
+        error_msg: &str,
+    ) -> Result<(), sqlx::Error> {
+        let error_category = classify_error(error_msg);
+
+        // Check if we should retry
+        if email.attempt_count < email.max_attempts.min(self.config.max_retries) {
+            let next_attempt = calculate_backoff(
+                email.attempt_count,
+                self.config.retry_base_delay_secs,
+                self.config.retry_max_delay_secs,
+            );
+
+            self.schedule_retry(email.id, &error_category, error_msg, next_attempt)
+                .await?;
+            warn!(
+                "Email failed, scheduled retry: id={}, attempt={}/{}, next_attempt={}",
+                email.id,
+                email.attempt_count + 1,
+                email.max_attempts,
+                next_attempt
+            );
+        } else {
+            // Max retries exceeded
+            self.mark_failed(email.id, &error_category, error_msg)
+                .await?;
+            error!(
+                "Email failed permanently: id={}, attempts={}, error={}",
+                email.id, email.attempt_count, error_msg
+            );
+        }
+
+        Ok(())
     }
 
     /// Get or create a mail provider
@@ -252,7 +268,7 @@ impl EmailWorker {
         &self,
         provider_id: Option<Uuid>,
         tenant_id: Option<Uuid>,
-    ) -> Result<SmtpProvider, WorkerError> {
+    ) -> Result<(SmtpProvider, MailProviderSettings), WorkerError> {
         // First, determine which provider to use
         let settings = if let Some(id) = provider_id {
             // Use specific provider
@@ -285,7 +301,7 @@ impl EmailWorker {
             cache.insert(settings.id, provider.clone());
         }
 
-        Ok(provider)
+        Ok((provider, settings))
     }
 
     /// Get provider settings by ID
@@ -321,24 +337,70 @@ impl EmailWorker {
         .fetch_optional(&self.db)
         .await?;
 
-        // If no default, try any enabled provider
-        if settings.is_none() {
-            let any: Option<MailProviderSettings> = sqlx::query_as(
+        if settings.is_some() {
+            return Ok(settings);
+        }
+
+        // If no default, try any enabled provider in the same scope first.
+        let any: Option<MailProviderSettings> = sqlx::query_as(
+            r#"
+            SELECT * FROM mail_provider_settings
+            WHERE (tenant_id = $1 OR (tenant_id IS NULL AND $1 IS NULL))
+              AND enabled = true
+            ORDER BY created_at ASC
+            LIMIT 1
+            "#,
+        )
+        .bind(tenant_id)
+        .fetch_optional(&self.db)
+        .await?;
+        if any.is_some() {
+            return Ok(any);
+        }
+
+        // If tenant-specific lookup failed, fall back to global provider.
+        if tenant_id.is_some() {
+            let global_default: Option<MailProviderSettings> = sqlx::query_as(
                 r#"
                 SELECT * FROM mail_provider_settings
-                WHERE (tenant_id = $1 OR (tenant_id IS NULL AND $1 IS NULL))
+                WHERE tenant_id IS NULL
+                  AND enabled = true
+                  AND is_default = true
+                ORDER BY created_at ASC
+                LIMIT 1
+                "#,
+            )
+            .fetch_optional(&self.db)
+            .await?;
+            if global_default.is_some() {
+                warn!(
+                    tenant_id = ?tenant_id,
+                    "No tenant-specific mail provider configured; falling back to global default provider"
+                );
+                return Ok(global_default);
+            }
+
+            let global_any: Option<MailProviderSettings> = sqlx::query_as(
+                r#"
+                SELECT * FROM mail_provider_settings
+                WHERE tenant_id IS NULL
                   AND enabled = true
                 ORDER BY created_at ASC
                 LIMIT 1
                 "#,
             )
-            .bind(tenant_id)
             .fetch_optional(&self.db)
             .await?;
-            return Ok(any);
+            if global_any.is_some() {
+                warn!(
+                    tenant_id = ?tenant_id,
+                    "No tenant-specific mail provider configured; falling back to first enabled global provider"
+                );
+                return Ok(global_any);
+            }
         }
 
-        Ok(settings)
+        Ok(None)
     }
 
     /// Update email status

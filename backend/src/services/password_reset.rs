@@ -557,13 +557,13 @@ pub async fn request_password_setup(
         PasswordResetError::EmailNotConfigured
     })?;
 
-    let setup_link = format!("{}/setup-password?token={}", site_url, token);
+    let reset_link = format!("{}/setup-password?token={}", site_url, token);
 
     let email_service = EmailService::new(db.clone());
     let payload = serde_json::json!({
         "user_name": username,
         "email": email,
-        "setup_link": setup_link,
+        "reset_link": reset_link,
         "expiry_hours": TOKEN_VALIDITY_MINUTES / 60,
         "site_name": "RustChat",
     });
@@ -635,13 +635,13 @@ pub async fn send_password_setup_email(
         PasswordResetError::Internal("Failed to create setup token".to_string())
     })?;
 
-    let setup_link = format!("{}/set-password?token={}", site_url, token);
+    let reset_link = format!("{}/set-password?token={}", site_url, token);
 
     let email_service = EmailService::new(db.clone());
     let payload = serde_json::json!({
         "user_name": username,
         "email": email,
-        "setup_link": setup_link,
+        "reset_link": reset_link,
         "expiry_hours": TOKEN_VALIDITY_MINUTES / 60,
         "site_name": "RustChat",
     });

@@ -40,12 +40,13 @@ pub(crate) use sidebar_categories::{
 };
 
 pub fn router(state: AppState) -> Router<AppState> {
-    let login_routes = Router::new()
-        .route("/users/login", post(login))
-        .layer(middleware::from_fn_with_state(
-            state,
-            crate::middleware::rate_limit::auth_ip_rate_limit,
-        ));
+    let login_routes =
+        Router::new()
+            .route("/users/login", post(login))
+            .layer(middleware::from_fn_with_state(
+                state,
+                crate::middleware::rate_limit::auth_ip_rate_limit,
+            ));
 
     Router::new()
         .merge(login_routes)

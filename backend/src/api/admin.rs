@@ -74,10 +74,7 @@ pub fn router() -> Router<AppState> {
             "/admin/users/{id}/reactivate",
             axum::routing::post(reactivate_user),
         )
-        .route(
-            "/admin/users/{id}/wipe",
-            axum::routing::post(wipe_user),
-        )
+        .route("/admin/users/{id}/wipe", axum::routing::post(wipe_user))
         // Teams & Channels management
         .route("/admin/teams", get(list_admin_teams))
         .route(

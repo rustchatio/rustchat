@@ -11,40 +11,42 @@ defineProps<{
 }>()
 
 const formatActions = [
-  { icon: Bold, type: 'bold', title: 'Bold (Ctrl+B)', wrapper: ['**', '**'] },
-  { icon: Italic, type: 'italic', title: 'Italic (Ctrl+I)', wrapper: ['*', '*'] },
-  { icon: Code, type: 'code', title: 'Inline code', wrapper: ['`', '`'] },
-  { icon: Link2, type: 'link', title: 'Link', wrapper: ['[', '](url)'] },
-  { icon: Quote, type: 'quote', title: 'Quote', prefix: '> ' },
-  { icon: List, type: 'bullet', title: 'Bullet list', prefix: '- ' },
-  { icon: ListOrdered, type: 'numbered', title: 'Numbered list', prefix: '1. ' },
+  { icon: Bold, type: 'bold', title: 'Bold (Ctrl+B)', label: 'Bold' },
+  { icon: Italic, type: 'italic', title: 'Italic (Ctrl+I)', label: 'Italic' },
+  { icon: Code, type: 'code', title: 'Inline code', label: 'Inline code' },
+  { icon: Link2, type: 'link', title: 'Link', label: 'Link' },
+  { icon: Quote, type: 'quote', title: 'Quote', label: 'Quote' },
+  { icon: List, type: 'bullet', title: 'Bullet list', label: 'Bullet list' },
+  { icon: ListOrdered, type: 'numbered', title: 'Numbered list', label: 'Numbered list' },
 ]
 </script>
 
 <template>
-  <div class="flex items-center space-x-0.5 px-1 py-1 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+  <div class="flex items-center space-x-0.5 border-b border-border-1 bg-bg-surface-2/50 px-1.5 py-1">
     <!-- Formatting buttons -->
     <button
       v-for="action in formatActions"
       :key="action.type"
       @click="$emit('format', action.type)"
       :title="action.title"
-      class="p-1.5 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
+      :aria-label="action.label"
+      class="rounded p-1.5 text-text-3 transition-standard hover:bg-bg-surface-1 hover:text-text-1 focus-ring"
     >
       <component :is="action.icon" class="w-4 h-4" />
     </button>
     
     <!-- Divider -->
-    <div class="w-px h-5 bg-gray-300 dark:bg-gray-600 mx-1"></div>
+    <div class="mx-1 h-5 w-px bg-border-1"></div>
     
     <!-- Preview toggle -->
     <button
       @click="$emit('togglePreview')"
       :title="showPreview ? 'Hide preview' : 'Show preview'"
-      class="p-1.5 rounded transition-colors"
+      aria-label="Toggle markdown preview"
+      class="rounded p-1.5 transition-standard focus-ring"
       :class="showPreview 
-        ? 'text-primary bg-primary/10' 
-        : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'"
+        ? 'bg-brand/10 text-brand'
+        : 'text-text-3 hover:bg-bg-surface-1 hover:text-text-1'"
     >
       <component :is="showPreview ? EyeOff : Eye" class="w-4 h-4" />
     </button>

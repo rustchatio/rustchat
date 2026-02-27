@@ -46,10 +46,8 @@ if [ -f "$ENV_FILE" ]; then
     echo "  • RUSTCHAT_JWT_ISSUER (unique issuer ID)"
     echo "  • RUSTCHAT_JWT_AUDIENCE (audience)"
     echo "  • RUSTCHAT_ENCRYPTION_KEY (48 bytes base64)"
-    echo "  • RUSTCHAT_S3_ACCESS_KEY (32 bytes hex)"
-    echo "  • RUSTCHAT_S3_SECRET_KEY (64 bytes base64)"
-    echo "  • RUSTFS_ACCESS_KEY (32 bytes hex)"
-    echo "  • RUSTFS_SECRET_KEY (64 bytes base64)"
+    echo "  • RUSTCHAT_S3_ACCESS_KEY / RUSTFS_ACCESS_KEY (32 bytes hex, shared)"
+    echo "  • RUSTCHAT_S3_SECRET_KEY / RUSTFS_SECRET_KEY (64 bytes base64, shared)"
     echo "  • TURN_SERVER_USERNAME (32 bytes hex)"
     echo "  • TURN_SERVER_CREDENTIAL (48 bytes base64)"
     echo ""
@@ -97,8 +95,10 @@ JWT_AUDIENCE="rustchat-users"
 ENCRYPTION_KEY=$(generate_base64_secret 48)
 S3_ACCESS_KEY=$(generate_hex_secret 16)
 S3_SECRET_KEY=$(generate_base64_secret 48)
-RUSTFS_ACCESS_KEY=$(generate_hex_secret 16)
-RUSTFS_SECRET_KEY=$(generate_base64_secret 48)
+# Backend and RustFS must use the same credentials when docker-compose
+# points backend S3 endpoint to the bundled rustfs service.
+RUSTFS_ACCESS_KEY="$S3_ACCESS_KEY"
+RUSTFS_SECRET_KEY="$S3_SECRET_KEY"
 TURN_USERNAME=$(generate_hex_secret 16)
 TURN_CREDENTIAL=$(generate_base64_secret 48)
 
@@ -106,10 +106,8 @@ echo -e "  ${GREEN}✓${NC} JWT_SECRET generated (48 bytes base64)"
 echo -e "  ${GREEN}✓${NC} JWT_ISSUER generated (unique issuer)"
 echo -e "  ${GREEN}✓${NC} JWT_AUDIENCE generated (audience)"
 echo -e "  ${GREEN}✓${NC} ENCRYPTION_KEY generated (48 bytes base64)"
-echo -e "  ${GREEN}✓${NC} S3_ACCESS_KEY generated (32 hex chars)"
-echo -e "  ${GREEN}✓${NC} S3_SECRET_KEY generated (48 bytes base64)"
-echo -e "  ${GREEN}✓${NC} RUSTFS_ACCESS_KEY generated (32 hex chars)"
-echo -e "  ${GREEN}✓${NC} RUSTFS_SECRET_KEY generated (48 bytes base64)"
+echo -e "  ${GREEN}✓${NC} S3_ACCESS_KEY generated (32 hex chars, shared with RustFS)"
+echo -e "  ${GREEN}✓${NC} S3_SECRET_KEY generated (48 bytes base64, shared with RustFS)"
 echo -e "  ${GREEN}✓${NC} TURN_SERVER_USERNAME generated (32 hex chars)"
 echo -e "  ${GREEN}✓${NC} TURN_SERVER_CREDENTIAL generated (48 bytes base64)"
 echo ""

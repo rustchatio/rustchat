@@ -229,7 +229,12 @@ pub fn router(
         .merge(ws::router(state.clone()));
 
     // API v4 with route-specific limits
-    let api_v4 = v4::router_with_body_limits(state.clone(), SMALL_BODY_LIMIT, MEDIUM_BODY_LIMIT, LARGE_BODY_LIMIT);
+    let api_v4 = v4::router_with_body_limits(
+        state.clone(),
+        SMALL_BODY_LIMIT,
+        MEDIUM_BODY_LIMIT,
+        LARGE_BODY_LIMIT,
+    );
 
     // Configure security headers based on environment
     let security_config = if state.config.is_production() {
