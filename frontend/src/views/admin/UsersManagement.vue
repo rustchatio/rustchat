@@ -487,7 +487,7 @@ const isDeleted = (user: AdminUser) => Boolean(user.deleted_at);
                         <div class="mt-2 rounded-md bg-gray-50 dark:bg-slate-900 px-3 py-2 font-mono text-xs break-all">
                             {{ wipingUser.username }} ({{ wipingUser.email }})
                         </div>
-                        <p class="mt-2 text-xs text-gray-500">Deleted at: {{ formatDate(wipingUser.deleted_at) }}</p>
+                        <p class="mt-2 text-xs text-gray-500">Deleted at: {{ formatDate(wipingUser.deleted_at ?? null) }}</p>
                     </div>
 
                     <div v-if="wipeError" class="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-900/40 dark:bg-rose-900/20 dark:text-rose-300">
