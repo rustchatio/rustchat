@@ -288,7 +288,7 @@ pub async fn request_password_reset(
                 "user_name": username,
                 "email": user_email,
                 "reset_link": reset_link,
-                "expiry_minutes": TOKEN_VALIDITY_MINUTES,
+                "expiry_hours": TOKEN_VALIDITY_MINUTES / 60,
                 "site_name": "RustChat",
                 "ip_address": ip_address.map(|ip| ip.to_string()).unwrap_or_default(),
             });
@@ -564,7 +564,7 @@ pub async fn request_password_setup(
         "user_name": username,
         "email": email,
         "setup_link": setup_link,
-        "expiry_minutes": TOKEN_VALIDITY_MINUTES,
+        "expiry_hours": TOKEN_VALIDITY_MINUTES / 60,
         "site_name": "RustChat",
     });
 
@@ -642,7 +642,7 @@ pub async fn send_password_setup_email(
         "user_name": username,
         "email": email,
         "setup_link": setup_link,
-        "expiry_minutes": TOKEN_VALIDITY_MINUTES,
+        "expiry_hours": TOKEN_VALIDITY_MINUTES / 60,
         "site_name": "RustChat",
     });
 
