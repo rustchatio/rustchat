@@ -36,6 +36,14 @@ pub struct Config {
     /// JWT secret key
     pub jwt_secret: String,
 
+    /// Optional JWT issuer claim (`iss`) to embed and validate.
+    #[serde(default)]
+    pub jwt_issuer: Option<String>,
+
+    /// Optional JWT audience claim (`aud`) to embed and validate.
+    #[serde(default)]
+    pub jwt_audience: Option<String>,
+
     /// Encryption key for sensitive data
     pub encryption_key: String,
 
@@ -320,12 +328,13 @@ impl Default for SecurityConfig {
 }
 
 fn default_ws_allow_query_token() -> bool {
-    // Default to true for backward compatibility, but production should set to false
-    true
+    // Secure-by-default: query tokens leak via logs/referrers.
+    false
 }
 
 fn default_oauth_token_delivery() -> String {
-    "query".to_string() // TODO: Change to "cookie" in next major version
+    // Secure-by-default: one-time code exchange flow.
+    "cookie".to_string()
 }
 
 fn default_rate_limit_enabled() -> bool {

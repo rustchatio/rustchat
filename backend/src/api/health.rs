@@ -65,11 +65,14 @@ async fn readiness(State(state): State<AppState>) -> Result<Json<ReadinessRespon
     let redis_healthy = check_redis(&state.redis).await;
     checks.insert("redis".to_string(), if redis_healthy { "ok".to_string() } else { "error".to_string() });
     
-    // Check WebSocket hub
-    let ws_healthy = state.ws_hub.count_connections().await >= 0; // Always true if we can call it
-    checks.insert("websocket_hub".to_string(), if ws_healthy { "ok".to_string() } else { "error".to_string() });
+    // WebSocket hub process-local health detail (informational)
+    let ws_connections = state.ws_hub.count_connections().await;
+    checks.insert(
+        "websocket_hub".to_string(),
+        format!("ok(connections={})", ws_connections),
+    );
     
-    let all_healthy = db_healthy && redis_healthy && ws_healthy;
+    let all_healthy = db_healthy && redis_healthy;
     
     let response = ReadinessResponse {
         status: if all_healthy { "ok" } else { "degraded" },
@@ -104,8 +107,11 @@ async fn stats(State(state): State<AppState>) -> Json<MetricsResponse> {
     let ws_connections = state.ws_hub.count_connections().await as i64;
     let active_users = state.ws_hub.online_users().await.len() as i64;
     
-    // Estimate pool saturation (simplified)
-    let db_pool_saturation = 0.0; // Would need actual pool metrics
+    let max_connections = state.config.db_pool.max_connections.max(1) as f64;
+    let current_size = state.db.size() as f64;
+    let idle = state.db.num_idle() as f64;
+    let in_use = (current_size - idle).max(0.0);
+    let db_pool_saturation = (in_use / max_connections).clamp(0.0, 1.0);
     
     // Update gauges
     metrics::WS_ACTIVE_CONNECTIONS.set(ws_connections);
@@ -122,12 +128,10 @@ async fn stats(State(state): State<AppState>) -> Json<MetricsResponse> {
 async fn check_redis(redis: &deadpool_redis::Pool) -> bool {
     match redis.get().await {
         Ok(mut conn) => {
-            // Try a simple PING
-            use deadpool_redis::redis::AsyncCommands;
-            match conn.get::<&str, Option<String>>("rustchat:health:ping").await {
-                Ok(_) => true,
-                Err(_) => false,
-            }
+            deadpool_redis::redis::cmd("PING")
+                .query_async::<Option<String>>(&mut conn)
+                .await
+                .is_ok()
         }
         Err(_) => false,
     }

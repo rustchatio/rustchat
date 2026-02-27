@@ -8,7 +8,6 @@ use std::sync::Arc;
 use deadpool_redis::redis::{AsyncCommands, Msg}; 
 use futures_util::StreamExt;
 use serde::{Deserialize, Serialize};
-use tokio::task::JoinHandle;
 use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
@@ -43,13 +42,13 @@ pub struct ClusterBroadcast {
     hub: Arc<WsHub>,
     /// Redis connection pool
     redis: deadpool_redis::Pool,
-    /// Background task handle
-    subscriber_handle: Option<JoinHandle<()>>,
+    /// Redis URL for dedicated pub/sub connection
+    redis_url: String,
 }
 
 impl ClusterBroadcast {
     /// Create a new cluster broadcast manager
-    pub fn new(redis: deadpool_redis::Pool, hub: Arc<WsHub>) -> Arc<Self> {
+    pub fn new(redis: deadpool_redis::Pool, redis_url: String, hub: Arc<WsHub>) -> Arc<Self> {
         let node_id = format!("{}-{}", hostname::get().ok()
             .and_then(|h| h.into_string().ok())
             .unwrap_or_else(|| "unknown".to_string()),
@@ -60,7 +59,7 @@ impl ClusterBroadcast {
             node_id,
             hub,
             redis,
-            subscriber_handle: None,
+            redis_url,
         })
     }
     
@@ -74,7 +73,7 @@ impl ClusterBroadcast {
     /// Note: This spawns a background task that maintains a dedicated pub/sub connection.
     /// The task will automatically reconnect on errors.
     pub async fn start(self: &Arc<Self>) -> anyhow::Result<()> {
-        let redis = self.redis.clone();
+        let redis_url = self.redis_url.clone();
         let hub = self.hub.clone();
         let node_id = self.node_id.clone();
         
@@ -87,7 +86,7 @@ impl ClusterBroadcast {
         // Spawn subscriber in a background task
         let _handle = tokio::spawn(async move {
             loop {
-                match Self::run_subscriber(&redis, &hub, &node_id).await {
+                match Self::run_subscriber(&redis_url, &hub, &node_id).await {
                     Ok(_) => {
                         info!("Cluster subscriber ended normally");
                         break;
@@ -106,16 +105,13 @@ impl ClusterBroadcast {
     
     /// Run the subscriber loop (reconnects on failure)
     async fn run_subscriber(
-        redis: &deadpool_redis::Pool,
+        redis_url: &str,
         hub: &WsHub,
         node_id: &str,
     ) -> anyhow::Result<()> {
         // Create a dedicated connection for pub/sub
         // Note: deadpool_redis doesn't have native pub/sub support in the pool
         // We use a separate connection that we manage ourselves
-        let redis_url = std::env::var("RUSTCHAT_REDIS_URL")
-            .unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
-        
         let client = redis::Client::open(redis_url)?;
         let mut pubsub = client.get_async_pubsub().await?;
         
@@ -164,8 +160,8 @@ impl ClusterBroadcast {
                     "Received cluster broadcast"
                 );
                 
-                // Broadcast to local connections
-                hub.broadcast(envelope).await;
+                // Broadcast only locally to avoid rebroadcast loops.
+                hub.broadcast_local(envelope).await;
             }
             ClusterMessage::Heartbeat { node_id, timestamp, connection_count } => {
                 debug!(

@@ -8,7 +8,7 @@ use axum::{
 use std::net::SocketAddr;
 
 use super::AppState;
-use crate::auth::{create_token, hash_password, verify_password, AuthUser};
+use crate::auth::{create_token_with_policy, hash_password, verify_password, AuthUser};
 use crate::error::{ApiResult, AppError};
 use crate::middleware::rate_limit::{self, RateLimitConfig};
 use crate::models::{AuthResponse, CreateUser, LoginRequest, User, UserResponse};
@@ -203,12 +203,14 @@ async fn register(
             }
             
             // Generate token for immediate login
-            let token = create_token(
+            let token = create_token_with_policy(
                 user.id,
                 &user.email,
                 &user.role,
                 user.org_id,
                 &state.jwt_secret,
+                state.jwt_issuer.as_deref(),
+                state.jwt_audience.as_deref(),
                 state.jwt_expiry_hours,
             )?;
             
@@ -251,12 +253,14 @@ async fn register(
         
         if has_password {
             // Generate token for immediate login
-            let token = create_token(
+            let token = create_token_with_policy(
                 user.id,
                 &user.email,
                 &user.role,
                 user.org_id,
                 &state.jwt_secret,
+                state.jwt_issuer.as_deref(),
+                state.jwt_audience.as_deref(),
                 state.jwt_expiry_hours,
             )?;
             
@@ -286,7 +290,9 @@ async fn login(
 ) -> ApiResult<Json<AuthResponse>> {
     // Check rate limiting if enabled
     if state.config.security.rate_limit_enabled {
-        let config = RateLimitConfig::auth_default();
+        let config = RateLimitConfig::auth_per_minute(
+            state.config.security.rate_limit_auth_per_minute,
+        );
         let ip = addr.ip().to_string();
         
         // Try to find user ID for user-based limiting
@@ -365,12 +371,14 @@ async fn login(
         .await?;
 
     // Generate token
-    let token = create_token(
+    let token = create_token_with_policy(
         user.id,
         &user.email,
         &user.role,
         user.org_id,
         &state.jwt_secret,
+        state.jwt_issuer.as_deref(),
+        state.jwt_audience.as_deref(),
         state.jwt_expiry_hours,
     )?;
 

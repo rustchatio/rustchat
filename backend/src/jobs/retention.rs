@@ -5,6 +5,7 @@
 
 use chrono::{Duration, Utc};
 use sqlx::PgPool;
+use std::time::Duration as StdDuration;
 use tracing::{error, info, warn};
 
 /// Retention job configuration
@@ -76,54 +77,80 @@ pub struct RetentionStats {
 /// Spawn the retention job as a background task
 pub fn spawn_retention_job(db: PgPool) {
     tokio::spawn(async move {
-        // Run every hour
-        let mut interval = tokio::time::interval(std::time::Duration::from_secs(3600));
+        let mut restart_delay_secs = 1u64;
 
         loop {
-            interval.tick().await;
+            let db_for_run = db.clone();
+            let run_handle = tokio::spawn(async move {
+                run_retention_loop(db_for_run).await;
+            });
 
-            // Fetch current retention config from DB
-            let config_result: Result<Option<(i32, i32)>, sqlx::Error> = sqlx::query_as(
-                "SELECT 
-                    (compliance->'message_retention_days')::int,
-                    (compliance->'file_retention_days')::int
-                 FROM server_config WHERE id = 'default'",
-            )
-            .fetch_optional(&db)
-            .await;
-
-            match config_result {
-                Ok(Some((message_days, file_days))) => {
-                    if message_days > 0 || file_days > 0 {
-                        let config = RetentionConfig {
-                            message_retention_days: message_days as i64,
-                            file_retention_days: file_days as i64,
-                        };
-
-                        match run_retention_cleanup(&db, config).await {
-                            Ok(stats) => {
-                                if stats.messages_deleted > 0 || stats.files_deleted > 0 {
-                                    info!(
-                                        "Retention cleanup complete: {} messages, {} files deleted",
-                                        stats.messages_deleted, stats.files_deleted
-                                    );
-                                }
-                            }
-                            Err(e) => {
-                                error!("Retention cleanup failed: {}", e);
-                            }
-                        }
-                    }
+            match run_handle.await {
+                Ok(()) => {
+                    warn!("Retention worker exited unexpectedly; restarting");
                 }
-                Ok(None) => {
-                    // No config found, skip
-                }
-                Err(e) => {
-                    warn!("Failed to fetch retention config: {}", e);
+                Err(join_error) => {
+                    error!(
+                        error = %join_error,
+                        "Retention worker panicked; restarting"
+                    );
                 }
             }
+
+            tokio::time::sleep(StdDuration::from_secs(restart_delay_secs)).await;
+            restart_delay_secs = (restart_delay_secs * 2).min(60);
         }
     });
 
-    info!("Retention job scheduled (runs hourly)");
+    info!("Retention worker supervisor started");
+}
+
+async fn run_retention_loop(db: PgPool) {
+    // Run every hour
+    let mut interval = tokio::time::interval(StdDuration::from_secs(3600));
+
+    loop {
+        interval.tick().await;
+
+        // Fetch current retention config from DB
+        let config_result: Result<Option<(i32, i32)>, sqlx::Error> = sqlx::query_as(
+            "SELECT 
+                (compliance->'message_retention_days')::int,
+                (compliance->'file_retention_days')::int
+             FROM server_config WHERE id = 'default'",
+        )
+        .fetch_optional(&db)
+        .await;
+
+        match config_result {
+            Ok(Some((message_days, file_days))) => {
+                if message_days > 0 || file_days > 0 {
+                    let config = RetentionConfig {
+                        message_retention_days: message_days as i64,
+                        file_retention_days: file_days as i64,
+                    };
+
+                    match run_retention_cleanup(&db, config).await {
+                        Ok(stats) => {
+                            if stats.messages_deleted > 0 || stats.files_deleted > 0 {
+                                info!(
+                                    "Retention cleanup complete: {} messages, {} files deleted",
+                                    stats.messages_deleted, stats.files_deleted
+                                );
+                            }
+                        }
+                        Err(e) => {
+                            error!("Retention cleanup failed: {}", e);
+                        }
+                    }
+                }
+            }
+            Ok(None) => {
+                // No config found, skip
+            }
+            Err(e) => {
+                warn!("Failed to fetch retention config: {}", e);
+            }
+        }
+    }
 }

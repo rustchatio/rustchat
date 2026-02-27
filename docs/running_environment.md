@@ -35,7 +35,7 @@ RustMatch is containerized using Docker Compose for easy setup and development. 
 
     - **Frontend:** [http://localhost:8080](http://localhost:8080)
     - **Backend API:** [http://localhost:3000](http://localhost:3000)
-    - **MinIO Console:** [http://localhost:9001](http://localhost:9001) (User: `minioadmin`, Pass: `minioadmin`)
+    - **MinIO Console:** [http://localhost:9001](http://localhost:9001) (use your `RUSTFS_ACCESS_KEY` / `RUSTFS_SECRET_KEY`)
     - **Meilisearch:** [http://localhost:7700](http://localhost:7700) (if enabled)
 
 ## Development Mode

@@ -18,6 +18,12 @@ pub struct Claims {
     pub role: String,
     /// Organization ID (optional)
     pub org_id: Option<Uuid>,
+    /// JWT issuer
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub iss: Option<String>,
+    /// JWT audience
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub aud: Option<String>,
     /// Issued at
     pub iat: i64,
     /// Expiration time
@@ -31,6 +37,8 @@ impl Claims {
         email: String,
         role: String,
         org_id: Option<Uuid>,
+        issuer: Option<String>,
+        audience: Option<String>,
         expiry_hours: u64,
     ) -> Self {
         let now = Utc::now();
@@ -41,6 +49,8 @@ impl Claims {
             email,
             role,
             org_id,
+            iss: issuer,
+            aud: audience,
             iat: now.timestamp(),
             exp: exp.timestamp(),
         }
@@ -56,11 +66,36 @@ pub fn create_token(
     secret: &str,
     expiry_hours: u64,
 ) -> Result<String, AppError> {
+    create_token_with_policy(
+        user_id,
+        email,
+        role,
+        org_id,
+        secret,
+        None,
+        None,
+        expiry_hours,
+    )
+}
+
+/// Create a JWT token for a user with optional issuer/audience policy.
+pub fn create_token_with_policy(
+    user_id: Uuid,
+    email: &str,
+    role: &str,
+    org_id: Option<Uuid>,
+    secret: &str,
+    issuer: Option<&str>,
+    audience: Option<&str>,
+    expiry_hours: u64,
+) -> Result<String, AppError> {
     let claims = Claims::new(
         user_id,
         email.to_string(),
         role.to_string(),
         org_id,
+        issuer.map(|s| s.to_string()),
+        audience.map(|s| s.to_string()),
         expiry_hours,
     );
 
@@ -74,10 +109,28 @@ pub fn create_token(
 
 /// Validate and decode a JWT token
 pub fn validate_token(token: &str, secret: &str) -> Result<TokenData<Claims>, AppError> {
+    validate_token_with_policy(token, secret, None, None)
+}
+
+/// Validate and decode a JWT token with optional issuer/audience requirements.
+pub fn validate_token_with_policy(
+    token: &str,
+    secret: &str,
+    issuer: Option<&str>,
+    audience: Option<&str>,
+) -> Result<TokenData<Claims>, AppError> {
+    let mut validation = Validation::default();
+    if let Some(aud) = audience {
+        validation.set_audience(&[aud]);
+    }
+    if let Some(iss) = issuer {
+        validation.set_issuer(&[iss]);
+    }
+
     decode::<Claims>(
         token,
         &DecodingKey::from_secret(secret.as_bytes()),
-        &Validation::default(),
+        &validation,
     )
     .map_err(|e| AppError::Unauthorized(format!("Invalid token: {}", e)))
 }

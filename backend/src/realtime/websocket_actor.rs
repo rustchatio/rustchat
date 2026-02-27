@@ -610,41 +610,53 @@ pub fn configure_tcp_keepalive(socket: &std::net::TcpStream) -> std::io::Result<
 
     // Enable TCP keepalive
     let enabled: libc::c_int = 1;
-    unsafe {
-        libc::setsockopt(
-            fd,
-            libc::SOL_SOCKET,
-            libc::SO_KEEPALIVE,
-            &enabled as *const _ as *const libc::c_void,
-            std::mem::size_of::<libc::c_int>() as libc::socklen_t,
-        );
-    }
+    set_sockopt_checked(
+        fd,
+        libc::SOL_SOCKET,
+        libc::SO_KEEPALIVE,
+        &enabled as *const _ as *const libc::c_void,
+        std::mem::size_of::<libc::c_int>() as libc::socklen_t,
+    )?;
 
     // Set keepalive interval to 15 seconds (keep under 30s carrier timeout)
     let interval: libc::c_int = 15;
-    unsafe {
-        libc::setsockopt(
-            fd,
-            libc::IPPROTO_TCP,
-            libc::TCP_KEEPINTVL,
-            &interval as *const _ as *const libc::c_void,
-            std::mem::size_of::<libc::c_int>() as libc::socklen_t,
-        );
-    }
+    set_sockopt_checked(
+        fd,
+        libc::IPPROTO_TCP,
+        libc::TCP_KEEPINTVL,
+        &interval as *const _ as *const libc::c_void,
+        std::mem::size_of::<libc::c_int>() as libc::socklen_t,
+    )?;
 
     // Set probe count to 3
     let probes: libc::c_int = 3;
-    unsafe {
-        libc::setsockopt(
-            fd,
-            libc::IPPROTO_TCP,
-            libc::TCP_KEEPCNT,
-            &probes as *const _ as *const libc::c_void,
-            std::mem::size_of::<libc::c_int>() as libc::socklen_t,
-        );
-    }
+    set_sockopt_checked(
+        fd,
+        libc::IPPROTO_TCP,
+        libc::TCP_KEEPCNT,
+        &probes as *const _ as *const libc::c_void,
+        std::mem::size_of::<libc::c_int>() as libc::socklen_t,
+    )?;
 
     Ok(())
+}
+
+#[cfg(unix)]
+fn set_sockopt_checked(
+    fd: std::os::unix::io::RawFd,
+    level: libc::c_int,
+    optname: libc::c_int,
+    optval: *const libc::c_void,
+    optlen: libc::socklen_t,
+) -> std::io::Result<()> {
+    // SAFETY: `optval` points to a valid option value with `optlen` bytes and
+    // `fd` is provided by a live `TcpStream`.
+    let rc = unsafe { libc::setsockopt(fd, level, optname, optval, optlen) };
+    if rc == 0 {
+        Ok(())
+    } else {
+        Err(std::io::Error::last_os_error())
+    }
 }
 
 #[cfg(not(unix))]

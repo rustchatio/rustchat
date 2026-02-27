@@ -553,9 +553,31 @@ fn classify_error(error: &str) -> String {
 /// Spawn the email worker as a background task
 pub fn spawn_email_worker(db: PgPool, config: EmailWorkerConfig, encryption_key: String) {
     tokio::spawn(async move {
-        let worker = EmailWorker::new(db, config, encryption_key);
-        worker.run().await;
+        let mut restart_delay_secs = 1u64;
+
+        loop {
+            let db_for_run = db.clone();
+            let config_for_run = config.clone();
+            let encryption_key_for_run = encryption_key.clone();
+
+            let run_handle = tokio::spawn(async move {
+                let worker = EmailWorker::new(db_for_run, config_for_run, encryption_key_for_run);
+                worker.run().await;
+            });
+
+            match run_handle.await {
+                Ok(()) => {
+                    warn!("Email worker exited unexpectedly; restarting");
+                }
+                Err(join_error) => {
+                    error!(error = %join_error, "Email worker panicked; restarting");
+                }
+            }
+
+            tokio::time::sleep(tokio::time::Duration::from_secs(restart_delay_secs)).await;
+            restart_delay_secs = (restart_delay_secs * 2).min(60);
+        }
     });
 
-    info!("Email worker spawned");
+    info!("Email worker supervisor started");
 }

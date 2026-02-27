@@ -10,7 +10,7 @@ use deadpool_redis::redis::AsyncCommands;
 use uuid::Uuid;
 
 use crate::api::AppState;
-use crate::auth::validate_token;
+use crate::auth::validate_token_with_policy;
 use crate::realtime::{
     ClientEnvelope, EventType, TypingCommandData, TypingEvent, WsBroadcast, WsEnvelope,
 };
@@ -72,6 +72,12 @@ fn presence_connection_key(user_id: Uuid) -> String {
     format!("rustchat:presence:user:{user_id}:connections")
 }
 
+fn presence_heartbeat_key(user_id: Uuid, connection_id: &str) -> String {
+    format!("rustchat:presence:user:{user_id}:connection:{connection_id}:heartbeat")
+}
+
+const PRESENCE_HEARTBEAT_TTL_SECONDS: u64 = 90;
+
 pub async fn register_presence_connection(state: &AppState, user_id: Uuid, connection_id: &str) {
     let connection_id = connection_id.trim();
     if connection_id.is_empty() {
@@ -92,12 +98,40 @@ pub async fn register_presence_connection(state: &AppState, user_id: Uuid, conne
     };
 
     let key = presence_connection_key(user_id);
+    let heartbeat_key = presence_heartbeat_key(user_id, connection_id);
+    let now = Utc::now().timestamp();
+
     if let Err(err) = conn.sadd::<_, _, usize>(&key, connection_id).await {
         tracing::warn!(
             user_id = %user_id,
             connection_id = connection_id,
             error = %err,
             "Failed to register websocket connection in presence registry",
+        );
+        return;
+    }
+
+    if let Err(err) = conn
+        .set_ex::<_, _, ()>(&heartbeat_key, now, PRESENCE_HEARTBEAT_TTL_SECONDS)
+        .await
+    {
+        tracing::warn!(
+            user_id = %user_id,
+            connection_id = connection_id,
+            error = %err,
+            "Failed to register websocket heartbeat in presence registry",
+        );
+    }
+
+    if let Err(err) = conn
+        .expire::<_, ()>(&key, (PRESENCE_HEARTBEAT_TTL_SECONDS * 2) as i64)
+        .await
+    {
+        tracing::warn!(
+            user_id = %user_id,
+            connection_id = connection_id,
+            error = %err,
+            "Failed to refresh presence registry TTL",
         );
     }
 }
@@ -122,6 +156,7 @@ pub async fn unregister_presence_connection(state: &AppState, user_id: Uuid, con
     };
 
     let key = presence_connection_key(user_id);
+    let heartbeat_key = presence_heartbeat_key(user_id, connection_id);
     if let Err(err) = conn.srem::<_, _, usize>(&key, connection_id).await {
         tracing::warn!(
             user_id = %user_id,
@@ -130,29 +165,103 @@ pub async fn unregister_presence_connection(state: &AppState, user_id: Uuid, con
             "Failed to unregister websocket connection from presence registry",
         );
     }
+
+    if let Err(err) = conn.del::<_, usize>(&heartbeat_key).await {
+        tracing::warn!(
+            user_id = %user_id,
+            connection_id = connection_id,
+            error = %err,
+            "Failed to remove websocket heartbeat from presence registry",
+        );
+    }
+
+    match conn.scard::<_, usize>(&key).await {
+        Ok(0) => {
+            let _ = conn.del::<_, usize>(&key).await;
+        }
+        Ok(_) => {
+            let _ = conn
+                .expire::<_, ()>(&key, (PRESENCE_HEARTBEAT_TTL_SECONDS * 2) as i64)
+                .await;
+        }
+        Err(err) => {
+            tracing::warn!(
+                user_id = %user_id,
+                connection_id = connection_id,
+                error = %err,
+                "Failed to read connection count during unregister",
+            );
+        }
+    }
 }
 
-async fn global_presence_connection_count(state: &AppState, user_id: Uuid) -> Option<usize> {
+pub async fn heartbeat_presence_connection(state: &AppState, user_id: Uuid, connection_id: &str) {
+    let connection_id = connection_id.trim();
+    if connection_id.is_empty() {
+        return;
+    }
+
     let mut conn = match state.redis.get().await {
         Ok(conn) => conn,
         Err(err) => {
             tracing::warn!(
                 user_id = %user_id,
+                connection_id = connection_id,
                 error = %err,
-                "Presence registry unavailable while reading global connection count",
+                "Presence registry unavailable while heartbeating websocket connection",
             );
-            return None;
+            return;
         }
     };
 
     let key = presence_connection_key(user_id);
-    match conn.scard::<_, usize>(&key).await {
+    let heartbeat_key = presence_heartbeat_key(user_id, connection_id);
+    let now = Utc::now().timestamp();
+
+    if let Err(err) = conn.sadd::<_, _, usize>(&key, connection_id).await {
+        tracing::warn!(
+            user_id = %user_id,
+            connection_id = connection_id,
+            error = %err,
+            "Failed to refresh websocket connection in presence registry",
+        );
+        return;
+    }
+
+    if let Err(err) = conn
+        .set_ex::<_, _, ()>(&heartbeat_key, now, PRESENCE_HEARTBEAT_TTL_SECONDS)
+        .await
+    {
+        tracing::warn!(
+            user_id = %user_id,
+            connection_id = connection_id,
+            error = %err,
+            "Failed to refresh websocket heartbeat in presence registry",
+        );
+        return;
+    }
+
+    if let Err(err) = conn
+        .expire::<_, ()>(&key, (PRESENCE_HEARTBEAT_TTL_SECONDS * 2) as i64)
+        .await
+    {
+        tracing::warn!(
+            user_id = %user_id,
+            connection_id = connection_id,
+            error = %err,
+            "Failed to refresh presence registry TTL during heartbeat",
+        );
+    }
+}
+
+async fn global_presence_connection_count(state: &AppState, user_id: Uuid) -> Option<usize> {
+    match crate::realtime::get_global_connection_count(state, user_id).await {
         Ok(count) => Some(count),
         Err(err) => {
             tracing::warn!(
                 user_id = %user_id,
                 error = %err,
-                "Failed to read global presence connection count",
+                "Presence registry unavailable while reading global connection count",
             );
             None
         }
@@ -164,35 +273,27 @@ pub async fn enforce_connection_limit(
     user_id: Uuid,
 ) -> Result<(), ConnectionLimitExceeded> {
     let max = get_max_simultaneous_connections(state).await;
-    
-    // ALWAYS use cluster-aware connection count from Redis
-    match crate::realtime::get_global_connection_count(state, user_id).await {
-        Ok(current) => {
-            if current >= max {
-                tracing::warn!(
-                    user_id = %user_id,
-                    current = current,
-                    max = max,
-                    "Connection limit exceeded (cluster-wide)"
-                );
-                Err(ConnectionLimitExceeded { current, max })
-            } else {
-                Ok(())
-            }
-        }
-        Err(e) => {
-            tracing::error!(
-                user_id = %user_id,
-                error = %e,
-                "Failed to get cluster connection count - cannot enforce limit"
-            );
-            // When Redis is unavailable, we cannot safely allow connections
-            // as we don't know the true count. Fail closed.
-            Err(ConnectionLimitExceeded { 
-                current: max, // Assume at limit when we can't verify
-                max 
-            })
-        }
+
+    let Some(current) = global_presence_connection_count(state, user_id).await else {
+        tracing::error!(
+            user_id = %user_id,
+            "Failed to get cluster connection count - cannot enforce limit"
+        );
+        // When Redis is unavailable, we cannot safely allow connections
+        // as we don't know the true count. Fail closed.
+        return Err(ConnectionLimitExceeded { current: max, max });
+    };
+
+    if current >= max {
+        tracing::warn!(
+            user_id = %user_id,
+            current = current,
+            max = max,
+            "Connection limit exceeded (cluster-wide)"
+        );
+        Err(ConnectionLimitExceeded { current, max })
+    } else {
+        Ok(())
     }
 }
 
@@ -232,91 +333,6 @@ pub fn normalize_auth_token(raw: &str) -> Option<String> {
     Some(stripped.to_string())
 }
 
-/// Configuration for token resolution behavior
-#[derive(Debug, Clone, Copy)]
-pub struct TokenResolutionConfig {
-    /// Allow token in query parameters (e.g., ?token=xyz)
-    pub allow_query_token: bool,
-    /// Allow token in Authorization header
-    pub allow_header_token: bool,
-    /// Allow token in Sec-WebSocket-Protocol header
-    pub allow_protocol_token: bool,
-}
-
-impl Default for TokenResolutionConfig {
-    fn default() -> Self {
-        Self {
-            allow_query_token: true,
-            allow_header_token: true,
-            allow_protocol_token: true,
-        }
-    }
-}
-
-impl TokenResolutionConfig {
-    /// Secure configuration for production - disallows query tokens
-    pub fn secure() -> Self {
-        Self {
-            allow_query_token: false,
-            allow_header_token: true,
-            allow_protocol_token: true,
-        }
-    }
-}
-
-pub fn resolve_auth_token(
-    query_token: Option<&str>,
-    headers: &HeaderMap,
-    protocol_token: Option<&str>,
-    allow_protocol_fallback: bool,
-) -> Option<String> {
-    resolve_auth_token_with_config(
-        query_token,
-        headers,
-        protocol_token,
-        allow_protocol_fallback,
-        &TokenResolutionConfig::default(),
-    )
-}
-
-/// Resolve authentication token with explicit security configuration
-pub fn resolve_auth_token_with_config(
-    query_token: Option<&str>,
-    headers: &HeaderMap,
-    protocol_token: Option<&str>,
-    allow_protocol_fallback: bool,
-    config: &TokenResolutionConfig,
-) -> Option<String> {
-    // Try query parameter token (if allowed) - DEPRECATED, will be removed
-    if config.allow_query_token {
-        if let Some(token) = query_token.and_then(normalize_auth_token) {
-            return Some(token);
-        }
-    }
-
-    // Try Authorization header
-    if config.allow_header_token {
-        if let Some(auth_header) = headers.get("Authorization").and_then(|v| v.to_str().ok()) {
-            if let Some(token) = normalize_auth_token(auth_header) {
-                return Some(token);
-            }
-        }
-    }
-
-    // Try Sec-WebSocket-Protocol header (if allowed)
-    if config.allow_protocol_token && allow_protocol_fallback {
-        if let Some(protocol) = protocol_token.and_then(normalize_auth_token) {
-            // Keep v1 behavior: only treat the protocol field as token when it
-            // looks token-like and not a normal short protocol name.
-            if protocol.len() > 20 || protocol.contains('.') {
-                return Some(protocol);
-            }
-        }
-    }
-
-    None
-}
-
 /// Resolve auth token using ONLY secure methods (no query params)
 /// This is the recommended method for production use
 pub fn resolve_auth_token_secure(
@@ -341,8 +357,17 @@ pub fn resolve_auth_token_secure(
     None
 }
 
-pub fn validate_user_id(token: Option<&str>, jwt_secret: &str) -> Option<Uuid> {
-    token.and_then(|t| validate_token(t, jwt_secret).ok().map(|c| c.claims.sub))
+pub fn validate_user_id(token: Option<&str>, state: &AppState) -> Option<Uuid> {
+    token.and_then(|t| {
+        validate_token_with_policy(
+            t,
+            &state.jwt_secret,
+            state.jwt_issuer.as_deref(),
+            state.jwt_audience.as_deref(),
+        )
+        .ok()
+        .map(|c| c.claims.sub)
+    })
 }
 
 pub async fn initialize_connection_state(
@@ -629,21 +654,21 @@ mod tests {
     }
 
     #[test]
-    fn resolve_token_prefers_query_then_authorization() {
+    fn resolve_token_uses_authorization_header() {
         let mut headers = HeaderMap::new();
         headers.insert(
             "Authorization",
             HeaderValue::from_str("Bearer auth-token").unwrap(),
         );
 
-        let token = resolve_auth_token(Some("query-token"), &headers, None, false);
-        assert_eq!(token.as_deref(), Some("query-token"));
+        let token = resolve_auth_token_secure(&headers, None);
+        assert_eq!(token.as_deref(), Some("auth-token"));
     }
 
     #[test]
-    fn resolve_token_can_use_protocol_fallback() {
+    fn resolve_token_uses_protocol_fallback() {
         let headers = HeaderMap::new();
-        let token = resolve_auth_token(None, &headers, Some("abc.def.ghi"), true);
+        let token = resolve_auth_token_secure(&headers, Some("abc.def.ghi"));
         assert_eq!(token.as_deref(), Some("abc.def.ghi"));
     }
 }

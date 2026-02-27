@@ -6,7 +6,8 @@
 //! - oidc: Generic OIDC with discovery (Keycloak, ZITADEL, Authentik, etc.)
 
 use axum::{
-    extract::{Path, Query, State},
+    extract::{ConnectInfo, Path, Query, State},
+    http::HeaderMap,
     response::Redirect,
     routing::{get, post},
     Json, Router,
@@ -18,6 +19,7 @@ use uuid::Uuid;
 use super::AppState;
 use crate::crypto;
 use crate::error::{ApiResult, AppError};
+use crate::middleware::rate_limit::{self, RateLimitConfig};
 use crate::models::{OAuthProviderInfo, SsoConfig, SsoProviderType};
 use crate::services::oauth_token_exchange::create_exchange_code;
 use crate::services::oidc_discovery::{find_signing_key, OidcDiscoveryService};
@@ -154,10 +156,26 @@ pub struct ExchangeResponse {
 
 /// Exchange a one-time code for a JWT token
 async fn exchange_token(
+    ConnectInfo(addr): ConnectInfo<std::net::SocketAddr>,
+    headers: HeaderMap,
     State(state): State<AppState>,
     Json(input): Json<ExchangeRequest>,
 ) -> ApiResult<Json<ExchangeResponse>> {
     use crate::services::oauth_token_exchange::{exchange_code, ExchangeError};
+
+    if state.config.security.rate_limit_enabled {
+        let config = RateLimitConfig::auth_per_minute(
+            state.config.security.rate_limit_auth_per_minute,
+        );
+        let ip = rate_limit::extract_client_ip(&addr, &headers);
+        let rate_result = rate_limit::check_rate_limit(&state.redis, &config, &ip).await?;
+        if !rate_result.allowed {
+            tracing::warn!(ip = %ip, "Rate limit exceeded for OAuth exchange");
+            return Err(AppError::TooManyRequests(
+                "Too many authentication attempts. Please try again later.".to_string(),
+            ));
+        }
+    }
 
     // Validate code length to prevent unnecessary Redis calls
     if input.code.len() < 10 {
@@ -186,12 +204,14 @@ async fn exchange_token(
     };
 
     // Generate JWT token
-    let token = crate::auth::create_token(
+    let token = crate::auth::create_token_with_policy(
         payload.user_id,
         &payload.email,
         &payload.role,
         payload.org_id,
         &state.jwt_secret,
+        state.jwt_issuer.as_deref(),
+        state.jwt_audience.as_deref(),
         state.jwt_expiry_hours,
     ).map_err(|e| AppError::Internal(format!("Failed to create token: {}", e)))?;
 
@@ -352,10 +372,26 @@ async fn list_providers(State(state): State<AppState>) -> ApiResult<Json<Vec<OAu
 
 /// Initiate OAuth login - redirects to provider
 async fn oauth_login(
+    ConnectInfo(addr): ConnectInfo<std::net::SocketAddr>,
+    headers: HeaderMap,
     State(state): State<AppState>,
     Path(provider_key): Path<String>,
     Query(query): Query<OAuthLoginQuery>,
 ) -> Result<Redirect, AppError> {
+    if state.config.security.rate_limit_enabled {
+        let config = RateLimitConfig::auth_per_minute(
+            state.config.security.rate_limit_auth_per_minute,
+        );
+        let ip = rate_limit::extract_client_ip(&addr, &headers);
+        let rate_result = rate_limit::check_rate_limit(&state.redis, &config, &ip).await?;
+        if !rate_result.allowed {
+            tracing::warn!(ip = %ip, provider = %provider_key, "Rate limit exceeded for OAuth login");
+            return Err(AppError::TooManyRequests(
+                "Too many authentication attempts. Please try again later.".to_string(),
+            ));
+        }
+    }
+
     // Load provider config
     let config: SsoConfig = sqlx::query_as(
         r#"
@@ -498,10 +534,30 @@ async fn oauth_login(
 
 /// Handle OAuth callback from provider
 async fn oauth_callback(
+    ConnectInfo(addr): ConnectInfo<std::net::SocketAddr>,
+    headers: HeaderMap,
     State(state): State<AppState>,
     Path(provider_key): Path<String>,
     Query(query): Query<OAuthCallbackQuery>,
 ) -> Result<Redirect, AppError> {
+    if state.config.security.rate_limit_enabled {
+        let config = RateLimitConfig::auth_per_minute(
+            state.config.security.rate_limit_auth_per_minute,
+        );
+        let ip = rate_limit::extract_client_ip(&addr, &headers);
+        let rate_result = rate_limit::check_rate_limit(&state.redis, &config, &ip).await?;
+        if !rate_result.allowed {
+            tracing::warn!(
+                ip = %ip,
+                provider = %provider_key,
+                "Rate limit exceeded for OAuth callback"
+            );
+            return Err(AppError::TooManyRequests(
+                "Too many authentication attempts. Please try again later.".to_string(),
+            ));
+        }
+    }
+
     // Handle provider error
     if let Some(error) = query.error {
         let desc = query

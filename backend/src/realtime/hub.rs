@@ -5,6 +5,7 @@ use std::sync::Arc;
 use tokio::sync::{broadcast, RwLock};
 use uuid::Uuid;
 
+use super::cluster_broadcast::ClusterBroadcast;
 use super::events::WsEnvelope;
 
 /// Connection info for a WebSocket client
@@ -27,6 +28,8 @@ pub struct WsHub {
     presence: RwLock<HashMap<Uuid, String>>,
     /// Usernames cache
     usernames: RwLock<HashMap<Uuid, String>>,
+    /// Optional cluster broadcaster for multi-node fan-out
+    cluster_broadcast: RwLock<Option<Arc<ClusterBroadcast>>>,
 }
 
 impl WsHub {
@@ -37,7 +40,13 @@ impl WsHub {
             team_subscriptions: RwLock::new(HashMap::new()),
             presence: RwLock::new(HashMap::new()),
             usernames: RwLock::new(HashMap::new()),
+            cluster_broadcast: RwLock::new(None),
         })
+    }
+
+    pub async fn set_cluster_broadcast(&self, cluster: Arc<ClusterBroadcast>) {
+        let mut slot = self.cluster_broadcast.write().await;
+        *slot = Some(cluster);
     }
 
     /// Add a new connection
@@ -128,6 +137,19 @@ impl WsHub {
 
     /// Broadcast event to specific targets
     pub async fn broadcast(&self, envelope: WsEnvelope) {
+        self.broadcast_local(envelope.clone()).await;
+
+        let cluster = { self.cluster_broadcast.read().await.clone() };
+        if let Some(cluster) = cluster {
+            if let Err(err) = cluster.broadcast_to_cluster(envelope).await {
+                tracing::warn!(error = %err, "Failed to fan out websocket event to cluster");
+            }
+        }
+    }
+
+    /// Broadcast only to local in-process subscribers.
+    /// Used by cluster subscribers to avoid rebroadcast loops.
+    pub async fn broadcast_local(&self, envelope: WsEnvelope) {
         let message = match serde_json::to_string(&envelope) {
             Ok(m) => m,
             Err(_) => return,
@@ -260,6 +282,7 @@ impl Default for WsHub {
             team_subscriptions: RwLock::new(HashMap::new()),
             presence: RwLock::new(HashMap::new()),
             usernames: RwLock::new(HashMap::new()),
+            cluster_broadcast: RwLock::new(None),
         }
     }
 }

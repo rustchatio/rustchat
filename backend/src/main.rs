@@ -1,6 +1,6 @@
 use rustchat::{api, config::Config, db, realtime::WsHub, storage::S3Client, telemetry};
 use std::net::SocketAddr;
-use tracing::info;
+use tracing::{info, warn};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -64,6 +64,21 @@ async fn main() -> anyhow::Result<()> {
     let redis_cfg = deadpool_redis::Config::from_url(&config.redis_url);
     let redis_pool = redis_cfg.create_pool(Some(deadpool_redis::Runtime::Tokio1))?;
     info!("Redis pool initialized");
+
+    let cluster_broadcast = rustchat::realtime::ClusterBroadcast::new(
+        redis_pool.clone(),
+        config.redis_url.clone(),
+        ws_hub.clone(),
+    );
+    match cluster_broadcast.start().await {
+        Ok(()) => {
+            ws_hub.set_cluster_broadcast(cluster_broadcast).await;
+            info!("WebSocket cluster fan-out enabled");
+        }
+        Err(e) => {
+            warn!(error = %e, "Failed to start websocket cluster fan-out; continuing in single-node mode");
+        }
+    }
 
     // Create S3 client
     let s3_client = S3Client::new(

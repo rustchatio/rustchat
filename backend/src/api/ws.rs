@@ -12,6 +12,7 @@ use axum::{
 };
 use futures_util::{SinkExt, StreamExt};
 use serde::Deserialize;
+use tokio::time::Duration;
 
 use super::AppState;
 use crate::api::websocket_core::{self, EnvelopeCommandOptions};
@@ -40,7 +41,9 @@ async fn ws_handler(
 ) -> Response {
     // Check rate limiting if enabled
     if state.config.security.rate_limit_enabled {
-        let config = RateLimitConfig::websocket_default();
+        let config = RateLimitConfig::websocket_per_minute(
+            state.config.security.rate_limit_ws_per_minute,
+        );
         let ip = rate_limit::extract_client_ip(&addr, &headers);
         
         match rate_limit::check_rate_limit(&state.redis, &config, &ip).await {
@@ -76,7 +79,7 @@ async fn ws_handler(
         requested_protocol
     );
 
-    let user_id = match websocket_core::validate_user_id(token.as_deref(), &state.jwt_secret) {
+    let user_id = match websocket_core::validate_user_id(token.as_deref(), &state) {
         Some(user_id) => user_id,
         None => {
             tracing::warn!("WS Handshake failed: Invalid token");
@@ -125,6 +128,21 @@ async fn handle_socket(socket: WebSocket, user_id: uuid::Uuid, username: String,
     websocket_core::register_presence_connection(&state, user_id, &connection_id_str).await;
 
     websocket_core::initialize_connection_state(&state, user_id, true).await;
+
+    let heartbeat_state = state.clone();
+    let heartbeat_connection_id = connection_id_str.clone();
+    let heartbeat_task = tokio::spawn(async move {
+        let mut interval = tokio::time::interval(Duration::from_secs(20));
+        loop {
+            interval.tick().await;
+            websocket_core::heartbeat_presence_connection(
+                &heartbeat_state,
+                user_id,
+                &heartbeat_connection_id,
+            )
+            .await;
+        }
+    });
 
     // Send hello message with connection_id for reliable WebSocket support
     let connection_uuid = uuid::Uuid::new_v4();
@@ -193,6 +211,8 @@ async fn handle_socket(socket: WebSocket, user_id: uuid::Uuid, username: String,
         _ = send_task => {},
         _ = receive_task => {},
     }
+
+    heartbeat_task.abort();
 
     // Cleanup
     state.ws_hub.remove_connection(user_id, connection_id).await;

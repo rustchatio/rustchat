@@ -6,7 +6,7 @@ use axum::{
 };
 use uuid::Uuid;
 
-use super::jwt::{validate_token, Claims};
+use super::jwt::{validate_token_with_policy, Claims};
 use crate::api::AppState;
 use crate::error::AppError;
 
@@ -53,7 +53,12 @@ where
             .ok_or_else(|| AppError::Unauthorized("Invalid authorization format".to_string()))?;
 
         // Validate token
-        let token_data = validate_token(token, &app_state.jwt_secret)?;
+        let token_data = validate_token_with_policy(
+            token,
+            &app_state.jwt_secret,
+            app_state.jwt_issuer.as_deref(),
+            app_state.jwt_audience.as_deref(),
+        )?;
         ensure_user_access_active(&app_state, token_data.claims.sub).await?;
 
         Ok(AuthUser::from(token_data.claims))

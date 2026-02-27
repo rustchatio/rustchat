@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 use crate::api::AppState;
 use crate::auth::middleware::{ensure_user_access_active, FromRef};
-use crate::auth::{validate_token, Claims};
+use crate::auth::{validate_token_with_policy, Claims};
 use crate::error::AppError;
 
 pub struct MmAuthUser {
@@ -76,7 +76,12 @@ where
             ));
         };
 
-        let token_data = validate_token(token, &app_state.jwt_secret)?;
+        let token_data = validate_token_with_policy(
+            token,
+            &app_state.jwt_secret,
+            app_state.jwt_issuer.as_deref(),
+            app_state.jwt_audience.as_deref(),
+        )?;
         ensure_user_access_active(&app_state, token_data.claims.sub).await?;
 
         Ok(MmAuthUser::from(token_data.claims))

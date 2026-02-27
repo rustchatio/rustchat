@@ -28,7 +28,7 @@ use uuid::Uuid;
 use crate::api::v4::calls_plugin;
 use crate::api::websocket_core::{self, EnvelopeCommandOptions};
 use crate::api::AppState;
-use crate::auth::validate_token;
+use crate::auth::validate_token_with_policy;
 use crate::middleware::rate_limit::{self, RateLimitConfig};
 use crate::mattermost_compat::{
     id::{encode_mm_id, parse_mm_or_uuid},
@@ -63,7 +63,9 @@ pub async fn handle_websocket(
 ) -> Response {
     // Check rate limiting if enabled
     if state.config.security.rate_limit_enabled {
-        let config = RateLimitConfig::websocket_default();
+        let config = RateLimitConfig::websocket_per_minute(
+            state.config.security.rate_limit_ws_per_minute,
+        );
         let ip = rate_limit::extract_client_ip(&addr, &headers);
         
         match rate_limit::check_rate_limit(&state.redis, &config, &ip).await {
@@ -117,7 +119,7 @@ pub async fn handle_websocket(
         }
     });
 
-    let user_id = websocket_core::validate_user_id(token.as_deref(), &state.jwt_secret);
+    let user_id = websocket_core::validate_user_id(token.as_deref(), &state);
 
     trace!(
         has_token = token.is_some(),
@@ -188,7 +190,15 @@ async fn authenticate_via_websocket(
             Ok(Some(Ok(Message::Text(text)))) => {
                 if let Some(challenge) = parse_authentication_challenge(&text) {
                     let valid_user = websocket_core::normalize_auth_token(&challenge.token)
-                        .and_then(|t| validate_token(&t, &state.jwt_secret).ok())
+                        .and_then(|t| {
+                            validate_token_with_policy(
+                                &t,
+                                &state.jwt_secret,
+                                state.jwt_issuer.as_deref(),
+                                state.jwt_audience.as_deref(),
+                            )
+                            .ok()
+                        })
                         .map(|c| c.claims.sub);
 
                     if let Some(user_id) = valid_user {
@@ -300,6 +310,21 @@ async fn run_connection(
     websocket_core::register_presence_connection(&state, user_id, &presence_connection_id).await;
 
     websocket_core::initialize_connection_state(&state, user_id, true).await;
+
+    let heartbeat_state = state.clone();
+    let heartbeat_connection_id = presence_connection_id.clone();
+    let heartbeat_task = tokio::spawn(async move {
+        let mut interval = tokio::time::interval(Duration::from_secs(20));
+        loop {
+            interval.tick().await;
+            websocket_core::heartbeat_presence_connection(
+                &heartbeat_state,
+                user_id,
+                &heartbeat_connection_id,
+            )
+            .await;
+        }
+    });
 
     // Send hello event. Mattermost reliable websocket clients reset their local sequence
     // to 0 whenever connection_id changes, so hello.seq must also be 0 in that case.
@@ -492,6 +517,7 @@ async fn run_connection(
 
     // Cleanup
     hub_forward_task.abort();
+    heartbeat_task.abort();
 
     // Mark connection as disconnected (for potential resumption)
     actor.disconnect();

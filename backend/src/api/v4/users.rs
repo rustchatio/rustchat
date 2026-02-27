@@ -6,15 +6,15 @@ use axum::{
     routing::{get, post, put},
     Json, Router,
 };
-use chrono::{DateTime, Utc};
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use uuid::Uuid;
 
 use super::extractors::MmAuthUser;
 use crate::api::AppState;
-use crate::auth::{create_token, hash_password, verify_password};
+use crate::auth::{create_token_with_policy, hash_password, verify_password};
 use crate::error::{ApiResult, AppError};
+use crate::middleware::rate_limit::{self, RateLimitConfig};
 use crate::mattermost_compat::{
     id::{encode_mm_id, parse_mm_or_uuid},
     models as mm,
@@ -275,6 +275,27 @@ async fn login(
         .or(input.email)
         .ok_or_else(|| AppError::BadRequest("Missing login_id".to_string()))?;
 
+    // Apply centralized auth throttling for v4 login as well.
+    if state.config.security.rate_limit_enabled {
+        let config = RateLimitConfig::auth_per_minute(
+            state.config.security.rate_limit_auth_per_minute,
+        );
+        let ip_key = rate_limit::extract_client_ip_from_headers(&headers)
+            .unwrap_or_else(|| "unknown".to_string());
+        let rate_result = rate_limit::check_rate_limit(&state.redis, &config, &ip_key).await?;
+
+        if !rate_result.allowed {
+            tracing::warn!(
+                ip = %ip_key,
+                login_id = %login_id,
+                "Rate limit exceeded for v4 login"
+            );
+            return Err(AppError::TooManyRequests(
+                "Too many login attempts. Please try again later.".to_string(),
+            ));
+        }
+    }
+
     let user: Option<User> = sqlx::query_as(
         "SELECT * FROM users WHERE (email = $1 OR username = $1) AND is_active = true AND deleted_at IS NULL",
     )
@@ -284,6 +305,23 @@ async fn login(
 
     let user =
         user.ok_or_else(|| AppError::Unauthorized("Invalid login credentials".to_string()))?;
+
+    if state.config.security.rate_limit_enabled {
+        let config = RateLimitConfig::auth_per_minute(
+            state.config.security.rate_limit_auth_per_minute,
+        );
+        let user_key = format!("user:{}", user.id);
+        let user_result = rate_limit::check_rate_limit(&state.redis, &config, &user_key).await?;
+        if !user_result.allowed {
+            tracing::warn!(
+                user_id = %user.id,
+                "Rate limit exceeded for v4 user login"
+            );
+            return Err(AppError::TooManyRequests(
+                "Too many login attempts. Please try again later.".to_string(),
+            ));
+        }
+    }
 
     // Verify password (OAuth users without password cannot login with password)
     let password_hash = user.password_hash.as_deref()
@@ -302,12 +340,14 @@ async fn login(
         .await?;
 
     // Generate token
-    let token = create_token(
+    let token = create_token_with_policy(
         user.id,
         &user.email,
         &user.role,
         user.org_id,
         &state.jwt_secret,
+        state.jwt_issuer.as_deref(),
+        state.jwt_audience.as_deref(),
         state.jwt_expiry_hours,
     )?;
 
@@ -324,8 +364,14 @@ async fn login(
     headers.insert(
         axum::http::header::SET_COOKIE,
         HeaderValue::from_str(&format!(
-            "MMAUTHTOKEN={}; Path=/; Max-Age={}; HttpOnly",
-            token, max_age
+            "MMAUTHTOKEN={}; Path=/; Max-Age={}; HttpOnly{}; SameSite=Lax",
+            token,
+            max_age,
+            if state.config.is_production() {
+                "; Secure"
+            } else {
+                ""
+            }
         ))
         .unwrap(),
     );

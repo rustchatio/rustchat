@@ -26,19 +26,19 @@ pub struct RateLimitConfig {
 }
 
 impl RateLimitConfig {
-    /// Default configuration for auth endpoints (login, register)
-    pub fn auth_default() -> Self {
+    /// Configurable auth endpoint limits (per minute)
+    pub fn auth_per_minute(max_requests: u32) -> Self {
         Self {
-            max_requests: 10,
+            max_requests,
             window_seconds: 60,
             key_prefix: "ratelimit:auth".to_string(),
         }
     }
 
-    /// Default configuration for WebSocket connections
-    pub fn websocket_default() -> Self {
+    /// Configurable WebSocket connection attempt limits (per minute)
+    pub fn websocket_per_minute(max_requests: u32) -> Self {
         Self {
-            max_requests: 30,
+            max_requests,
             window_seconds: 60,
             key_prefix: "ratelimit:ws".to_string(),
         }
@@ -131,8 +131,8 @@ pub async fn check_rate_limit(
     })
 }
 
-/// Extract client IP for rate limiting
-pub fn extract_client_ip(addr: &SocketAddr, headers: &axum::http::HeaderMap) -> String {
+/// Extract client IP from forwarding headers if present.
+pub fn extract_client_ip_from_headers(headers: &axum::http::HeaderMap) -> Option<String> {
     // Check for X-Forwarded-For header (when behind proxy)
     if let Some(forwarded) = headers
         .get("X-Forwarded-For")
@@ -142,7 +142,7 @@ pub fn extract_client_ip(addr: &SocketAddr, headers: &axum::http::HeaderMap) -> 
         let first_ip = forwarded.split(',').next().map(|s| s.trim());
         if let Some(ip) = first_ip {
             if !ip.is_empty() {
-                return ip.to_string();
+                return Some(ip.to_string());
             }
         }
     }
@@ -152,7 +152,18 @@ pub fn extract_client_ip(addr: &SocketAddr, headers: &axum::http::HeaderMap) -> 
         .get("X-Real-IP")
         .and_then(|v| v.to_str().ok())
     {
-        return real_ip.to_string();
+        if !real_ip.is_empty() {
+            return Some(real_ip.to_string());
+        }
+    }
+
+    None
+}
+
+/// Extract client IP for rate limiting
+pub fn extract_client_ip(addr: &SocketAddr, headers: &axum::http::HeaderMap) -> String {
+    if let Some(ip) = extract_client_ip_from_headers(headers) {
+        return ip;
     }
 
     // Fall back to direct connection IP
@@ -270,5 +281,11 @@ mod tests {
         headers.insert("X-Real-IP", "10.0.0.5".parse().unwrap());
         
         assert_eq!(extract_client_ip(&addr, &headers), "10.0.0.5");
+    }
+
+    #[test]
+    fn test_extract_client_ip_from_headers_none() {
+        let headers = HeaderMap::new();
+        assert!(extract_client_ip_from_headers(&headers).is_none());
     }
 }
