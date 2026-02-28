@@ -10,7 +10,8 @@ use std::collections::HashMap;
 
 use super::extractors::MmAuthUser;
 use crate::api::AppState;
-use crate::error::ApiResult;
+use crate::auth::policy::permissions;
+use crate::error::{ApiResult, AppError};
 use crate::mattermost_compat::{
     id::{encode_mm_id, parse_mm_or_uuid},
     models as mm,
@@ -1129,11 +1130,20 @@ async fn autocomplete_team_commands(
 
 async fn get_team_groups(
     State(state): State<AppState>,
+    auth: MmAuthUser,
     Path(team_id): Path<String>,
-    Query(_query): Query<serde_json::Value>,
+    Query(query): Query<GroupAssociationQuery>,
 ) -> ApiResult<Json<serde_json::Value>> {
     let team_id = parse_mm_or_uuid(&team_id)
-        .ok_or_else(|| crate::error::AppError::BadRequest("Invalid team_id".to_string()))?;
+        .ok_or_else(|| AppError::BadRequest("Invalid team_id".to_string()))?;
+
+    if !auth.has_permission(&permissions::SYSTEM_MANAGE) {
+        ensure_team_member(&state, team_id, auth.user_id).await?;
+    }
+
+    let search_term = query.q.clone().unwrap_or_default().to_ascii_lowercase();
+    let filter_allow_reference = should_filter_allow_reference(&auth, &query);
+    let (paginate, offset, per_page) = pagination_from_group_query(&query);
 
     let rows: Vec<TeamGroupRow> = sqlx::query_as(
         r#"
@@ -1167,26 +1177,54 @@ async fn get_team_groups(
          AND gs.syncable_id = $1
          AND gs.delete_at IS NULL
         WHERE g.deleted_at IS NULL
+          AND ($2 = FALSE OR g.allow_reference = TRUE)
+          AND (
+                $3 = ''
+                OR LOWER(COALESCE(g.name, '')) LIKE $4
+                OR LOWER(g.display_name) LIKE $4
+          )
         ORDER BY g.display_name ASC
         "#,
     )
     .bind(team_id)
+    .bind(filter_allow_reference)
+    .bind(&search_term)
+    .bind(format!("%{}%", search_term))
     .fetch_all(&state.db)
     .await?;
 
+    let total_group_count = rows.len();
+    let paged_rows = if paginate {
+        rows.into_iter()
+            .skip(offset)
+            .take(per_page)
+            .collect::<Vec<_>>()
+    } else {
+        rows
+    };
+
     Ok(Json(serde_json::json!({
-        "groups": rows.iter().map(team_group_json).collect::<Vec<_>>(),
-        "total_group_count": rows.len()
+        "groups": paged_rows.iter().map(team_group_json).collect::<Vec<_>>(),
+        "total_group_count": total_group_count
     })))
 }
 
 async fn get_team_groups_by_channels(
     State(state): State<AppState>,
+    auth: MmAuthUser,
     Path(team_id): Path<String>,
-    Query(_query): Query<serde_json::Value>,
+    Query(query): Query<GroupAssociationQuery>,
 ) -> ApiResult<Json<serde_json::Value>> {
     let team_id = parse_mm_or_uuid(&team_id)
-        .ok_or_else(|| crate::error::AppError::BadRequest("Invalid team_id".to_string()))?;
+        .ok_or_else(|| AppError::BadRequest("Invalid team_id".to_string()))?;
+
+    if !auth.has_permission(&permissions::SYSTEM_MANAGE) {
+        ensure_team_member(&state, team_id, auth.user_id).await?;
+    }
+
+    let search_term = query.q.clone().unwrap_or_default().to_ascii_lowercase();
+    let filter_allow_reference = should_filter_allow_reference(&auth, &query);
+    let (paginate, offset, per_page) = pagination_from_group_query(&query);
 
     let rows: Vec<ChannelGroupByTeamRow> = sqlx::query_as(
         r#"
@@ -1222,10 +1260,19 @@ async fn get_team_groups_by_channels(
         JOIN groups g ON g.id = gs.group_id
         WHERE c.team_id = $1
           AND g.deleted_at IS NULL
+          AND ($2 = FALSE OR g.allow_reference = TRUE)
+          AND (
+                $3 = ''
+                OR LOWER(COALESCE(g.name, '')) LIKE $4
+                OR LOWER(g.display_name) LIKE $4
+          )
         ORDER BY c.id, g.display_name ASC
         "#,
     )
     .bind(team_id)
+    .bind(filter_allow_reference)
+    .bind(&search_term)
+    .bind(format!("%{}%", search_term))
     .fetch_all(&state.db)
     .await?;
 
@@ -1251,9 +1298,47 @@ async fn get_team_groups_by_channels(
             ));
     }
 
+    if paginate {
+        for groups in grouped.values_mut() {
+            let paged = groups
+                .iter()
+                .skip(offset)
+                .take(per_page)
+                .cloned()
+                .collect::<Vec<_>>();
+            *groups = paged;
+        }
+    }
+
     Ok(Json(serde_json::json!({
         "groups": grouped
     })))
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct GroupAssociationQuery {
+    q: Option<String>,
+    include_member_count: Option<bool>,
+    filter_allow_reference: Option<bool>,
+    page: Option<i64>,
+    per_page: Option<i64>,
+    paginate: Option<bool>,
+}
+
+fn should_filter_allow_reference(auth: &MmAuthUser, query: &GroupAssociationQuery) -> bool {
+    let has_system_group_read = auth.has_permission(&permissions::SYSTEM_MANAGE)
+        || auth.has_permission(&permissions::ADMIN_FULL);
+
+    query.filter_allow_reference.unwrap_or(false) || !has_system_group_read
+}
+
+fn pagination_from_group_query(query: &GroupAssociationQuery) -> (bool, usize, usize) {
+    let _ = query.include_member_count.unwrap_or(false);
+    let paginate = query.paginate.unwrap_or(true);
+    let page = query.page.unwrap_or(0).max(0) as usize;
+    let per_page = query.per_page.unwrap_or(60).clamp(1, 200) as usize;
+    let offset = page.saturating_mul(per_page);
+    (paginate, offset, per_page)
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]

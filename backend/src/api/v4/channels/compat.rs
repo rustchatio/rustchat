@@ -11,6 +11,7 @@ use uuid::Uuid;
 
 use super::MmAuthUser;
 use crate::api::AppState;
+use crate::auth::policy::permissions;
 use crate::error::{ApiResult, AppError};
 use crate::mattermost_compat::id::{encode_mm_id, parse_mm_or_uuid};
 
@@ -486,11 +487,18 @@ pub(super) async fn get_channel_common_teams(
 /// GET /api/v4/channels/{channel_id}/groups
 pub(super) async fn get_channel_groups(
     State(state): State<AppState>,
-    _auth: MmAuthUser,
+    auth: MmAuthUser,
     Path(channel_id): Path<String>,
+    Query(query): Query<GroupAssociationQuery>,
 ) -> ApiResult<Json<serde_json::Value>> {
     let channel_id = parse_mm_or_uuid(&channel_id)
         .ok_or_else(|| AppError::BadRequest("Invalid channel_id".to_string()))?;
+
+    enforce_channel_group_read_permission(&state, &auth, channel_id).await?;
+
+    let search_term = query.q.clone().unwrap_or_default().to_ascii_lowercase();
+    let filter_allow_reference = should_filter_allow_reference(&auth, &query);
+    let (paginate, offset, per_page) = pagination_from_group_query(&query);
 
     let rows: Vec<ChannelGroupRow> = sqlx::query_as(
         r#"
@@ -524,16 +532,35 @@ pub(super) async fn get_channel_groups(
          AND gs.syncable_id = $1
          AND gs.delete_at IS NULL
         WHERE g.deleted_at IS NULL
+          AND ($2 = FALSE OR g.allow_reference = TRUE)
+          AND (
+                $3 = ''
+                OR LOWER(COALESCE(g.name, '')) LIKE $4
+                OR LOWER(g.display_name) LIKE $4
+          )
         ORDER BY g.display_name ASC
         "#,
     )
     .bind(channel_id)
+    .bind(filter_allow_reference)
+    .bind(&search_term)
+    .bind(format!("%{}%", search_term))
     .fetch_all(&state.db)
     .await?;
 
+    let total_group_count = rows.len();
+    let paged_rows = if paginate {
+        rows.into_iter()
+            .skip(offset)
+            .take(per_page)
+            .collect::<Vec<_>>()
+    } else {
+        rows
+    };
+
     Ok(Json(serde_json::json!({
-        "groups": rows.iter().map(channel_group_json).collect::<Vec<_>>(),
-        "total_group_count": rows.len()
+        "groups": paged_rows.iter().map(channel_group_json).collect::<Vec<_>>(),
+        "total_group_count": total_group_count
     })))
 }
 
@@ -561,6 +588,100 @@ struct ChannelGroupRow {
     scheme_admin: bool,
     has_syncables: bool,
     member_count: i64,
+}
+
+#[derive(Debug, Deserialize, Default)]
+pub(super) struct GroupAssociationQuery {
+    q: Option<String>,
+    include_member_count: Option<bool>,
+    filter_allow_reference: Option<bool>,
+    page: Option<i64>,
+    per_page: Option<i64>,
+    paginate: Option<bool>,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct ChannelGroupAccessRow {
+    team_id: Option<Uuid>,
+    channel_type: String,
+}
+
+async fn enforce_channel_group_read_permission(
+    state: &AppState,
+    auth: &MmAuthUser,
+    channel_id: Uuid,
+) -> ApiResult<()> {
+    if auth.has_permission(&permissions::SYSTEM_MANAGE)
+        || auth.has_permission(&permissions::ADMIN_FULL)
+    {
+        return Ok(());
+    }
+
+    let channel: ChannelGroupAccessRow =
+        sqlx::query_as("SELECT team_id, type::text AS channel_type FROM channels WHERE id = $1")
+            .bind(channel_id)
+            .fetch_optional(&state.db)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Channel not found".to_string()))?;
+
+    let is_channel_member: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM channel_members WHERE channel_id = $1 AND user_id = $2)",
+    )
+    .bind(channel_id)
+    .bind(auth.user_id)
+    .fetch_one(&state.db)
+    .await?;
+
+    if channel.channel_type == "private" {
+        if !is_channel_member {
+            return Err(AppError::Forbidden(
+                "Missing permission to view groups for this private channel".to_string(),
+            ));
+        }
+        return Ok(());
+    }
+
+    if channel.channel_type == "public" {
+        if let Some(team_id) = channel.team_id {
+            let is_team_member: bool = sqlx::query_scalar(
+                "SELECT EXISTS(SELECT 1 FROM team_members WHERE team_id = $1 AND user_id = $2)",
+            )
+            .bind(team_id)
+            .bind(auth.user_id)
+            .fetch_one(&state.db)
+            .await?;
+            if !is_team_member {
+                return Err(AppError::Forbidden(
+                    "Missing permission to view groups for this public channel".to_string(),
+                ));
+            }
+            return Ok(());
+        }
+    }
+
+    if !is_channel_member {
+        return Err(AppError::Forbidden(
+            "Missing permission to view groups for this channel".to_string(),
+        ));
+    }
+
+    Ok(())
+}
+
+fn should_filter_allow_reference(auth: &MmAuthUser, query: &GroupAssociationQuery) -> bool {
+    let has_system_group_read = auth.has_permission(&permissions::SYSTEM_MANAGE)
+        || auth.has_permission(&permissions::ADMIN_FULL);
+
+    query.filter_allow_reference.unwrap_or(false) || !has_system_group_read
+}
+
+fn pagination_from_group_query(query: &GroupAssociationQuery) -> (bool, usize, usize) {
+    let _ = query.include_member_count.unwrap_or(false);
+    let paginate = query.paginate.unwrap_or(true);
+    let page = query.page.unwrap_or(0).max(0) as usize;
+    let per_page = query.per_page.unwrap_or(60).clamp(1, 200) as usize;
+    let offset = page.saturating_mul(per_page);
+    (paginate, offset, per_page)
 }
 
 fn channel_group_json(row: &ChannelGroupRow) -> serde_json::Value {

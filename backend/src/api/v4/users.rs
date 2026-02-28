@@ -23,7 +23,7 @@ use crate::mattermost_compat::{
 };
 use crate::middleware::rate_limit::{self, RateLimitConfig};
 use crate::models::{channel::Channel, Team, TeamMember, User};
-use crate::services::oauth_token_exchange::{exchange_code, ExchangeError};
+use crate::services::oauth_token_exchange::{exchange_code_with_sso_verification, ExchangeError};
 
 mod preferences;
 mod sidebar_categories;
@@ -401,8 +401,27 @@ async fn login_sso_code_exchange(
         .map(str::trim)
         .filter(|v| !v.is_empty())
         .ok_or_else(|| AppError::BadRequest("Missing login_code".to_string()))?;
+    let code_verifier = input
+        .code_verifier
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .ok_or_else(|| AppError::BadRequest("Missing code_verifier".to_string()))?;
+    let exchange_state = input
+        .state
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .ok_or_else(|| AppError::BadRequest("Missing state".to_string()))?;
 
-    let payload = match exchange_code(&state.redis, code).await {
+    let payload = match exchange_code_with_sso_verification(
+        &state.redis,
+        code,
+        code_verifier,
+        exchange_state,
+    )
+    .await
+    {
         Ok(payload) => payload,
         Err(ExchangeError::InvalidCode) => {
             return Err(AppError::BadRequest(
@@ -412,6 +431,22 @@ async fn login_sso_code_exchange(
         Err(ExchangeError::CodeExpired) => {
             return Err(AppError::BadRequest(
                 "Exchange code has expired".to_string(),
+            ));
+        }
+        Err(ExchangeError::SsoVerificationRequired) => {
+            return Err(AppError::BadRequest(
+                "Exchange code is missing SSO verification metadata".to_string(),
+            ));
+        }
+        Err(ExchangeError::StateMismatch) => {
+            return Err(AppError::BadRequest("SSO state mismatch".to_string()));
+        }
+        Err(ExchangeError::ChallengeMismatch) => {
+            return Err(AppError::BadRequest("SSO challenge mismatch".to_string()));
+        }
+        Err(ExchangeError::UnsupportedChallengeMethod) => {
+            return Err(AppError::BadRequest(
+                "Unsupported SSO challenge method".to_string(),
             ));
         }
         Err(ExchangeError::Internal(msg)) => {
@@ -3017,6 +3052,7 @@ async fn get_user_groups(
     State(state): State<AppState>,
     auth: MmAuthUser,
     Path(user_id): Path<String>,
+    Query(query): Query<GroupAssociationQuery>,
 ) -> ApiResult<Json<Vec<serde_json::Value>>> {
     let user_uuid = if user_id == "me" {
         auth.user_id
@@ -3030,6 +3066,12 @@ async fn get_user_groups(
             "Missing permission to view other user's groups".to_string(),
         ));
     }
+
+    let has_system_group_read = auth.has_permission(&permissions::SYSTEM_MANAGE)
+        || auth.has_permission(&permissions::ADMIN_FULL);
+    let filter_allow_reference =
+        query.filter_allow_reference.unwrap_or(false) || !has_system_group_read;
+    let search_term = query.q.unwrap_or_default().to_ascii_lowercase();
 
     let rows: Vec<UserGroupRow> = sqlx::query_as(
         r#"
@@ -3059,14 +3101,29 @@ async fn get_user_groups(
         JOIN group_members gm ON gm.group_id = g.id
         WHERE gm.user_id = $1
           AND g.deleted_at IS NULL
+          AND ($2 = FALSE OR g.allow_reference = TRUE)
+          AND (
+                $3 = ''
+                OR LOWER(COALESCE(g.name, '')) LIKE $4
+                OR LOWER(g.display_name) LIKE $4
+          )
         ORDER BY g.display_name ASC
         "#,
     )
     .bind(user_uuid)
+    .bind(filter_allow_reference)
+    .bind(&search_term)
+    .bind(format!("%{}%", search_term))
     .fetch_all(&state.db)
     .await?;
 
     Ok(Json(rows.iter().map(user_group_json).collect()))
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct GroupAssociationQuery {
+    q: Option<String>,
+    filter_allow_reference: Option<bool>,
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]

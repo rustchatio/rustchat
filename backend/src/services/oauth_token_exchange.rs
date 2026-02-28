@@ -19,6 +19,20 @@ pub struct ExchangeCodePayload {
     pub role: String,
     pub org_id: Option<Uuid>,
     pub created_at: i64,
+    #[serde(default)]
+    pub expected_state: Option<String>,
+    #[serde(default)]
+    pub code_challenge: Option<String>,
+    #[serde(default)]
+    pub code_challenge_method: Option<String>,
+}
+
+/// Optional SSO verification metadata persisted with an exchange code.
+#[derive(Debug, Clone)]
+pub struct SsoExchangeChallenge {
+    pub expected_state: String,
+    pub code_challenge: String,
+    pub code_challenge_method: String,
 }
 
 /// Generate a secure one-time exchange code
@@ -40,8 +54,30 @@ pub async fn create_exchange_code(
     role: String,
     org_id: Option<Uuid>,
 ) -> Result<String, AppError> {
+    create_exchange_code_with_sso(redis, user_id, email, role, org_id, None).await
+}
+
+/// Store token data and return an exchange code with optional SSO challenge metadata.
+pub async fn create_exchange_code_with_sso(
+    redis: &deadpool_redis::Pool,
+    user_id: Uuid,
+    email: String,
+    role: String,
+    org_id: Option<Uuid>,
+    sso_challenge: Option<SsoExchangeChallenge>,
+) -> Result<String, AppError> {
     let code = generate_exchange_code();
     let key = format!("{}{}", OAUTH_CODE_PREFIX, code);
+
+    let (expected_state, code_challenge, code_challenge_method) = sso_challenge
+        .map(|challenge| {
+            (
+                Some(challenge.expected_state),
+                Some(challenge.code_challenge),
+                Some(challenge.code_challenge_method),
+            )
+        })
+        .unwrap_or((None, None, None));
 
     let payload = ExchangeCodePayload {
         user_id,
@@ -49,6 +85,9 @@ pub async fn create_exchange_code(
         role,
         org_id,
         created_at: chrono::Utc::now().timestamp(),
+        expected_state,
+        code_challenge,
+        code_challenge_method,
     };
 
     let serialized = serde_json::to_string(&payload)
@@ -72,6 +111,24 @@ pub async fn create_exchange_code(
 pub async fn exchange_code(
     redis: &deadpool_redis::Pool,
     code: &str,
+) -> Result<ExchangeCodePayload, ExchangeError> {
+    exchange_code_internal(redis, code, None).await
+}
+
+/// Exchange a code using mandatory state + verifier validation.
+pub async fn exchange_code_with_sso_verification(
+    redis: &deadpool_redis::Pool,
+    code: &str,
+    code_verifier: &str,
+    state: &str,
+) -> Result<ExchangeCodePayload, ExchangeError> {
+    exchange_code_internal(redis, code, Some((code_verifier, state))).await
+}
+
+async fn exchange_code_internal(
+    redis: &deadpool_redis::Pool,
+    code: &str,
+    verification: Option<(&str, &str)>,
 ) -> Result<ExchangeCodePayload, ExchangeError> {
     let key = format!("{}{}", OAUTH_CODE_PREFIX, code);
 
@@ -108,7 +165,61 @@ pub async fn exchange_code(
         return Err(ExchangeError::CodeExpired);
     }
 
+    verify_sso_metadata(&payload, verification)?;
+
     Ok(payload)
+}
+
+fn verify_sso_metadata(
+    payload: &ExchangeCodePayload,
+    verification: Option<(&str, &str)>,
+) -> Result<(), ExchangeError> {
+    let requires_verification = payload.expected_state.is_some()
+        || payload.code_challenge.is_some()
+        || payload.code_challenge_method.is_some();
+
+    if !requires_verification {
+        return Ok(());
+    }
+
+    let expected_state = payload
+        .expected_state
+        .as_deref()
+        .ok_or(ExchangeError::InvalidCode)?;
+    let code_challenge = payload
+        .code_challenge
+        .as_deref()
+        .ok_or(ExchangeError::InvalidCode)?;
+    let (code_verifier, state) = verification.ok_or(ExchangeError::SsoVerificationRequired)?;
+
+    if state != expected_state {
+        return Err(ExchangeError::StateMismatch);
+    }
+
+    let method = payload
+        .code_challenge_method
+        .as_deref()
+        .unwrap_or("S256")
+        .to_ascii_uppercase();
+
+    let computed_challenge = match method.as_str() {
+        "S256" => {
+            use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
+            use sha2::{Digest, Sha256};
+
+            let hash = Sha256::digest(code_verifier.as_bytes());
+            URL_SAFE_NO_PAD.encode(hash)
+        }
+        "" => code_verifier.to_string(),
+        "PLAIN" => return Err(ExchangeError::UnsupportedChallengeMethod),
+        _ => return Err(ExchangeError::UnsupportedChallengeMethod),
+    };
+
+    if computed_challenge != code_challenge {
+        return Err(ExchangeError::ChallengeMismatch);
+    }
+
+    Ok(())
 }
 
 /// Errors that can occur during code exchange
@@ -116,6 +227,10 @@ pub async fn exchange_code(
 pub enum ExchangeError {
     InvalidCode,
     CodeExpired,
+    SsoVerificationRequired,
+    StateMismatch,
+    ChallengeMismatch,
+    UnsupportedChallengeMethod,
     Internal(String),
 }
 
@@ -124,6 +239,14 @@ impl std::fmt::Display for ExchangeError {
         match self {
             ExchangeError::InvalidCode => write!(f, "Invalid or used exchange code"),
             ExchangeError::CodeExpired => write!(f, "Exchange code has expired"),
+            ExchangeError::SsoVerificationRequired => {
+                write!(f, "Exchange code requires state and code_verifier")
+            }
+            ExchangeError::StateMismatch => write!(f, "SSO state mismatch"),
+            ExchangeError::ChallengeMismatch => write!(f, "SSO challenge mismatch"),
+            ExchangeError::UnsupportedChallengeMethod => {
+                write!(f, "Unsupported SSO challenge method")
+            }
             ExchangeError::Internal(msg) => write!(f, "Internal error: {}", msg),
         }
     }
@@ -134,9 +257,12 @@ impl std::error::Error for ExchangeError {}
 impl From<ExchangeError> for AppError {
     fn from(err: ExchangeError) -> Self {
         match err {
-            ExchangeError::InvalidCode | ExchangeError::CodeExpired => {
-                AppError::BadRequest(err.to_string())
-            }
+            ExchangeError::InvalidCode
+            | ExchangeError::CodeExpired
+            | ExchangeError::SsoVerificationRequired
+            | ExchangeError::StateMismatch
+            | ExchangeError::ChallengeMismatch
+            | ExchangeError::UnsupportedChallengeMethod => AppError::BadRequest(err.to_string()),
             ExchangeError::Internal(msg) => AppError::Internal(msg),
         }
     }

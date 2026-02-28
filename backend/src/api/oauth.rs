@@ -23,7 +23,9 @@ use crate::crypto;
 use crate::error::{ApiResult, AppError};
 use crate::middleware::reliability::{send_reqwest_with_retry, RetryCondition, RetryConfig};
 use crate::models::{OAuthProviderInfo, SsoConfig, SsoProviderType};
-use crate::services::oauth_token_exchange::create_exchange_code;
+use crate::services::oauth_token_exchange::{
+    create_exchange_code, create_exchange_code_with_sso, SsoExchangeChallenge,
+};
 use crate::services::oidc_discovery::{find_signing_key, OidcDiscoveryService};
 
 const OAUTH_STATE_PREFIX: &str = "rustchat:oauth:state:";
@@ -50,6 +52,13 @@ struct OAuthStatePayload {
     code_challenge_method: Option<String>,
     // Mobile app flag
     is_mobile: bool,
+    // Mobile SSO code exchange challenge values from client.
+    #[serde(default)]
+    mobile_sso_state: Option<String>,
+    #[serde(default)]
+    mobile_sso_code_challenge: Option<String>,
+    #[serde(default)]
+    mobile_sso_code_challenge_method: Option<String>,
 }
 
 /// OAuth callback query parameters
@@ -66,6 +75,9 @@ pub struct OAuthCallbackQuery {
 pub struct OAuthLoginQuery {
     pub redirect_uri: Option<String>,
     pub mobile: Option<bool>, // If true, redirect to mobile app scheme instead of web
+    pub state: Option<String>,
+    pub code_challenge: Option<String>,
+    pub code_challenge_method: Option<String>,
 }
 
 /// Token response from OAuth provider
@@ -200,6 +212,22 @@ async fn exchange_token(
         Err(ExchangeError::CodeExpired) => {
             return Err(AppError::BadRequest(
                 "Exchange code has expired".to_string(),
+            ));
+        }
+        Err(ExchangeError::SsoVerificationRequired) => {
+            return Err(AppError::BadRequest(
+                "Exchange code requires additional SSO verification".to_string(),
+            ));
+        }
+        Err(ExchangeError::StateMismatch) => {
+            return Err(AppError::BadRequest("SSO state mismatch".to_string()));
+        }
+        Err(ExchangeError::ChallengeMismatch) => {
+            return Err(AppError::BadRequest("SSO challenge mismatch".to_string()));
+        }
+        Err(ExchangeError::UnsupportedChallengeMethod) => {
+            return Err(AppError::BadRequest(
+                "Unsupported SSO challenge method".to_string(),
             ));
         }
         Err(ExchangeError::Internal(msg)) => {
@@ -490,6 +518,25 @@ async fn oauth_login(
         }
     };
 
+    let mobile_sso_state = query
+        .state
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned);
+    let mobile_sso_code_challenge = query
+        .code_challenge
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToOwned::to_owned);
+    let mobile_sso_code_challenge_method = query
+        .code_challenge_method
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|value| value.to_ascii_uppercase());
+
     let state_payload = OAuthStatePayload {
         provider_key: provider_key.clone(),
         redirect_after,
@@ -498,6 +545,9 @@ async fn oauth_login(
         code_verifier: code_verifier.clone(),
         code_challenge_method: code_challenge.as_ref().map(|_| "S256".to_string()),
         is_mobile: query.mobile.unwrap_or(false),
+        mobile_sso_state,
+        mobile_sso_code_challenge,
+        mobile_sso_code_challenge_method,
     };
 
     // Store state in Redis
@@ -738,14 +788,45 @@ async fn oauth_callback(
     let user = find_or_create_user(&state, &email, &user_info, &config, &provider_key).await?;
 
     // Secure default: one-time code exchange, never token in URL.
-    let exchange_code = create_exchange_code(
-        &state.redis,
-        user.id,
-        user.email.clone(),
-        user.role.clone(),
-        user.org_id,
-    )
-    .await?;
+    let sso_challenge = if stored_state.is_mobile {
+        match (
+            stored_state.mobile_sso_state.clone(),
+            stored_state.mobile_sso_code_challenge.clone(),
+        ) {
+            (Some(expected_state), Some(code_challenge)) => Some(SsoExchangeChallenge {
+                expected_state,
+                code_challenge,
+                code_challenge_method: stored_state
+                    .mobile_sso_code_challenge_method
+                    .clone()
+                    .unwrap_or_else(|| "S256".to_string()),
+            }),
+            _ => None,
+        }
+    } else {
+        None
+    };
+
+    let exchange_code = if sso_challenge.is_some() {
+        create_exchange_code_with_sso(
+            &state.redis,
+            user.id,
+            user.email.clone(),
+            user.role.clone(),
+            user.org_id,
+            sso_challenge,
+        )
+        .await?
+    } else {
+        create_exchange_code(
+            &state.redis,
+            user.id,
+            user.email.clone(),
+            user.role.clone(),
+            user.org_id,
+        )
+        .await?
+    };
 
     tracing::info!(
         user_id = %user.id,
@@ -755,7 +836,8 @@ async fn oauth_callback(
     let redirect_url = if stored_state.is_mobile {
         // Mobile apps also use exchange codes
         format!(
-            "rustchat://oauth/complete?code={}",
+            "rustchat://oauth/complete?login_code={}&code={}",
+            urlencoding::encode(&exchange_code),
             urlencoding::encode(&exchange_code)
         )
     } else {

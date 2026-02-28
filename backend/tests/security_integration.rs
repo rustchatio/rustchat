@@ -183,6 +183,9 @@ async fn test_oauth_exchange_code() {
         role: "member".to_string(),
         org_id: Some(Uuid::new_v4()),
         created_at: chrono::Utc::now().timestamp() - 120,
+        expected_state: None,
+        code_challenge: None,
+        code_challenge_method: None,
     };
     let mut redis_conn = app
         .redis_pool

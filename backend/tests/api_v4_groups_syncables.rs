@@ -112,6 +112,14 @@ async fn set_user_role(app: &common::TestApp, email: &str, role: &str) {
         .expect("failed to update user role");
 }
 
+async fn user_id_by_email(app: &common::TestApp, email: &str) -> Uuid {
+    sqlx::query_scalar("SELECT id FROM users WHERE email = $1")
+        .bind(email)
+        .fetch_one(&app.db_pool)
+        .await
+        .expect("failed to fetch user id")
+}
+
 async fn wait_for_condition<F, Fut>(mut condition: F, timeout: Duration)
 where
     F: FnMut() -> Fut,
@@ -475,4 +483,280 @@ async fn v4_team_admin_can_link_team_syncable_without_system_role() {
         .expect("link request failed");
 
     assert_eq!(response.status().as_u16(), 201);
+}
+
+#[tokio::test]
+async fn v4_group_association_queries_and_visibility_match_expected_contract() {
+    let _guard = TEST_MUTEX.lock().expect("test mutex poisoned");
+    let app = spawn_app().await;
+
+    register_user(
+        &app,
+        "assoc_admin",
+        "assoc_admin@example.com",
+        "Password123!",
+    )
+    .await;
+    register_user(
+        &app,
+        "assoc_member",
+        "assoc_member@example.com",
+        "Password123!",
+    )
+    .await;
+    set_user_role(&app, "assoc_admin@example.com", "system_admin").await;
+
+    let admin_token = login_token(&app, "assoc_admin@example.com", "Password123!").await;
+    let member_token = login_token(&app, "assoc_member@example.com", "Password123!").await;
+
+    let member_id = user_id_by_email(&app, "assoc_member@example.com").await;
+    let team = create_team(&app, &admin_token, "assoc-team").await;
+
+    sqlx::query("INSERT INTO team_members (team_id, user_id, role) VALUES ($1, $2, 'member')")
+        .bind(team.id)
+        .bind(member_id)
+        .execute(&app.db_pool)
+        .await
+        .expect("failed to add member to team");
+
+    let channel_id: Uuid = sqlx::query_scalar(
+        r#"
+        INSERT INTO channels (team_id, type, name, display_name)
+        VALUES ($1, 'private'::channel_type, 'assoc-private', 'Assoc Private')
+        RETURNING id
+        "#,
+    )
+    .bind(team.id)
+    .fetch_one(&app.db_pool)
+    .await
+    .expect("failed to create private channel");
+
+    sqlx::query(
+        "INSERT INTO channel_members (channel_id, user_id, role) VALUES ($1, $2, 'member')",
+    )
+    .bind(channel_id)
+    .bind(member_id)
+    .execute(&app.db_pool)
+    .await
+    .expect("failed to add member to channel");
+
+    let group_visible_alpha = insert_ldap_group(&app, "alpha-visible", "Alpha Visible").await;
+    let group_hidden_alpha = insert_ldap_group(&app, "alpha-hidden", "Alpha Hidden").await;
+    let group_visible_beta = insert_ldap_group(&app, "beta-visible", "Beta Visible").await;
+
+    sqlx::query("UPDATE groups SET allow_reference = false WHERE id = $1")
+        .bind(group_hidden_alpha)
+        .execute(&app.db_pool)
+        .await
+        .expect("failed to mark hidden group");
+
+    for group_id in [group_visible_alpha, group_hidden_alpha, group_visible_beta] {
+        sqlx::query(
+            r#"
+            INSERT INTO group_syncables (group_id, syncable_type, syncable_id, auto_add, scheme_admin)
+            VALUES ($1, 'team', $2, true, false)
+            "#,
+        )
+        .bind(group_id)
+        .bind(team.id)
+        .execute(&app.db_pool)
+        .await
+        .expect("failed to insert team syncable");
+
+        sqlx::query(
+            r#"
+            INSERT INTO group_syncables (group_id, syncable_type, syncable_id, auto_add, scheme_admin)
+            VALUES ($1, 'channel', $2, true, false)
+            "#,
+        )
+        .bind(group_id)
+        .bind(channel_id)
+        .execute(&app.db_pool)
+        .await
+        .expect("failed to insert channel syncable");
+
+        add_group_member(&app, group_id, member_id).await;
+    }
+
+    let member_team_groups = app
+        .api_client
+        .get(format!(
+            "{}/api/v4/teams/{}/groups?q=alpha&paginate=true&page=0&per_page=1",
+            &app.address, team.id
+        ))
+        .header("Authorization", format!("Bearer {}", member_token))
+        .send()
+        .await
+        .expect("member team groups request failed");
+    assert_eq!(member_team_groups.status().as_u16(), 200);
+    let member_team_body: serde_json::Value = member_team_groups
+        .json()
+        .await
+        .expect("invalid member team groups body");
+    assert_eq!(member_team_body["total_group_count"], 1);
+    let member_team_groups_arr = member_team_body["groups"]
+        .as_array()
+        .expect("groups should be array");
+    assert_eq!(member_team_groups_arr.len(), 1);
+    assert_eq!(member_team_groups_arr[0]["display_name"], "Alpha Visible");
+
+    let admin_team_groups = app
+        .api_client
+        .get(format!(
+            "{}/api/v4/teams/{}/groups?q=alpha&paginate=false&filter_allow_reference=false",
+            &app.address, team.id
+        ))
+        .header("Authorization", format!("Bearer {}", admin_token))
+        .send()
+        .await
+        .expect("admin team groups request failed");
+    assert_eq!(admin_team_groups.status().as_u16(), 200);
+    let admin_team_body: serde_json::Value = admin_team_groups
+        .json()
+        .await
+        .expect("invalid admin team groups body");
+    let admin_team_groups_arr = admin_team_body["groups"]
+        .as_array()
+        .expect("groups should be array");
+    assert_eq!(admin_team_body["total_group_count"], 2);
+    assert_eq!(admin_team_groups_arr.len(), 2);
+
+    let member_channel_groups = app
+        .api_client
+        .get(format!(
+            "{}/api/v4/channels/{}/groups?paginate=false",
+            &app.address, channel_id
+        ))
+        .header("Authorization", format!("Bearer {}", member_token))
+        .send()
+        .await
+        .expect("member channel groups request failed");
+    assert_eq!(member_channel_groups.status().as_u16(), 200);
+    let member_channel_body: serde_json::Value = member_channel_groups
+        .json()
+        .await
+        .expect("invalid member channel groups body");
+    let member_channel_groups_arr = member_channel_body["groups"]
+        .as_array()
+        .expect("groups should be array");
+    assert_eq!(member_channel_body["total_group_count"], 2);
+    assert_eq!(member_channel_groups_arr.len(), 2);
+    assert!(!member_channel_groups_arr
+        .iter()
+        .any(|group| group["display_name"] == "Alpha Hidden"));
+
+    let member_user_groups = app
+        .api_client
+        .get(format!(
+            "{}/api/v4/users/{}/groups",
+            &app.address, member_id
+        ))
+        .header("Authorization", format!("Bearer {}", member_token))
+        .send()
+        .await
+        .expect("member user groups request failed");
+    assert_eq!(member_user_groups.status().as_u16(), 200);
+    let member_user_groups_body: serde_json::Value = member_user_groups
+        .json()
+        .await
+        .expect("invalid member user groups body");
+    let member_user_groups_arr = member_user_groups_body
+        .as_array()
+        .expect("user groups should be array");
+    assert_eq!(member_user_groups_arr.len(), 2);
+    assert!(!member_user_groups_arr
+        .iter()
+        .any(|group| group["display_name"] == "Alpha Hidden"));
+}
+
+#[tokio::test]
+async fn v4_group_association_endpoints_reject_non_members_without_system_scope() {
+    let _guard = TEST_MUTEX.lock().expect("test mutex poisoned");
+    let app = spawn_app().await;
+
+    register_user(
+        &app,
+        "assoc_owner",
+        "assoc_owner@example.com",
+        "Password123!",
+    )
+    .await;
+    register_user(
+        &app,
+        "assoc_outsider",
+        "assoc_outsider@example.com",
+        "Password123!",
+    )
+    .await;
+
+    let owner_token = login_token(&app, "assoc_owner@example.com", "Password123!").await;
+    let outsider_token = login_token(&app, "assoc_outsider@example.com", "Password123!").await;
+    let owner_id = user_id_by_email(&app, "assoc_owner@example.com").await;
+
+    let team = create_team(&app, &owner_token, "assoc-perm-team").await;
+    let channel_id: Uuid = sqlx::query_scalar(
+        r#"
+        INSERT INTO channels (team_id, type, name, display_name)
+        VALUES ($1, 'private'::channel_type, 'assoc-perm-private', 'Assoc Perm Private')
+        RETURNING id
+        "#,
+    )
+    .bind(team.id)
+    .fetch_one(&app.db_pool)
+    .await
+    .expect("failed to create private channel");
+
+    let group_id = insert_ldap_group(&app, "assoc-perm-group", "Assoc Perm Group").await;
+    sqlx::query(
+        r#"
+        INSERT INTO group_syncables (group_id, syncable_type, syncable_id, auto_add, scheme_admin)
+        VALUES ($1, 'team', $2, true, false)
+        "#,
+    )
+    .bind(group_id)
+    .bind(team.id)
+    .execute(&app.db_pool)
+    .await
+    .expect("failed to insert team syncable");
+    sqlx::query(
+        r#"
+        INSERT INTO group_syncables (group_id, syncable_type, syncable_id, auto_add, scheme_admin)
+        VALUES ($1, 'channel', $2, true, false)
+        "#,
+    )
+    .bind(group_id)
+    .bind(channel_id)
+    .execute(&app.db_pool)
+    .await
+    .expect("failed to insert channel syncable");
+
+    let team_forbidden = app
+        .api_client
+        .get(format!("{}/api/v4/teams/{}/groups", &app.address, team.id))
+        .header("Authorization", format!("Bearer {}", outsider_token))
+        .send()
+        .await
+        .expect("outsider team groups request failed");
+    assert_eq!(team_forbidden.status().as_u16(), 403);
+
+    let channel_forbidden = app
+        .api_client
+        .get(format!(
+            "{}/api/v4/channels/{}/groups",
+            &app.address, channel_id
+        ))
+        .header("Authorization", format!("Bearer {}", outsider_token))
+        .send()
+        .await
+        .expect("outsider channel groups request failed");
+    assert_eq!(channel_forbidden.status().as_u16(), 403);
+
+    let user_forbidden = app
+        .api_client
+        .get(format!("{}/api/v4/users/{}/groups", &app.address, owner_id))
+        .header("Authorization", format!("Bearer {}", outsider_token))
+        .send()
+        .await
+        .expect("outsider user groups request failed");
+    assert_eq!(user_forbidden.status().as_u16(), 403);
 }
