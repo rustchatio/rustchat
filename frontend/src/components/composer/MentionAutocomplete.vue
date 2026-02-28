@@ -63,7 +63,7 @@ onUnmounted(() => {
 <template>
   <div 
     v-if="show && filteredMembers.length > 0"
-    class="absolute bottom-full left-0 mb-2 w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl overflow-hidden z-50 animate-in fade-in slide-in-from-bottom-2 duration-200"
+    class="absolute bottom-full left-0 mb-2 w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl overflow-hidden z-[120] animate-in fade-in slide-in-from-bottom-2 duration-200"
   >
     <div class="p-2 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
       <span class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Channel Members</span>

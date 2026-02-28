@@ -75,7 +75,7 @@ defineExpose({
 <template>
     <div 
         v-if="show && filteredChannels.length > 0"
-        class="absolute bottom-full left-0 mb-2 w-72 max-h-48 overflow-y-auto bg-bg-surface-1 border border-border-1 rounded-r-2 shadow-2xl z-50"
+        class="absolute bottom-full left-0 mb-2 w-72 max-h-48 overflow-y-auto bg-bg-surface-1 border border-border-1 rounded-r-2 shadow-2xl z-[120]"
     >
         <div class="px-2 py-1.5 text-xs font-medium text-text-3 border-b border-border-1">
             Channels matching "{{ query }}"

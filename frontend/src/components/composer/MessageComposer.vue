@@ -8,10 +8,14 @@ import EmojiPicker from '../atomic/EmojiPicker.vue'
 import FormattingToolbar from './FormattingToolbar.vue'
 import MarkdownPreview from './MarkdownPreview.vue'
 import MentionAutocomplete from './MentionAutocomplete.vue'
+import EmojiAutocomplete from './autocomplete/EmojiAutocomplete.vue'
+import ChannelAutocomplete from './autocomplete/ChannelAutocomplete.vue'
+import SlashCommandAutocomplete from './autocomplete/SlashCommandAutocomplete.vue'
 import { useTeamStore } from '../../stores/teams'
 import { useCallsStore } from '../../stores/calls'
 import { useChannelStore } from '../../stores/channels'
 import { usePreferencesStore } from '../../stores/preferences'
+import { searchEmojis } from '../../utils/emoji'
 
 const emit = defineEmits(['send', 'typing', 'startAudioCall'])
 
@@ -25,12 +29,22 @@ const content = ref('')
 const showEmojiPicker = ref(false)
 const showPreview = ref(false)
 const showMentionMenu = ref(false)
+const showEmojiAutocomplete = ref(false)
+const showChannelAutocomplete = ref(false)
+const showSlashAutocomplete = ref(false)
 const showFormatting = ref(true)
 const mentionQuery = ref('')
+const emojiQuery = ref('')
+const channelQuery = ref('')
+const slashQuery = ref('')
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
 const emojiButtonRef = ref<HTMLElement | null>(null)
 const fileUploaderRef = ref<InstanceType<typeof FileUploader> | null>(null)
+const emojiAutocompleteRef = ref<InstanceType<typeof EmojiAutocomplete> | null>(null)
+const channelAutocompleteRef = ref<InstanceType<typeof ChannelAutocomplete> | null>(null)
+const slashAutocompleteRef = ref<InstanceType<typeof SlashCommandAutocomplete> | null>(null)
 const isMac = ref(false)
+const autocompleteStartPos = ref(0)
 
 const attachedFiles = ref<{
     file: File
@@ -73,6 +87,30 @@ const hasMentionSuggestions = computed(() => {
     if (!showMentionMenu.value) return false
     const query = mentionQuery.value.toLowerCase()
     return teamStore.members.some((member) => member.username.toLowerCase().includes(query))
+})
+
+const hasEmojiSuggestions = computed(() => {
+    if (!showEmojiAutocomplete.value || !emojiQuery.value) return false
+    return searchEmojis(emojiQuery.value, 1).length > 0
+})
+
+const hasChannelSuggestions = computed(() => {
+    if (!showChannelAutocomplete.value || !channelQuery.value) return false
+    const query = channelQuery.value.toLowerCase()
+    return channelStore.channels.some((channel) => {
+        const channelName = channel.name?.toLowerCase() ?? ''
+        const displayName = channel.display_name?.toLowerCase() ?? ''
+        return channelName.includes(query) || displayName.includes(query)
+    })
+})
+
+const slashCommands = ['/call start', '/call join', '/call leave', '/call end']
+
+const hasSlashSuggestions = computed(() => {
+    if (!showSlashAutocomplete.value) return false
+    const query = slashQuery.value.trim().toLowerCase()
+    if (!query) return slashCommands.length > 0
+    return slashCommands.some((command) => command.toLowerCase().startsWith(`/${query}`))
 })
 
 function getDraftKey(channelId?: string): string | null {
@@ -139,6 +177,9 @@ function resetComposer() {
     attachedFiles.value = []
     showPreview.value = false
     showMentionMenu.value = false
+    showEmojiAutocomplete.value = false
+    showChannelAutocomplete.value = false
+    showSlashAutocomplete.value = false
     showEmojiPicker.value = false
 
     nextTick(() => {
@@ -154,8 +195,14 @@ function resetForChannelChange(channelId?: string) {
     attachedFiles.value = []
     showPreview.value = false
     showMentionMenu.value = false
+    showEmojiAutocomplete.value = false
+    showChannelAutocomplete.value = false
+    showSlashAutocomplete.value = false
     showEmojiPicker.value = false
     mentionQuery.value = ''
+    emojiQuery.value = ''
+    channelQuery.value = ''
+    slashQuery.value = ''
 
     nextTick(() => {
         autoResize()
@@ -179,8 +226,7 @@ async function handleSlashCommand(command: string, args: string[]): Promise<bool
     if (!channelId) return false
 
     switch (command) {
-        case '/call':
-        case '/call start': {
+        case '/call': {
             const subCommand = args[0]
 
             if (subCommand === 'start' || !subCommand) {
@@ -241,14 +287,7 @@ async function handleSend() {
         const parts = trimmedText.split(' ')
         const command = parts[0] ?? ''
         const args = parts.slice(1)
-        const firstArg = args[0] ?? ''
-
-        let handled = false
-        if (command === '/call' && firstArg) {
-            handled = await handleSlashCommand(`${command} ${firstArg}`, args.slice(1))
-        } else {
-            handled = await handleSlashCommand(command, args)
-        }
+        const handled = await handleSlashCommand(command, args)
 
         if (handled) {
             clearDraft()
@@ -271,6 +310,60 @@ async function handleSend() {
 }
 
 function handleKeydown(event: KeyboardEvent) {
+    if (hasSlashSuggestions.value) {
+        if (event.key === 'ArrowUp') {
+            event.preventDefault()
+            slashAutocompleteRef.value?.selectPrevious()
+            return
+        }
+        if (event.key === 'ArrowDown') {
+            event.preventDefault()
+            slashAutocompleteRef.value?.selectNext()
+            return
+        }
+        if (event.key === 'Enter' || event.key === 'Tab') {
+            event.preventDefault()
+            slashAutocompleteRef.value?.selectCurrent()
+            return
+        }
+    }
+
+    if (hasEmojiSuggestions.value) {
+        if (event.key === 'ArrowUp') {
+            event.preventDefault()
+            emojiAutocompleteRef.value?.selectPrevious()
+            return
+        }
+        if (event.key === 'ArrowDown') {
+            event.preventDefault()
+            emojiAutocompleteRef.value?.selectNext()
+            return
+        }
+        if (event.key === 'Enter' || event.key === 'Tab') {
+            event.preventDefault()
+            emojiAutocompleteRef.value?.selectCurrent()
+            return
+        }
+    }
+
+    if (hasChannelSuggestions.value) {
+        if (event.key === 'ArrowUp') {
+            event.preventDefault()
+            channelAutocompleteRef.value?.selectPrevious()
+            return
+        }
+        if (event.key === 'ArrowDown') {
+            event.preventDefault()
+            channelAutocompleteRef.value?.selectNext()
+            return
+        }
+        if (event.key === 'Enter' || event.key === 'Tab') {
+            event.preventDefault()
+            channelAutocompleteRef.value?.selectCurrent()
+            return
+        }
+    }
+
     if (showMentionMenu.value && hasMentionSuggestions.value) {
         if (event.key === 'ArrowUp' || event.key === 'ArrowDown' || event.key === 'Enter' || event.key === 'Tab') {
             event.preventDefault()
@@ -279,13 +372,11 @@ function handleKeydown(event: KeyboardEvent) {
 
     }
 
-    if (showMentionMenu.value && event.key === 'Escape') {
+    if (event.key === 'Escape') {
         showMentionMenu.value = false
-        event.preventDefault()
-        return
-    }
-
-    if (event.key === 'Escape' && showEmojiPicker.value) {
+        showEmojiAutocomplete.value = false
+        showChannelAutocomplete.value = false
+        showSlashAutocomplete.value = false
         showEmojiPicker.value = false
         event.preventDefault()
         return
@@ -304,9 +395,28 @@ function handleKeydown(event: KeyboardEvent) {
             return
         }
 
+        if (event.key.toLowerCase() === 'k') {
+            event.preventDefault()
+            applyFormat('link')
+            return
+        }
+
         if (event.shiftKey && event.key.toLowerCase() === 'x') {
             event.preventDefault()
             applyFormat('strike')
+            return
+        }
+    }
+
+    if ((event.ctrlKey || event.metaKey) && event.shiftKey) {
+        if (event.key === '7') {
+            event.preventDefault()
+            applyFormat('numbered')
+            return
+        }
+        if (event.key === '8') {
+            event.preventDefault()
+            applyFormat('bullet')
             return
         }
     }
@@ -342,22 +452,58 @@ function handleInput() {
 
     const cursorPos = textarea.selectionStart
     const textBefore = content.value.substring(0, cursorPos)
-    const lastAt = textBefore.lastIndexOf('@')
 
-    if (lastAt !== -1 && (lastAt === 0 || /\s/.test(textBefore.charAt(lastAt - 1)))) {
-        const query = textBefore.substring(lastAt + 1)
-        if (!/\s/.test(query)) {
-            mentionQuery.value = query
-            showMentionMenu.value = true
+    if (!textBefore.includes('\n') && textBefore.startsWith('/')) {
+        slashQuery.value = textBefore.substring(1)
+        autocompleteStartPos.value = 0
+        showSlashAutocomplete.value = true
+        showMentionMenu.value = false
+        showEmojiAutocomplete.value = false
+        showChannelAutocomplete.value = false
+        return
+    }
 
-            if (teamStore.members.length === 0 && teamStore.currentTeamId) {
-                teamStore.fetchMembers(teamStore.currentTeamId as string)
-            }
-            return
+    const mentionMatch = textBefore.match(/@([^\s@]*)$/)
+    if (mentionMatch) {
+        mentionQuery.value = mentionMatch[1] ?? ''
+        autocompleteStartPos.value = cursorPos - mentionMatch[0].length
+        showMentionMenu.value = true
+        showEmojiAutocomplete.value = false
+        showChannelAutocomplete.value = false
+        showSlashAutocomplete.value = false
+        if (teamStore.members.length === 0 && teamStore.currentTeamId) {
+            teamStore.fetchMembers(teamStore.currentTeamId as string)
         }
+        return
+    }
+
+    const emojiMatch = textBefore.match(/:([^\s:]*)$/)
+    const emojiToken = emojiMatch?.[1] ?? ''
+    if (emojiMatch && emojiToken.length > 0) {
+        emojiQuery.value = emojiToken
+        autocompleteStartPos.value = cursorPos - emojiMatch[0].length
+        showEmojiAutocomplete.value = true
+        showMentionMenu.value = false
+        showChannelAutocomplete.value = false
+        showSlashAutocomplete.value = false
+        return
+    }
+
+    const channelMatch = textBefore.match(/~([^\s~]*)$/)
+    if (channelMatch) {
+        channelQuery.value = channelMatch[1] ?? ''
+        autocompleteStartPos.value = cursorPos - channelMatch[0].length
+        showChannelAutocomplete.value = true
+        showMentionMenu.value = false
+        showEmojiAutocomplete.value = false
+        showSlashAutocomplete.value = false
+        return
     }
 
     showMentionMenu.value = false
+    showEmojiAutocomplete.value = false
+    showChannelAutocomplete.value = false
+    showSlashAutocomplete.value = false
 }
 
 function handleMentionSelect(username: string) {
@@ -365,25 +511,74 @@ function handleMentionSelect(username: string) {
     if (!textarea) return
 
     const cursorPos = textarea.selectionStart
-    const textBefore = content.value.substring(0, cursorPos)
-    const lastAt = textBefore.lastIndexOf('@')
-
-    content.value = `${content.value.substring(0, lastAt)}@${username} ${content.value.substring(cursorPos)}`
+    content.value = `${content.value.substring(0, autocompleteStartPos.value)}@${username} ${content.value.substring(cursorPos)}`
     showMentionMenu.value = false
     saveDraft()
 
     textarea.focus()
-    const newPos = lastAt + username.length + 2
+    const newPos = autocompleteStartPos.value + username.length + 2
     setTimeout(() => {
         textarea.setSelectionRange(newPos, newPos)
         autoResize()
     }, 0)
 }
 
+function handleEmojiAutocompleteSelect(emojiName: string) {
+    const textarea = textareaRef.value
+    if (!textarea) return
+    const cursorPos = textarea.selectionStart
+    content.value = `${content.value.substring(0, autocompleteStartPos.value)}:${emojiName}: ${content.value.substring(cursorPos)}`
+    showEmojiAutocomplete.value = false
+    saveDraft()
+    const newPos = autocompleteStartPos.value + emojiName.length + 3
+    nextTick(() => {
+        textarea.focus()
+        textarea.setSelectionRange(newPos, newPos)
+        autoResize()
+    })
+}
+
+function handleChannelAutocompleteSelect(channelName: string) {
+    const textarea = textareaRef.value
+    if (!textarea) return
+    const cursorPos = textarea.selectionStart
+    content.value = `${content.value.substring(0, autocompleteStartPos.value)}~${channelName} ${content.value.substring(cursorPos)}`
+    showChannelAutocomplete.value = false
+    saveDraft()
+    const newPos = autocompleteStartPos.value + channelName.length + 2
+    nextTick(() => {
+        textarea.focus()
+        textarea.setSelectionRange(newPos, newPos)
+        autoResize()
+    })
+}
+
+function handleSlashAutocompleteSelect(command: string) {
+    const textarea = textareaRef.value
+    if (!textarea) return
+
+    const cursorPos = textarea.selectionStart
+    const suffix = content.value.substring(cursorPos).replace(/^\s+/, '')
+    const prefix = `${command} `
+    content.value = suffix.length > 0 ? `${prefix}${suffix}` : prefix
+
+    showSlashAutocomplete.value = false
+    saveDraft()
+
+    nextTick(() => {
+        textarea.focus()
+        textarea.setSelectionRange(prefix.length, prefix.length)
+        autoResize()
+    })
+}
+
 function handleTextareaBlur() {
     // Keep a small delay so click selection inside the autocomplete can complete.
     setTimeout(() => {
         showMentionMenu.value = false
+        showEmojiAutocomplete.value = false
+        showChannelAutocomplete.value = false
+        showSlashAutocomplete.value = false
     }, 120)
 }
 
@@ -602,6 +797,34 @@ onUnmounted(() => {
       </div>
 
       <div class="relative">
+        <MentionAutocomplete
+          :show="showMentionMenu"
+          :query="mentionQuery"
+          @select="handleMentionSelect"
+          @close="showMentionMenu = false"
+        />
+        <SlashCommandAutocomplete
+          ref="slashAutocompleteRef"
+          :show="showSlashAutocomplete"
+          :query="slashQuery"
+          @select="handleSlashAutocompleteSelect"
+          @close="showSlashAutocomplete = false"
+        />
+        <EmojiAutocomplete
+          ref="emojiAutocompleteRef"
+          :show="showEmojiAutocomplete"
+          :query="emojiQuery"
+          @select="handleEmojiAutocompleteSelect"
+          @close="showEmojiAutocomplete = false"
+        />
+        <ChannelAutocomplete
+          ref="channelAutocompleteRef"
+          :show="showChannelAutocomplete"
+          :query="channelQuery"
+          @select="handleChannelAutocompleteSelect"
+          @close="showChannelAutocomplete = false"
+        />
+
         <textarea
           ref="textareaRef"
           v-model="content"
@@ -613,13 +836,6 @@ onUnmounted(() => {
           @input="handleInput"
           @blur="handleTextareaBlur"
         ></textarea>
-
-        <MentionAutocomplete
-          :show="showMentionMenu"
-          :query="mentionQuery"
-          @select="handleMentionSelect"
-          @close="showMentionMenu = false"
-        />
       </div>
 
       <div class="flex items-center justify-between border-t border-border-1/60 px-2 py-1.5">
@@ -686,6 +902,7 @@ onUnmounted(() => {
           <div class="hidden items-center gap-2 text-[11px] text-text-3 md:flex">
             <span><kbd class="rounded bg-bg-surface-2 px-1 py-0.5">{{ sendShortcutLabel }}</kbd> to send</span>
             <span><kbd class="rounded bg-bg-surface-2 px-1 py-0.5">Shift+Enter</kbd> newline</span>
+            <span><kbd class="rounded bg-bg-surface-2 px-1 py-0.5">/</kbd> commands</span>
           </div>
 
           <button

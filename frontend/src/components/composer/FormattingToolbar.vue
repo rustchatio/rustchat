@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { Bold, Italic, Strikethrough, Heading, Code, Link2, List, ListOrdered, Quote, Eye, EyeOff } from 'lucide-vue-next'
+import { ref, onMounted, onUnmounted } from 'vue'
+import { Bold, Italic, Strikethrough, Heading, Code, Link2, List, ListOrdered, Quote, Eye, EyeOff, HelpCircle } from 'lucide-vue-next'
 
 const emit = defineEmits<{
   (e: 'format', type: string): void
@@ -22,10 +23,28 @@ const formatActions = [
   { icon: List, type: 'bullet', title: 'Bullet list', label: 'Bullet list' },
   { icon: ListOrdered, type: 'numbered', title: 'Numbered list', label: 'Numbered list' },
 ]
+
+const showHelp = ref(false)
+const rootRef = ref<HTMLElement | null>(null)
+
+function handleDocumentClick(event: MouseEvent) {
+  const target = event.target as Node | null
+  if (!target) return
+  if (rootRef.value?.contains(target)) return
+  showHelp.value = false
+}
+
+onMounted(() => {
+  document.addEventListener('mousedown', handleDocumentClick)
+})
+
+onUnmounted(() => {
+  document.removeEventListener('mousedown', handleDocumentClick)
+})
 </script>
 
 <template>
-  <div class="flex items-center gap-0.5 overflow-x-auto border-b border-border-1 bg-bg-surface-2/50 px-1.5 py-1 whitespace-nowrap">
+  <div ref="rootRef" class="relative flex items-center gap-0.5 overflow-x-auto border-b border-border-1 bg-bg-surface-2/50 px-1.5 py-1 whitespace-nowrap">
     <!-- Formatting buttons -->
     <button
       v-for="action in formatActions"
@@ -53,5 +72,31 @@ const formatActions = [
     >
       <component :is="showPreview ? EyeOff : Eye" class="w-4 h-4" />
     </button>
+
+    <button
+      @click="showHelp = !showHelp"
+      title="Formatting help"
+      aria-label="Formatting help"
+      class="rounded p-1.5 text-text-3 transition-standard hover:bg-bg-surface-1 hover:text-text-1 focus-ring"
+      :class="showHelp ? 'bg-bg-surface-1 text-text-1' : ''"
+    >
+      <HelpCircle class="w-4 h-4" />
+    </button>
+
+    <div
+      v-if="showHelp"
+      class="absolute right-1 top-full mt-2 z-[130] w-[22rem] rounded-r-2 border border-border-1 bg-bg-surface-1 p-3 shadow-2xl"
+    >
+      <p class="text-xs font-semibold text-text-1">Formatting shortcuts</p>
+      <div class="mt-2 space-y-1 text-xs text-text-2">
+        <p><kbd class="rounded bg-bg-surface-2 px-1">Ctrl/Cmd+B</kbd> Bold</p>
+        <p><kbd class="rounded bg-bg-surface-2 px-1">Ctrl/Cmd+I</kbd> Italic</p>
+        <p><kbd class="rounded bg-bg-surface-2 px-1">Ctrl/Cmd+K</kbd> Link</p>
+        <p><kbd class="rounded bg-bg-surface-2 px-1">Ctrl/Cmd+Shift+X</kbd> Strikethrough</p>
+        <p><kbd class="rounded bg-bg-surface-2 px-1">Ctrl/Cmd+Shift+7</kbd> Numbered list</p>
+        <p><kbd class="rounded bg-bg-surface-2 px-1">Ctrl/Cmd+Shift+8</kbd> Bulleted list</p>
+      </div>
+      <p class="mt-2 text-[11px] text-text-3">Use <code>:emoji:</code>, <code>@mention</code>, <code>~channel</code>, and <code>/</code> for command menu.</p>
+    </div>
   </div>
 </template>
