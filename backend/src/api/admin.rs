@@ -110,6 +110,8 @@ pub fn router() -> Router<AppState> {
         .route("/admin/email/test", post(test_email_config))
         // Membership policies
         .merge(super::admin_membership_policies::router())
+        // Audit endpoints
+        .merge(super::admin_audit::router())
 }
 
 /// Check if user is admin

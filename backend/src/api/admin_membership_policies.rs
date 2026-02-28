@@ -237,10 +237,16 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/admin/membership-policies", get(list_policies).post(create_policy))
         .route(
-            "/admin/membership-policies/:policy_id",
+            "/admin/membership-policies/{policy_id}",
             get(get_policy).put(update_policy).delete(delete_policy),
         )
-        .route("/admin/membership-policies/:policy_id/audit", get(get_policy_audit))
-        .route("/admin/membership-policies/:policy_id/status", get(get_policy_status))
-        .route("/admin/membership-policies/users/:user_id/resync", post(trigger_user_resync))
+        .route("/admin/membership-policies/{policy_id}/audit", get(get_policy_audit))
+        .route(
+            "/admin/membership-policies/{policy_id}/status",
+            get(get_policy_status),
+        )
+        .route(
+            "/admin/membership-policies/users/{user_id}/resync",
+            post(trigger_user_resync),
+        )
 }

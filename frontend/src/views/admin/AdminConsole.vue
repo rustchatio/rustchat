@@ -4,7 +4,7 @@ import { useAuthStore } from '../../stores/auth';
 import { 
     LayoutDashboard, Users, Building2, Settings, Shield, 
     Puzzle, Scale, FileText, Mail, Activity, ArrowLeft,
-    KeyRound, UserPlus
+    KeyRound, UserPlus, BarChart3
 } from 'lucide-vue-next';
 
 const router = useRouter();
@@ -18,6 +18,7 @@ const navItems = [
     { path: '/admin/users', name: 'Users', icon: Users },
     { path: '/admin/teams', name: 'Teams & Channels', icon: Building2 },
     { path: '/admin/membership-policies', name: 'Membership Policies', icon: UserPlus },
+    { path: '/admin/audit-dashboard', name: 'Audit Dashboard', icon: BarChart3 },
     { path: '/admin/settings', name: 'Server Settings', icon: Settings },
     { path: '/admin/security', name: 'Security', icon: Shield },
     { path: '/admin/permissions', name: 'Permissions', icon: Shield },

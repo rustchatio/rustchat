@@ -3,6 +3,7 @@
 //! Provides HTTP routes and handlers.
 
 mod admin;
+mod admin_audit;
 mod admin_email;
 mod admin_membership_policies;
 mod auth;

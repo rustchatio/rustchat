@@ -17,10 +17,10 @@ CREATE TABLE auto_membership_policies (
     
     -- Global policies must not have team_id; team policies must have team_id
     CONSTRAINT check_scope_team_consistency 
-        CHECK ((scope_type = 'global' AND team_id IS NULL) OR (scope_type = 'team' AND team_id IS NOT NULL)),
+        CHECK ((scope_type = 'global' AND team_id IS NULL) OR (scope_type = 'team' AND team_id IS NOT NULL))
     
-    -- Unique name per scope
-    CONSTRAINT unique_name_per_scope UNIQUE (name, scope_type, COALESCE(team_id, '00000000-0000-0000-0000-000000000000'))
+    -- Unique name per scope is enforced via expression index below.
+    -- (Postgres table UNIQUE constraints cannot include expressions like COALESCE.)
 );
 
 -- Policy targets (teams/channels to auto-subscribe to)
@@ -68,6 +68,8 @@ CREATE TABLE membership_origins (
 -- Indexes for performance
 CREATE INDEX idx_auto_membership_policies_scope ON auto_membership_policies(scope_type, team_id) WHERE enabled = true;
 CREATE INDEX idx_auto_membership_policies_source ON auto_membership_policies(source_type, enabled);
+CREATE UNIQUE INDEX idx_auto_membership_policies_unique_name_per_scope
+    ON auto_membership_policies (name, scope_type, COALESCE(team_id, '00000000-0000-0000-0000-000000000000'::uuid));
 CREATE INDEX idx_auto_membership_policy_targets_policy ON auto_membership_policy_targets(policy_id);
 CREATE INDEX idx_auto_membership_policy_targets_lookup ON auto_membership_policy_targets(target_type, target_id);
 CREATE INDEX idx_auto_membership_policy_audit_policy ON auto_membership_policy_audit(policy_id);
