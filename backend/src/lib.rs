@@ -1,7 +1,7 @@
 //! rustchat - Self-hosted team collaboration platform
 //!
 //! This crate provides the core functionality for rustchat,
-//! an enterprise-ready messaging platform built in Rust.
+//! a messaging platform built in Rust.
 
 pub mod api;
 pub mod auth;

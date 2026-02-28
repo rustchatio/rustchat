@@ -1,4 +1,4 @@
-use crate::common::{spawn_app, spawn_app_with_config, test_config};
+use crate::common::spawn_app;
 use once_cell::sync::Lazy;
 use rustchat::mattermost_compat::id::parse_mm_or_uuid;
 use rustchat::models::Team;
@@ -759,45 +759,4 @@ async fn v4_group_association_endpoints_reject_non_members_without_system_scope(
         .await
         .expect("outsider user groups request failed");
     assert_eq!(user_forbidden.status().as_u16(), 403);
-}
-
-#[tokio::test]
-async fn v4_group_association_endpoints_require_ldap_groups_feature_license() {
-    let _guard = TEST_MUTEX.lock().expect("test mutex poisoned");
-
-    let mut cfg = test_config();
-    cfg.compatibility.is_licensed = false;
-    cfg.compatibility.ldap_groups_enabled = false;
-    let app = spawn_app_with_config(cfg).await;
-
-    register_user(
-        &app,
-        "license_admin",
-        "license_admin@example.com",
-        "Password123!",
-    )
-    .await;
-    set_user_role(&app, "license_admin@example.com", "system_admin").await;
-    let admin_token = login_token(&app, "license_admin@example.com", "Password123!").await;
-
-    let team = create_team(&app, &admin_token, "license-gated-team").await;
-    let admin_id = user_id_by_email(&app, "license_admin@example.com").await;
-
-    let team_groups = app
-        .api_client
-        .get(format!("{}/api/v4/teams/{}/groups", &app.address, team.id))
-        .header("Authorization", format!("Bearer {}", admin_token))
-        .send()
-        .await
-        .expect("team groups request failed");
-    assert_eq!(team_groups.status().as_u16(), 403);
-
-    let user_groups = app
-        .api_client
-        .get(format!("{}/api/v4/users/{}/groups", &app.address, admin_id))
-        .header("Authorization", format!("Bearer {}", admin_token))
-        .send()
-        .await
-        .expect("user groups request failed");
-    assert_eq!(user_groups.status().as_u16(), 403);
 }

@@ -491,8 +491,6 @@ pub(super) async fn get_channel_groups(
     Path(channel_id): Path<String>,
     Query(query): Query<GroupAssociationQuery>,
 ) -> ApiResult<Json<serde_json::Value>> {
-    ensure_ldap_groups_feature_available(&state)?;
-
     let channel_id = parse_mm_or_uuid(&channel_id)
         .ok_or_else(|| AppError::BadRequest("Invalid channel_id".to_string()))?;
 
@@ -684,16 +682,6 @@ fn pagination_from_group_query(query: &GroupAssociationQuery) -> (bool, usize, u
     let per_page = query.per_page.unwrap_or(60).clamp(1, 200) as usize;
     let offset = page.saturating_mul(per_page);
     (paginate, offset, per_page)
-}
-
-fn ensure_ldap_groups_feature_available(state: &AppState) -> ApiResult<()> {
-    if state.config.compatibility.is_licensed && state.config.compatibility.ldap_groups_enabled {
-        return Ok(());
-    }
-
-    Err(AppError::Forbidden(
-        "LDAP group features require an Enterprise license".to_string(),
-    ))
 }
 
 fn channel_group_json(row: &ChannelGroupRow) -> serde_json::Value {

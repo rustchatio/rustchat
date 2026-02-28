@@ -8,14 +8,14 @@ use axum::{
 };
 use serde_json::json;
 
-/// Enterprise feature response - returns 501 Not Implemented
-fn enterprise_required() -> ApiResult<(StatusCode, Json<serde_json::Value>)> {
+/// LDAP stub response - returns 501 Not Implemented
+fn ldap_not_implemented() -> ApiResult<(StatusCode, Json<serde_json::Value>)> {
     Ok((
         StatusCode::NOT_IMPLEMENTED,
         Json(json!({
-            "id": "api.license.enterprise_needed.error",
-            "message": "This feature requires an Enterprise license.",
-            "detailed_error": "LDAP authentication is an enterprise feature. Please upgrade your license.",
+            "id": "api.ldap.not_implemented",
+            "message": "LDAP feature is not implemented.",
+            "detailed_error": "LDAP endpoints are available but backend LDAP operations are not implemented.",
             "status_code": 501
         })),
     ))
@@ -49,7 +49,7 @@ async fn sync_ldap(
     State(_state): State<AppState>,
     _auth: crate::api::v4::extractors::MmAuthUser,
 ) -> ApiResult<(StatusCode, Json<serde_json::Value>)> {
-    enterprise_required()
+    ldap_not_implemented()
 }
 
 /// POST /api/v4/ldap/test
@@ -57,7 +57,7 @@ async fn test_ldap(
     State(_state): State<AppState>,
     _auth: crate::api::v4::extractors::MmAuthUser,
 ) -> ApiResult<(StatusCode, Json<serde_json::Value>)> {
-    enterprise_required()
+    ldap_not_implemented()
 }
 
 /// POST /api/v4/ldap/test_connection
@@ -65,7 +65,7 @@ async fn test_ldap_connection(
     State(_state): State<AppState>,
     _auth: crate::api::v4::extractors::MmAuthUser,
 ) -> ApiResult<(StatusCode, Json<serde_json::Value>)> {
-    enterprise_required()
+    ldap_not_implemented()
 }
 
 /// POST /api/v4/ldap/test_diagnostics
@@ -73,7 +73,7 @@ async fn test_ldap_diagnostics(
     State(_state): State<AppState>,
     _auth: crate::api::v4::extractors::MmAuthUser,
 ) -> ApiResult<(StatusCode, Json<serde_json::Value>)> {
-    enterprise_required()
+    ldap_not_implemented()
 }
 
 /// GET /api/v4/ldap/groups
@@ -81,7 +81,7 @@ async fn get_ldap_groups(
     State(_state): State<AppState>,
     _auth: crate::api::v4::extractors::MmAuthUser,
 ) -> ApiResult<(StatusCode, Json<serde_json::Value>)> {
-    enterprise_required()
+    ldap_not_implemented()
 }
 
 /// POST /api/v4/ldap/groups/{remote_id}/link
@@ -90,7 +90,7 @@ async fn link_ldap_group(
     _auth: crate::api::v4::extractors::MmAuthUser,
     Path(_remote_id): Path<String>,
 ) -> ApiResult<(StatusCode, Json<serde_json::Value>)> {
-    enterprise_required()
+    ldap_not_implemented()
 }
 
 /// POST /api/v4/ldap/migrateid
@@ -99,7 +99,7 @@ async fn ldap_migrate_id(
     _auth: crate::api::v4::extractors::MmAuthUser,
     Json(_body): Json<serde_json::Value>,
 ) -> ApiResult<(StatusCode, Json<serde_json::Value>)> {
-    enterprise_required()
+    ldap_not_implemented()
 }
 
 /// POST /api/v4/ldap/certificate/public
@@ -107,7 +107,7 @@ async fn add_ldap_public_certificate(
     State(_state): State<AppState>,
     _auth: crate::api::v4::extractors::MmAuthUser,
 ) -> ApiResult<(StatusCode, Json<serde_json::Value>)> {
-    enterprise_required()
+    ldap_not_implemented()
 }
 
 /// DELETE /api/v4/ldap/certificate/public
@@ -115,7 +115,7 @@ async fn remove_ldap_public_certificate(
     State(_state): State<AppState>,
     _auth: crate::api::v4::extractors::MmAuthUser,
 ) -> ApiResult<(StatusCode, Json<serde_json::Value>)> {
-    enterprise_required()
+    ldap_not_implemented()
 }
 
 /// POST /api/v4/ldap/certificate/private
@@ -123,7 +123,7 @@ async fn add_ldap_private_certificate(
     State(_state): State<AppState>,
     _auth: crate::api::v4::extractors::MmAuthUser,
 ) -> ApiResult<(StatusCode, Json<serde_json::Value>)> {
-    enterprise_required()
+    ldap_not_implemented()
 }
 
 /// DELETE /api/v4/ldap/certificate/private
@@ -131,7 +131,7 @@ async fn remove_ldap_private_certificate(
     State(_state): State<AppState>,
     _auth: crate::api::v4::extractors::MmAuthUser,
 ) -> ApiResult<(StatusCode, Json<serde_json::Value>)> {
-    enterprise_required()
+    ldap_not_implemented()
 }
 
 /// POST /api/v4/ldap/users/{user_id}/group_sync_memberships
@@ -140,5 +140,5 @@ async fn sync_ldap_user_group_sync_memberships(
     _auth: crate::api::v4::extractors::MmAuthUser,
     Path(_user_id): Path<String>,
 ) -> ApiResult<(StatusCode, Json<serde_json::Value>)> {
-    enterprise_required()
+    ldap_not_implemented()
 }

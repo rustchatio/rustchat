@@ -827,14 +827,8 @@ async fn fetch_thread_snapshot_for_user(
     Ok(row.map(|t| mm::Thread {
         id: encode_mm_id(t.id),
         reply_count: t.reply_count,
-        last_reply_at: t
-            .last_reply_at
-            .map(|dt| dt.timestamp_millis())
-            .unwrap_or(0),
-        last_viewed_at: t
-            .last_read_at
-            .map(|dt| dt.timestamp_millis())
-            .unwrap_or(0),
+        last_reply_at: t.last_reply_at.map(|dt| dt.timestamp_millis()).unwrap_or(0),
+        last_viewed_at: t.last_read_at.map(|dt| dt.timestamp_millis()).unwrap_or(0),
         participants: vec![],
         post: mm::PostInThread {
             id: encode_mm_id(t.id),
@@ -917,7 +911,8 @@ async fn set_post_unread(
         .fetch_one(&state.db)
         .await?;
 
-    let mut stats = compute_channel_unread_from_post(&state, channel_id, last_read_id, &username).await?;
+    let mut stats =
+        compute_channel_unread_from_post(&state, channel_id, last_read_id, &username).await?;
 
     // CRT unsupported + reply follows Mattermost behavior:
     // unread root/urgent counters for the channel are intentionally zeroed.
@@ -985,7 +980,9 @@ async fn set_post_unread(
         // Match Mattermost: only send thread_updated when user CRT is enabled but request
         // came from a CRT-unsupported client.
         if crt_enabled_for_user && !request.collapsed_threads_supported {
-            if let Some(thread) = fetch_thread_snapshot_for_user(&state, thread_root_id, user_id).await? {
+            if let Some(thread) =
+                fetch_thread_snapshot_for_user(&state, thread_root_id, user_id).await?
+            {
                 if let Ok(payload) = serde_json::to_string(&thread) {
                     let thread_updated = WsEnvelope::event(
                         EventType::ThreadUpdated,

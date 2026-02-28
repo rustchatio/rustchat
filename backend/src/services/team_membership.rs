@@ -176,13 +176,20 @@ pub async fn apply_default_channel_membership_for_team_join(
     }
 
     // Apply auto-membership policies (soft-fail for parity)
-    let policy_results = apply_auto_membership_for_team_join(state, user_id, team_id, "team_join").await;
-    
+    let policy_results =
+        apply_auto_membership_for_team_join(state, user_id, team_id, "team_join").await;
+
     // Log policy application results but don't fail the join if policies fail
     if let Ok(audit_entries) = policy_results {
-        let success_count = audit_entries.iter().filter(|e| e.status == "success").count();
-        let failed_count = audit_entries.iter().filter(|e| e.status == "failed").count();
-        
+        let success_count = audit_entries
+            .iter()
+            .filter(|e| e.status == "success")
+            .count();
+        let failed_count = audit_entries
+            .iter()
+            .filter(|e| e.status == "failed")
+            .count();
+
         if failed_count > 0 {
             tracing::warn!(
                 "Auto-membership policy partially failed for user {} joining team {}: {} succeeded, {} failed",
@@ -192,7 +199,9 @@ pub async fn apply_default_channel_membership_for_team_join(
     } else if let Err(e) = policy_results {
         tracing::error!(
             "Auto-membership policy application failed for user {} joining team {}: {}",
-            user_id, team_id, e
+            user_id,
+            team_id,
+            e
         );
     }
 

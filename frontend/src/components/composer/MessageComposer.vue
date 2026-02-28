@@ -28,6 +28,7 @@ const showMentionMenu = ref(false)
 const showFormatting = ref(true)
 const mentionQuery = ref('')
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
+const emojiButtonRef = ref<HTMLElement | null>(null)
 const fileUploaderRef = ref<InstanceType<typeof FileUploader> | null>(null)
 const isMac = ref(false)
 
@@ -66,6 +67,12 @@ const uploadInProgressCount = computed(
 const sendShortcutLabel = computed(() => {
     if (!sendOnCtrlEnter.value) return 'Enter'
     return isMac.value ? 'Cmd+Enter' : 'Ctrl+Enter'
+})
+
+const hasMentionSuggestions = computed(() => {
+    if (!showMentionMenu.value) return false
+    const query = mentionQuery.value.toLowerCase()
+    return teamStore.members.some((member) => member.username.toLowerCase().includes(query))
 })
 
 function getDraftKey(channelId?: string): string | null {
@@ -264,17 +271,18 @@ async function handleSend() {
 }
 
 function handleKeydown(event: KeyboardEvent) {
-    if (showMentionMenu.value) {
-        if (event.key === 'ArrowUp' || event.key === 'ArrowDown' || event.key === 'Enter') {
+    if (showMentionMenu.value && hasMentionSuggestions.value) {
+        if (event.key === 'ArrowUp' || event.key === 'ArrowDown' || event.key === 'Enter' || event.key === 'Tab') {
             event.preventDefault()
             return
         }
 
-        if (event.key === 'Escape') {
-            showMentionMenu.value = false
-            event.preventDefault()
-            return
-        }
+    }
+
+    if (showMentionMenu.value && event.key === 'Escape') {
+        showMentionMenu.value = false
+        event.preventDefault()
+        return
     }
 
     if (event.key === 'Escape' && showEmojiPicker.value) {
@@ -293,6 +301,12 @@ function handleKeydown(event: KeyboardEvent) {
         if (event.key.toLowerCase() === 'i') {
             event.preventDefault()
             applyFormat('italic')
+            return
+        }
+
+        if (event.shiftKey && event.key.toLowerCase() === 'x') {
+            event.preventDefault()
+            applyFormat('strike')
             return
         }
     }
@@ -366,6 +380,13 @@ function handleMentionSelect(username: string) {
     }, 0)
 }
 
+function handleTextareaBlur() {
+    // Keep a small delay so click selection inside the autocomplete can complete.
+    setTimeout(() => {
+        showMentionMenu.value = false
+    }, 120)
+}
+
 function applyFormat(type: string) {
     const textarea = textareaRef.value
     if (!textarea) return
@@ -387,9 +408,20 @@ function applyFormat(type: string) {
             before = '*'
             after = '*'
             break
+        case 'strike':
+            before = '~~'
+            after = '~~'
+            break
+        case 'heading':
+            prefix = '### '
+            break
         case 'code':
             before = '`'
             after = '`'
+            break
+        case 'codeblock':
+            before = '```\n'
+            after = '\n```'
             break
         case 'link':
             before = '['
@@ -455,6 +487,7 @@ async function handleFiles(files: File[]) {
 }
 
 function removeAttachment(index: number) {
+    if (attachedFiles.value[index]?.uploading) return
     attachedFiles.value.splice(index, 1)
 }
 
@@ -527,10 +560,10 @@ onUnmounted(() => {
 <template>
   <FileUploader
     ref="fileUploaderRef"
-    class="p-2 pt-1 shrink-0 z-20"
+    class="shrink-0 z-[80] border-t border-border-1 bg-bg-surface-1 px-3 pt-2 pb-2"
     @files-selected="handleFiles"
   >
-    <div class="relative overflow-hidden rounded-r-2 border border-border-1 bg-bg-surface-1 shadow-1 transition-standard focus-within:border-brand/60 focus-within:ring-2 focus-within:ring-brand/15">
+    <div class="relative overflow-visible rounded-md border border-border-1 bg-bg-surface-1 transition-standard focus-within:border-brand/60 focus-within:ring-2 focus-within:ring-brand/15">
       <FormattingToolbar
         v-if="showToolbar"
         :showPreview="showPreview"
@@ -554,8 +587,9 @@ onUnmounted(() => {
             <p class="text-[11px] text-text-3">{{ formatFileSize(attachment.file.size) }}</p>
           </div>
           <button
-            class="rounded p-1 text-text-3 transition-standard hover:bg-danger/10 hover:text-danger focus-ring"
+            class="rounded p-1 text-text-3 transition-standard hover:bg-danger/10 hover:text-danger focus-ring disabled:cursor-not-allowed disabled:opacity-40"
             aria-label="Remove attachment"
+            :disabled="attachment.uploading"
             @click="removeAttachment(index)"
           >
             <X class="h-3.5 w-3.5" />
@@ -577,6 +611,7 @@ onUnmounted(() => {
           aria-label="Message composer"
           @keydown="handleKeydown"
           @input="handleInput"
+          @blur="handleTextareaBlur"
         ></textarea>
 
         <MentionAutocomplete
@@ -600,6 +635,7 @@ onUnmounted(() => {
 
           <div class="relative">
             <button
+              ref="emojiButtonRef"
               class="rounded p-1.5 transition-standard hover:bg-amber-500/10 hover:text-amber-500 focus-ring"
               title="Insert emoji"
               aria-label="Insert emoji"
@@ -609,6 +645,7 @@ onUnmounted(() => {
             </button>
             <EmojiPicker
               :show="showEmojiPicker"
+              :anchor-el="emojiButtonRef"
               @select="insertEmoji"
               @close="showEmojiPicker = false"
             />

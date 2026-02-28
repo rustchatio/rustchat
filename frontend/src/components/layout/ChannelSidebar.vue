@@ -25,6 +25,7 @@ const channelStore = useChannelStore();
 const authStore = useAuthStore();
 const presenceStore = usePresenceStore();
 const unreadStore = useUnreadStore();
+
 const channelPrefsStore = useChannelPreferencesStore();
 
 const showCreateModal = ref(false);
@@ -149,6 +150,11 @@ function normalizeChannelForDisplay(c: any) {
             : 'offline';
     }
     
+    // Get unread counts from channel store (which clears counts immediately when channel is selected)
+    const isCurrentChannel = channelStore.currentChannelId === c.id;
+    const unreadCount = isCurrentChannel ? 0 : (c.unreadCount || 0);
+    const mentionCount = isCurrentChannel ? 0 : (c.mentionCount || 0);
+    
     const channelType = c.channel_type === 'direct' ? 'dm' : 
                         c.channel_type === 'group' ? 'group' :
                         c.channel_type === 'private' ? 'private' : 'public';
@@ -158,8 +164,9 @@ function normalizeChannelForDisplay(c: any) {
         name: displayName,
         type: channelType,
         status: status,
-        unread: unreadStore.getChannelUnreadCount(c.id),
-        mention: (unreadStore.channelMentions[c.id] || 0) > 0,
+        unread: unreadCount,
+        mention: mentionCount > 0,
+        mentionCount: mentionCount,
         creator_id: c.creator_id,
     };
 }
@@ -172,6 +179,38 @@ function isChannelOwner(channel: any): boolean {
 // Check if user is admin
 function isUserAdmin(): boolean {
     return ['system_admin', 'org_admin', 'admin'].includes(authStore.user?.role || '')
+}
+
+async function markChannelAsRead(channelId: string) {
+    try {
+        // Clear counts locally first (optimistic)
+        channelStore.clearCounts(channelId);
+        // Also call API
+        const { useUnreadStore } = await import('../../stores/unreads');
+        const store = useUnreadStore();
+        await store.markAsRead(channelId);
+    } catch (error) {
+        console.error('Failed to mark channel as read:', error);
+    }
+}
+
+// Check if any channel has unread messages
+const hasAnyUnread = computed(() => {
+    return channelStore.channels.some(c => (c.unreadCount || 0) > 0);
+});
+
+async function markAllAsRead() {
+    try {
+        // Clear all counts in channel store
+        channelStore.channels.forEach(c => {
+            c.unreadCount = 0;
+            c.mentionCount = 0;
+        });
+        // Call API
+        await unreadStore.markAllAsRead();
+    } catch (error) {
+        console.error('Failed to mark all as read:', error);
+    }
 }
 
 // Open context menu for a channel
@@ -252,8 +291,7 @@ onMounted(() => {
 
 function selectChannel(channelId: string) {
     channelStore.selectChannel(channelId);
-    // Mark as read when selecting
-    unreadStore.markAsRead(channelId);
+    // ChannelStore.clearCounts() will be called by ChannelView when channel is displayed
 }
 
 const collapsedCategories = ref(new Set<string>());
@@ -426,7 +464,7 @@ async function handleLeaveTeam() {
                <!-- Mark as read on hover -->
                <button 
                  v-if="channel.unread > 0"
-                 @click.stop="unreadStore.markAsRead(channel.id)"
+                 @click.stop="markChannelAsRead(channel.id)"
                  class="opacity-0 group-hover/item:opacity-100 flex items-center justify-center w-5 h-5 hover:bg-slate-700/50 rounded transition-opacity"
                  title="Mark as read"
                >
@@ -434,6 +472,10 @@ async function handleLeaveTeam() {
                </button>
 
                <div v-if="channel.mention" class="shrink-0 w-2.5 h-2.5 rounded-full bg-danger ring-2 ring-bg-surface-2 shadow-[0_0_8px_rgba(239,68,68,0.4)]"></div>
+               <!-- Mention count badge -->
+               <div v-if="channel.mentionCount > 0" class="shrink-0 px-2 h-5 flex items-center justify-center rounded-full bg-danger text-[10px] font-bold text-white">
+                 {{ channel.mentionCount > 99 ? '99+' : channel.mentionCount }}
+               </div>
                <div v-if="channel.unread > 0" class="shrink-0 px-2 h-5 flex items-center justify-center rounded-full bg-bg-surface-1 text-[10px] font-bold text-text-1 border border-border-1" :class="{ 'bg-white/20 border-none text-white': channelStore.currentChannelId === channel.id }">
                  {{ channel.unread > 99 ? '99+' : channel.unread }}
                </div>
@@ -477,8 +519,8 @@ async function handleLeaveTeam() {
 
     <div class="p-1.5 border-t border-border-1 space-y-0.5">
         <button 
-          v-if="Object.values(unreadStore.channelUnreads).some(c => (c as number) > 0)"
-          @click="unreadStore.markAllAsRead()"
+          v-if="hasAnyUnread"
+          @click="markAllAsRead()"
           class="w-full flex items-center justify-start px-2 py-1.5 text-xs text-text-3 hover:bg-bg-surface-1 hover:text-text-1 rounded-r-1 transition-standard text-left group"
         >
             <Check class="w-4 h-4 mr-3 text-text-3 group-hover:text-success" />

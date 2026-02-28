@@ -1,4 +1,4 @@
-//! Admin API endpoints for enterprise features
+//! Admin API endpoints
 
 use axum::{
     extract::{Path, Query, State},

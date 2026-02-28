@@ -123,41 +123,58 @@ async fn list_audit_logs(
         LEFT JOIN teams t ON a.target_type = 'team' AND a.target_id = t.id
         LEFT JOIN channels c ON a.target_type = 'channel' AND a.target_id = c.id
         WHERE 1=1
-        "#
+        "#,
     );
 
     if query.policy_id.is_some() {
         sql.push_str(" AND a.policy_id = $1");
     }
     if query.user_id.is_some() {
-        sql.push_str(&format!(" AND a.user_id = ${}", if query.policy_id.is_some() { 2 } else { 1 }));
+        sql.push_str(&format!(
+            " AND a.user_id = ${}",
+            if query.policy_id.is_some() { 2 } else { 1 }
+        ));
     }
     if query.status.is_some() {
         let idx = 1 + query.policy_id.is_some() as i32 + query.user_id.is_some() as i32;
         sql.push_str(&format!(" AND a.status = ${}", idx));
     }
     if query.action.is_some() {
-        let idx = 1 + query.policy_id.is_some() as i32 + query.user_id.is_some() as i32 + query.status.is_some() as i32;
+        let idx = 1
+            + query.policy_id.is_some() as i32
+            + query.user_id.is_some() as i32
+            + query.status.is_some() as i32;
         sql.push_str(&format!(" AND a.action = ${}", idx));
     }
     if query.from_date.is_some() {
-        let idx = 1 + query.policy_id.is_some() as i32 + query.user_id.is_some() as i32 
-            + query.status.is_some() as i32 + query.action.is_some() as i32;
+        let idx = 1
+            + query.policy_id.is_some() as i32
+            + query.user_id.is_some() as i32
+            + query.status.is_some() as i32
+            + query.action.is_some() as i32;
         sql.push_str(&format!(" AND a.created_at >= ${}", idx));
     }
     if query.to_date.is_some() {
-        let idx = 1 + query.policy_id.is_some() as i32 + query.user_id.is_some() as i32 
-            + query.status.is_some() as i32 + query.action.is_some() as i32 + query.from_date.is_some() as i32;
+        let idx = 1
+            + query.policy_id.is_some() as i32
+            + query.user_id.is_some() as i32
+            + query.status.is_some() as i32
+            + query.action.is_some() as i32
+            + query.from_date.is_some() as i32;
         sql.push_str(&format!(" AND a.created_at <= ${}", idx));
     }
 
     sql.push_str(" ORDER BY a.created_at DESC LIMIT $N OFFSET $M");
-    
+
     // Replace placeholders with actual parameter numbers
-    let param_count = 1 + query.policy_id.is_some() as i32 + query.user_id.is_some() as i32 
-        + query.status.is_some() as i32 + query.action.is_some() as i32 
-        + query.from_date.is_some() as i32 + query.to_date.is_some() as i32;
-    
+    let param_count = 1
+        + query.policy_id.is_some() as i32
+        + query.user_id.is_some() as i32
+        + query.status.is_some() as i32
+        + query.action.is_some() as i32
+        + query.from_date.is_some() as i32
+        + query.to_date.is_some() as i32;
+
     sql = sql.replace("$N", &format!("${}", param_count));
     sql = sql.replace("$M", &format!("${}", param_count + 1));
 
@@ -310,7 +327,7 @@ async fn export_audit_logs(
     let mut export_query = query;
     export_query.per_page = 10000; // Max export size
     export_query.page = 0;
-    
+
     list_audit_logs(State(state), _auth, Query(export_query)).await
 }
 
@@ -319,7 +336,13 @@ pub fn router() -> Router<AppState> {
     Router::new()
         .route("/admin/audit/membership", get(list_audit_logs))
         .route("/admin/audit/membership/summary", get(get_audit_summary))
-        .route("/admin/audit/membership/failures", get(get_policy_failure_stats))
-        .route("/admin/audit/membership/recent-failures", get(get_recent_failures))
+        .route(
+            "/admin/audit/membership/failures",
+            get(get_policy_failure_stats),
+        )
+        .route(
+            "/admin/audit/membership/recent-failures",
+            get(get_recent_failures),
+        )
         .route("/admin/audit/membership/export", get(export_audit_logs))
 }

@@ -55,15 +55,9 @@ pub fn router() -> Router<AppState> {
         )
         .route("/notifications/ack", post(ack_notification))
         .route("/redirect_location", get(get_redirect_location))
-        .route("/upgrade_to_enterprise", post(upgrade_to_enterprise))
-        .route(
-            "/upgrade_to_enterprise/status",
-            get(get_upgrade_to_enterprise_status),
-        )
-        .route(
-            "/upgrade_to_enterprise/allowed",
-            get(get_upgrade_to_enterprise_allowed),
-        )
+        .route("/upgrade_to_enterprise", post(upgrade_plan))
+        .route("/upgrade_to_enterprise/status", get(get_upgrade_status))
+        .route("/upgrade_to_enterprise/allowed", get(get_upgrade_allowed))
         .route("/restart", post(restart_server))
         .route("/integrity", post(check_integrity))
 }
@@ -94,10 +88,9 @@ async fn get_support_packet(
     State(_state): State<AppState>,
     _auth: crate::api::v4::extractors::MmAuthUser,
 ) -> ApiResult<axum::response::Response> {
-    // Return a dummy zip file or 403 if no license as per MM behavior
-    // For now, just return a 403 indicating no license
+    // Support packet generation is not implemented yet.
     Err(crate::error::AppError::Forbidden(
-        "Support packets require a license".to_string(),
+        "Support packet generation is not implemented".to_string(),
     ))
 }
 
@@ -990,21 +983,21 @@ async fn get_redirect_location(
     Ok(Json(serde_json::json!({"location": ""})))
 }
 
-async fn upgrade_to_enterprise(
+async fn upgrade_plan(
     State(_state): State<AppState>,
     _auth: crate::api::v4::extractors::MmAuthUser,
 ) -> ApiResult<Json<serde_json::Value>> {
     Ok(Json(serde_json::json!({"status": "OK"})))
 }
 
-async fn get_upgrade_to_enterprise_status(
+async fn get_upgrade_status(
     State(_state): State<AppState>,
     _auth: crate::api::v4::extractors::MmAuthUser,
 ) -> ApiResult<Json<serde_json::Value>> {
     Ok(Json(serde_json::json!({})))
 }
 
-async fn get_upgrade_to_enterprise_allowed(
+async fn get_upgrade_allowed(
     State(_state): State<AppState>,
     _auth: crate::api::v4::extractors::MmAuthUser,
 ) -> ApiResult<Json<serde_json::Value>> {

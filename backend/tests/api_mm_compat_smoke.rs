@@ -31,7 +31,7 @@ async fn mm_compat_smoke_test() {
         .await
         .unwrap();
     let lic = lic_res.json::<serde_json::Value>().await.unwrap();
-    assert_eq!(lic["IsLicensed"], "false");
+    assert_eq!(lic["IsLicensed"], "true");
 
     // 4. Check Config
     let conf_res = app

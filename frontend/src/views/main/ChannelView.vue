@@ -2,6 +2,7 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useStorage } from '@vueuse/core';
 import { useChannelStore } from '../../stores/channels';
+
 import { useMessageStore } from '../../stores/messages';
 import { useUnreadStore } from '../../stores/unreads';
 import { useCallsStore } from '../../stores/calls';
@@ -104,6 +105,9 @@ watch(channelId, (newId, oldId) => {
 // Mark as read when channel changes
 watch(channelId, (newId) => {
     if (newId) {
+        // Clear counts in channel store immediately for responsive UI
+        channelStore.clearCounts(newId);
+        // Also call the API to mark as read
         unreadStore.markAsRead(newId);
     }
 });

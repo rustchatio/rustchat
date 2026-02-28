@@ -9,14 +9,14 @@ use axum::{
 };
 use serde_json::json;
 
-/// Enterprise feature response - returns 501 Not Implemented
-fn enterprise_required() -> ApiResult<(StatusCode, Json<serde_json::Value>)> {
+/// SAML stub response - returns 501 Not Implemented
+fn saml_not_implemented() -> ApiResult<(StatusCode, Json<serde_json::Value>)> {
     Ok((
         StatusCode::NOT_IMPLEMENTED,
         Json(json!({
-            "id": "api.license.enterprise_needed.error",
-            "message": "This feature requires an Enterprise license.",
-            "detailed_error": "SAML authentication is an enterprise feature. Please upgrade your license.",
+            "id": "api.saml.not_implemented",
+            "message": "SAML feature is not implemented.",
+            "detailed_error": "SAML endpoints are available but backend SAML operations are not implemented.",
             "status_code": 501
         })),
     ))
@@ -46,7 +46,7 @@ pub fn router() -> Router<AppState> {
 async fn get_saml_metadata(State(_state): State<AppState>) -> ApiResult<impl IntoResponse> {
     Ok((
         [(axum::http::header::CONTENT_TYPE, "application/xml")],
-        "<?xml version=\"1.0\"?><EntityDescriptor xmlns=\"urn:oasis:names:tc:SAML:2.0:metadata\"><Error>SAML not configured - Enterprise license required</Error></EntityDescriptor>",
+        "<?xml version=\"1.0\"?><EntityDescriptor xmlns=\"urn:oasis:names:tc:SAML:2.0:metadata\"><Error>SAML not configured</Error></EntityDescriptor>",
     ))
 }
 
@@ -56,7 +56,7 @@ async fn get_saml_metadata_from_idp(
     _auth: crate::api::v4::extractors::MmAuthUser,
     Json(_body): Json<serde_json::Value>,
 ) -> ApiResult<(StatusCode, Json<serde_json::Value>)> {
-    enterprise_required()
+    saml_not_implemented()
 }
 
 /// POST /api/v4/saml/certificate/idp
@@ -64,7 +64,7 @@ async fn add_saml_idp_certificate(
     State(_state): State<AppState>,
     _auth: crate::api::v4::extractors::MmAuthUser,
 ) -> ApiResult<(StatusCode, Json<serde_json::Value>)> {
-    enterprise_required()
+    saml_not_implemented()
 }
 
 /// DELETE /api/v4/saml/certificate/idp
@@ -72,7 +72,7 @@ async fn remove_saml_idp_certificate(
     State(_state): State<AppState>,
     _auth: crate::api::v4::extractors::MmAuthUser,
 ) -> ApiResult<(StatusCode, Json<serde_json::Value>)> {
-    enterprise_required()
+    saml_not_implemented()
 }
 
 /// POST /api/v4/saml/certificate/public
@@ -80,7 +80,7 @@ async fn add_saml_public_certificate(
     State(_state): State<AppState>,
     _auth: crate::api::v4::extractors::MmAuthUser,
 ) -> ApiResult<(StatusCode, Json<serde_json::Value>)> {
-    enterprise_required()
+    saml_not_implemented()
 }
 
 /// DELETE /api/v4/saml/certificate/public
@@ -88,7 +88,7 @@ async fn remove_saml_public_certificate(
     State(_state): State<AppState>,
     _auth: crate::api::v4::extractors::MmAuthUser,
 ) -> ApiResult<(StatusCode, Json<serde_json::Value>)> {
-    enterprise_required()
+    saml_not_implemented()
 }
 
 /// POST /api/v4/saml/certificate/private
@@ -96,7 +96,7 @@ async fn add_saml_private_certificate(
     State(_state): State<AppState>,
     _auth: crate::api::v4::extractors::MmAuthUser,
 ) -> ApiResult<(StatusCode, Json<serde_json::Value>)> {
-    enterprise_required()
+    saml_not_implemented()
 }
 
 /// DELETE /api/v4/saml/certificate/private
@@ -104,7 +104,7 @@ async fn remove_saml_private_certificate(
     State(_state): State<AppState>,
     _auth: crate::api::v4::extractors::MmAuthUser,
 ) -> ApiResult<(StatusCode, Json<serde_json::Value>)> {
-    enterprise_required()
+    saml_not_implemented()
 }
 
 /// GET /api/v4/saml/certificate/status - returns disabled status
@@ -125,5 +125,5 @@ async fn reset_saml_auth_data(
     _auth: crate::api::v4::extractors::MmAuthUser,
     Json(_body): Json<serde_json::Value>,
 ) -> ApiResult<(StatusCode, Json<serde_json::Value>)> {
-    enterprise_required()
+    saml_not_implemented()
 }

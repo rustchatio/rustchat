@@ -121,7 +121,7 @@ pub struct Config {
     #[serde(default)]
     pub messaging: MessagingConfig,
 
-    /// Compatibility-oriented feature and license gates.
+    /// Compatibility-oriented feature flags.
     #[serde(default)]
     pub compatibility: CompatibilityConfig,
 }
@@ -289,15 +289,9 @@ impl Default for MessagingConfig {
     }
 }
 
-/// Compatibility and enterprise-gated feature flags.
+/// Compatibility feature flags.
 #[derive(Debug, Clone, Deserialize)]
 pub struct CompatibilityConfig {
-    /// Mirrors client-visible IsLicensed state.
-    #[serde(default)]
-    pub is_licensed: bool,
-    /// Mirrors LDAPGroups feature availability.
-    #[serde(default)]
-    pub ldap_groups_enabled: bool,
     /// Mirrors FeatureFlagMobileSSOCodeExchange behavior.
     #[serde(default = "default_compat_mobile_sso_code_exchange")]
     pub mobile_sso_code_exchange: bool,
@@ -306,8 +300,6 @@ pub struct CompatibilityConfig {
 impl Default for CompatibilityConfig {
     fn default() -> Self {
         Self {
-            is_licensed: false,
-            ldap_groups_enabled: false,
             mobile_sso_code_exchange: default_compat_mobile_sso_code_exchange(),
         }
     }
@@ -714,13 +706,6 @@ impl Config {
     }
 
     fn apply_compatibility_env_overrides(&mut self) -> anyhow::Result<()> {
-        if let Ok(raw) = std::env::var("RUSTCHAT_COMPAT_IS_LICENSED") {
-            self.compatibility.is_licensed = parse_bool_env("RUSTCHAT_COMPAT_IS_LICENSED", &raw)?;
-        }
-        if let Ok(raw) = std::env::var("RUSTCHAT_COMPAT_LDAP_GROUPS_ENABLED") {
-            self.compatibility.ldap_groups_enabled =
-                parse_bool_env("RUSTCHAT_COMPAT_LDAP_GROUPS_ENABLED", &raw)?;
-        }
         if let Ok(raw) = std::env::var("RUSTCHAT_COMPAT_MOBILE_SSO_CODE_EXCHANGE") {
             self.compatibility.mobile_sso_code_exchange =
                 parse_bool_env("RUSTCHAT_COMPAT_MOBILE_SSO_CODE_EXCHANGE", &raw)?;

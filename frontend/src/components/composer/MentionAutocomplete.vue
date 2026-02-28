@@ -40,7 +40,7 @@ function handleKeydown(e: KeyboardEvent) {
   } else if (e.key === 'ArrowUp') {
     e.preventDefault()
     selectedIndex.value = (selectedIndex.value - 1 + filteredMembers.value.length) % filteredMembers.value.length
-  } else if (e.key === 'Enter') {
+  } else if (e.key === 'Enter' || e.key === 'Tab') {
     e.preventDefault()
     const member = filteredMembers.value[selectedIndex.value]
     if (member) {

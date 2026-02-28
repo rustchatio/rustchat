@@ -1,4 +1,4 @@
-//! Enterprise models
+//! Administrative models
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};

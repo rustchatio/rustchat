@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Bold, Italic, Code, Link2, List, ListOrdered, Quote, Eye, EyeOff } from 'lucide-vue-next'
+import { Bold, Italic, Strikethrough, Heading, Code, Link2, List, ListOrdered, Quote, Eye, EyeOff } from 'lucide-vue-next'
 
 const emit = defineEmits<{
   (e: 'format', type: string): void
@@ -13,7 +13,10 @@ defineProps<{
 const formatActions = [
   { icon: Bold, type: 'bold', title: 'Bold (Ctrl+B)', label: 'Bold' },
   { icon: Italic, type: 'italic', title: 'Italic (Ctrl+I)', label: 'Italic' },
+  { icon: Strikethrough, type: 'strike', title: 'Strikethrough (Ctrl+Shift+X)', label: 'Strikethrough' },
+  { icon: Heading, type: 'heading', title: 'Heading', label: 'Heading' },
   { icon: Code, type: 'code', title: 'Inline code', label: 'Inline code' },
+  { icon: Code, type: 'codeblock', title: 'Code block', label: 'Code block' },
   { icon: Link2, type: 'link', title: 'Link', label: 'Link' },
   { icon: Quote, type: 'quote', title: 'Quote', label: 'Quote' },
   { icon: List, type: 'bullet', title: 'Bullet list', label: 'Bullet list' },
@@ -22,7 +25,7 @@ const formatActions = [
 </script>
 
 <template>
-  <div class="flex items-center space-x-0.5 border-b border-border-1 bg-bg-surface-2/50 px-1.5 py-1">
+  <div class="flex items-center gap-0.5 overflow-x-auto border-b border-border-1 bg-bg-surface-2/50 px-1.5 py-1 whitespace-nowrap">
     <!-- Formatting buttons -->
     <button
       v-for="action in formatActions"

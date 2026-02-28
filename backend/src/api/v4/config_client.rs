@@ -81,16 +81,45 @@ pub async fn get_client_config(
 }
 
 pub async fn get_client_license(
-    State(state): State<AppState>,
+    State(_state): State<AppState>,
     Query(query): Query<LicenseQuery>,
 ) -> ApiResult<impl IntoResponse> {
     let body = if matches!(query.format.as_deref(), Some("old")) {
         serde_json::json!({
-            "IsLicensed": if state.config.compatibility.is_licensed { "true" } else { "false" }
+            "IsLicensed": "true",
+            "LDAP": "true",
+            "LDAPGroups": "true",
+            "MFA": "true",
+            "SAML": "true",
+            "Cluster": "true",
+            "Metrics": "true",
+            "GoogleOAuth": "true",
+            "Office365OAuth": "true",
+            "OpenId": "true",
+            "Compliance": "true",
+            "MHPNS": "true",
+            "Announcement": "true",
+            "Elasticsearch": "true",
+            "DataRetention": "true",
+            "IDLoadedPushNotifications": "true",
+            "EmailNotificationContents": "true",
+            "MessageExport": "true",
+            "CustomPermissionsSchemes": "true",
+            "GuestAccounts": "true",
+            "GuestAccountsPermissions": "true",
+            "CustomTermsOfService": "true",
+            "LockTeammateNameDisplay": "true",
+            "Cloud": "false",
+            "SharedChannels": "true",
+            "RemoteClusterService": "true",
+            "OutgoingOAuthConnections": "true",
+            "SelfHostedProducts": "true",
+            "SkuShortName": "enterprise",
+            "Users": "0"
         })
     } else {
         serde_json::to_value(mm::License {
-            is_licensed: state.config.compatibility.is_licensed,
+            is_licensed: true,
             issued_at: 0,
             starts_at: 0,
             expires_at: 0,

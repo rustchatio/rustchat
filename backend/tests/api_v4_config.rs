@@ -133,8 +133,8 @@ async fn license_client_returns_boolean() {
     );
     assert_eq!(
         is_licensed.unwrap().as_bool(),
-        Some(false),
-        "IsLicensed is not false"
+        Some(true),
+        "IsLicensed is not true"
     );
 }
 
@@ -169,8 +169,6 @@ fn test_config() -> Config {
         messaging: Default::default(),
         unread: Default::default(),
         compatibility: rustchat::config::CompatibilityConfig {
-            is_licensed: false,
-            ldap_groups_enabled: false,
             mobile_sso_code_exchange: true,
         },
     }

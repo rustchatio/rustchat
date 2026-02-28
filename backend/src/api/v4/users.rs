@@ -3060,8 +3060,6 @@ async fn get_user_groups(
     Path(user_id): Path<String>,
     Query(query): Query<GroupAssociationQuery>,
 ) -> ApiResult<Json<Vec<serde_json::Value>>> {
-    ensure_ldap_groups_feature_available(&state)?;
-
     let user_uuid = if user_id == "me" {
         auth.user_id
     } else {
@@ -3132,16 +3130,6 @@ async fn get_user_groups(
 struct GroupAssociationQuery {
     q: Option<String>,
     filter_allow_reference: Option<bool>,
-}
-
-fn ensure_ldap_groups_feature_available(state: &AppState) -> ApiResult<()> {
-    if state.config.compatibility.is_licensed && state.config.compatibility.ldap_groups_enabled {
-        return Ok(());
-    }
-
-    Err(AppError::Forbidden(
-        "LDAP group features require an Enterprise license".to_string(),
-    ))
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]

@@ -277,12 +277,13 @@ async fn mm_set_unread_returns_channel_unread_at() {
         .await
         .unwrap_or(0);
 
-    let total_count: i64 =
-        sqlx::query_scalar("SELECT COUNT(*)::BIGINT FROM posts WHERE channel_id = $1 AND deleted_at IS NULL")
-            .bind(channel_id)
-            .fetch_one(&ctx.app.db_pool)
-            .await
-            .unwrap_or(0);
+    let total_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*)::BIGINT FROM posts WHERE channel_id = $1 AND deleted_at IS NULL",
+    )
+    .bind(channel_id)
+    .fetch_one(&ctx.app.db_pool)
+    .await
+    .unwrap_or(0);
     let unread_count: i64 = sqlx::query_scalar(
         "SELECT COUNT(*)::BIGINT FROM posts WHERE channel_id = $1 AND deleted_at IS NULL AND seq > $2",
     )

@@ -7,9 +7,9 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::api::AppState;
+use crate::auth::policy::permissions;
 use crate::auth::AuthUser;
 use crate::error::ApiResult;
-use crate::auth::policy::permissions;
 use crate::services::membership_policies::{
     AutoMembershipPolicyAudit, CreatePolicyRequest, PolicyRepository, PolicyWithTargets,
     UpdatePolicyRequest,
@@ -44,7 +44,9 @@ async fn list_policies(
         _ => None,
     });
 
-    let policies = repo.list_policies(scope_type, query.team_id, query.enabled).await?;
+    let policies = repo
+        .list_policies(scope_type, query.team_id, query.enabled)
+        .await?;
     Ok(Json(policies))
 }
 
@@ -56,10 +58,9 @@ async fn get_policy(
 ) -> ApiResult<Json<PolicyWithTargets>> {
     let repo = PolicyRepository::new(&state.db);
 
-    let policy = repo
-        .get_policy(policy_id)
-        .await?
-        .ok_or_else(|| crate::error::AppError::NotFound(format!("Policy {} not found", policy_id)))?;
+    let policy = repo.get_policy(policy_id).await?.ok_or_else(|| {
+        crate::error::AppError::NotFound(format!("Policy {} not found", policy_id))
+    })?;
 
     Ok(Json(policy))
 }
@@ -112,10 +113,9 @@ async fn update_policy(
     }
 
     let repo = PolicyRepository::new(&state.db);
-    let policy = repo
-        .update_policy(policy_id, req)
-        .await?
-        .ok_or_else(|| crate::error::AppError::NotFound(format!("Policy {} not found", policy_id)))?;
+    let policy = repo.update_policy(policy_id, req).await?.ok_or_else(|| {
+        crate::error::AppError::NotFound(format!("Policy {} not found", policy_id))
+    })?;
 
     Ok(Json(policy))
 }
@@ -136,7 +136,10 @@ async fn delete_policy(
     let deleted = repo.delete_policy(policy_id).await?;
 
     if !deleted {
-        return Err(crate::error::AppError::NotFound(format!("Policy {} not found", policy_id)));
+        return Err(crate::error::AppError::NotFound(format!(
+            "Policy {} not found",
+            policy_id
+        )));
     }
 
     Ok(Json(serde_json::json!({
@@ -200,24 +203,31 @@ async fn trigger_user_resync(
     }
 
     // Get user's teams and apply policies for each
-    let user_teams: Vec<(Uuid,)> = sqlx::query_as("SELECT team_id FROM team_members WHERE user_id = $1")
-        .bind(user_id)
-        .fetch_all(&state.db)
-        .await?;
+    let user_teams: Vec<(Uuid,)> =
+        sqlx::query_as("SELECT team_id FROM team_members WHERE user_id = $1")
+            .bind(user_id)
+            .fetch_all(&state.db)
+            .await?;
 
     let mut total_applied = 0;
     let mut total_failed = 0;
 
     for (team_id,) in &user_teams {
         use crate::services::membership_policies::apply_auto_membership_for_team_join;
-        
-        match apply_auto_membership_for_team_join(&state, user_id, *team_id, "manual_resync").await {
+
+        match apply_auto_membership_for_team_join(&state, user_id, *team_id, "manual_resync").await
+        {
             Ok(entries) => {
                 total_applied += entries.iter().filter(|e| e.status == "success").count();
                 total_failed += entries.iter().filter(|e| e.status == "failed").count();
             }
             Err(e) => {
-                tracing::error!("Failed to apply policies for user {} team {}: {}", user_id, team_id, e);
+                tracing::error!(
+                    "Failed to apply policies for user {} team {}: {}",
+                    user_id,
+                    team_id,
+                    e
+                );
                 total_failed += 1;
             }
         }
@@ -235,12 +245,18 @@ async fn trigger_user_resync(
 /// Create router for membership policy admin routes
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/admin/membership-policies", get(list_policies).post(create_policy))
+        .route(
+            "/admin/membership-policies",
+            get(list_policies).post(create_policy),
+        )
         .route(
             "/admin/membership-policies/{policy_id}",
             get(get_policy).put(update_policy).delete(delete_policy),
         )
-        .route("/admin/membership-policies/{policy_id}/audit", get(get_policy_audit))
+        .route(
+            "/admin/membership-policies/{policy_id}/audit",
+            get(get_policy_audit),
+        )
         .route(
             "/admin/membership-policies/{policy_id}/status",
             get(get_policy_status),
