@@ -1449,6 +1449,12 @@ fn map_envelope_to_mm(env: &WsEnvelope) -> Option<mm::WebSocketMessage> {
                 broadcast: map_broadcast(env.broadcast.as_ref()),
             })
         }
+        "thread_updated" => Some(mm::WebSocketMessage {
+            seq,
+            event: "thread_updated".to_string(),
+            data: env.data.clone(),
+            broadcast: map_broadcast(env.broadcast.as_ref()),
+        }),
         "user_added" => {
             let user_id = extract_mm_id(env.data.get("user_id"));
             let channel_id = extract_mm_id(env.data.get("channel_id"));
@@ -1737,6 +1743,36 @@ mod tests {
         assert_eq!(
             mapped.data["post_id"],
             serde_json::json!(encode_mm_id(post_id))
+        );
+    }
+
+    #[test]
+    fn map_envelope_to_mm_maps_thread_updated_payload() {
+        let team_id = Uuid::new_v4();
+        let user_id = Uuid::new_v4();
+        let env = WsEnvelope {
+            msg_type: "event".to_string(),
+            event: "thread_updated".to_string(),
+            seq: None,
+            channel_id: None,
+            data: serde_json::json!({
+                "thread": "{\"id\":\"thread-1\"}"
+            }),
+            broadcast: Some(WsBroadcast {
+                channel_id: None,
+                team_id: Some(team_id),
+                user_id: Some(user_id),
+                exclude_user_id: None,
+            }),
+        };
+
+        let mapped = map_envelope_to_mm(&env).expect("thread_updated should map");
+        assert_eq!(mapped.event, "thread_updated");
+        assert_eq!(mapped.data["thread"], serde_json::json!("{\"id\":\"thread-1\"}"));
+        assert_eq!(
+            mapped.broadcast.team_id,
+            encode_mm_id(team_id),
+            "thread_updated team routing must be preserved"
         );
     }
 

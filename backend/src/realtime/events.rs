@@ -41,6 +41,7 @@ pub enum EventType {
     // Prompt mentions: thread_reply_created, thread_reply_updated, thread_reply_deleted
     ThreadReplyUpdated,
     ThreadReplyDeleted,
+    ThreadUpdated,
 
     ReactionAdded,
     ReactionRemoved,
@@ -80,6 +81,7 @@ impl EventType {
             Self::ThreadReplyCreated => "thread_reply_created",
             Self::ThreadReplyUpdated => "thread_reply_updated",
             Self::ThreadReplyDeleted => "thread_reply_deleted",
+            Self::ThreadUpdated => "thread_updated",
             Self::ReactionAdded => "reaction_added",
             Self::ReactionRemoved => "reaction_removed",
             Self::UserTyping => "typing",

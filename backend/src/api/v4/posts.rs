@@ -666,6 +666,189 @@ struct SetPostUnreadRequest {
     collapsed_threads_supported: bool,
 }
 
+#[derive(sqlx::FromRow)]
+struct ChannelUnreadComputation {
+    total_msg_count: i64,
+    total_msg_count_root: i64,
+    unread_msg_count: i64,
+    unread_msg_count_root: i64,
+    mention_count: i64,
+    mention_count_root: i64,
+    urgent_mention_count: i64,
+}
+
+#[derive(sqlx::FromRow)]
+struct ThreadSnapshotRow {
+    id: Uuid,
+    channel_id: Uuid,
+    user_id: Uuid,
+    message: String,
+    created_at: chrono::DateTime<chrono::Utc>,
+    reply_count: i64,
+    last_reply_at: Option<chrono::DateTime<chrono::Utc>>,
+    following: bool,
+    last_read_at: Option<chrono::DateTime<chrono::Utc>>,
+    mention_count: i32,
+    unread_replies_count: i32,
+}
+
+async fn is_crt_enabled_for_user(state: &AppState, user_id: Uuid) -> ApiResult<bool> {
+    if !state.config.unread.collapsed_threads_enabled {
+        return Ok(false);
+    }
+
+    let pref_value: Option<String> = sqlx::query_scalar(
+        r#"
+        SELECT value
+        FROM mattermost_preferences
+        WHERE user_id = $1
+          AND category = 'display_settings'
+          AND name = 'collapsed_reply_threads'
+        LIMIT 1
+        "#,
+    )
+    .bind(user_id)
+    .fetch_optional(&state.db)
+    .await?;
+
+    let enabled = pref_value
+        .as_deref()
+        .map(|v| {
+            let normalized = v.trim().to_ascii_lowercase();
+            normalized == "on" || normalized == "true" || normalized == "1"
+        })
+        .unwrap_or(true);
+
+    Ok(enabled)
+}
+
+async fn compute_channel_unread_from_post(
+    state: &AppState,
+    channel_id: Uuid,
+    last_read_id: i64,
+    username: &str,
+) -> ApiResult<ChannelUnreadComputation> {
+    let mut stats: ChannelUnreadComputation = sqlx::query_as(
+        r#"
+        SELECT
+            COUNT(*) FILTER (WHERE p.deleted_at IS NULL)::BIGINT AS total_msg_count,
+            COUNT(*) FILTER (
+                WHERE p.deleted_at IS NULL
+                  AND p.root_post_id IS NULL
+            )::BIGINT AS total_msg_count_root,
+            COUNT(*) FILTER (
+                WHERE p.deleted_at IS NULL
+                  AND p.seq > $2
+            )::BIGINT AS unread_msg_count,
+            COUNT(*) FILTER (
+                WHERE p.deleted_at IS NULL
+                  AND p.seq > $2
+                  AND p.root_post_id IS NULL
+            )::BIGINT AS unread_msg_count_root,
+            COUNT(*) FILTER (
+                WHERE p.deleted_at IS NULL
+                  AND p.seq > $2
+                  AND (
+                      p.message LIKE '%@' || $3 || '%'
+                      OR p.message LIKE '%@all%'
+                      OR p.message LIKE '%@channel%'
+                  )
+            )::BIGINT AS mention_count,
+            COUNT(*) FILTER (
+                WHERE p.deleted_at IS NULL
+                  AND p.seq > $2
+                  AND p.root_post_id IS NULL
+                  AND (
+                      p.message LIKE '%@' || $3 || '%'
+                      OR p.message LIKE '%@all%'
+                      OR p.message LIKE '%@channel%'
+                  )
+            )::BIGINT AS mention_count_root,
+            COUNT(*) FILTER (
+                WHERE p.deleted_at IS NULL
+                  AND p.seq > $2
+                  AND (
+                      p.message LIKE '%@' || $3 || '%'
+                      OR p.message LIKE '%@all%'
+                      OR p.message LIKE '%@channel%'
+                  )
+                  AND p.message LIKE '%@here%'
+            )::BIGINT AS urgent_mention_count
+        FROM posts p
+        WHERE p.channel_id = $1
+        "#,
+    )
+    .bind(channel_id)
+    .bind(last_read_id)
+    .bind(username)
+    .fetch_one(&state.db)
+    .await?;
+
+    if !state.config.unread.post_priority_enabled {
+        stats.urgent_mention_count = 0;
+    }
+
+    Ok(stats)
+}
+
+async fn fetch_thread_snapshot_for_user(
+    state: &AppState,
+    thread_root_id: Uuid,
+    user_id: Uuid,
+) -> ApiResult<Option<mm::Thread>> {
+    let row: Option<ThreadSnapshotRow> = sqlx::query_as(
+        r#"
+        SELECT
+            p.id,
+            p.channel_id,
+            p.user_id,
+            p.message,
+            p.created_at,
+            p.reply_count::int8 AS reply_count,
+            p.last_reply_at,
+            COALESCE(tm.following, false) AS following,
+            tm.last_read_at,
+            COALESCE(tm.mention_count, 0)::int4 AS mention_count,
+            COALESCE(tm.unread_replies_count, 0)::int4 AS unread_replies_count
+        FROM posts p
+        LEFT JOIN thread_memberships tm
+               ON tm.post_id = p.id
+              AND tm.user_id = $2
+        WHERE p.id = $1
+          AND p.root_post_id IS NULL
+          AND p.deleted_at IS NULL
+        "#,
+    )
+    .bind(thread_root_id)
+    .bind(user_id)
+    .fetch_optional(&state.db)
+    .await?;
+
+    Ok(row.map(|t| mm::Thread {
+        id: encode_mm_id(t.id),
+        reply_count: t.reply_count,
+        last_reply_at: t
+            .last_reply_at
+            .map(|dt| dt.timestamp_millis())
+            .unwrap_or(0),
+        last_viewed_at: t
+            .last_read_at
+            .map(|dt| dt.timestamp_millis())
+            .unwrap_or(0),
+        participants: vec![],
+        post: mm::PostInThread {
+            id: encode_mm_id(t.id),
+            channel_id: encode_mm_id(t.channel_id),
+            user_id: encode_mm_id(t.user_id),
+            message: t.message,
+            create_at: t.created_at.timestamp_millis(),
+        },
+        unread_replies: i64::from(t.unread_replies_count),
+        unread_mentions: i64::from(t.mention_count),
+        is_following: Some(t.following),
+    }))
+}
+
 async fn set_post_unread(
     State(state): State<AppState>,
     auth: MmAuthUser,
@@ -711,6 +894,9 @@ async fn set_post_unread(
 
     let last_read_id = if seq > 0 { seq - 1 } else { 0 };
     let mark_view_at = post_created_at - chrono::Duration::milliseconds(1);
+    let crt_enabled_for_user = is_crt_enabled_for_user(&state, user_id).await?;
+    let crt_supported_request = request.collapsed_threads_supported && crt_enabled_for_user;
+    let is_reply = root_post_id.is_some();
 
     sqlx::query(
         r#"
@@ -726,11 +912,114 @@ async fn set_post_unread(
     .execute(&state.db)
     .await?;
 
+    let username: String = sqlx::query_scalar("SELECT username FROM users WHERE id = $1")
+        .bind(user_id)
+        .fetch_one(&state.db)
+        .await?;
+
+    let mut stats = compute_channel_unread_from_post(&state, channel_id, last_read_id, &username).await?;
+
+    // CRT unsupported + reply follows Mattermost behavior:
+    // unread root/urgent counters for the channel are intentionally zeroed.
+    let set_unread_count_root = !(is_reply && !crt_supported_request);
+    if !set_unread_count_root {
+        stats.unread_msg_count_root = 0;
+        stats.mention_count_root = 0;
+        stats.urgent_mention_count = 0;
+    }
+
+    if is_reply && !crt_supported_request && state.config.unread.thread_auto_follow {
+        let thread_root_id = root_post_id.unwrap_or(post_id);
+        let (thread_unread_replies, thread_unread_mentions): (i64, i64) = sqlx::query_as(
+            r#"
+            SELECT
+                COUNT(*) FILTER (
+                    WHERE p.deleted_at IS NULL
+                      AND p.created_at > $3
+                )::BIGINT AS unread_replies_count,
+                COUNT(*) FILTER (
+                    WHERE p.deleted_at IS NULL
+                      AND p.created_at > $3
+                      AND (
+                          p.message LIKE '%@' || $2 || '%'
+                          OR p.message LIKE '%@all%'
+                          OR p.message LIKE '%@channel%'
+                      )
+                )::BIGINT AS mention_count
+            FROM posts p
+            WHERE p.root_post_id = $1
+            "#,
+        )
+        .bind(thread_root_id)
+        .bind(&username)
+        .bind(mark_view_at)
+        .fetch_one(&state.db)
+        .await?;
+
+        let unread_replies_count = i32::try_from(thread_unread_replies).unwrap_or(i32::MAX);
+        let mention_count = i32::try_from(thread_unread_mentions).unwrap_or(i32::MAX);
+
+        sqlx::query(
+            r#"
+            INSERT INTO thread_memberships
+                (user_id, post_id, following, last_read_at, mention_count, unread_replies_count, updated_at)
+            VALUES
+                ($1, $2, true, $3, $4, $5, NOW())
+            ON CONFLICT (user_id, post_id)
+            DO UPDATE SET
+                following = true,
+                last_read_at = $3,
+                mention_count = $4,
+                unread_replies_count = $5,
+                updated_at = NOW()
+            "#,
+        )
+        .bind(user_id)
+        .bind(thread_root_id)
+        .bind(mark_view_at)
+        .bind(mention_count)
+        .bind(unread_replies_count)
+        .execute(&state.db)
+        .await?;
+
+        // Match Mattermost: only send thread_updated when user CRT is enabled but request
+        // came from a CRT-unsupported client.
+        if crt_enabled_for_user && !request.collapsed_threads_supported {
+            if let Some(thread) = fetch_thread_snapshot_for_user(&state, thread_root_id, user_id).await? {
+                if let Ok(payload) = serde_json::to_string(&thread) {
+                    let thread_updated = WsEnvelope::event(
+                        EventType::ThreadUpdated,
+                        serde_json::json!({ "thread": payload }),
+                        None,
+                    )
+                    .with_broadcast(WsBroadcast {
+                        channel_id: None,
+                        team_id: Some(team_id),
+                        user_id: Some(user_id),
+                        exclude_user_id: None,
+                    });
+                    state.ws_hub.broadcast(thread_updated).await;
+                }
+            }
+        }
+    }
+
+    let msg_count = (stats.total_msg_count - stats.unread_msg_count).max(0);
+    let msg_count_root = (stats.total_msg_count_root - stats.unread_msg_count_root).max(0);
+    let mention_count = stats.mention_count.max(0);
+    let mention_count_root = stats.mention_count_root.max(0);
+    let urgent_mention_count = stats.urgent_mention_count.max(0);
+
     sqlx::query(
         r#"
         UPDATE channel_members
         SET last_viewed_at = $3,
             manually_unread = true,
+            msg_count = $4,
+            mention_count = $5,
+            msg_count_root = $6,
+            mention_count_root = $7,
+            urgent_mention_count = $8,
             last_update_at = NOW()
         WHERE channel_id = $1 AND user_id = $2
         "#,
@@ -738,100 +1027,6 @@ async fn set_post_unread(
     .bind(channel_id)
     .bind(user_id)
     .bind(mark_view_at)
-    .execute(&state.db)
-    .await?;
-
-    // Track thread-follow state for reply mark-unread behavior when enabled.
-    if root_post_id.is_some() && state.config.unread.thread_auto_follow {
-        let thread_root_id = root_post_id.unwrap_or(post_id);
-        sqlx::query(
-            r#"
-            INSERT INTO thread_memberships
-                (user_id, post_id, following, last_read_at, mention_count, unread_replies_count, updated_at)
-            VALUES
-                ($1, $2, true, $3, 0, 0, NOW())
-            ON CONFLICT (user_id, post_id)
-            DO UPDATE SET following = true, last_read_at = $3, updated_at = NOW()
-            "#,
-        )
-        .bind(user_id)
-        .bind(thread_root_id)
-        .bind(mark_view_at)
-        .execute(&state.db)
-        .await?;
-    }
-
-    let username: String = sqlx::query_scalar("SELECT username FROM users WHERE id = $1")
-        .bind(user_id)
-        .fetch_one(&state.db)
-        .await?;
-
-    let (
-        msg_count,
-        mention_count,
-        mut msg_count_root,
-        mut mention_count_root,
-        mut urgent_mention_count,
-    ): (i64, i64, i64, i64, i64) = sqlx::query_as(
-        r#"
-        SELECT
-            COUNT(*) FILTER (WHERE p.deleted_at IS NULL AND p.seq > $2) AS msg_count,
-            COUNT(*) FILTER (
-                WHERE p.deleted_at IS NULL
-                  AND p.seq > $2
-                  AND (p.message LIKE '%@' || $3 || '%' OR p.message LIKE '%@all%' OR p.message LIKE '%@channel%')
-            ) AS mention_count,
-            COUNT(*) FILTER (WHERE p.deleted_at IS NULL AND p.seq > $2 AND p.root_post_id IS NULL) AS msg_count_root,
-            COUNT(*) FILTER (
-                WHERE p.deleted_at IS NULL
-                  AND p.seq > $2
-                  AND p.root_post_id IS NULL
-                  AND (p.message LIKE '%@' || $3 || '%' OR p.message LIKE '%@all%' OR p.message LIKE '%@channel%')
-            ) AS mention_count_root,
-            COUNT(*) FILTER (
-                WHERE p.deleted_at IS NULL
-                  AND p.seq > $2
-                  AND (p.message LIKE '%@' || $3 || '%' OR p.message LIKE '%@all%' OR p.message LIKE '%@channel%')
-                  AND p.message LIKE '%@here%'
-            ) AS urgent_mention_count
-        FROM posts p
-        WHERE p.channel_id = $1
-        "#,
-    )
-    .bind(channel_id)
-    .bind(last_read_id)
-    .bind(&username)
-    .fetch_one(&state.db)
-    .await?;
-
-    // Approximate CRT-aware behavior for reply mark-unread when client supports collapsed threads.
-    if root_post_id.is_some()
-        && request.collapsed_threads_supported
-        && state.config.unread.collapsed_threads_enabled
-    {
-        msg_count_root = 0;
-        mention_count_root = 0;
-        urgent_mention_count = 0;
-    }
-
-    if !state.config.unread.post_priority_enabled {
-        urgent_mention_count = 0;
-    }
-
-    sqlx::query(
-        r#"
-        UPDATE channel_members
-        SET msg_count = $3,
-            mention_count = $4,
-            msg_count_root = $5,
-            mention_count_root = $6,
-            urgent_mention_count = $7,
-            last_update_at = NOW()
-        WHERE channel_id = $1 AND user_id = $2
-        "#,
-    )
-    .bind(channel_id)
-    .bind(user_id)
     .bind(msg_count)
     .bind(mention_count)
     .bind(msg_count_root)

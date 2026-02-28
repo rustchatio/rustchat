@@ -232,7 +232,7 @@ const handleLeave = async () => {
                 <div class="fixed inset-0 z-[-1]" @click="showMenu = false"></div>
 
                 <button 
-                    @click="$emit('openSettings'); showMenu = false"
+                    @click="uiStore.toggleRhs('info'); showMenu = false"
                     class="w-full px-4 py-2 text-left text-sm flex items-center transition-colors duration-200 text-text-2 hover:bg-surface-2"
                 >
                     <Info class="w-4 h-4 mr-2" />

@@ -235,12 +235,23 @@ async fn mm_set_unread_returns_channel_unread_at() {
     let ctx = setup_mm_user().await;
     let (team_id, channel_id) = setup_team_channel(&ctx).await;
 
+    let _first_res = ctx
+        .app
+        .api_client
+        .post(format!("{}/api/v4/posts", &ctx.app.address))
+        .header("Authorization", format!("Bearer {}", ctx.token))
+        .json(&json!({ "channel_id": channel_id.to_string(), "message": "Before" }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(200, _first_res.status().as_u16());
+
     let post_res = ctx
         .app
         .api_client
         .post(format!("{}/api/v4/posts", &ctx.app.address))
         .header("Authorization", format!("Bearer {}", ctx.token))
-        .json(&json!({ "channel_id": channel_id.to_string(), "message": "Unread" }))
+        .json(&json!({ "channel_id": channel_id.to_string(), "message": "Anchor" }))
         .send()
         .await
         .unwrap();
@@ -249,11 +260,38 @@ async fn mm_set_unread_returns_channel_unread_at() {
     let post_id = post_body["id"].as_str().unwrap().to_string();
     let post_uuid = parse_mm_or_uuid(&post_id).unwrap();
 
-    let seq: i64 = sqlx::query_scalar("SELECT seq FROM posts WHERE id = $1")
+    let _third_res = ctx
+        .app
+        .api_client
+        .post(format!("{}/api/v4/posts", &ctx.app.address))
+        .header("Authorization", format!("Bearer {}", ctx.token))
+        .json(&json!({ "channel_id": channel_id.to_string(), "message": "After" }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(200, _third_res.status().as_u16());
+
+    let seq: i64 = sqlx::query_scalar("SELECT seq FROM posts WHERE id = $1 AND deleted_at IS NULL")
         .bind(post_uuid)
         .fetch_one(&ctx.app.db_pool)
         .await
         .unwrap_or(0);
+
+    let total_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*)::BIGINT FROM posts WHERE channel_id = $1 AND deleted_at IS NULL")
+            .bind(channel_id)
+            .fetch_one(&ctx.app.db_pool)
+            .await
+            .unwrap_or(0);
+    let unread_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*)::BIGINT FROM posts WHERE channel_id = $1 AND deleted_at IS NULL AND seq > $2",
+    )
+    .bind(channel_id)
+    .bind((seq - 1).max(0))
+    .fetch_one(&ctx.app.db_pool)
+    .await
+    .unwrap_or(0);
+    let expected_read_position = (total_count - unread_count).max(0);
 
     let unread_res = ctx
         .app
@@ -270,7 +308,107 @@ async fn mm_set_unread_returns_channel_unread_at() {
     let unread_body: serde_json::Value = unread_res.json().await.unwrap();
     assert_eq!(unread_body["channel_id"], encode_mm_id(channel_id));
     assert_eq!(unread_body["team_id"], encode_mm_id(team_id));
-    assert_eq!(unread_body["msg_count"], (seq - 1).max(0));
+    assert_eq!(unread_body["msg_count"], expected_read_position);
+}
+
+#[tokio::test]
+async fn mm_set_unread_reply_when_crt_disabled_zeros_root_unread_and_updates_thread_membership() {
+    let ctx = setup_mm_user().await;
+    let (_team_id, channel_id) = setup_team_channel(&ctx).await;
+
+    sqlx::query(
+        r#"
+        INSERT INTO mattermost_preferences (user_id, category, name, value)
+        VALUES ($1, 'display_settings', 'collapsed_reply_threads', 'off')
+        ON CONFLICT (user_id, category, name) DO UPDATE SET value = 'off'
+        "#,
+    )
+    .bind(ctx.user_uuid)
+    .execute(&ctx.app.db_pool)
+    .await
+    .unwrap();
+
+    let root_res = ctx
+        .app
+        .api_client
+        .post(format!("{}/api/v4/posts", &ctx.app.address))
+        .header("Authorization", format!("Bearer {}", ctx.token))
+        .json(&json!({ "channel_id": channel_id.to_string(), "message": "root" }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(200, root_res.status().as_u16());
+    let root_body: serde_json::Value = root_res.json().await.unwrap();
+    let root_id = root_body["id"].as_str().unwrap().to_string();
+    let root_uuid = parse_mm_or_uuid(&root_id).unwrap();
+
+    let reply1_res = ctx
+        .app
+        .api_client
+        .post(format!("{}/api/v4/posts", &ctx.app.address))
+        .header("Authorization", format!("Bearer {}", ctx.token))
+        .json(&json!({
+            "channel_id": channel_id.to_string(),
+            "message": "reply one",
+            "root_id": root_id
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(200, reply1_res.status().as_u16());
+    let reply1_body: serde_json::Value = reply1_res.json().await.unwrap();
+    let reply1_id = reply1_body["id"].as_str().unwrap().to_string();
+
+    let reply2_res = ctx
+        .app
+        .api_client
+        .post(format!("{}/api/v4/posts", &ctx.app.address))
+        .header("Authorization", format!("Bearer {}", ctx.token))
+        .json(&json!({
+            "channel_id": channel_id.to_string(),
+            "message": "reply two",
+            "root_id": root_id
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(200, reply2_res.status().as_u16());
+
+    let unread_res = ctx
+        .app
+        .api_client
+        .post(format!(
+            "{}/api/v4/users/{}/posts/{}/set_unread",
+            &ctx.app.address, ctx.user_id, reply1_id
+        ))
+        .header("Authorization", format!("Bearer {}", ctx.token))
+        .json(&json!({ "collapsed_threads_supported": true }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(200, unread_res.status().as_u16());
+    let unread_body: serde_json::Value = unread_res.json().await.unwrap();
+
+    assert_eq!(unread_body["mention_count_root"], 0);
+    assert_eq!(unread_body["urgent_mention_count"], 0);
+    assert_eq!(unread_body["msg_count_root"], 1);
+
+    let membership_row: (bool, i32, i32) = sqlx::query_as(
+        r#"
+        SELECT following, mention_count, unread_replies_count
+        FROM thread_memberships
+        WHERE user_id = $1 AND post_id = $2
+        "#,
+    )
+    .bind(ctx.user_uuid)
+    .bind(root_uuid)
+    .fetch_one(&ctx.app.db_pool)
+    .await
+    .unwrap();
+
+    assert!(membership_row.0);
+    assert_eq!(membership_row.1, 0);
+    assert_eq!(membership_row.2, 2);
 }
 
 #[tokio::test]

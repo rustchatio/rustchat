@@ -45,7 +45,7 @@ watch(() => props.channelId, fetchMembers);
 </script>
 
 <template>
-    <div class="flex flex-col h-full bg-surface dark:bg-surface-dim">
+    <div class="h-full bg-surface dark:bg-surface-dim flex flex-col">
         <!-- Toolbar -->
         <div class="p-4 border-b border-border-dim dark:border-white/5 space-y-4 bg-surface-dim/30">
             <div class="relative group">

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { X, Bookmark } from 'lucide-vue-next'
+import { X, Bookmark, ExternalLink } from 'lucide-vue-next'
 import { format } from 'date-fns'
 import type { Message } from '../../stores/messages'
 import { useMessageStore } from '../../stores/messages'
@@ -52,7 +52,7 @@ function jumpToMessage(message: Message) {
 <template>
   <aside 
     v-if="show"
-    class="w-[400px] bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 flex flex-col shrink-0 z-20"
+    class="h-full bg-white dark:bg-gray-800 flex flex-col"
   >
     <!-- Header -->
     <div class="h-12 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between px-4">

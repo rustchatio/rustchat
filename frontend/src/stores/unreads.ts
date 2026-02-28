@@ -128,8 +128,10 @@ export const useUnreadStore = defineStore('unreads', () => {
     }
 
     function applyPostUnread(data: ChannelUnreadAt) {
-        channelUnreads.value[data.channel_id] = Number.isFinite(data.msg_count) ? data.msg_count : 0
         channelMentions.value[data.channel_id] = Number.isFinite(data.mention_count) ? data.mention_count : 0
+        // Mattermost post_unread/set_unread returns msg_count as read-position counter.
+        // Keep unread counters authoritative from overview/unread events.
+        void fetchOverview()
     }
 
     const totalUnreadCount = computed(() => Object.values(channelUnreads.value).reduce((a, b) => a + b, 0))

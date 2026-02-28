@@ -198,6 +198,7 @@
 - Completed checks:
   - `P2` default channel bootstrap is implemented in team creation path via `ensure_default_channels_for_team`.
   - `A1` LDAP sync-membership route method is corrected to `POST`.
+  - `A2` group syncables persistence + link/patch/unlink membership effects are implemented (see dedicated iteration: `previous-analyses/2026-02-28-groups-syncables-a2/`).
   - `A3` team-join/member-add paths use shared default-channel application service with soft-fail parity behavior.
   - v4 invite flow now supports DB-backed `invite_id`, one-time `token`, and invite-id regeneration.
 - Test evidence:
@@ -208,6 +209,9 @@
     - `v4_add_team_member_by_token_uses_one_time_token`
     - `create_team_bootstraps_fallback_default_channels_and_joins_creator`
     - `create_team_bootstraps_configured_default_channels_and_joins_creator`
+  - `backend/tests/api_v4_groups_syncables.rs`:
+    - `v4_team_syncable_link_patch_and_retrieve`
+    - `v4_channel_syncable_link_and_unlink_cleans_memberships`
 - Remaining risks:
-  - `A2`, `U2`, `R1`, and `R2` are still open (`groups` syncables behavior, user-level re-sync UI/action, reconciliation worker, and failure/audit surfacing).
+  - `U2`, `R1`, and `R2` are still open (user-level re-sync UI/action, durable reconciliation worker, and failure/audit surfacing).
   - `U1` is partially implemented: baseline admin configuration for default channels is now exposed, but full policy CRUD/preview is still pending.

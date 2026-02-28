@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useStorage } from '@vueuse/core'
-import { channelsApi, type Channel, type CreateChannelRequest } from '../api/channels'
+import { channelsApi, type Channel, type CreateChannelRequest, type ChannelNotifyProps } from '../api/channels'
 import { useAuthStore } from './auth'
 
 export const useChannelStore = defineStore('channels', () => {
@@ -168,6 +168,15 @@ export const useChannelStore = defineStore('channels', () => {
         channels.value = Array.from(channelMap.values())
     }
 
+    async function updateNotifyProps(channelId: string, userId: string, props: ChannelNotifyProps) {
+        try {
+            await channelsApi.updateNotifyProps(channelId, userId, props)
+        } catch (e: any) {
+            error.value = e.response?.data?.message || 'Failed to update notification settings'
+            throw e
+        }
+    }
+
     return {
         channels,
         joinableChannels,
@@ -191,5 +200,6 @@ export const useChannelStore = defineStore('channels', () => {
         incrementMention,
         clearCounts,
         addChannel,
+        updateNotifyProps,
     }
 })

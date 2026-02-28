@@ -6,7 +6,7 @@ import type { PresenceStatus } from '../core/entities/User'
 import { useUnreadStore } from '../stores/unreads'
 import { useChannelStore } from '../stores/channels'
 import { useToast } from './useToast'
-import { postsApi, type Post } from '../api/posts'
+import { postsApi, type ChannelUnreadAt, type Post } from '../api/posts'
 import type { Channel } from '../api/channels'
 import { normalizeEntityId, normalizeIdsDeep } from '../utils/idCompat'
 
@@ -513,13 +513,8 @@ export function useWebSocket() {
 
             case 'post_unread': {
                 if (envelope.data) {
-                    const channelId = normalizeEntityId(envelope.data.channel_id) ?? envelope.data.channel_id
-                    if (typeof channelId === 'string' && channelId) {
-                        const unreadCount = Number(envelope.data.msg_count ?? 0)
-                        const mentionCount = Number(envelope.data.mention_count ?? 0)
-                        unreadStore.channelUnreads[channelId] = Number.isFinite(unreadCount) ? unreadCount : 0
-                        unreadStore.channelMentions[channelId] = Number.isFinite(mentionCount) ? mentionCount : 0
-                    }
+                    const payload = normalizeIdsDeep(envelope.data) as ChannelUnreadAt
+                    unreadStore.applyPostUnread(payload)
                 }
                 break
             }
