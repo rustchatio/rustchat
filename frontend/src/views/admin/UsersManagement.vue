@@ -559,5 +559,90 @@ const isDeleted = (user: AdminUser) => Boolean(user.deleted_at);
                 </div>
             </div>
         </div>
+
+        <!-- Re-sync Membership Modal -->
+        <div
+            v-if="showResyncModal && resyncingUser"
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+            @click.self="closeResyncModal"
+        >
+            <div class="w-full max-w-lg rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-xl">
+                <div class="flex items-start justify-between p-5 border-b border-gray-200 dark:border-slate-700">
+                    <div class="flex items-start gap-3">
+                        <div class="rounded-full bg-indigo-100 p-2 dark:bg-indigo-900/30">
+                            <UserPlus class="w-5 h-5 text-indigo-700 dark:text-indigo-300" />
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">Re-sync Memberships</h3>
+                            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                                Apply auto-membership policies for this user across all their teams.
+                            </p>
+                        </div>
+                    </div>
+                    <button @click="closeResyncModal" class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                        <X class="w-5 h-5" />
+                    </button>
+                </div>
+
+                <div class="p-5 space-y-4">
+                    <!-- User Info -->
+                    <div class="text-sm text-gray-700 dark:text-gray-300">
+                        <p>User:</p>
+                        <div class="mt-2 rounded-md bg-gray-50 dark:bg-slate-900 px-3 py-2 font-medium">
+                            @{{ resyncingUser.username }} ({{ resyncingUser.email }})
+                        </div>
+                    </div>
+
+                    <!-- Result Display -->
+                    <div v-if="resyncResult" class="rounded-lg border border-green-200 bg-green-50 p-4 dark:border-green-900/40 dark:bg-green-900/20">
+                        <h4 class="text-sm font-semibold text-green-800 dark:text-green-300 mb-2">Re-sync Complete</h4>
+                        <div class="grid grid-cols-3 gap-4 text-center">
+                            <div>
+                                <div class="text-2xl font-bold text-green-700 dark:text-green-400">{{ resyncResult.teams_processed }}</div>
+                                <div class="text-xs text-green-600 dark:text-green-500">Teams Processed</div>
+                            </div>
+                            <div>
+                                <div class="text-2xl font-bold text-green-700 dark:text-green-400">{{ resyncResult.memberships_applied }}</div>
+                                <div class="text-xs text-green-600 dark:text-green-500">Applied</div>
+                            </div>
+                            <div>
+                                <div class="text-2xl font-bold" :class="resyncResult.memberships_failed > 0 ? 'text-rose-600 dark:text-rose-400' : 'text-green-700 dark:text-green-400'">{{ resyncResult.memberships_failed }}</div>
+                                <div class="text-xs text-green-600 dark:text-green-500">Failed</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div v-if="resyncError" class="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-900/40 dark:bg-rose-900/20 dark:text-rose-300">
+                        {{ resyncError }}
+                    </div>
+                </div>
+
+                <div class="flex items-center justify-end gap-3 p-5 border-t border-gray-200 dark:border-slate-700">
+                    <button
+                        v-if="!resyncResult"
+                        @click="closeResyncModal"
+                        class="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200"
+                    >
+                        Cancel
+                    </button>
+                    <button
+                        v-if="resyncResult"
+                        @click="closeResyncModal"
+                        class="px-4 py-2 rounded-lg bg-gray-600 hover:bg-gray-700 text-white font-medium"
+                    >
+                        Close
+                    </button>
+                    <button
+                        v-if="!resyncResult"
+                        @click="confirmResyncUser"
+                        :disabled="resyncSubmitting"
+                        class="px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-medium flex items-center"
+                    >
+                        <RefreshCw class="w-4 h-4 mr-2" :class="{ 'animate-spin': resyncSubmitting }" />
+                        {{ resyncSubmitting ? 'Processing...' : 'Run Re-sync' }}
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 </template>

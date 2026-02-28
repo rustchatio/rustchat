@@ -124,7 +124,7 @@ async fn main() -> anyhow::Result<()> {
         config.encryption_key.clone(),
     );
 
-    // Build application router
+    // Build application router (spawns reconciliation worker internally)
     let app = api::router(
         db_pool.clone(),
         redis_pool,

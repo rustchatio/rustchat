@@ -142,6 +142,7 @@ pub struct AppState {
     pub sfu_manager: Arc<SFUManager>,
     pub call_state_manager: Arc<CallStateManager>,
     pub circuit_breakers: Arc<ServiceCircuitBreakers>,
+    pub reconciliation_tx: Option<async_channel::Sender<crate::services::membership_reconciliation::ReconciliationTask>>,
 }
 
 /// Build the main application router
@@ -162,6 +163,36 @@ pub fn router(
     ));
     let connection_store = ConnectionStore::new();
 
+    // Create a temporary state for the reconciliation worker
+    let temp_state = Arc::new(AppState {
+        db: db.clone(),
+        redis: redis.clone(),
+        jwt_secret: jwt_secret.clone(),
+        jwt_issuer: config.jwt_issuer.clone(),
+        jwt_audience: config.jwt_audience.clone(),
+        jwt_expiry_hours,
+        ws_hub: ws_hub.clone(),
+        connection_store: connection_store.clone(),
+        s3_client: s3_client.clone(),
+        http_client: reqwest::Client::new(),
+        start_time: std::time::Instant::now(),
+        config: config.clone(),
+        sfu_manager: sfu_manager.clone(),
+        call_state_manager: call_state_manager.clone(),
+        circuit_breakers: Arc::new(ServiceCircuitBreakers::new()),
+        reconciliation_tx: None,
+    });
+
+    // Spawn membership reconciliation worker
+    let (_reconciliation_handle, reconciliation_tx) = 
+        crate::services::membership_reconciliation::spawn_reconciliation_worker(temp_state.clone());
+    
+    // Spawn periodic reconciliation
+    let _periodic_handle = crate::services::membership_reconciliation::spawn_periodic_reconciliation(
+        temp_state.clone(),
+        reconciliation_tx.clone(),
+    );
+
     let state = AppState {
         db,
         redis,
@@ -178,6 +209,7 @@ pub fn router(
         sfu_manager,
         call_state_manager,
         circuit_breakers: Arc::new(ServiceCircuitBreakers::new()),
+        reconciliation_tx: Some(reconciliation_tx),
     };
 
     // Start Calls voice event listener
