@@ -2,7 +2,8 @@
 import { ref, onMounted, watch, computed } from 'vue';
 import { useAdminStore } from '../../stores/admin';
 import { useAuthStore } from '../../stores/auth';
-import { Users, Plus, Search, MoreHorizontal, UserCheck, UserX, Edit2, Trash2, AlertTriangle, X, Eraser } from 'lucide-vue-next';
+import { Users, Plus, Search, MoreHorizontal, UserCheck, UserX, Edit2, Trash2, AlertTriangle, X, Eraser, RefreshCw, UserPlus } from 'lucide-vue-next';
+import membershipPoliciesApi from '../../api/membershipPolicies';
 import CreateUserModal from '../../components/modals/CreateUserModal.vue';
 import EditUserModal from '../../components/modals/EditUserModal.vue';
 import type { AdminUser } from '../../api/admin';
@@ -26,6 +27,13 @@ const showWipeModal = ref(false);
 const wipingUser = ref<AdminUser | null>(null);
 const wipeSubmitting = ref(false);
 const wipeError = ref('');
+
+// Re-sync membership state
+const showResyncModal = ref(false);
+const resyncingUser = ref<AdminUser | null>(null);
+const resyncSubmitting = ref(false);
+const resyncResult = ref<{ teams_processed: number; memberships_applied: number; memberships_failed: number } | null>(null);
+const resyncError = ref('');
 
 let searchTimeout: ReturnType<typeof setTimeout>;
 
@@ -177,6 +185,37 @@ function toggleMenu(userId: string) {
 // Close menu when clicking outside (simple implementation)
 function closeMenu() {
     activeMenuUserId.value = null;
+}
+
+// Re-sync membership functions
+function openResyncModal(user: AdminUser) {
+    resyncingUser.value = user;
+    resyncSubmitting.value = false;
+    resyncResult.value = null;
+    resyncError.value = '';
+    showResyncModal.value = true;
+    activeMenuUserId.value = null;
+}
+
+function closeResyncModal() {
+    showResyncModal.value = false;
+    resyncingUser.value = null;
+    resyncResult.value = null;
+    resyncError.value = '';
+}
+
+async function confirmResyncUser() {
+    if (!resyncingUser.value) return;
+    resyncSubmitting.value = true;
+    resyncError.value = '';
+    try {
+        const response = await membershipPoliciesApi.resyncUser(resyncingUser.value.id);
+        resyncResult.value = response.data;
+    } catch (e: any) {
+        resyncError.value = e?.response?.data?.error?.message || e?.response?.data?.message || 'Failed to re-sync user memberships';
+    } finally {
+        resyncSubmitting.value = false;
+    }
 }
 
 const roleColors: Record<string, string> = {
@@ -347,6 +386,14 @@ const isDeleted = (user: AdminUser) => Boolean(user.deleted_at);
                                     >
                                         <Eraser class="w-4 h-4 mr-2" />
                                         Wipe User
+                                    </button>
+                                    <button
+                                        v-if="!isDeleted(user)"
+                                        @click.stop="openResyncModal(user)"
+                                        class="flex w-full items-center px-4 py-2 text-sm text-indigo-600 hover:bg-gray-100 dark:hover:bg-slate-700 dark:text-indigo-400"
+                                    >
+                                        <RefreshCw class="w-4 h-4 mr-2" />
+                                        Re-sync Memberships
                                     </button>
                                 </div>
                             </div>

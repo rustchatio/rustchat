@@ -62,6 +62,11 @@ const router = createRouter({
                     component: () => import('../views/admin/TeamsManagement.vue'),
                 },
                 {
+                    path: 'membership-policies',
+                    name: 'admin-membership-policies',
+                    component: () => import('../views/admin/MembershipPolicies.vue'),
+                },
+                {
                     path: 'settings',
                     name: 'admin-settings',
                     component: () => import('../views/admin/ServerSettings.vue'),
