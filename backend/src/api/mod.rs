@@ -143,7 +143,9 @@ pub struct AppState {
     pub sfu_manager: Arc<SFUManager>,
     pub call_state_manager: Arc<CallStateManager>,
     pub circuit_breakers: Arc<ServiceCircuitBreakers>,
-    pub reconciliation_tx: Option<async_channel::Sender<crate::services::membership_reconciliation::ReconciliationTask>>,
+    pub reconciliation_tx: Option<
+        async_channel::Sender<crate::services::membership_reconciliation::ReconciliationTask>,
+    >,
 }
 
 /// Build the main application router
@@ -185,14 +187,15 @@ pub fn router(
     });
 
     // Spawn membership reconciliation worker
-    let (_reconciliation_handle, reconciliation_tx) = 
+    let (_reconciliation_handle, reconciliation_tx) =
         crate::services::membership_reconciliation::spawn_reconciliation_worker(temp_state.clone());
-    
+
     // Spawn periodic reconciliation
-    let _periodic_handle = crate::services::membership_reconciliation::spawn_periodic_reconciliation(
-        temp_state.clone(),
-        reconciliation_tx.clone(),
-    );
+    let _periodic_handle =
+        crate::services::membership_reconciliation::spawn_periodic_reconciliation(
+            temp_state.clone(),
+            reconciliation_tx.clone(),
+        );
 
     let state = AppState {
         db,
@@ -211,6 +214,12 @@ pub fn router(
         call_state_manager,
         circuit_breakers: Arc::new(ServiceCircuitBreakers::new()),
         reconciliation_tx: Some(reconciliation_tx),
+    };
+
+    let _keycloak_sync_handle = if state.config.keycloak_sync.enabled {
+        Some(crate::services::keycloak_sync::spawn_periodic_keycloak_sync(Arc::new(state.clone())))
+    } else {
+        None
     };
 
     // Start Calls voice event listener

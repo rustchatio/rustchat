@@ -112,6 +112,14 @@ pub struct Config {
     /// Unread/read parity behavior configuration
     #[serde(default)]
     pub unread: UnreadConfig,
+
+    /// Keycloak group sync configuration
+    #[serde(default)]
+    pub keycloak_sync: KeycloakSyncConfig,
+
+    /// Messaging policy configuration
+    #[serde(default)]
+    pub messaging: MessagingConfig,
 }
 
 /// Calls plugin configuration
@@ -226,6 +234,57 @@ impl Default for UnreadConfig {
     }
 }
 
+/// Keycloak synchronization configuration
+#[derive(Debug, Clone, Deserialize)]
+pub struct KeycloakSyncConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default = "default_keycloak_provider_key")]
+    pub provider_key: String,
+    #[serde(default)]
+    pub admin_base_url: String,
+    #[serde(default)]
+    pub realm: String,
+    #[serde(default)]
+    pub client_id: String,
+    #[serde(default)]
+    pub client_secret: String,
+    #[serde(default = "default_keycloak_interval_seconds")]
+    pub interval_seconds: u64,
+    #[serde(default = "default_keycloak_mapping_mode")]
+    pub mapping_mode: String,
+}
+
+impl Default for KeycloakSyncConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            provider_key: default_keycloak_provider_key(),
+            admin_base_url: String::new(),
+            realm: String::new(),
+            client_id: String::new(),
+            client_secret: String::new(),
+            interval_seconds: default_keycloak_interval_seconds(),
+            mapping_mode: default_keycloak_mapping_mode(),
+        }
+    }
+}
+
+/// Messaging policy configuration
+#[derive(Debug, Clone, Deserialize)]
+pub struct MessagingConfig {
+    #[serde(default)]
+    pub dm_acl_enabled: bool,
+}
+
+impl Default for MessagingConfig {
+    fn default() -> Self {
+        Self {
+            dm_acl_enabled: false,
+        }
+    }
+}
+
 fn default_calls_enabled() -> bool {
     false // Disabled by default
 }
@@ -285,6 +344,18 @@ fn default_post_priority_enabled() -> bool {
 
 fn default_thread_auto_follow() -> bool {
     true
+}
+
+fn default_keycloak_provider_key() -> String {
+    "oidc-main".to_string()
+}
+
+fn default_keycloak_interval_seconds() -> u64 {
+    300
+}
+
+fn default_keycloak_mapping_mode() -> String {
+    "attributes_only".to_string()
 }
 
 /// Database connection pool configuration
@@ -573,6 +644,43 @@ impl Config {
         Ok(())
     }
 
+    fn apply_keycloak_env_overrides(&mut self) -> anyhow::Result<()> {
+        if let Ok(raw) = std::env::var("RUSTCHAT_KEYCLOAK_SYNC_ENABLED") {
+            self.keycloak_sync.enabled = parse_bool_env("RUSTCHAT_KEYCLOAK_SYNC_ENABLED", &raw)?;
+        }
+        if let Ok(raw) = std::env::var("RUSTCHAT_KEYCLOAK_SYNC_PROVIDER_KEY") {
+            self.keycloak_sync.provider_key = raw.trim().to_string();
+        }
+        if let Ok(raw) = std::env::var("RUSTCHAT_KEYCLOAK_SYNC_ADMIN_BASE_URL") {
+            self.keycloak_sync.admin_base_url = raw.trim().to_string();
+        }
+        if let Ok(raw) = std::env::var("RUSTCHAT_KEYCLOAK_SYNC_REALM") {
+            self.keycloak_sync.realm = raw.trim().to_string();
+        }
+        if let Ok(raw) = std::env::var("RUSTCHAT_KEYCLOAK_SYNC_CLIENT_ID") {
+            self.keycloak_sync.client_id = raw.trim().to_string();
+        }
+        if let Ok(raw) = std::env::var("RUSTCHAT_KEYCLOAK_SYNC_CLIENT_SECRET") {
+            self.keycloak_sync.client_secret = raw.trim().to_string();
+        }
+        if let Ok(raw) = std::env::var("RUSTCHAT_KEYCLOAK_SYNC_INTERVAL_SECONDS") {
+            self.keycloak_sync.interval_seconds =
+                parse_u64_env("RUSTCHAT_KEYCLOAK_SYNC_INTERVAL_SECONDS", &raw)?;
+        }
+        if let Ok(raw) = std::env::var("RUSTCHAT_KEYCLOAK_SYNC_MAPPING_MODE") {
+            self.keycloak_sync.mapping_mode = raw.trim().to_string();
+        }
+        Ok(())
+    }
+
+    fn apply_messaging_env_overrides(&mut self) -> anyhow::Result<()> {
+        if let Ok(raw) = std::env::var("RUSTCHAT_MESSAGING_DM_ACL_ENABLED") {
+            self.messaging.dm_acl_enabled =
+                parse_bool_env("RUSTCHAT_MESSAGING_DM_ACL_ENABLED", &raw)?;
+        }
+        Ok(())
+    }
+
     /// Load configuration from environment variables
     pub fn load() -> anyhow::Result<Self> {
         let mut builder = config::Config::builder();
@@ -596,6 +704,8 @@ impl Config {
         let mut settings: Config = config.try_deserialize()?;
         settings.apply_calls_env_overrides()?;
         settings.apply_unread_env_overrides()?;
+        settings.apply_keycloak_env_overrides()?;
+        settings.apply_messaging_env_overrides()?;
 
         // Validate security settings
         settings.validate_security()?;

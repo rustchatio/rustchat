@@ -1,21 +1,31 @@
 use axum::{
-    extract::State,
+    extract::{Path, State},
     routing::{get, post},
     Json, Router,
 };
 use serde::Deserialize;
+use uuid::Uuid;
 
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/audits", get(get_audits))
         .route("/admin/email/test", post(test_email_config))
+        .route("/admin/keycloak/sync", post(trigger_keycloak_sync))
+        .route(
+            "/admin/keycloak/sync/users/{user_id}",
+            post(trigger_keycloak_user_sync),
+        )
 }
 use crate::api::v4::extractors::MmAuthUser;
 use crate::api::AppState;
+use crate::auth::policy::permissions;
 use crate::error::ApiResult;
+use crate::error::AppError;
+use crate::mattermost_compat::id::parse_mm_or_uuid;
 use crate::mattermost_compat::models as mm;
 use crate::models::email::MailProviderSettings;
 use crate::services::email_provider::{EmailAddress, EmailContent, MailProvider, SmtpProvider};
+use crate::services::keycloak_sync;
 
 pub async fn get_audits(
     State(state): State<AppState>,
@@ -161,4 +171,41 @@ pub async fn test_email_config(
             "details": "Check your SMTP configuration and ensure the server allows sending."
         }))),
     }
+}
+
+async fn trigger_keycloak_sync(
+    State(state): State<AppState>,
+    auth: MmAuthUser,
+) -> ApiResult<Json<serde_json::Value>> {
+    if !auth.has_permission(&permissions::SYSTEM_MANAGE) {
+        return Err(AppError::Forbidden(
+            "Missing permission to run Keycloak sync".to_string(),
+        ));
+    }
+
+    let report = keycloak_sync::run_full_sync(&state).await?;
+    Ok(Json(serde_json::json!({
+        "status": "OK",
+        "report": report
+    })))
+}
+
+async fn trigger_keycloak_user_sync(
+    State(state): State<AppState>,
+    auth: MmAuthUser,
+    Path(user_id): Path<String>,
+) -> ApiResult<Json<serde_json::Value>> {
+    if !auth.has_permission(&permissions::SYSTEM_MANAGE) {
+        return Err(AppError::Forbidden(
+            "Missing permission to run Keycloak user sync".to_string(),
+        ));
+    }
+
+    let user_uuid: Uuid = parse_mm_or_uuid(&user_id)
+        .ok_or_else(|| AppError::BadRequest("Invalid user_id".to_string()))?;
+    let report = keycloak_sync::resync_user(&state, user_uuid).await?;
+    Ok(Json(serde_json::json!({
+        "status": "OK",
+        "report": report
+    })))
 }

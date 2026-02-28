@@ -140,6 +140,8 @@ pub struct AuthConfig {
     pub enable_sso: bool,
     #[serde(default)]
     pub require_sso: bool,
+    #[serde(default)]
+    pub sso_break_glass_emails: Vec<String>,
     #[serde(default = "default_true")]
     pub allow_registration: bool,
     #[serde(default = "default_true")]
@@ -202,6 +204,7 @@ impl Default for AuthConfig {
             enable_email_password: true,
             enable_sso: false,
             require_sso: false,
+            sso_break_glass_emails: Vec::new(),
             allow_registration: true,
             enable_sign_in_with_email: true,
             enable_sign_in_with_username: true,

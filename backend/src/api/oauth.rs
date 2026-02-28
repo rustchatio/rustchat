@@ -1287,62 +1287,109 @@ async fn find_or_create_user(
 ) -> Result<crate::models::User, AppError> {
     use crate::models::User;
 
-    // Look up existing user by email
-    let existing: Option<User> = sqlx::query_as("SELECT * FROM users WHERE email = $1")
-        .bind(email)
+    let desired_role = determine_user_role(config, user_info);
+    let external_id = user_info
+        .external_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty());
+
+    // 1) External-ID match takes precedence.
+    if let Some(ext_id) = external_id {
+        let existing_by_external: Option<User> = sqlx::query_as(
+            "SELECT * FROM users WHERE auth_provider = $1 AND auth_provider_id = $2 AND deleted_at IS NULL",
+        )
+        .bind(provider_key)
+        .bind(ext_id)
         .fetch_optional(&state.db)
         .await?;
 
-    if let Some(user) = existing {
-        // Update last login
-        sqlx::query(
+        if let Some(user) = existing_by_external {
+            let should_sync_role = config.provider_type == "oidc" && !desired_role.is_empty();
+            let updated_user: User = sqlx::query_as(
+                r#"
+                UPDATE users
+                SET last_login_at = NOW(),
+                    updated_at = NOW(),
+                    role = CASE WHEN $2 THEN $3 ELSE role END
+                WHERE id = $1
+                RETURNING *
+                "#,
+            )
+            .bind(user.id)
+            .bind(should_sync_role)
+            .bind(&desired_role)
+            .fetch_one(&state.db)
+            .await?;
+
+            return Ok(updated_user);
+        }
+    }
+
+    // 2) Fallback to email match for first trusted link.
+    let existing_by_email: Option<User> =
+        sqlx::query_as("SELECT * FROM users WHERE LOWER(email) = LOWER($1) AND deleted_at IS NULL")
+            .bind(email)
+            .fetch_optional(&state.db)
+            .await?;
+
+    if let Some(user) = existing_by_email {
+        let current_link: (Option<String>, Option<String>) =
+            sqlx::query_as("SELECT auth_provider, auth_provider_id FROM users WHERE id = $1")
+                .bind(user.id)
+                .fetch_one(&state.db)
+                .await?;
+
+        if let Some(existing_external_id) = current_link.1.as_deref() {
+            let same_provider = current_link.0.as_deref() == Some(provider_key);
+            let same_external = external_id == Some(existing_external_id);
+            if !same_provider || !same_external {
+                return Err(AppError::Conflict(
+                    "Account is already linked to a different SSO identity".to_string(),
+                ));
+            }
+        }
+
+        let should_link = external_id.is_some() && current_link.1.is_none();
+        let should_sync_role = config.provider_type == "oidc" && !desired_role.is_empty();
+        let updated_user: User = sqlx::query_as(
             r#"
-            UPDATE users 
+            UPDATE users
             SET last_login_at = NOW(),
-                updated_at = NOW()
+                updated_at = NOW(),
+                auth_provider = CASE WHEN $2 THEN $3 ELSE auth_provider END,
+                auth_provider_id = CASE WHEN $2 THEN $4 ELSE auth_provider_id END,
+                role = CASE WHEN $5 THEN $6 ELSE role END
             WHERE id = $1
+            RETURNING *
             "#,
         )
         .bind(user.id)
-        .execute(&state.db)
+        .bind(should_link)
+        .bind(provider_key)
+        .bind(external_id)
+        .bind(should_sync_role)
+        .bind(&desired_role)
+        .fetch_one(&state.db)
         .await?;
 
-        return Ok(user);
+        return Ok(updated_user);
     }
 
-    // User not found - check if auto-provisioning is enabled
+    // 3) Create user if auto-provisioning is enabled.
     if !config.auto_provision {
         return Err(AppError::Forbidden(
             "Account does not exist and auto-provisioning is disabled".to_string(),
         ));
     }
 
-    // Determine role from mappings or use default
-    let role = if let Some(ref mappings) = config.role_mappings {
-        // Map groups to role
-        let mappings_obj = mappings
-            .as_object()
-            .unwrap_or(&serde_json::Map::new())
-            .clone();
-        let mut assigned_role = config
-            .default_role
-            .clone()
-            .unwrap_or_else(|| "member".to_string());
-
-        for group in &user_info.groups {
-            if let Some(role_val) = mappings_obj.get(group) {
-                if let Some(role_str) = role_val.as_str() {
-                    assigned_role = role_str.to_string();
-                    break;
-                }
-            }
-        }
-        assigned_role
-    } else {
+    let role = if desired_role.is_empty() {
         config
             .default_role
             .clone()
             .unwrap_or_else(|| "member".to_string())
+    } else {
+        desired_role
     };
 
     // Generate username from preferred_username, name, or email
@@ -1384,13 +1431,33 @@ async fn find_or_create_user(
     .bind(user_info.name.as_ref())
     .bind(&role)
     .bind(provider_key)
-    .bind(user_info.external_id.as_ref())
+    .bind(external_id)
     .bind(config.org_id)
     .fetch_one(&state.db)
     .await
     .map_err(|e| AppError::Internal(format!("Failed to create user: {}", e)))?;
 
     Ok(user)
+}
+
+fn determine_user_role(config: &SsoConfig, user_info: &UserInfo) -> String {
+    let mut assigned_role = config
+        .default_role
+        .clone()
+        .unwrap_or_else(|| "member".to_string());
+
+    if let Some(ref mappings) = config.role_mappings {
+        if let Some(mappings_obj) = mappings.as_object() {
+            for group in &user_info.groups {
+                if let Some(role_val) = mappings_obj.get(group).and_then(|v| v.as_str()) {
+                    assigned_role = role_val.to_string();
+                    break;
+                }
+            }
+        }
+    }
+
+    assigned_role
 }
 
 /// Generate a unique username by appending numbers if needed

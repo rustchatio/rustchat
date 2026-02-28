@@ -131,6 +131,8 @@ pub fn test_config() -> Config {
             rate_limit_enabled: false,
             ..Default::default()
         },
+        keycloak_sync: Default::default(),
+        messaging: Default::default(),
         unread: Default::default(),
     }
 }

@@ -2,6 +2,7 @@ use crate::api::AppState;
 use crate::error::ApiResult;
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, Row};
+use std::collections::HashSet;
 
 use uuid::Uuid;
 
@@ -222,17 +223,16 @@ impl<'a> PolicyRepository<'a> {
 
     /// Get policy by ID with targets
     pub async fn get_policy(&self, policy_id: Uuid) -> ApiResult<Option<PolicyWithTargets>> {
-        let policy: Option<AutoMembershipPolicy> = sqlx::query_as(
-            "SELECT * FROM auto_membership_policies WHERE id = $1"
-        )
-        .bind(policy_id)
-        .fetch_optional(self.db)
-        .await?;
+        let policy: Option<AutoMembershipPolicy> =
+            sqlx::query_as("SELECT * FROM auto_membership_policies WHERE id = $1")
+                .bind(policy_id)
+                .fetch_optional(self.db)
+                .await?;
 
         match policy {
             Some(policy) => {
                 let targets: Vec<AutoMembershipPolicyTarget> = sqlx::query_as(
-                    "SELECT * FROM auto_membership_policy_targets WHERE policy_id = $1"
+                    "SELECT * FROM auto_membership_policy_targets WHERE policy_id = $1",
                 )
                 .bind(policy_id)
                 .fetch_all(self.db)
@@ -252,22 +252,25 @@ impl<'a> PolicyRepository<'a> {
         enabled: Option<bool>,
     ) -> ApiResult<Vec<PolicyWithTargets>> {
         let mut query = String::from("SELECT * FROM auto_membership_policies WHERE 1=1");
-        
+
         if scope_type.is_some() {
             query.push_str(" AND scope_type = $1");
         }
         if team_id.is_some() {
-            query.push_str(&format!(" AND team_id = ${}", if scope_type.is_some() { 2 } else { 1 }));
+            query.push_str(&format!(
+                " AND team_id = ${}",
+                if scope_type.is_some() { 2 } else { 1 }
+            ));
         }
         if enabled.is_some() {
             let param_num = 1 + scope_type.is_some() as i32 + team_id.is_some() as i32;
             query.push_str(&format!(" AND enabled = ${}", param_num));
         }
-        
+
         query.push_str(" ORDER BY priority DESC, created_at ASC");
 
         let mut q = sqlx::query_as(&query);
-        
+
         if let Some(st) = scope_type {
             q = q.bind(st);
         }
@@ -283,12 +286,11 @@ impl<'a> PolicyRepository<'a> {
         // Fetch targets for each policy
         let mut result = Vec::new();
         for policy in policies {
-            let targets: Vec<AutoMembershipPolicyTarget> = sqlx::query_as(
-                "SELECT * FROM auto_membership_policy_targets WHERE policy_id = $1"
-            )
-            .bind(policy.id)
-            .fetch_all(self.db)
-            .await?;
+            let targets: Vec<AutoMembershipPolicyTarget> =
+                sqlx::query_as("SELECT * FROM auto_membership_policy_targets WHERE policy_id = $1")
+                    .bind(policy.id)
+                    .fetch_all(self.db)
+                    .await?;
 
             result.push(PolicyWithTargets { policy, targets });
         }
@@ -405,46 +407,90 @@ impl<'a> PolicyRepository<'a> {
         user_id: Uuid,
         team_id: Option<Uuid>,
     ) -> ApiResult<Vec<PolicyWithTargets>> {
-        // Get user's auth service and other attributes
-        let user_info: Option<(Option<String>, Option<serde_json::Value>)> = sqlx::query_as(
-            "SELECT auth_service, props FROM users WHERE id = $1"
-        )
-        .bind(user_id)
-        .fetch_optional(self.db)
-        .await?;
+        // Get user's auth provider and identity attributes.
+        let user_info: Option<(Option<String>, String, Option<Uuid>)> =
+            sqlx::query_as("SELECT auth_provider, role, org_id FROM users WHERE id = $1")
+                .bind(user_id)
+                .fetch_optional(self.db)
+                .await?;
 
-        let (auth_service, _props) = match user_info {
+        let (auth_provider, user_role, user_org_id) = match user_info {
             Some(info) => info,
             None => return Ok(Vec::new()),
         };
 
         // Get all enabled global policies
-        let global_policies = self.list_policies(Some(PolicyScopeType::Global), None, Some(true)).await?;
+        let global_policies = self
+            .list_policies(Some(PolicyScopeType::Global), None, Some(true))
+            .await?;
 
         // Get team-specific policies if team_id provided
         let team_policies = if let Some(tid) = team_id {
-            self.list_policies(Some(PolicyScopeType::Team), Some(tid), Some(true)).await?
+            self.list_policies(Some(PolicyScopeType::Team), Some(tid), Some(true))
+                .await?
         } else {
             Vec::new()
         };
 
         // Combine and filter by source type applicability
         let mut applicable = Vec::new();
-        
+
         for policy in global_policies.into_iter().chain(team_policies) {
             let is_applicable = match policy.policy.source_type {
                 PolicySourceType::AllUsers => true,
                 PolicySourceType::AuthService => {
-                    // Check if user's auth service matches policy config
-                    let config_auth = policy.policy.source_config
-                        .get("auth_service")
-                        .and_then(|v| v.as_str());
-                    config_auth.is_none() || config_auth == auth_service.as_deref()
+                    // Backwards compatible key handling: accept auth_provider or auth_service.
+                    let config_auth = policy
+                        .policy
+                        .source_config
+                        .get("auth_provider")
+                        .and_then(|v| v.as_str())
+                        .or_else(|| {
+                            policy
+                                .policy
+                                .source_config
+                                .get("auth_service")
+                                .and_then(|v| v.as_str())
+                        });
+                    config_auth.is_none() || config_auth == auth_provider.as_deref()
                 }
-                _ => {
-                    // Other source types require more complex logic (groups, roles, org)
-                    // For now, include them and let the caller filter
-                    true
+                PolicySourceType::Group => {
+                    let group_ids = extract_uuid_values(
+                        &policy.policy.source_config,
+                        &["group_ids", "group_id"],
+                    );
+                    if group_ids.is_empty() {
+                        false
+                    } else {
+                        let group_ids_vec: Vec<Uuid> = group_ids.into_iter().collect();
+                        sqlx::query_scalar(
+                            "SELECT EXISTS(SELECT 1 FROM group_members WHERE user_id = $1 AND group_id = ANY($2))",
+                        )
+                        .bind(user_id)
+                        .bind(group_ids_vec)
+                        .fetch_one(self.db)
+                        .await?
+                    }
+                }
+                PolicySourceType::Role => {
+                    let roles =
+                        extract_string_values(&policy.policy.source_config, &["roles", "role"]);
+                    if roles.is_empty() {
+                        false
+                    } else {
+                        roles.contains(&user_role)
+                    }
+                }
+                PolicySourceType::Org => {
+                    let org_ids =
+                        extract_uuid_values(&policy.policy.source_config, &["org_ids", "org_id"]);
+                    if org_ids.is_empty() {
+                        false
+                    } else if let Some(org_id) = user_org_id {
+                        org_ids.contains(&org_id)
+                    } else {
+                        false
+                    }
                 }
             };
 
@@ -458,6 +504,46 @@ impl<'a> PolicyRepository<'a> {
 
         Ok(applicable)
     }
+}
+
+fn extract_string_values(config: &serde_json::Value, keys: &[&str]) -> HashSet<String> {
+    let mut out = HashSet::new();
+    for key in keys {
+        let Some(value) = config.get(*key) else {
+            continue;
+        };
+        match value {
+            serde_json::Value::String(raw) => {
+                for part in raw.split(',') {
+                    let trimmed = part.trim();
+                    if !trimmed.is_empty() {
+                        out.insert(trimmed.to_string());
+                    }
+                }
+            }
+            serde_json::Value::Array(items) => {
+                for item in items {
+                    if let Some(raw) = item.as_str() {
+                        for part in raw.split(',') {
+                            let trimmed = part.trim();
+                            if !trimmed.is_empty() {
+                                out.insert(trimmed.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    out
+}
+
+fn extract_uuid_values(config: &serde_json::Value, keys: &[&str]) -> HashSet<Uuid> {
+    extract_string_values(config, keys)
+        .into_iter()
+        .filter_map(|value| Uuid::parse_str(&value).ok())
+        .collect()
 }
 
 /// Record membership origin
@@ -496,7 +582,7 @@ pub async fn get_membership_origin(
     membership_id: Uuid,
 ) -> ApiResult<Option<MembershipOrigin>> {
     let result: Option<(MembershipOrigin,)> = sqlx::query_as(
-        "SELECT origin FROM membership_origins WHERE membership_type = $1 AND membership_id = $2"
+        "SELECT origin FROM membership_origins WHERE membership_type = $1 AND membership_id = $2",
     )
     .bind(membership_type)
     .bind(membership_id)
@@ -515,7 +601,7 @@ pub async fn apply_auto_membership_for_team_join(
 ) -> ApiResult<Vec<AutoMembershipPolicyAudit>> {
     let repo = PolicyRepository::new(&state.db);
     let policies = repo.get_applicable_policies(user_id, Some(team_id)).await?;
-    
+
     let run_id = Uuid::new_v4();
     let mut audit_entries = Vec::new();
 
@@ -526,13 +612,12 @@ pub async fn apply_auto_membership_for_team_join(
                 PolicyTargetType::Team => target.target_id == team_id,
                 PolicyTargetType::Channel => {
                     // Verify channel belongs to this team
-                    let channel_team: Option<(Uuid,)> = sqlx::query_as(
-                        "SELECT team_id FROM channels WHERE id = $1"
-                    )
-                    .bind(target.target_id)
-                    .fetch_optional(&state.db)
-                    .await?;
-                    
+                    let channel_team: Option<(Uuid,)> =
+                        sqlx::query_as("SELECT team_id FROM channels WHERE id = $1")
+                            .bind(target.target_id)
+                            .fetch_optional(&state.db)
+                            .await?;
+
                     channel_team.map(|ct| ct.0 == team_id).unwrap_or(false)
                 }
             };
@@ -570,7 +655,8 @@ pub async fn apply_auto_membership_for_team_join(
                                 membership_id,
                                 MembershipOrigin::Policy,
                                 Some(policy.policy.id),
-                            ).await;
+                            )
+                            .await;
                             ("add", "success", None)
                         }
                         Ok(None) => ("skip", "success", Some("Already member".to_string())),
@@ -607,7 +693,8 @@ pub async fn apply_auto_membership_for_team_join(
                                 target.target_id, // Use channel_id as identifier
                                 MembershipOrigin::Policy,
                                 Some(policy.policy.id),
-                            ).await;
+                            )
+                            .await;
                             ("add", "success", None)
                         }
                         Ok(None) => ("skip", "success", Some("Already member".to_string())),

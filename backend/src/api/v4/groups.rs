@@ -244,6 +244,97 @@ fn group_member_json(
     })
 }
 
+async fn emit_received_group_event(state: &AppState, group: &GroupListRow) {
+    let group_payload = group_json(group);
+    let group_encoded = serde_json::to_string(&group_payload).unwrap_or_else(|_| "{}".to_string());
+    let event = crate::realtime::WsEnvelope::event(
+        crate::realtime::EventType::ReceivedGroup,
+        json!({ "group": group_encoded }),
+        None,
+    );
+    state.ws_hub.broadcast(event).await;
+}
+
+async fn emit_group_member_event(
+    state: &AppState,
+    user_id: Uuid,
+    group_member_payload: Value,
+    is_add: bool,
+) {
+    let event_type = if is_add {
+        crate::realtime::EventType::GroupMemberAdd
+    } else {
+        crate::realtime::EventType::GroupMemberDeleted
+    };
+    let group_member_encoded =
+        serde_json::to_string(&group_member_payload).unwrap_or_else(|_| "{}".to_string());
+
+    let event = crate::realtime::WsEnvelope::event(
+        event_type,
+        json!({ "group_member": group_member_encoded }),
+        None,
+    )
+    .with_broadcast(crate::realtime::WsBroadcast {
+        channel_id: None,
+        team_id: None,
+        user_id: Some(user_id),
+        exclude_user_id: None,
+    });
+    state.ws_hub.broadcast(event).await;
+}
+
+async fn emit_group_syncable_event(
+    state: &AppState,
+    syncable_kind: SyncableKind,
+    syncable_id: Uuid,
+    group_id: Uuid,
+    associated: bool,
+) {
+    let (event_type, broadcast) = match (syncable_kind, associated) {
+        (SyncableKind::Team, true) => (
+            crate::realtime::EventType::ReceivedGroupAssociatedToTeam,
+            crate::realtime::WsBroadcast {
+                channel_id: None,
+                team_id: Some(syncable_id),
+                user_id: None,
+                exclude_user_id: None,
+            },
+        ),
+        (SyncableKind::Team, false) => (
+            crate::realtime::EventType::ReceivedGroupNotAssociatedToTeam,
+            crate::realtime::WsBroadcast {
+                channel_id: None,
+                team_id: Some(syncable_id),
+                user_id: None,
+                exclude_user_id: None,
+            },
+        ),
+        (SyncableKind::Channel, true) => (
+            crate::realtime::EventType::ReceivedGroupAssociatedToChannel,
+            crate::realtime::WsBroadcast {
+                channel_id: Some(syncable_id),
+                team_id: None,
+                user_id: None,
+                exclude_user_id: None,
+            },
+        ),
+        (SyncableKind::Channel, false) => (
+            crate::realtime::EventType::ReceivedGroupNotAssociatedToChannel,
+            crate::realtime::WsBroadcast {
+                channel_id: Some(syncable_id),
+                team_id: None,
+                user_id: None,
+                exclude_user_id: None,
+            },
+        ),
+    };
+
+    let event =
+        crate::realtime::WsEnvelope::event(event_type, json!({ "group_id": group_id }), None)
+            .with_broadcast(broadcast);
+    state.ws_hub.broadcast(event).await;
+}
+
 fn can_manage_system_groups(auth: &crate::api::v4::extractors::MmAuthUser) -> bool {
     auth.has_permission(&permissions::SYSTEM_MANAGE)
         || auth.has_permission(&permissions::ADMIN_FULL)
@@ -972,6 +1063,8 @@ async fn create_group(
         member_count: i64::from(group.user_ids.as_ref().map(Vec::len).unwrap_or(0) as i32),
     };
 
+    emit_received_group_event(&state, &row).await;
+
     Ok((axum::http::StatusCode::CREATED, Json(group_json(&row))))
 }
 
@@ -1107,6 +1200,8 @@ async fn patch_group(
     .await?
     .ok_or_else(|| AppError::NotFound("Group not found".to_string()))?;
 
+    emit_received_group_event(&state, &updated).await;
+
     Ok(Json(group_json(&updated)))
 }
 
@@ -1121,16 +1216,41 @@ async fn delete_group(
     let group_id = parse_mm_or_uuid(&group_id)
         .ok_or_else(|| AppError::BadRequest("Invalid group_id".to_string()))?;
 
-    let affected =
-        sqlx::query("UPDATE groups SET deleted_at = NOW(), updated_at = NOW() WHERE id = $1")
-            .bind(group_id)
-            .execute(&state.db)
-            .await?
-            .rows_affected();
+    let deleted_group: GroupListRow = sqlx::query_as(
+        r#"
+        UPDATE groups
+        SET deleted_at = NOW(), updated_at = NOW()
+        WHERE id = $1
+        RETURNING
+            id,
+            name,
+            display_name,
+            description,
+            source,
+            remote_id,
+            allow_reference,
+            created_at,
+            updated_at,
+            deleted_at,
+            EXISTS(
+                SELECT 1
+                FROM group_syncables gs
+                WHERE gs.group_id = groups.id
+                  AND gs.delete_at IS NULL
+            ) AS has_syncables,
+            (
+                SELECT COUNT(*)
+                FROM group_members gm
+                WHERE gm.group_id = groups.id
+            ) AS member_count
+        "#,
+    )
+    .bind(group_id)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Group not found".to_string()))?;
 
-    if affected == 0 {
-        return Err(AppError::NotFound("Group not found".to_string()));
-    }
+    emit_received_group_event(&state, &deleted_group).await;
 
     Ok(Json(json!({"status": "OK"})))
 }
@@ -1180,6 +1300,8 @@ async fn restore_group(
     .await?
     .ok_or_else(|| AppError::NotFound("Group not found".to_string()))?;
 
+    emit_received_group_event(&state, &group).await;
+
     Ok(Json(group_json(&group)))
 }
 
@@ -1223,6 +1345,7 @@ async fn link_group_syncable(
     .await?;
 
     spawn_reconcile_syncable(state.clone(), group_id, kind, syncable_id);
+    emit_group_syncable_event(&state, kind, syncable_id, group_id, true).await;
 
     Ok((
         axum::http::StatusCode::CREATED,
@@ -1278,6 +1401,8 @@ async fn unlink_group_syncable(
             );
         }
     });
+
+    emit_group_syncable_event(&state, kind, syncable_id, group_id, false).await;
 
     Ok(Json(json!({"status": "OK"})))
 }
@@ -1478,7 +1603,9 @@ async fn add_group_members(
         .await?;
 
         if let Some(created_at) = inserted {
-            added.push(group_member_json(group_id, user_id, created_at, 0));
+            let payload = group_member_json(group_id, user_id, created_at, 0);
+            emit_group_member_event(&state, user_id, payload.clone(), true).await;
+            added.push(payload);
         }
     }
 
@@ -1519,7 +1646,9 @@ async fn delete_group_members(
         .await?;
 
         if let Some(created_at) = deleted_row {
-            deleted.push(group_member_json(group_id, user_id, created_at, now_ms));
+            let payload = group_member_json(group_id, user_id, created_at, now_ms);
+            emit_group_member_event(&state, user_id, payload.clone(), false).await;
+            deleted.push(payload);
         }
     }
 

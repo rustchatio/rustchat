@@ -1483,6 +1483,50 @@ fn map_envelope_to_mm(env: &WsEnvelope) -> Option<mm::WebSocketMessage> {
                 broadcast: map_broadcast(env.broadcast.as_ref()),
             })
         }
+        "received_group" => {
+            let group = extract_embedded_json(env.data.get("group"))?;
+            Some(mm::WebSocketMessage {
+                seq,
+                event: "received_group".to_string(),
+                data: json!({
+                    "group": group,
+                }),
+                broadcast: map_broadcast(env.broadcast.as_ref()),
+            })
+        }
+        "group_member_add" => {
+            let group_member = extract_embedded_json(env.data.get("group_member"))?;
+            Some(mm::WebSocketMessage {
+                seq,
+                event: "group_member_add".to_string(),
+                data: json!({
+                    "group_member": group_member,
+                }),
+                broadcast: map_broadcast(env.broadcast.as_ref()),
+            })
+        }
+        "group_member_deleted" => {
+            let group_member = extract_embedded_json(env.data.get("group_member"))?;
+            Some(mm::WebSocketMessage {
+                seq,
+                event: "group_member_deleted".to_string(),
+                data: json!({
+                    "group_member": group_member,
+                }),
+                broadcast: map_broadcast(env.broadcast.as_ref()),
+            })
+        }
+        "received_group_associated_to_team"
+        | "received_group_not_associated_to_team"
+        | "received_group_associated_to_channel"
+        | "received_group_not_associated_to_channel" => Some(mm::WebSocketMessage {
+            seq,
+            event: env.event.clone(),
+            data: json!({
+                "group_id": extract_mm_id(env.data.get("group_id")),
+            }),
+            broadcast: map_broadcast(env.broadcast.as_ref()),
+        }),
         event_name if event_name.starts_with("custom_") => Some(mm::WebSocketMessage {
             seq,
             event: event_name.to_string(),
@@ -1509,6 +1553,15 @@ fn extract_i64(value: Option<&serde_json::Value>) -> i64 {
                 .or_else(|| v.as_str().and_then(|s| s.parse::<i64>().ok()))
         })
         .unwrap_or_default()
+}
+
+fn extract_embedded_json(value: Option<&serde_json::Value>) -> Option<String> {
+    let value = value?;
+    if let Some(text) = value.as_str() {
+        Some(text.to_string())
+    } else {
+        serde_json::to_string(value).ok()
+    }
 }
 
 fn map_broadcast(b_opt: Option<&crate::realtime::WsBroadcast>) -> mm::Broadcast {
@@ -1768,12 +1821,114 @@ mod tests {
 
         let mapped = map_envelope_to_mm(&env).expect("thread_updated should map");
         assert_eq!(mapped.event, "thread_updated");
-        assert_eq!(mapped.data["thread"], serde_json::json!("{\"id\":\"thread-1\"}"));
+        assert_eq!(
+            mapped.data["thread"],
+            serde_json::json!("{\"id\":\"thread-1\"}")
+        );
         assert_eq!(
             mapped.broadcast.team_id,
             encode_mm_id(team_id),
             "thread_updated team routing must be preserved"
         );
+    }
+
+    #[test]
+    fn map_envelope_to_mm_maps_received_group_payload() {
+        let group_id = Uuid::new_v4();
+        let env = WsEnvelope {
+            msg_type: "event".to_string(),
+            event: "received_group".to_string(),
+            seq: None,
+            channel_id: None,
+            data: serde_json::json!({
+                "group": {
+                    "id": encode_mm_id(group_id),
+                    "display_name": "Keycloak Group"
+                }
+            }),
+            broadcast: None,
+        };
+
+        let mapped = map_envelope_to_mm(&env).expect("received_group should map");
+        assert_eq!(mapped.event, "received_group");
+        let group = mapped
+            .data
+            .get("group")
+            .and_then(|v| v.as_str())
+            .expect("group payload should be encoded json text");
+        let decoded: serde_json::Value =
+            serde_json::from_str(group).expect("group payload should be valid json");
+        assert_eq!(decoded["id"], serde_json::json!(encode_mm_id(group_id)));
+    }
+
+    #[test]
+    fn map_envelope_to_mm_maps_group_member_event_payload() {
+        let group_id = Uuid::new_v4();
+        let user_id = Uuid::new_v4();
+        let env = WsEnvelope {
+            msg_type: "event".to_string(),
+            event: "group_member_add".to_string(),
+            seq: None,
+            channel_id: None,
+            data: serde_json::json!({
+                "group_member": {
+                    "group_id": encode_mm_id(group_id),
+                    "user_id": encode_mm_id(user_id),
+                    "create_at": 1739500000000i64,
+                    "delete_at": 0
+                }
+            }),
+            broadcast: Some(WsBroadcast {
+                channel_id: None,
+                team_id: None,
+                user_id: Some(user_id),
+                exclude_user_id: None,
+            }),
+        };
+
+        let mapped = map_envelope_to_mm(&env).expect("group_member_add should map");
+        assert_eq!(mapped.event, "group_member_add");
+        let member = mapped
+            .data
+            .get("group_member")
+            .and_then(|v| v.as_str())
+            .expect("group_member payload should be encoded json text");
+        let decoded: serde_json::Value =
+            serde_json::from_str(member).expect("group_member payload should be valid json");
+        assert_eq!(
+            decoded["group_id"],
+            serde_json::json!(encode_mm_id(group_id))
+        );
+        assert_eq!(mapped.broadcast.user_id, encode_mm_id(user_id));
+    }
+
+    #[test]
+    fn map_envelope_to_mm_maps_group_syncable_association_payload() {
+        let team_id = Uuid::new_v4();
+        let group_id = Uuid::new_v4();
+        let env = WsEnvelope {
+            msg_type: "event".to_string(),
+            event: "received_group_associated_to_team".to_string(),
+            seq: None,
+            channel_id: None,
+            data: serde_json::json!({
+                "group_id": group_id
+            }),
+            broadcast: Some(WsBroadcast {
+                channel_id: None,
+                team_id: Some(team_id),
+                user_id: None,
+                exclude_user_id: None,
+            }),
+        };
+
+        let mapped = map_envelope_to_mm(&env).expect("association event should map");
+        assert_eq!(mapped.event, "received_group_associated_to_team");
+        assert_eq!(
+            mapped.data["group_id"],
+            serde_json::json!(encode_mm_id(group_id))
+        );
+        assert_eq!(mapped.broadcast.team_id, encode_mm_id(team_id));
     }
 
     #[test]

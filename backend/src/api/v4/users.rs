@@ -23,6 +23,7 @@ use crate::mattermost_compat::{
 };
 use crate::middleware::rate_limit::{self, RateLimitConfig};
 use crate::models::{channel::Channel, Team, TeamMember, User};
+use crate::services::oauth_token_exchange::{exchange_code, ExchangeError};
 
 mod preferences;
 mod sidebar_categories;
@@ -296,6 +297,8 @@ async fn login(
     let user =
         user.ok_or_else(|| AppError::Unauthorized("Invalid login credentials".to_string()))?;
 
+    enforce_password_login_allowed(&state, &user.email).await?;
+
     if state.config.security.rate_limit_enabled {
         let config =
             RateLimitConfig::auth_per_minute(state.config.security.rate_limit_auth_per_minute);
@@ -387,14 +390,53 @@ async fn login_cws(headers: HeaderMap, body: Bytes) -> ApiResult<Json<serde_json
 }
 
 async fn login_sso_code_exchange(
+    State(state): State<AppState>,
     headers: HeaderMap,
     body: Bytes,
 ) -> ApiResult<Json<serde_json::Value>> {
-    let _input: LoginSsoCodeExchangeRequest = parse_request_body(&headers, &body)?;
+    let input: LoginSsoCodeExchangeRequest = parse_request_body(&headers, &body)?;
+    let code = input
+        .login_code
+        .as_deref()
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .ok_or_else(|| AppError::BadRequest("Missing login_code".to_string()))?;
 
-    Err(AppError::BadRequest(
-        "SSO code exchange is not supported".to_string(),
-    ))
+    let payload = match exchange_code(&state.redis, code).await {
+        Ok(payload) => payload,
+        Err(ExchangeError::InvalidCode) => {
+            return Err(AppError::BadRequest(
+                "Invalid or already used exchange code".to_string(),
+            ));
+        }
+        Err(ExchangeError::CodeExpired) => {
+            return Err(AppError::BadRequest(
+                "Exchange code has expired".to_string(),
+            ));
+        }
+        Err(ExchangeError::Internal(msg)) => {
+            tracing::error!("v4 SSO code exchange failed: {}", msg);
+            return Err(AppError::Internal(
+                "Failed to process exchange code".to_string(),
+            ));
+        }
+    };
+
+    let token = create_token_with_policy(
+        payload.user_id,
+        &payload.email,
+        &payload.role,
+        payload.org_id,
+        &state.jwt_secret,
+        state.jwt_issuer.as_deref(),
+        state.jwt_audience.as_deref(),
+        state.jwt_expiry_hours,
+    )?;
+
+    Ok(Json(serde_json::json!({
+        "token": token,
+        "csrf": ""
+    })))
 }
 
 async fn login_switch(headers: HeaderMap, body: Bytes) -> ApiResult<Json<serde_json::Value>> {
@@ -426,6 +468,26 @@ fn parse_request_body<T: DeserializeOwned>(headers: &HeaderMap, body: &Bytes) ->
             .or_else(|_| serde_urlencoded::from_bytes(body))
             .map_err(|_| AppError::BadRequest("Unsupported request body".to_string()))
     }
+}
+
+async fn enforce_password_login_allowed(state: &AppState, user_email: &str) -> ApiResult<()> {
+    let auth_config = crate::services::auth_config::get_password_rules(&state.db).await?;
+    if !auth_config.require_sso {
+        return Ok(());
+    }
+
+    let email_lc = user_email.trim().to_ascii_lowercase();
+    let allowed = auth_config
+        .sso_break_glass_emails
+        .iter()
+        .any(|email| email.trim().eq_ignore_ascii_case(&email_lc));
+    if allowed {
+        return Ok(());
+    }
+
+    Err(AppError::BadRequest(
+        "Password login is disabled because SSO is required".to_string(),
+    ))
 }
 
 async fn me(State(state): State<AppState>, auth: MmAuthUser) -> ApiResult<Json<mm::User>> {
@@ -2952,15 +3014,90 @@ async fn get_authorized_oauth_apps(
 }
 
 async fn get_user_groups(
-    State(_state): State<AppState>,
-    _auth: MmAuthUser,
+    State(state): State<AppState>,
+    auth: MmAuthUser,
     Path(user_id): Path<String>,
 ) -> ApiResult<Json<Vec<serde_json::Value>>> {
-    let _user_uuid = if user_id == "me" {
-        uuid::Uuid::new_v4()
+    let user_uuid = if user_id == "me" {
+        auth.user_id
     } else {
         parse_mm_or_uuid(&user_id)
             .ok_or_else(|| AppError::BadRequest("Invalid user_id".to_string()))?
     };
-    Ok(Json(vec![]))
+
+    if user_uuid != auth.user_id && !auth.has_permission(&permissions::SYSTEM_MANAGE) {
+        return Err(AppError::Forbidden(
+            "Missing permission to view other user's groups".to_string(),
+        ));
+    }
+
+    let rows: Vec<UserGroupRow> = sqlx::query_as(
+        r#"
+        SELECT
+            g.id,
+            g.name,
+            g.display_name,
+            g.description,
+            g.source,
+            g.remote_id,
+            g.allow_reference,
+            g.created_at,
+            g.updated_at,
+            g.deleted_at,
+            EXISTS(
+                SELECT 1
+                FROM group_syncables gs
+                WHERE gs.group_id = g.id
+                  AND gs.delete_at IS NULL
+            ) AS has_syncables,
+            (
+                SELECT COUNT(*)
+                FROM group_members gm2
+                WHERE gm2.group_id = g.id
+            ) AS member_count
+        FROM groups g
+        JOIN group_members gm ON gm.group_id = g.id
+        WHERE gm.user_id = $1
+          AND g.deleted_at IS NULL
+        ORDER BY g.display_name ASC
+        "#,
+    )
+    .bind(user_uuid)
+    .fetch_all(&state.db)
+    .await?;
+
+    Ok(Json(rows.iter().map(user_group_json).collect()))
+}
+
+#[derive(Debug, Clone, sqlx::FromRow)]
+struct UserGroupRow {
+    id: Uuid,
+    name: Option<String>,
+    display_name: String,
+    description: String,
+    source: String,
+    remote_id: Option<String>,
+    allow_reference: bool,
+    created_at: chrono::DateTime<chrono::Utc>,
+    updated_at: chrono::DateTime<chrono::Utc>,
+    deleted_at: Option<chrono::DateTime<chrono::Utc>>,
+    has_syncables: bool,
+    member_count: i64,
+}
+
+fn user_group_json(row: &UserGroupRow) -> serde_json::Value {
+    serde_json::json!({
+        "id": encode_mm_id(row.id),
+        "name": row.name,
+        "display_name": row.display_name,
+        "description": row.description,
+        "source": row.source,
+        "remote_id": row.remote_id,
+        "allow_reference": row.allow_reference,
+        "create_at": row.created_at.timestamp_millis(),
+        "update_at": row.updated_at.timestamp_millis(),
+        "delete_at": row.deleted_at.map(|t| t.timestamp_millis()).unwrap_or(0),
+        "has_syncables": row.has_syncables,
+        "member_count": row.member_count,
+    })
 }

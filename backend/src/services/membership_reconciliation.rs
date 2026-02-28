@@ -1,5 +1,5 @@
 //! Background reconciliation worker for membership policies
-//! 
+//!
 //! This module provides async background processing for:
 //! - Applying policies to users when policies change
 //! - Periodic reconciliation to ensure consistency
@@ -8,10 +8,11 @@
 use crate::api::AppState;
 use crate::error::ApiResult;
 
+use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::{interval, MissedTickBehavior};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info};
 use uuid::Uuid;
 
 use super::membership_policies::{
@@ -50,7 +51,7 @@ impl ReconciliationWorker {
 
         while let Ok(task) = self.rx.recv().await {
             debug!("Processing reconciliation task: {:?}", task);
-            
+
             if let Err(e) = self.process_task(task).await {
                 error!("Reconciliation task failed: {}", e);
             }
@@ -99,17 +100,24 @@ impl ReconciliationWorker {
                     .await?
             }
             super::membership_policies::PolicySourceType::AuthService => {
-                let auth_service = policy
+                let auth_provider = policy
                     .policy
                     .source_config
-                    .get("auth_service")
-                    .and_then(|v| v.as_str());
-                
-                if let Some(service) = auth_service {
+                    .get("auth_provider")
+                    .and_then(|v| v.as_str())
+                    .or_else(|| {
+                        policy
+                            .policy
+                            .source_config
+                            .get("auth_service")
+                            .and_then(|v| v.as_str())
+                    });
+
+                if let Some(provider) = auth_provider {
                     sqlx::query_as(
-                        "SELECT id FROM users WHERE deleted_at IS NULL AND auth_service = $1"
+                        "SELECT id FROM users WHERE deleted_at IS NULL AND auth_provider = $1",
                     )
-                    .bind(service)
+                    .bind(provider)
                     .fetch_all(&self.state.db)
                     .await?
                 } else {
@@ -118,11 +126,52 @@ impl ReconciliationWorker {
                         .await?
                 }
             }
-            // Other source types would need more complex queries
-            _ => {
-                warn!("Source type {:?} not yet fully implemented for batch processing", 
-                    policy.policy.source_type);
-                return Ok(());
+            super::membership_policies::PolicySourceType::Group => {
+                let group_ids =
+                    extract_uuid_values(&policy.policy.source_config, &["group_ids", "group_id"]);
+                if group_ids.is_empty() {
+                    Vec::new()
+                } else {
+                    sqlx::query_as(
+                        r#"
+                        SELECT DISTINCT u.id
+                        FROM users u
+                        JOIN group_members gm ON gm.user_id = u.id
+                        WHERE u.deleted_at IS NULL
+                          AND gm.group_id = ANY($1)
+                        "#,
+                    )
+                    .bind(group_ids)
+                    .fetch_all(&self.state.db)
+                    .await?
+                }
+            }
+            super::membership_policies::PolicySourceType::Role => {
+                let roles = extract_string_values(&policy.policy.source_config, &["roles", "role"]);
+                if roles.is_empty() {
+                    Vec::new()
+                } else {
+                    sqlx::query_as(
+                        "SELECT id FROM users WHERE deleted_at IS NULL AND role = ANY($1)",
+                    )
+                    .bind(roles)
+                    .fetch_all(&self.state.db)
+                    .await?
+                }
+            }
+            super::membership_policies::PolicySourceType::Org => {
+                let org_ids =
+                    extract_uuid_values(&policy.policy.source_config, &["org_ids", "org_id"]);
+                if org_ids.is_empty() {
+                    Vec::new()
+                } else {
+                    sqlx::query_as(
+                        "SELECT id FROM users WHERE deleted_at IS NULL AND org_id = ANY($1)",
+                    )
+                    .bind(org_ids)
+                    .fetch_all(&self.state.db)
+                    .await?
+                }
             }
         };
 
@@ -131,12 +180,11 @@ impl ReconciliationWorker {
         // Apply policy to each user
         for (user_id,) in user_ids {
             // Get user's teams
-            let team_ids: Vec<(Uuid,)> = sqlx::query_as(
-                "SELECT team_id FROM team_members WHERE user_id = $1"
-            )
-            .bind(user_id)
-            .fetch_all(&self.state.db)
-            .await?;
+            let team_ids: Vec<(Uuid,)> =
+                sqlx::query_as("SELECT team_id FROM team_members WHERE user_id = $1")
+                    .bind(user_id)
+                    .fetch_all(&self.state.db)
+                    .await?;
 
             for (team_id,) in &team_ids {
                 // Skip if policy is team-scoped and doesn't match
@@ -157,8 +205,10 @@ impl ReconciliationWorker {
                 )
                 .await
                 {
-                    error!("Failed to apply policy {} for user {} in team {}: {}",
-                        policy_id, user_id, team_id, e);
+                    error!(
+                        "Failed to apply policy {} for user {} in team {}: {}",
+                        policy_id, user_id, team_id, e
+                    );
                 }
             }
         }
@@ -172,12 +222,11 @@ impl ReconciliationWorker {
         info!("Re-syncing memberships for user {}", user_id);
 
         // Get user's teams
-        let team_ids: Vec<(Uuid,)> = sqlx::query_as(
-            "SELECT team_id FROM team_members WHERE user_id = $1"
-        )
-        .bind(user_id)
-        .fetch_all(&self.state.db)
-        .await?;
+        let team_ids: Vec<(Uuid,)> =
+            sqlx::query_as("SELECT team_id FROM team_members WHERE user_id = $1")
+                .bind(user_id)
+                .fetch_all(&self.state.db)
+                .await?;
 
         let mut total_applied = 0;
         let mut total_failed = 0;
@@ -196,7 +245,10 @@ impl ReconciliationWorker {
                     total_failed += entries.iter().filter(|e| e.status == "failed").count();
                 }
                 Err(e) => {
-                    error!("Failed to resync user {} in team {}: {}", user_id, team_id, e);
+                    error!(
+                        "Failed to resync user {} in team {}: {}",
+                        user_id, team_id, e
+                    );
                     total_failed += 1;
                 }
             }
@@ -204,7 +256,10 @@ impl ReconciliationWorker {
 
         info!(
             "Finished re-syncing user {}: {} applied, {} failed across {} teams",
-            user_id, total_applied, total_failed, team_ids.len()
+            user_id,
+            total_applied,
+            total_failed,
+            team_ids.len()
         );
 
         Ok(())
@@ -214,12 +269,11 @@ impl ReconciliationWorker {
     async fn resync_team(&self, team_id: Uuid) -> ApiResult<()> {
         info!("Re-syncing all memberships for team {}", team_id);
 
-        let user_ids: Vec<(Uuid,)> = sqlx::query_as(
-            "SELECT user_id FROM team_members WHERE team_id = $1"
-        )
-        .bind(team_id)
-        .fetch_all(&self.state.db)
-        .await?;
+        let user_ids: Vec<(Uuid,)> =
+            sqlx::query_as("SELECT user_id FROM team_members WHERE team_id = $1")
+                .bind(team_id)
+                .fetch_all(&self.state.db)
+                .await?;
 
         info!("Re-syncing {} users in team {}", user_ids.len(), team_id);
 
@@ -232,7 +286,10 @@ impl ReconciliationWorker {
             )
             .await
             {
-                error!("Failed to resync user {} in team {}: {}", user_id, team_id, e);
+                error!(
+                    "Failed to resync user {} in team {}: {}",
+                    user_id, team_id, e
+                );
             }
         }
 
@@ -253,8 +310,10 @@ impl ReconciliationWorker {
         // Apply each policy
         for policy in policies {
             if let Err(e) = self.apply_policy(policy.policy.id).await {
-                error!("Failed to apply policy {} during reconciliation: {}",
-                    policy.policy.id, e);
+                error!(
+                    "Failed to apply policy {} during reconciliation: {}",
+                    policy.policy.id, e
+                );
             }
         }
 
@@ -263,10 +322,53 @@ impl ReconciliationWorker {
     }
 }
 
+fn extract_string_values(config: &serde_json::Value, keys: &[&str]) -> Vec<String> {
+    let mut values = HashSet::new();
+    for key in keys {
+        let Some(value) = config.get(*key) else {
+            continue;
+        };
+        match value {
+            serde_json::Value::String(raw) => {
+                for part in raw.split(',') {
+                    let trimmed = part.trim();
+                    if !trimmed.is_empty() {
+                        values.insert(trimmed.to_string());
+                    }
+                }
+            }
+            serde_json::Value::Array(items) => {
+                for item in items {
+                    if let Some(raw) = item.as_str() {
+                        for part in raw.split(',') {
+                            let trimmed = part.trim();
+                            if !trimmed.is_empty() {
+                                values.insert(trimmed.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    values.into_iter().collect()
+}
+
+fn extract_uuid_values(config: &serde_json::Value, keys: &[&str]) -> Vec<Uuid> {
+    extract_string_values(config, keys)
+        .into_iter()
+        .filter_map(|value| Uuid::parse_str(&value).ok())
+        .collect()
+}
+
 /// Spawn the reconciliation worker and return the task handle and sender
 pub fn spawn_reconciliation_worker(
     state: Arc<AppState>,
-) -> (tokio::task::JoinHandle<()>, async_channel::Sender<ReconciliationTask>) {
+) -> (
+    tokio::task::JoinHandle<()>,
+    async_channel::Sender<ReconciliationTask>,
+) {
     let (worker, tx) = ReconciliationWorker::new(state);
     let handle = tokio::spawn(worker.run());
     (handle, tx)
@@ -283,7 +385,7 @@ pub fn spawn_periodic_reconciliation(
 
         loop {
             interval.tick().await;
-            
+
             debug!("Triggering periodic full reconciliation");
             if let Err(e) = tx.send(ReconciliationTask::FullReconciliation).await {
                 error!("Failed to queue periodic reconciliation: {}", e);

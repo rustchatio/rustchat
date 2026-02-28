@@ -485,11 +485,56 @@ pub(super) async fn get_channel_common_teams(
 
 /// GET /api/v4/channels/{channel_id}/groups
 pub(super) async fn get_channel_groups(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
     _auth: MmAuthUser,
-    Path(_channel_id): Path<String>,
-) -> ApiResult<Json<Vec<serde_json::Value>>> {
-    Ok(Json(vec![]))
+    Path(channel_id): Path<String>,
+) -> ApiResult<Json<serde_json::Value>> {
+    let channel_id = parse_mm_or_uuid(&channel_id)
+        .ok_or_else(|| AppError::BadRequest("Invalid channel_id".to_string()))?;
+
+    let rows: Vec<ChannelGroupRow> = sqlx::query_as(
+        r#"
+        SELECT
+            g.id,
+            g.name,
+            g.display_name,
+            g.description,
+            g.source,
+            g.remote_id,
+            g.allow_reference,
+            g.created_at,
+            g.updated_at,
+            g.deleted_at,
+            gs.scheme_admin,
+            EXISTS(
+                SELECT 1
+                FROM group_syncables gs2
+                WHERE gs2.group_id = g.id
+                  AND gs2.delete_at IS NULL
+            ) AS has_syncables,
+            (
+                SELECT COUNT(*)
+                FROM group_members gm
+                WHERE gm.group_id = g.id
+            ) AS member_count
+        FROM groups g
+        JOIN group_syncables gs
+          ON gs.group_id = g.id
+         AND gs.syncable_type = 'channel'
+         AND gs.syncable_id = $1
+         AND gs.delete_at IS NULL
+        WHERE g.deleted_at IS NULL
+        ORDER BY g.display_name ASC
+        "#,
+    )
+    .bind(channel_id)
+    .fetch_all(&state.db)
+    .await?;
+
+    Ok(Json(serde_json::json!({
+        "groups": rows.iter().map(channel_group_json).collect::<Vec<_>>(),
+        "total_group_count": rows.len()
+    })))
 }
 
 /// GET /api/v4/channels/{channel_id}/access_control/attributes
@@ -499,4 +544,39 @@ pub(super) async fn get_channel_access_control_attributes(
     Path(_channel_id): Path<String>,
 ) -> ApiResult<Json<serde_json::Value>> {
     Ok(Json(serde_json::json!({})))
+}
+
+#[derive(Debug, Clone, sqlx::FromRow)]
+struct ChannelGroupRow {
+    id: Uuid,
+    name: Option<String>,
+    display_name: String,
+    description: String,
+    source: String,
+    remote_id: Option<String>,
+    allow_reference: bool,
+    created_at: DateTime<Utc>,
+    updated_at: DateTime<Utc>,
+    deleted_at: Option<DateTime<Utc>>,
+    scheme_admin: bool,
+    has_syncables: bool,
+    member_count: i64,
+}
+
+fn channel_group_json(row: &ChannelGroupRow) -> serde_json::Value {
+    serde_json::json!({
+        "id": encode_mm_id(row.id),
+        "name": row.name,
+        "display_name": row.display_name,
+        "description": row.description,
+        "source": row.source,
+        "remote_id": row.remote_id,
+        "allow_reference": row.allow_reference,
+        "create_at": row.created_at.timestamp_millis(),
+        "update_at": row.updated_at.timestamp_millis(),
+        "delete_at": row.deleted_at.map(|t| t.timestamp_millis()).unwrap_or(0),
+        "has_syncables": row.has_syncables,
+        "member_count": row.member_count,
+        "scheme_admin": row.scheme_admin,
+    })
 }

@@ -36,6 +36,8 @@ use compat::{
 use helpers::normalize_notify_props;
 use view::{view_channel, view_channel_for_user};
 
+const KEYCLOAK_GROUP_SOURCE: &str = "plugin_keycloak";
+
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/channels/{channel_id}/posts", get(get_posts))
@@ -695,11 +697,79 @@ async fn create_direct_channel(
     Ok(Json(channel.into()))
 }
 
+async fn enforce_dm_acl_for_users(state: &AppState, user_ids: &[Uuid]) -> ApiResult<()> {
+    if !state.config.messaging.dm_acl_enabled {
+        return Ok(());
+    }
+
+    let mut unique_users = user_ids.to_vec();
+    unique_users.sort_unstable();
+    unique_users.dedup();
+
+    if unique_users.len() < 2 {
+        return Ok(());
+    }
+
+    let allowed: bool = if unique_users.len() == 2 {
+        sqlx::query_scalar(
+            r#"
+            SELECT EXISTS(
+                SELECT 1
+                FROM groups g
+                JOIN group_dm_acl_flags gf ON gf.group_id = g.id AND gf.enabled = TRUE
+                JOIN group_members gm1 ON gm1.group_id = g.id
+                JOIN group_members gm2 ON gm2.group_id = g.id
+                WHERE g.deleted_at IS NULL
+                  AND g.source = $3
+                  AND gm1.user_id = $1
+                  AND gm2.user_id = $2
+            )
+            "#,
+        )
+        .bind(unique_users[0])
+        .bind(unique_users[1])
+        .bind(KEYCLOAK_GROUP_SOURCE)
+        .fetch_one(&state.db)
+        .await?
+    } else {
+        sqlx::query_scalar(
+            r#"
+            SELECT EXISTS(
+                SELECT gm.group_id
+                FROM group_members gm
+                JOIN groups g ON g.id = gm.group_id
+                JOIN group_dm_acl_flags gf ON gf.group_id = g.id AND gf.enabled = TRUE
+                WHERE g.deleted_at IS NULL
+                  AND g.source = $1
+                  AND gm.user_id = ANY($2)
+                GROUP BY gm.group_id
+                HAVING COUNT(DISTINCT gm.user_id) = $3
+            )
+            "#,
+        )
+        .bind(KEYCLOAK_GROUP_SOURCE)
+        .bind(&unique_users)
+        .bind(unique_users.len() as i64)
+        .fetch_one(&state.db)
+        .await?
+    };
+
+    if !allowed {
+        return Err(crate::error::AppError::Forbidden(
+            "Direct and group messaging is restricted by group policy".to_string(),
+        ));
+    }
+
+    Ok(())
+}
+
 pub async fn create_direct_channel_internal(
     state: &AppState,
     creator_id: Uuid,
     other_id: Uuid,
 ) -> ApiResult<crate::models::channel::Channel> {
+    enforce_dm_acl_for_users(state, &[creator_id, other_id]).await?;
+
     let canonical_name = crate::models::canonical_direct_channel_name(creator_id, other_id);
     let legacy_name = crate::models::legacy_direct_channel_name(creator_id, other_id);
     let mut ids = vec![creator_id, other_id];
@@ -821,6 +891,9 @@ pub async fn create_group_channel_internal(
     }
 
     ids.sort();
+    ids.dedup();
+    enforce_dm_acl_for_users(state, &ids).await?;
+
     let name = format!(
         "gm_{}",
         ids.iter()

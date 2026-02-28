@@ -312,6 +312,8 @@ fn test_secret_entropy_validation() {
         turnstile: Default::default(),
         calls: Default::default(),
         security: Default::default(),
+        keycloak_sync: Default::default(),
+        messaging: Default::default(),
         unread: Default::default(),
     };
 

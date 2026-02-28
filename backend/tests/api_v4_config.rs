@@ -165,6 +165,8 @@ fn test_config() -> Config {
         turnstile: Default::default(),
         calls: Default::default(),
         security: Default::default(),
+        keycloak_sync: Default::default(),
+        messaging: Default::default(),
         unread: Default::default(),
     }
 }

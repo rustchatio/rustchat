@@ -315,6 +315,8 @@ async fn login(
     .await?
     .ok_or_else(|| AppError::Unauthorized("Invalid email or password".to_string()))?;
 
+    enforce_password_login_allowed(&state, &user.email).await?;
+
     // Keep per-account throttle in addition to centralized per-IP middleware.
     if state.config.security.rate_limit_enabled {
         let config =
@@ -373,6 +375,26 @@ async fn login(
         expires_in: state.jwt_expiry_hours * 3600,
         user: UserResponse::from(user),
     }))
+}
+
+async fn enforce_password_login_allowed(state: &AppState, user_email: &str) -> ApiResult<()> {
+    let auth_config = crate::services::auth_config::get_password_rules(&state.db).await?;
+    if !auth_config.require_sso {
+        return Ok(());
+    }
+
+    let email_lc = user_email.trim().to_ascii_lowercase();
+    let allowed = auth_config
+        .sso_break_glass_emails
+        .iter()
+        .any(|email| email.trim().eq_ignore_ascii_case(&email_lc));
+    if allowed {
+        return Ok(());
+    }
+
+    Err(AppError::BadRequest(
+        "Password login is disabled because SSO is required".to_string(),
+    ))
 }
 
 /// Verify email with token
