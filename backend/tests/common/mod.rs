@@ -21,6 +21,7 @@ pub struct TestApp {
     pub api_client: reqwest::Client,
 }
 
+#[allow(dead_code)]
 pub async fn spawn_app() -> TestApp {
     spawn_app_with_config(test_config()).await
 }
@@ -55,7 +56,7 @@ pub async fn spawn_app_with_config(config: Config) -> TestApp {
     );
 
     if let Err(err) = s3_client.ensure_bucket().await {
-        tracing::warn!(
+        tracing::debug!(
             error = %err,
             "Failed to create test bucket; continuing test bootstrap"
         );

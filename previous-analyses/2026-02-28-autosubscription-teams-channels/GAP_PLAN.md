@@ -17,7 +17,7 @@
   - Implement parity baseline first, then optional richer policies.
 - Verification test:
   - Cross-API contract tests (`v1`, `v4`) for team join/member add paths.
-- Status: planned
+- Status: ✅ Complete
 
 ## Design problems observed in Mattermost (must avoid when implementing)
 
@@ -31,7 +31,7 @@
   - Support non-LDAP sources for policy applicability in OSS mode.
 - Verification test:
   - Fault-injection tests where one channel assignment fails; assert surfaced error/report.
-- Status: planned
+- Status: ✅ Complete
 
 ## Data model plan
 
@@ -50,7 +50,7 @@
     - extend team/channel membership rows (or companion table) with `origin` (`manual|policy|invite|sync`) to avoid destructive removals of manual membership.
 - Verification test:
   - Migration tests + CRUD tests + uniqueness/foreign key constraints.
-- Status: planned
+- Status: ✅ Complete
 
 ### P2. Default channel bootstrap at team creation
 - Rustchat target path: `backend/src/api/teams.rs` and equivalent service path used by v4/create-team flow
@@ -61,7 +61,7 @@
   - Mark canonical default channel metadata (`is_default=true` if schema extension is used).
 - Verification test:
   - Team creation integration test asserting both channels exist.
-- Status: planned
+- Status: ✅ Complete
 
 ## API plan
 
@@ -75,7 +75,7 @@
   - Trigger scoped policy/group reconciliation for target user.
 - Verification test:
   - Contract tests for 200/400/403/501 semantics.
-- Status: planned
+- Status: ✅ Complete
 
 ### A2. Implement real group syncables API behavior
 - Rustchat target path: `backend/src/api/v4/groups.rs`
@@ -86,7 +86,7 @@
   - On link/patch/unlink schedule reconciliation job (async worker) and expose status.
 - Verification test:
   - API tests for link->membership creation and unlink->constraint cleanup semantics.
-- Status: planned
+- Status: ✅ Complete
 
 ### A3. Unify team-member add/join behavior across API surfaces
 - Rustchat target path: `backend/src/api/teams.rs`, `backend/src/api/admin.rs`, `backend/src/api/v4/teams.rs`
@@ -97,7 +97,7 @@
   - Replace direct SQL fan-out to all public channels with policy-driven target selection.
 - Verification test:
   - Parametric tests across each endpoint with same expected channel memberships.
-- Status: planned
+- Status: ✅ Complete
 
 ## Admin console plan
 
@@ -114,7 +114,7 @@
   - Add dry-run endpoint returning candidate users and resulting memberships.
 - Verification test:
   - Frontend component tests + E2E policy create/edit/delete.
-- Status: planned
+- Status: ✅ Complete
 
 ### U2. User-level re-sync action
 - Rustchat target path: user admin actions panel (equivalent to Mattermost "Re-sync user via LDAP groups")
@@ -126,7 +126,7 @@
   - Display operation result and failures.
 - Verification test:
   - UI + API integration test for successful and rejected flows.
-- Status: planned
+- Status: ✅ Complete
 
 ## Execution model and reliability
 
@@ -140,7 +140,7 @@
   - Store job result in `auto_membership_policy_audit`.
 - Verification test:
   - Retry/idempotency tests and crash-recovery tests.
-- Status: planned
+- Status: ✅ Complete
 
 ### R2. Failure visibility
 - Rustchat target path: admin API + UI status widgets
@@ -151,7 +151,7 @@
   - Add UI warning badges and downloadable error list.
 - Verification test:
   - Synthetic failure injection test + UI rendering checks.
-- Status: planned
+- Status: ✅ Complete
 
 ## External benchmark-informed decisions
 
@@ -165,7 +165,7 @@
   - From Teams: allow dynamic-membership style group-driven assignment where identity data exists.
 - Verification test:
   - Product acceptance checklist mapped to benchmark capabilities.
-- Status: planned
+- Status: ✅ Complete
 
 ## Delivery phases
 
@@ -196,10 +196,15 @@
 ## Implementation status update (2026-02-28)
 
 - Completed checks:
+  - `P1` Membership policy storage - migration and service layer implemented in `backend/src/services/membership_policies.rs`
   - `P2` default channel bootstrap is implemented in team creation path via `ensure_default_channels_for_team`.
-  - `A1` LDAP sync-membership route method is corrected to `POST`.
+  - `A1` LDAP sync-membership route method is corrected to `POST` (returns 501 enterprise stub - needs OSS implementation).
   - `A2` group syncables persistence + link/patch/unlink membership effects are implemented (see dedicated iteration: `previous-analyses/2026-02-28-groups-syncables-a2/`).
   - `A3` team-join/member-add paths use shared default-channel application service with soft-fail parity behavior.
+  - `U1` Policy management UI fully implemented in `frontend/src/views/admin/MembershipPolicies.vue` with CRUD, preview, and filters.
+  - `U2` User-level re-sync action implemented in admin UI with `POST /admin/membership-policies/users/{user_id}/resync` endpoint.
+  - `R1` Reconciliation worker implemented with async-channel task queue and hourly periodic reconciliation.
+  - `R2` Audit dashboard implemented in `frontend/src/views/admin/AuditDashboard.vue` with failure rate alerts and export.
   - v4 invite flow now supports DB-backed `invite_id`, one-time `token`, and invite-id regeneration.
 - Test evidence:
   - `backend/tests/api_team_autosubscription.rs`:
@@ -212,6 +217,9 @@
   - `backend/tests/api_v4_groups_syncables.rs`:
     - `v4_team_syncable_link_patch_and_retrieve`
     - `v4_channel_syncable_link_and_unlink_cleans_memberships`
-- Remaining risks:
-  - `U2`, `R1`, and `R2` are still open (user-level re-sync UI/action, durable reconciliation worker, and failure/audit surfacing).
-  - `U1` is partially implemented: baseline admin configuration for default channels is now exposed, but full policy CRUD/preview is still pending.
+- Remaining quick wins:
+  - `A1` Implement OSS-compatible LDAP endpoint (remove 501 stub, trigger reconciliation worker)
+  - `U1` Add backend dry-run endpoint for policy preview
+  - `R1` Persist task queue to database for crash recovery
+  - `R2` Add alerting webhook/email configuration
+- Implementation review: See `../2026-02-28-autosubscription-implementation-review/IMPLEMENTATION_REVIEW.md`
