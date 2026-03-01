@@ -9,6 +9,7 @@ use uuid::Uuid;
 /// Source types for policy applicability
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
 #[sqlx(type_name = "VARCHAR", rename_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
 pub enum PolicySourceType {
     AllUsers,
     AuthService,
@@ -20,6 +21,7 @@ pub enum PolicySourceType {
 /// Scope types for policies
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
 #[sqlx(type_name = "VARCHAR", rename_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
 pub enum PolicyScopeType {
     Global,
     Team,
@@ -28,6 +30,7 @@ pub enum PolicyScopeType {
 /// Target types for policy targets
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, sqlx::Type)]
 #[sqlx(type_name = "VARCHAR", rename_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
 pub enum PolicyTargetType {
     Team,
     Channel,
@@ -36,6 +39,7 @@ pub enum PolicyTargetType {
 /// Role modes for policy targets
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
 #[sqlx(type_name = "VARCHAR", rename_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
 pub enum RoleMode {
     Member,
     Admin,
@@ -44,6 +48,7 @@ pub enum RoleMode {
 /// Origin types for membership tracking
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
 #[sqlx(type_name = "VARCHAR", rename_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
 pub enum MembershipOrigin {
     Manual,
     Policy,
@@ -55,6 +60,7 @@ pub enum MembershipOrigin {
 /// Membership type for origin tracking
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
 #[sqlx(type_name = "VARCHAR", rename_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
 pub enum MembershipType {
     Team,
     Channel,
@@ -197,10 +203,11 @@ impl<'a> PolicyRepository<'a> {
 
         // Validate: team_id must exist for team-scoped policies
         if let Some(team_id) = req.team_id {
-            let team_exists: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM teams WHERE id = $1)")
-                .bind(team_id)
-                .fetch_one(&mut *tx)
-                .await?;
+            let team_exists: bool =
+                sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM teams WHERE id = $1)")
+                    .bind(team_id)
+                    .fetch_one(&mut *tx)
+                    .await?;
             if !team_exists {
                 return Err(crate::error::AppError::Validation(format!(
                     "Team {} does not exist",
@@ -213,12 +220,11 @@ impl<'a> PolicyRepository<'a> {
         for target in &req.targets {
             match target.target_type {
                 PolicyTargetType::Team => {
-                    let exists: bool = sqlx::query_scalar(
-                        "SELECT EXISTS(SELECT 1 FROM teams WHERE id = $1)"
-                    )
-                    .bind(target.target_id)
-                    .fetch_one(&mut *tx)
-                    .await?;
+                    let exists: bool =
+                        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM teams WHERE id = $1)")
+                            .bind(target.target_id)
+                            .fetch_one(&mut *tx)
+                            .await?;
                     if !exists {
                         return Err(crate::error::AppError::Validation(format!(
                             "Target team {} does not exist",
@@ -227,12 +233,11 @@ impl<'a> PolicyRepository<'a> {
                     }
                 }
                 PolicyTargetType::Channel => {
-                    let exists: bool = sqlx::query_scalar(
-                        "SELECT EXISTS(SELECT 1 FROM channels WHERE id = $1)"
-                    )
-                    .bind(target.target_id)
-                    .fetch_one(&mut *tx)
-                    .await?;
+                    let exists: bool =
+                        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM channels WHERE id = $1)")
+                            .bind(target.target_id)
+                            .fetch_one(&mut *tx)
+                            .await?;
                     if !exists {
                         return Err(crate::error::AppError::Validation(format!(
                             "Target channel {} does not exist",
@@ -452,12 +457,11 @@ impl<'a> PolicyRepository<'a> {
             for target in &targets {
                 match target.target_type {
                     PolicyTargetType::Team => {
-                        let exists: bool = sqlx::query_scalar(
-                            "SELECT EXISTS(SELECT 1 FROM teams WHERE id = $1)"
-                        )
-                        .bind(target.target_id)
-                        .fetch_one(&mut *tx)
-                        .await?;
+                        let exists: bool =
+                            sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM teams WHERE id = $1)")
+                                .bind(target.target_id)
+                                .fetch_one(&mut *tx)
+                                .await?;
                         if !exists {
                             return Err(crate::error::AppError::Validation(format!(
                                 "Target team {} does not exist",
@@ -467,7 +471,7 @@ impl<'a> PolicyRepository<'a> {
                     }
                     PolicyTargetType::Channel => {
                         let exists: bool = sqlx::query_scalar(
-                            "SELECT EXISTS(SELECT 1 FROM channels WHERE id = $1)"
+                            "SELECT EXISTS(SELECT 1 FROM channels WHERE id = $1)",
                         )
                         .bind(target.target_id)
                         .fetch_one(&mut *tx)
@@ -903,4 +907,60 @@ pub async fn get_policy_last_run_status(
     .await?;
 
     Ok(result)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn create_policy_request_deserializes_snake_case_variants() {
+        let payload = json!({
+            "name": "Team policy",
+            "description": "Auto add users",
+            "scope_type": "team",
+            "team_id": "11111111-1111-1111-1111-111111111111",
+            "source_type": "all_users",
+            "source_config": {},
+            "enabled": true,
+            "priority": 0,
+            "targets": [
+                {
+                    "target_type": "channel",
+                    "target_id": "22222222-2222-2222-2222-222222222222",
+                    "role_mode": "member"
+                }
+            ]
+        });
+
+        let parsed: CreatePolicyRequest =
+            serde_json::from_value(payload).expect("snake_case create payload must deserialize");
+
+        assert_eq!(parsed.scope_type, PolicyScopeType::Team);
+        assert_eq!(parsed.source_type, PolicySourceType::AllUsers);
+        assert_eq!(parsed.targets.len(), 1);
+        assert_eq!(parsed.targets[0].target_type, PolicyTargetType::Channel);
+        assert_eq!(parsed.targets[0].role_mode, RoleMode::Member);
+    }
+
+    #[test]
+    fn policy_enum_serialization_is_snake_case() {
+        assert_eq!(
+            serde_json::to_value(PolicyScopeType::Global).expect("serialize scope"),
+            json!("global")
+        );
+        assert_eq!(
+            serde_json::to_value(PolicySourceType::AuthService).expect("serialize source"),
+            json!("auth_service")
+        );
+        assert_eq!(
+            serde_json::to_value(PolicyTargetType::Team).expect("serialize target"),
+            json!("team")
+        );
+        assert_eq!(
+            serde_json::to_value(RoleMode::Admin).expect("serialize role"),
+            json!("admin")
+        );
+    }
 }

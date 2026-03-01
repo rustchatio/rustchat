@@ -96,9 +96,12 @@ async fn create_policy(
         tracing::error!("Failed to read request body: {}", e);
         crate::error::AppError::BadRequest(format!("Failed to read request body: {}", e))
     })?;
-    
-    tracing::debug!("Create policy request body: {}", String::from_utf8_lossy(&bytes));
-    
+
+    tracing::debug!(
+        "Create policy request body: {}",
+        String::from_utf8_lossy(&bytes)
+    );
+
     // Deserialize the request
     let req: CreatePolicyRequest = match serde_json::from_slice(&bytes) {
         Ok(r) => r,
