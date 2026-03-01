@@ -33,9 +33,15 @@ pub struct AuditLogQuery {
 /// List all policies
 async fn list_policies(
     State(state): State<AppState>,
-    _auth: AuthUser,
+    auth: AuthUser,
     Query(query): Query<ListPoliciesQuery>,
 ) -> ApiResult<Json<Vec<PolicyWithTargets>>> {
+    // Check permission for viewing membership policies
+    if !auth.has_permission(&permissions::TEAM_MANAGE) {
+        return Err(crate::error::AppError::Forbidden(
+            "Missing permission to view membership policies".to_string(),
+        ));
+    }
     let repo = PolicyRepository::new(&state.db);
 
     let scope_type = query.scope_type.and_then(|s| match s.as_str() {
@@ -53,9 +59,15 @@ async fn list_policies(
 /// Get a single policy by ID
 async fn get_policy(
     State(state): State<AppState>,
-    _auth: AuthUser,
+    auth: AuthUser,
     Path(policy_id): Path<Uuid>,
 ) -> ApiResult<Json<PolicyWithTargets>> {
+    // Check permission for viewing membership policies
+    if !auth.has_permission(&permissions::TEAM_MANAGE) {
+        return Err(crate::error::AppError::Forbidden(
+            "Missing permission to view membership policies".to_string(),
+        ));
+    }
     let repo = PolicyRepository::new(&state.db);
 
     let policy = repo.get_policy(policy_id).await?.ok_or_else(|| {
@@ -71,6 +83,13 @@ async fn create_policy(
     auth: AuthUser,
     req: axum::extract::Request,
 ) -> ApiResult<Json<PolicyWithTargets>> {
+    // Check permission FIRST before processing body
+    if !auth.has_permission(&permissions::TEAM_MANAGE) {
+        return Err(crate::error::AppError::Forbidden(
+            "Missing permission to manage membership policies".to_string(),
+        ));
+    }
+
     // Read and log the raw body for debugging
     let (_parts, body) = req.into_parts();
     let bytes = axum::body::to_bytes(body, 1024 * 1024).await.map_err(|e| {
@@ -91,12 +110,6 @@ async fn create_policy(
             )));
         }
     };
-    // Check permission for managing membership policies
-    if !auth.has_permission(&permissions::TEAM_MANAGE) {
-        return Err(crate::error::AppError::Forbidden(
-            "Missing permission to manage membership policies".to_string(),
-        ));
-    }
 
     // Validate scope consistency
     match req.scope_type {
@@ -171,10 +184,16 @@ async fn delete_policy(
 /// Get audit log for a policy
 async fn get_policy_audit(
     State(state): State<AppState>,
-    _auth: AuthUser,
+    auth: AuthUser,
     Path(policy_id): Path<Uuid>,
     Query(query): Query<AuditLogQuery>,
 ) -> ApiResult<Json<Vec<AutoMembershipPolicyAudit>>> {
+    // Check permission for viewing membership policies
+    if !auth.has_permission(&permissions::TEAM_MANAGE) {
+        return Err(crate::error::AppError::Forbidden(
+            "Missing permission to view membership policy audit logs".to_string(),
+        ));
+    }
     use crate::services::membership_policies::get_policy_audit_log;
 
     let limit = query.limit.unwrap_or(100);
@@ -187,9 +206,15 @@ async fn get_policy_audit(
 /// Get policy run status
 async fn get_policy_status(
     State(state): State<AppState>,
-    _auth: AuthUser,
+    auth: AuthUser,
     Path(policy_id): Path<Uuid>,
 ) -> ApiResult<Json<serde_json::Value>> {
+    // Check permission for viewing membership policies
+    if !auth.has_permission(&permissions::TEAM_MANAGE) {
+        return Err(crate::error::AppError::Forbidden(
+            "Missing permission to view membership policy status".to_string(),
+        ));
+    }
     use crate::services::membership_policies::get_policy_last_run_status;
 
     let status = get_policy_last_run_status(&state.db, policy_id).await?;

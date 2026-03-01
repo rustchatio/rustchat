@@ -26,7 +26,7 @@ pub enum PolicyScopeType {
 }
 
 /// Target types for policy targets
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, sqlx::Type)]
 #[sqlx(type_name = "VARCHAR", rename_all = "snake_case")]
 pub enum PolicyTargetType {
     Team,
@@ -174,7 +174,74 @@ impl<'a> PolicyRepository<'a> {
 
     /// Create a new policy with targets
     pub async fn create_policy(&self, req: CreatePolicyRequest) -> ApiResult<PolicyWithTargets> {
+        // Validate: at least one target is required
+        if req.targets.is_empty() {
+            return Err(crate::error::AppError::Validation(
+                "At least one target is required".to_string(),
+            ));
+        }
+
+        // Validate: check for duplicate targets in request
+        let mut seen = std::collections::HashSet::new();
+        for target in &req.targets {
+            let key = (target.target_type, target.target_id);
+            if !seen.insert(key) {
+                return Err(crate::error::AppError::Validation(format!(
+                    "Duplicate target: {:?} {}",
+                    target.target_type, target.target_id
+                )));
+            }
+        }
+
         let mut tx = self.db.begin().await?;
+
+        // Validate: team_id must exist for team-scoped policies
+        if let Some(team_id) = req.team_id {
+            let team_exists: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM teams WHERE id = $1)")
+                .bind(team_id)
+                .fetch_one(&mut *tx)
+                .await?;
+            if !team_exists {
+                return Err(crate::error::AppError::Validation(format!(
+                    "Team {} does not exist",
+                    team_id
+                )));
+            }
+        }
+
+        // Validate: all targets must exist
+        for target in &req.targets {
+            match target.target_type {
+                PolicyTargetType::Team => {
+                    let exists: bool = sqlx::query_scalar(
+                        "SELECT EXISTS(SELECT 1 FROM teams WHERE id = $1)"
+                    )
+                    .bind(target.target_id)
+                    .fetch_one(&mut *tx)
+                    .await?;
+                    if !exists {
+                        return Err(crate::error::AppError::Validation(format!(
+                            "Target team {} does not exist",
+                            target.target_id
+                        )));
+                    }
+                }
+                PolicyTargetType::Channel => {
+                    let exists: bool = sqlx::query_scalar(
+                        "SELECT EXISTS(SELECT 1 FROM channels WHERE id = $1)"
+                    )
+                    .bind(target.target_id)
+                    .fetch_one(&mut *tx)
+                    .await?;
+                    if !exists {
+                        return Err(crate::error::AppError::Validation(format!(
+                            "Target channel {} does not exist",
+                            target.target_id
+                        )));
+                    }
+                }
+            }
+        }
 
         // Insert policy
         let policy: AutoMembershipPolicy = sqlx::query_as(
@@ -362,6 +429,59 @@ impl<'a> PolicyRepository<'a> {
 
         // Update targets if provided
         if let Some(targets) = req.targets {
+            // Validate: at least one target is required
+            if targets.is_empty() {
+                return Err(crate::error::AppError::Validation(
+                    "At least one target is required".to_string(),
+                ));
+            }
+
+            // Validate: check for duplicate targets
+            let mut seen = std::collections::HashSet::new();
+            for target in &targets {
+                let key = (target.target_type, target.target_id);
+                if !seen.insert(key) {
+                    return Err(crate::error::AppError::Validation(format!(
+                        "Duplicate target: {:?} {}",
+                        target.target_type, target.target_id
+                    )));
+                }
+            }
+
+            // Validate: all targets must exist
+            for target in &targets {
+                match target.target_type {
+                    PolicyTargetType::Team => {
+                        let exists: bool = sqlx::query_scalar(
+                            "SELECT EXISTS(SELECT 1 FROM teams WHERE id = $1)"
+                        )
+                        .bind(target.target_id)
+                        .fetch_one(&mut *tx)
+                        .await?;
+                        if !exists {
+                            return Err(crate::error::AppError::Validation(format!(
+                                "Target team {} does not exist",
+                                target.target_id
+                            )));
+                        }
+                    }
+                    PolicyTargetType::Channel => {
+                        let exists: bool = sqlx::query_scalar(
+                            "SELECT EXISTS(SELECT 1 FROM channels WHERE id = $1)"
+                        )
+                        .bind(target.target_id)
+                        .fetch_one(&mut *tx)
+                        .await?;
+                        if !exists {
+                            return Err(crate::error::AppError::Validation(format!(
+                                "Target channel {} does not exist",
+                                target.target_id
+                            )));
+                        }
+                    }
+                }
+            }
+
             // Delete existing targets
             sqlx::query("DELETE FROM auto_membership_policy_targets WHERE policy_id = $1")
                 .bind(policy_id)
