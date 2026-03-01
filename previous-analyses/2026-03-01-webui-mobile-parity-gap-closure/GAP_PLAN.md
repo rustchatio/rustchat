@@ -1,5 +1,11 @@
 # Gap Plan
 
+## Closeout status
+
+- Contract closure: Complete
+- Mobile compatibility blockers: Closed
+- Remaining parity scope: UI pixel/microcopy refinement in Settings (Notifications, Calls)
+
 ## Completed checks
 
 - Rustchat target path: `backend/src/api/v4/status.rs`
@@ -36,6 +42,7 @@
 - Planned change: Normalize outgoing payload to `status`, emit `dnd_end_time`, align DND options.
 - Verification test: Frontend build success (`npm run build`), backend DND/status integration tests pass.
 - Status: Done
+- Follow-up patch: Fixed DND submenu mapping bug (`Tomorrow` now maps to `tomorrow` key in `GlobalHeader.vue`).
 
 - Rustchat target path: `frontend/src/api/channels.ts`, `frontend/src/features/channels/repositories/channelRepository.ts`
 - Required behavior: frontend matches changed notify_props response and categories update body shape.
@@ -51,6 +58,13 @@
 - Verification test: Frontend build success (`npm run build`).
 - Status: Done
 
+- Rustchat target path: `frontend/src/components/settings/notifications/NotificationsTab.vue`, `frontend/src/components/settings/calls/CallsTab.vue`, `frontend/src/components/settings/SettingsModal.vue`
+- Required behavior: notifications/calls settings content and layout align closer to Mattermost row naming, descriptions, and troubleshooting/actions.
+- Current gap: previous tabs diverged in section naming, row labels, card actions, and calls row structure.
+- Planned change: Reworked Notifications rows (`Desktop and mobile notifications`, sounds, email, keywords, highlighted keywords, auto-replies), added `Learn more` and troubleshooting actions (including `/api/v4/notifications/test`), and refactored Calls tab to two-row `Audio devices`/`Video devices` structure with Mattermost wording.
+- Verification test: Frontend build success (`npm run build`).
+- Status: Done (content parity pass)
+
 - Rustchat target path: `frontend/src/components/channels/ChannelContextMenu.vue`, `frontend/src/components/layout/ChannelSidebar.vue`, `frontend/src/components/composer/MessageComposer.vue`, `frontend/src/components/layout/AppShell.vue`
 - Required behavior: closer web parity for context menu ordering, right-click opening, formatting toggle affordance, and shell spacing.
 - Current gap: Extra menu items/order divergence, click-only trigger, icon-only formatting toggle, custom rounded/gapped shell.
@@ -60,9 +74,9 @@
 
 ## Remaining risks
 
-- Notifications and Calls settings content is improved but still not fully pixel/row identical to latest Mattermost desktop in all sub-rows and microcopy.
+- Visual parity still requires screenshot-level confirmation across desktop breakpoints; no automated screenshot diff gate is in CI yet.
 - Full parity screenshot regression suite is not yet wired in CI for these surfaces.
-- `./scripts/mm_mobile_smoke.sh` currently fails locally because the target server is not running with expected compatibility header (`X-MM-COMPAT: 1`).
+- Compatibility smoke scripts are currently environment-sensitive (expected server version and auth token extraction path) and should stay aligned when server defaults change.
 
 ## Test evidence
 
@@ -71,4 +85,8 @@
 - Frontend validation executed:
   - `npm run build` in `frontend/` (pass)
 - Compatibility smoke executed:
-  - `./scripts/mm_mobile_smoke.sh` (failed in current environment: missing compatibility header from `http://localhost:3000/api/v4/system/ping`)
+  - `BASE=http://localhost:3000 ./scripts/mm_mobile_smoke.sh` (pass)
+  - `BASE=http://localhost:3000 LOGIN_ID=compat_smoke_1772369282 PASSWORD=Password123! ./scripts/mm_compat_smoke.sh` (pass, including authenticated checks)
+- Verification harness updates:
+  - `scripts/mm_mobile_smoke.sh`: expected version check made configurable via `EXPECTED_MM_VERSION` (default `10.11.10`).
+  - `scripts/mm_compat_smoke.sh`: default `BASE` set to `http://localhost:3000`, version check parameterized, config check aligned to `?format=old`, and login token parsing made case-insensitive with JSON fallback.

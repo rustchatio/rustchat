@@ -1,70 +1,61 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import SettingItemMin from '../SettingItemMin.vue'
+import { computed, onMounted, ref } from 'vue'
 import SettingItemMax from '../SettingItemMax.vue'
 import { useCallsStore } from '../../../stores/calls'
-import { Mic, Speaker, Video } from 'lucide-vue-next'
 
 const callsStore = useCallsStore()
 const expandedRow = ref<string | null>(null)
 const saving = ref(false)
+const permissionError = ref<string | null>(null)
 
-// Device states
 const audioInputDevices = ref<MediaDeviceInfo[]>([])
 const audioOutputDevices = ref<MediaDeviceInfo[]>([])
 const videoDevices = ref<MediaDeviceInfo[]>([])
-const selectedAudioInput = ref<string>('')
-const selectedAudioOutput = ref<string>('')
-const selectedVideoDevice = ref<string>('')
-const permissionError = ref<string | null>(null)
 
-// Display labels
+const selectedAudioInput = ref('')
+const selectedAudioOutput = ref('')
+const selectedVideoDevice = ref('')
+
 const audioInputLabel = computed(() => {
-  const device = audioInputDevices.value.find(d => d.deviceId === callsStore.preferredAudioInput)
-  return device?.label || 'Default'
+  const device = audioInputDevices.value.find((d) => d.deviceId === selectedAudioInput.value)
+  return device?.label || 'Default microphone'
 })
 
 const audioOutputLabel = computed(() => {
-  const device = audioOutputDevices.value.find(d => d.deviceId === callsStore.preferredAudioOutput)
-  return device?.label || 'Default'
+  const device = audioOutputDevices.value.find((d) => d.deviceId === selectedAudioOutput.value)
+  return device?.label || 'Default speaker'
 })
 
 const videoDeviceLabel = computed(() => {
-  const device = videoDevices.value.find(d => d.deviceId === callsStore.preferredVideoDevice)
-  return device?.label || 'Default'
+  const device = videoDevices.value.find((d) => d.deviceId === selectedVideoDevice.value)
+  return device?.label || 'Default camera'
 })
 
-// Enumerate devices
+onMounted(async () => {
+  await enumerateDevices()
+  syncLocalState()
+})
+
+function syncLocalState() {
+  selectedAudioInput.value = callsStore.preferredAudioInput || audioInputDevices.value[0]?.deviceId || ''
+  selectedAudioOutput.value = callsStore.preferredAudioOutput || audioOutputDevices.value[0]?.deviceId || ''
+  selectedVideoDevice.value = callsStore.preferredVideoDevice || videoDevices.value[0]?.deviceId || ''
+}
+
 async function enumerateDevices() {
   try {
-    // Request permission first
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true })
-    stream.getTracks().forEach(track => track.stop())
-    
+    stream.getTracks().forEach((track) => track.stop())
+
     const devices = await navigator.mediaDevices.enumerateDevices()
-    
-    audioInputDevices.value = devices.filter(d => d.kind === 'audioinput')
-    audioOutputDevices.value = devices.filter(d => d.kind === 'audiooutput')
-    videoDevices.value = devices.filter(d => d.kind === 'videoinput')
-    
-    // Set defaults if not already set
-    const firstAudioInput = audioInputDevices.value[0]
-    if (!selectedAudioInput.value && firstAudioInput) {
-      selectedAudioInput.value = callsStore.preferredAudioInput || firstAudioInput.deviceId
-    }
-    const firstAudioOutput = audioOutputDevices.value[0]
-    if (!selectedAudioOutput.value && firstAudioOutput) {
-      selectedAudioOutput.value = callsStore.preferredAudioOutput || firstAudioOutput.deviceId
-    }
-    const firstVideoDevice = videoDevices.value[0]
-    if (!selectedVideoDevice.value && firstVideoDevice) {
-      selectedVideoDevice.value = callsStore.preferredVideoDevice || firstVideoDevice.deviceId
-    }
-    
+    audioInputDevices.value = devices.filter((d) => d.kind === 'audioinput')
+    audioOutputDevices.value = devices.filter((d) => d.kind === 'audiooutput')
+    videoDevices.value = devices.filter((d) => d.kind === 'videoinput')
+
     permissionError.value = null
-  } catch (err: any) {
-    permissionError.value = err.message || 'Permission denied'
-    console.error('Failed to enumerate devices:', err)
+  } catch (error: any) {
+    console.error('Failed to enumerate devices', error)
+    permissionError.value = error?.message || 'Permission denied'
   }
 }
 
@@ -76,25 +67,15 @@ function expandRow(rowId: string) {
   expandedRow.value = rowId
 }
 
-function syncLocalState() {
-  selectedAudioInput.value = callsStore.preferredAudioInput || ''
-  selectedAudioOutput.value = callsStore.preferredAudioOutput || ''
-  selectedVideoDevice.value = callsStore.preferredVideoDevice || ''
+function cancelEdit() {
+  syncLocalState()
+  expandedRow.value = null
 }
 
-async function saveAudioInput() {
+async function saveAudioDevices() {
   saving.value = true
   try {
     await callsStore.setPreferredAudioInput(selectedAudioInput.value)
-    expandedRow.value = null
-  } finally {
-    saving.value = false
-  }
-}
-
-async function saveAudioOutput() {
-  saving.value = true
-  try {
     await callsStore.setPreferredAudioOutput(selectedAudioOutput.value)
     expandedRow.value = null
   } finally {
@@ -102,7 +83,7 @@ async function saveAudioOutput() {
   }
 }
 
-async function saveVideoDevice() {
+async function saveVideoDevices() {
   saving.value = true
   try {
     await callsStore.setPreferredVideoDevice(selectedVideoDevice.value)
@@ -111,156 +92,115 @@ async function saveVideoDevice() {
     saving.value = false
   }
 }
-
-function cancelEdit() {
-  syncLocalState()
-  expandedRow.value = null
-}
-
-onMounted(() => {
-  enumerateDevices()
-})
 </script>
 
 <template>
   <div class="space-y-1">
-    <!-- Permission Error -->
-    <div v-if="permissionError" class="mb-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
-      <p class="text-sm text-amber-700 dark:text-amber-300">
-        <strong>Permission Required:</strong> Please allow access to microphone and camera to configure devices.
-      </p>
-    </div>
+    <h3 class="mb-1 px-2 text-3xl sm:text-[2rem] font-semibold tracking-tight text-gray-900 dark:text-white">Calls Settings</h3>
 
-    <!-- 1. Audio Input Device -->
-    <div v-if="expandedRow !== 'audio_input'">
-      <SettingItemMin
-        label="Audio Input Device"
-        :value="audioInputLabel"
-        description="Select your microphone for calls"
-        @click="expandRow('audio_input')"
-      >
-        <template #icon>
-          <Mic class="w-5 h-5 text-gray-400" />
-        </template>
-      </SettingItemMin>
-    </div>
-    
-    <SettingItemMax
-      v-else
-      label="Audio Input Device"
-      description="Choose your microphone for calls"
-      :loading="saving"
-      @save="saveAudioInput"
-      @cancel="cancelEdit"
-    >
-      <div class="space-y-3">
-        <label 
-          v-for="device in audioInputDevices" 
-          :key="device.deviceId"
-          class="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
+    <div class="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+      <div v-if="expandedRow !== 'audio_devices'">
+        <button
+          type="button"
+          class="flex w-full items-start justify-between gap-4 border-b border-gray-200 px-4 py-4 text-left hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50"
+          @click="expandRow('audio_devices')"
         >
-          <input
-            type="radio"
-            v-model="selectedAudioInput"
-            :value="device.deviceId"
-            class="w-4 h-4 text-primary"
-          />
-          <div class="flex-1">
-            <div class="text-sm font-medium text-gray-900 dark:text-white">{{ device.label || 'Default Microphone' }}</div>
+          <div>
+            <div class="text-xl sm:text-2xl font-medium leading-tight text-gray-900 dark:text-white">Audio devices</div>
+            <div class="mt-1 text-sm text-gray-500 dark:text-gray-400">Set up audio devices to be used for Mattermost calls</div>
           </div>
-        </label>
-        <div v-if="audioInputDevices.length === 0" class="text-sm text-gray-500 text-center py-4">
-          No audio input devices found
-        </div>
+          <span class="mt-0.5 text-sm font-medium text-primary">Edit</span>
+        </button>
       </div>
-    </SettingItemMax>
 
-    <!-- 2. Audio Output Device -->
-    <div v-if="expandedRow !== 'audio_output'">
-      <SettingItemMin
-        label="Audio Output Device"
-        :value="audioOutputLabel"
-        description="Select your speaker or headphones for calls"
-        @click="expandRow('audio_output')"
+      <SettingItemMax
+        v-else
+        label="Audio devices"
+        description="Set up audio devices to be used for Mattermost calls"
+        :loading="saving"
+        @save="saveAudioDevices"
+        @cancel="cancelEdit"
       >
-        <template #icon>
-          <Speaker class="w-5 h-5 text-gray-400" />
-        </template>
-      </SettingItemMin>
-    </div>
-    
-    <SettingItemMax
-      v-else
-      label="Audio Output Device"
-      description="Choose your speaker or headphones"
-      :loading="saving"
-      @save="saveAudioOutput"
-      @cancel="cancelEdit"
-    >
-      <div class="space-y-3">
-        <label 
-          v-for="device in audioOutputDevices" 
-          :key="device.deviceId"
-          class="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
-        >
-          <input
-            type="radio"
-            v-model="selectedAudioOutput"
-            :value="device.deviceId"
-            class="w-4 h-4 text-primary"
-          />
-          <div class="flex-1">
-            <div class="text-sm font-medium text-gray-900 dark:text-white">{{ device.label || 'Default Speaker' }}</div>
+        <div class="space-y-4">
+          <div v-if="permissionError" class="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
+            Permission required for device listing: {{ permissionError }}
           </div>
-        </label>
-        <div v-if="audioOutputDevices.length === 0" class="text-sm text-gray-500 text-center py-4">
-          No audio output devices found
-        </div>
-      </div>
-    </SettingItemMax>
 
-    <!-- 3. Video Device -->
-    <div v-if="expandedRow !== 'video_device'">
-      <SettingItemMin
-        label="Video Device"
-        :value="videoDeviceLabel"
-        description="Select your camera for video calls"
-        @click="expandRow('video_device')"
-      >
-        <template #icon>
-          <Video class="w-5 h-5 text-gray-400" />
-        </template>
-      </SettingItemMin>
-    </div>
-    
-    <SettingItemMax
-      v-else
-      label="Video Device"
-      description="Choose your camera for video calls"
-      :loading="saving"
-      @save="saveVideoDevice"
-      @cancel="cancelEdit"
-    >
-      <div class="space-y-3">
-        <label 
-          v-for="device in videoDevices" 
-          :key="device.deviceId"
-          class="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800"
-        >
-          <input
-            type="radio"
-            v-model="selectedVideoDevice"
-            :value="device.deviceId"
-            class="w-4 h-4 text-primary"
-          />
-          <div class="flex-1">
-            <div class="text-sm font-medium text-gray-900 dark:text-white">{{ device.label || 'Default Camera' }}</div>
+          <div>
+            <div class="mb-2 text-sm font-semibold text-gray-900 dark:text-white">Microphone</div>
+            <div class="mb-2 text-xs text-gray-500 dark:text-gray-400">Current: {{ audioInputLabel }}</div>
+            <div class="space-y-2">
+              <label
+                v-for="device in audioInputDevices"
+                :key="device.deviceId"
+                class="flex items-start gap-3 rounded-md border border-gray-200 p-3 text-sm hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50"
+              >
+                <input v-model="selectedAudioInput" type="radio" :value="device.deviceId" class="mt-0.5 h-4 w-4" />
+                <span>{{ device.label || 'Default microphone' }}</span>
+              </label>
+            </div>
           </div>
-        </label>
-        <div v-if="videoDevices.length === 0" class="text-sm text-gray-500 text-center py-4">
-          No video devices found
+
+          <div>
+            <div class="mb-2 text-sm font-semibold text-gray-900 dark:text-white">Speaker</div>
+            <div class="mb-2 text-xs text-gray-500 dark:text-gray-400">Current: {{ audioOutputLabel }}</div>
+            <div v-if="audioOutputDevices.length > 0" class="space-y-2">
+              <label
+                v-for="device in audioOutputDevices"
+                :key="device.deviceId"
+                class="flex items-start gap-3 rounded-md border border-gray-200 p-3 text-sm hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50"
+              >
+                <input v-model="selectedAudioOutput" type="radio" :value="device.deviceId" class="mt-0.5 h-4 w-4" />
+                <span>{{ device.label || 'Default speaker' }}</span>
+              </label>
+            </div>
+            <div v-else class="rounded-md border border-gray-200 p-3 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+              No selectable output devices were detected in this browser.
+            </div>
+          </div>
         </div>
+      </SettingItemMax>
+
+      <div v-if="expandedRow !== 'video_devices'">
+        <button
+          type="button"
+          class="flex w-full items-start justify-between gap-4 px-4 py-4 text-left hover:bg-gray-50 dark:hover:bg-gray-800/50"
+          @click="expandRow('video_devices')"
+        >
+          <div>
+            <div class="text-xl sm:text-2xl font-medium leading-tight text-gray-900 dark:text-white">Video devices</div>
+            <div class="mt-1 text-sm text-gray-500 dark:text-gray-400">Set up video devices to be used for Mattermost calls</div>
+          </div>
+          <span class="mt-0.5 text-sm font-medium text-primary">Edit</span>
+        </button>
       </div>
-    </SettingItemMax>
+
+      <SettingItemMax
+        v-else
+        label="Video devices"
+        description="Set up video devices to be used for Mattermost calls"
+        :loading="saving"
+        @save="saveVideoDevices"
+        @cancel="cancelEdit"
+      >
+        <div class="space-y-4">
+          <div class="mb-2 text-sm font-semibold text-gray-900 dark:text-white">Camera</div>
+          <div class="mb-2 text-xs text-gray-500 dark:text-gray-400">Current: {{ videoDeviceLabel }}</div>
+          <div class="space-y-2">
+            <label
+              v-for="device in videoDevices"
+              :key="device.deviceId"
+              class="flex items-start gap-3 rounded-md border border-gray-200 p-3 text-sm hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50"
+            >
+              <input v-model="selectedVideoDevice" type="radio" :value="device.deviceId" class="mt-0.5 h-4 w-4" />
+              <span>{{ device.label || 'Default camera' }}</span>
+            </label>
+          </div>
+          <div v-if="videoDevices.length === 0" class="rounded-md border border-gray-200 p-3 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+            No camera devices found.
+          </div>
+        </div>
+      </SettingItemMax>
+    </div>
   </div>
 </template>

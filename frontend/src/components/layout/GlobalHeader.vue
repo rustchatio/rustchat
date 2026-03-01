@@ -71,7 +71,7 @@ function calculateDndEndTime(duration: string): number | undefined {
             return now.getTime() + 60 * 60 * 1000;
         case 'four_hours':
             return now.getTime() + 4 * 60 * 60 * 1000;
-        case 'today': {
+        case 'tomorrow': {
             const midnight = new Date(now);
             midnight.setHours(24, 0, 0, 0);
             return midnight.getTime();
@@ -119,7 +119,7 @@ const dndDurations = [
     { label: '30 minutes', value: 'thirty_minutes' },
     { label: '1 hour', value: 'one_hour' },
     { label: '4 hours', value: 'four_hours' },
-    { label: 'Tomorrow', value: 'today' },
+    { label: 'Tomorrow', value: 'tomorrow' },
     { label: 'This week', value: 'this_week' },
 ];
 </script>

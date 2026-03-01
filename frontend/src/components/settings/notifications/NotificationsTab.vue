@@ -1,104 +1,167 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import SettingItemMin from '../SettingItemMin.vue'
+import { computed, onMounted, ref } from 'vue'
+import { AlertTriangle, ExternalLink, Lightbulb } from 'lucide-vue-next'
+import api from '../../../api/client'
 import SettingItemMax from '../SettingItemMax.vue'
+import { useAuthStore } from '../../../stores/auth'
 import { usePreferencesStore } from '../../../stores/preferences'
 import { useToast } from '../../../composables/useToast'
-import { 
-  Bell, 
-  Monitor, 
-  Smartphone, 
-  Volume2, 
-  Mail, 
-  MessageSquare, 
-  AlertTriangle
-} from 'lucide-vue-next'
 
 const preferencesStore = usePreferencesStore()
+const authStore = useAuthStore()
 const toast = useToast()
+
 const expandedRow = ref<string | null>(null)
 const saving = ref(false)
-
-// Permission status
+const sendingTestNotification = ref(false)
 const notificationPermission = ref<NotificationPermission>('default')
 
-// Local preference states for editing
-const localNotifyDesktop = ref<'all' | 'mentions' | 'none'>('all')
-const localNotifyPush = ref<'all' | 'mentions' | 'none'>('all')
+const HIGHLIGHT_KEYWORDS_STORAGE_KEY = 'notifications_highlight_keywords'
+const AUTO_RESPONDER_ENABLED_STORAGE_KEY = 'notifications_auto_responder_enabled'
+const AUTO_RESPONDER_MESSAGE_STORAGE_KEY = 'notifications_auto_responder_message'
+
+const localNotifyDesktop = ref<'all' | 'mentions' | 'none'>('mentions')
+const localNotifyPush = ref<'all' | 'mentions' | 'none'>('mentions')
 const localNotifySounds = ref(true)
 const localNotifyEmail = ref(true)
 const localMentionKeywords = ref<string[]>([])
 
-// Display labels
-const desktopNotificationsLabel = computed(() => {
-  const labels: Record<string, string> = {
-    all: 'For all activity',
-    mentions: 'For mentions and direct messages',
-    none: 'Never'
-  }
-  return labels[preferencesStore.preferences?.notify_desktop || 'all'] || 'For all activity'
+const localHighlightKeywords = ref<string[]>([])
+const localAutoResponderEnabled = ref(false)
+const localAutoResponderMessage = ref('')
+
+const mentionKeywordsInput = ref('')
+const highlightKeywordsInput = ref('')
+
+const defaultMentionKeywords = computed(() => {
+  const username = authStore.user?.username ? `@${authStore.user.username}` : '@username'
+  return [username, '@channel', '@all', '@here']
 })
 
-const pushNotificationsLabel = computed(() => {
-  const labels: Record<string, string> = {
-    all: 'For all activity',
-    mentions: 'For mentions and direct messages', 
-    none: 'Never'
+const desktopAndMobileLabel = computed(() => {
+  if (localNotifyDesktop.value === 'none' && localNotifyPush.value === 'none') {
+    return 'Never'
   }
-  return labels[preferencesStore.preferences?.notify_push || 'all'] || 'For all activity'
+
+  if (localNotifyDesktop.value === 'all' || localNotifyPush.value === 'all') {
+    return 'All new messages'
+  }
+
+  return 'Mentions, direct messages, and group messages'
 })
 
-const desktopSoundsLabel = computed(() => {
-  return preferencesStore.preferences?.notify_sounds !== false ? 'On' : 'Off'
+const desktopNotificationSoundsLabel = computed(() => {
+  if (!localNotifySounds.value) {
+    return 'Off'
+  }
+  return '"Bing" for messages'
 })
 
 const emailNotificationsLabel = computed(() => {
-  const email = preferencesStore.preferences?.notify_email
-  return email === 'true' || email === 'all' || email === 'mentions' ? 'On' : 'Off'
+  return localNotifyEmail.value ? 'On' : 'Off'
 })
 
-const mentionKeywordsLabel = computed(() => {
-  const keywords = preferencesStore.preferences?.mention_keywords
-  return keywords && keywords.length > 0 ? keywords.length + ' keywords' : 'None set'
+const keywordsTriggerLabel = computed(() => {
+  const keywords = localMentionKeywords.value.length > 0 ? localMentionKeywords.value : defaultMentionKeywords.value
+  return formatKeywordList(keywords)
 })
 
-// Permission status tag
-const permissionStatusDisplay = computed(() => {
-  switch (notificationPermission.value) {
-    case 'granted':
-      return { text: 'Allowed', class: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' }
-    case 'denied':
-      return { text: 'Blocked', class: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' }
-    default:
-      return { text: 'Not set', class: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' }
+const highlightKeywordsLabel = computed(() => {
+  if (localHighlightKeywords.value.length === 0) {
+    return 'None'
   }
+  return formatKeywordList(localHighlightKeywords.value)
 })
 
-// Initialize local states from preferences on mount
-onMounted(() => {
-  notificationPermission.value = Notification.permission
-  preferencesStore.fetchPreferences().then(() => {
-    syncLocalState()
-  })
+const autoResponderLabel = computed(() => {
+  return localAutoResponderEnabled.value ? 'Enabled' : 'Disabled'
+})
+
+const permissionRequired = computed(() => {
+  return notificationPermission.value !== 'granted'
+})
+
+onMounted(async () => {
+  if (typeof Notification !== 'undefined') {
+    notificationPermission.value = Notification.permission
+  }
+
+  await preferencesStore.fetchPreferences()
+  syncLocalState()
 })
 
 function syncLocalState() {
   const prefs = preferencesStore.preferences
-  if (!prefs) return
+  if (prefs) {
+    localNotifyDesktop.value = (prefs.notify_desktop as 'all' | 'mentions' | 'none') || 'mentions'
+    localNotifyPush.value = (prefs.notify_push as 'all' | 'mentions' | 'none') || 'mentions'
+    localNotifySounds.value = prefs.notify_sounds !== false
 
-  localNotifyDesktop.value = (prefs.notify_desktop as 'all' | 'mentions' | 'none') || 'all'
-  localNotifyPush.value = (prefs.notify_push as 'all' | 'mentions' | 'none') || 'all'
-  localNotifySounds.value = prefs.notify_sounds !== false
-  localNotifyEmail.value = prefs.notify_email === 'true' || prefs.notify_email === 'all' || prefs.notify_email === 'mentions'
-  localMentionKeywords.value = prefs.mention_keywords || []
+    const notifyEmail = prefs.notify_email
+    localNotifyEmail.value = notifyEmail === 'true' || notifyEmail === 'all' || notifyEmail === 'mentions'
+
+    localMentionKeywords.value = prefs.mention_keywords && prefs.mention_keywords.length > 0
+      ? prefs.mention_keywords
+      : [...defaultMentionKeywords.value]
+  }
+
+  localHighlightKeywords.value = readJsonArray(HIGHLIGHT_KEYWORDS_STORAGE_KEY)
+  localAutoResponderEnabled.value = localStorage.getItem(AUTO_RESPONDER_ENABLED_STORAGE_KEY) === 'true'
+  localAutoResponderMessage.value = localStorage.getItem(AUTO_RESPONDER_MESSAGE_STORAGE_KEY) || ''
+
+  mentionKeywordsInput.value = localMentionKeywords.value.join(', ')
+  highlightKeywordsInput.value = localHighlightKeywords.value.join(', ')
 }
 
 function expandRow(rowId: string) {
   if (expandedRow.value === rowId) {
     return
   }
+
   syncLocalState()
   expandedRow.value = rowId
+}
+
+function cancelEdit() {
+  syncLocalState()
+  expandedRow.value = null
+}
+
+async function saveDesktopAndMobileSettings() {
+  await savePreference({
+    notify_desktop: localNotifyDesktop.value,
+    notify_push: localNotifyPush.value,
+  })
+}
+
+async function saveDesktopNotificationSounds() {
+  await savePreference({
+    notify_sounds: localNotifySounds.value,
+  })
+}
+
+async function saveEmailNotifications() {
+  await savePreference({
+    notify_email: localNotifyEmail.value ? 'true' : 'false',
+  })
+}
+
+async function saveKeywordsThatTriggerNotifications() {
+  const parsed = parseKeywords(mentionKeywordsInput.value)
+  localMentionKeywords.value = parsed.length > 0 ? parsed : [...defaultMentionKeywords.value]
+  await savePreference({ mention_keywords: localMentionKeywords.value })
+}
+
+async function saveHighlightedKeywords() {
+  localHighlightKeywords.value = parseKeywords(highlightKeywordsInput.value)
+  localStorage.setItem(HIGHLIGHT_KEYWORDS_STORAGE_KEY, JSON.stringify(localHighlightKeywords.value))
+  expandedRow.value = null
+}
+
+async function saveAutomaticDirectMessageReplies() {
+  localStorage.setItem(AUTO_RESPONDER_ENABLED_STORAGE_KEY, String(localAutoResponderEnabled.value))
+  localStorage.setItem(AUTO_RESPONDER_MESSAGE_STORAGE_KEY, localAutoResponderMessage.value.trim())
+  expandedRow.value = null
 }
 
 async function savePreference(updates: Record<string, unknown>) {
@@ -111,367 +174,395 @@ async function savePreference(updates: Record<string, unknown>) {
   }
 }
 
-function cancelEdit() {
-  syncLocalState()
-  expandedRow.value = null
-}
-
 async function requestNotificationPermission() {
+  if (typeof Notification === 'undefined') {
+    toast.error('Permission unavailable', 'Notifications are not supported in this browser')
+    return
+  }
+
   try {
-    const permission = await Notification.requestPermission()
-    notificationPermission.value = permission
-    if (permission === 'granted') {
-      toast.success('Notifications enabled', 'You will now receive desktop notifications')
-    } else if (permission === 'denied') {
-      toast.error('Permission denied', 'Please enable notifications in your browser settings')
+    notificationPermission.value = await Notification.requestPermission()
+
+    if (notificationPermission.value === 'granted') {
+      toast.success('Permission granted', 'Desktop notifications are now enabled')
+      return
     }
-  } catch (e) {
-    console.error('Failed to request notification permission:', e)
+
+    toast.error('Permission required', 'Please enable notifications in your browser settings')
+  } catch (error) {
+    console.error('Failed to request notification permission', error)
+    toast.error('Permission request failed', 'Could not request notification permission')
   }
 }
 
 function testNotificationSound() {
-  // Create a simple beep using Web Audio API
   try {
     const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
     const oscillator = audioContext.createOscillator()
     const gainNode = audioContext.createGain()
-    
+
     oscillator.connect(gainNode)
     gainNode.connect(audioContext.destination)
-    
+
     oscillator.frequency.value = 800
     oscillator.type = 'sine'
     gainNode.gain.value = 0.3
-    
+
     oscillator.start()
-    oscillator.stop(audioContext.currentTime + 0.1)
-    
-    toast.success('Sound test', 'Notification sound played')
-  } catch (e) {
+    oscillator.stop(audioContext.currentTime + 0.12)
+
+    toast.success('Sound test', 'Played notification sound')
+  } catch (error) {
+    console.error('Failed to play notification sound', error)
     toast.error('Sound test failed', 'Could not play notification sound')
   }
 }
 
-// Keywords input handling
-const keywordsInput = ref('')
+async function sendTestNotification() {
+  sendingTestNotification.value = true
+  try {
+    const response = await api.post('/api/v4/notifications/test')
+    if (response.data?.status === 'OK') {
+      toast.success('Test notification sent', 'Check your devices for a test notification')
+      return
+    }
 
-function syncKeywordsInput() {
-  keywordsInput.value = localMentionKeywords.value.join(', ')
+    toast.error('Failed to send test notification', 'Unexpected response from server')
+  } catch (error) {
+    console.error('Failed to send test notification', error)
+    toast.error('Failed to send test notification', 'Please check your notification configuration and try again')
+  } finally {
+    sendingTestNotification.value = false
+  }
 }
 
-function saveKeywords() {
-  // Parse comma-separated keywords
-  const keywords = keywordsInput.value
+function openTroubleshootingDocs() {
+  window.open('https://mattermost.com/pl/troubleshoot-notifications', '_blank', 'noopener,noreferrer')
+}
+
+function parseKeywords(value: string): string[] {
+  return value
     .split(',')
-    .map(k => k.trim())
-    .filter(k => k.length > 0)
-  savePreference({ mention_keywords: keywords })
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0)
 }
 
-function expandKeywordsRow() {
-  syncLocalState()
-  syncKeywordsInput()
-  expandedRow.value = 'mention_keywords'
+function readJsonArray(key: string): string[] {
+  try {
+    const raw = localStorage.getItem(key)
+    if (!raw) {
+      return []
+    }
+
+    const parsed = JSON.parse(raw)
+    if (!Array.isArray(parsed)) {
+      return []
+    }
+
+    return parsed.filter((item) => typeof item === 'string')
+  } catch {
+    return []
+  }
+}
+
+function formatKeywordList(keywords: string[]): string {
+  return keywords.map((keyword) => `"${keyword}"`).join(', ')
 }
 </script>
 
 <template>
   <div class="space-y-1">
-    <!-- Desktop Notifications Row -->
-    <div v-if="expandedRow !== 'desktop_notifications'">
-      <SettingItemMin
-        label="Desktop Notifications"
-        :value="desktopNotificationsLabel"
-        description="Receive notifications on your desktop"
-        @click="expandRow('desktop_notifications')"
+    <div class="mb-1 flex items-center justify-between px-2">
+      <h3 class="text-3xl sm:text-[2rem] font-semibold tracking-tight text-gray-900 dark:text-white">Notifications</h3>
+      <a
+        href="https://mattermost.com/pl/about-notifications"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="inline-flex items-center gap-2 text-sm font-medium text-primary hover:text-primary/80"
       >
-        <template #icon>
-          <Monitor class="w-5 h-5 text-gray-400" />
-        </template>
-        <template #extra>
-          <span 
-            class="ml-2 px-2 py-0.5 text-xs font-medium rounded-full"
-            :class="permissionStatusDisplay.class"
-          >
-            {{ permissionStatusDisplay.text }}
-          </span>
-        </template>
-      </SettingItemMin>
+        <Lightbulb class="h-4 w-4" />
+        Learn more about notifications
+      </a>
     </div>
-    
-    <SettingItemMax
-      v-else
-      label="Desktop Notifications"
-      description="Choose when to receive desktop notifications"
-      :loading="saving"
-      @save="savePreference({ notify_desktop: localNotifyDesktop })"
-      @cancel="cancelEdit"
-    >
-      <div class="space-y-4">
-        <!-- Permission Button -->
-        <div v-if="notificationPermission !== 'granted'" class="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-          <div class="flex items-start gap-3">
-            <Bell class="w-5 h-5 text-blue-500 mt-0.5" />
-            <div class="flex-1">
-              <p class="text-sm font-medium text-blue-900 dark:text-blue-300">Enable Desktop Notifications</p>
-              <p class="text-xs text-blue-700 dark:text-blue-400 mt-1">
-                You need to allow browser notifications to receive desktop alerts.
-              </p>
-              <button 
-                @click="requestNotificationPermission"
-                class="mt-2 px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Allow Notifications
-              </button>
-            </div>
-          </div>
-        </div>
 
-        <div class="space-y-2">
-          <label class="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
-            <input
-              type="radio"
-              v-model="localNotifyDesktop"
-              value="all"
-              class="w-4 h-4 text-primary"
-            />
-            <div class="flex-1">
-              <div class="text-sm font-medium text-gray-900 dark:text-white">For all activity</div>
-              <div class="text-xs text-gray-500">Notify me about all messages and activity</div>
-            </div>
-          </label>
-          <label class="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
-            <input
-              type="radio"
-              v-model="localNotifyDesktop"
-              value="mentions"
-              class="w-4 h-4 text-primary"
-            />
-            <div class="flex-1">
-              <div class="text-sm font-medium text-gray-900 dark:text-white">For mentions and direct messages</div>
-              <div class="text-xs text-gray-500">Only notify me when I'm mentioned or receive a DM</div>
-            </div>
-          </label>
-          <label class="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
-            <input
-              type="radio"
-              v-model="localNotifyDesktop"
-              value="none"
-              class="w-4 h-4 text-primary"
-            />
-            <div class="flex-1">
-              <div class="text-sm font-medium text-gray-900 dark:text-white">Never</div>
-              <div class="text-xs text-gray-500">Don't send any desktop notifications</div>
-            </div>
-          </label>
-        </div>
-      </div>
-    </SettingItemMax>
-
-    <!-- Mobile Push Notifications Row -->
-    <div v-if="expandedRow !== 'push_notifications'">
-      <SettingItemMin
-        label="Mobile Push Notifications"
-        :value="pushNotificationsLabel"
-        description="Receive notifications on your mobile device"
-        @click="expandRow('push_notifications')"
-      >
-        <template #icon>
-          <Smartphone class="w-5 h-5 text-gray-400" />
-        </template>
-      </SettingItemMin>
-    </div>
-    
-    <SettingItemMax
-      v-else
-      label="Mobile Push Notifications"
-      description="Choose when to receive mobile push notifications"
-      :loading="saving"
-      @save="savePreference({ notify_push: localNotifyPush })"
-      @cancel="cancelEdit"
-    >
-      <div class="space-y-2">
-        <label class="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
-          <input
-            type="radio"
-            v-model="localNotifyPush"
-            value="all"
-            class="w-4 h-4 text-primary"
-          />
-          <div class="flex-1">
-            <div class="text-sm font-medium text-gray-900 dark:text-white">For all activity</div>
-            <div class="text-xs text-gray-500">Send push notifications for all messages</div>
-          </div>
-        </label>
-        <label class="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
-          <input
-            type="radio"
-            v-model="localNotifyPush"
-            value="mentions"
-            class="w-4 h-4 text-primary"
-          />
-          <div class="flex-1">
-            <div class="text-sm font-medium text-gray-900 dark:text-white">For mentions and direct messages</div>
-            <div class="text-xs text-gray-500">Only send push notifications for mentions and DMs</div>
-          </div>
-        </label>
-        <label class="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
-          <input
-            type="radio"
-            v-model="localNotifyPush"
-            value="none"
-            class="w-4 h-4 text-primary"
-          />
-          <div class="flex-1">
-            <div class="text-sm font-medium text-gray-900 dark:text-white">Never</div>
-            <div class="text-xs text-gray-500">Don't send any push notifications</div>
-          </div>
-        </label>
-      </div>
-    </SettingItemMax>
-
-    <!-- Desktop Sounds Row -->
-    <div v-if="expandedRow !== 'desktop_sounds'">
-      <SettingItemMin
-        label="Desktop Sounds"
-        :value="desktopSoundsLabel"
-        description="Play a sound when receiving notifications"
-        @click="expandRow('desktop_sounds')"
-      >
-        <template #icon>
-          <Volume2 class="w-5 h-5 text-gray-400" />
-        </template>
-      </SettingItemMin>
-    </div>
-    
-    <SettingItemMax
-      v-else
-      label="Desktop Sounds"
-      description="Control notification sounds"
-      :loading="saving"
-      @save="savePreference({ notify_sounds: localNotifySounds })"
-      @cancel="cancelEdit"
-    >
-      <div class="space-y-3">
-        <label class="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
-          <div>
-            <div class="text-sm font-medium text-gray-900 dark:text-white">Enable desktop sounds</div>
-            <div class="text-xs text-gray-500">Play a sound when you receive a notification</div>
-          </div>
-          <input
-            type="checkbox"
-            v-model="localNotifySounds"
-            class="w-5 h-5 text-primary rounded"
-          />
-        </label>
+    <div class="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+      <div v-if="expandedRow !== 'desktop_mobile'">
         <button
-          @click="testNotificationSound"
-          class="w-full px-3 py-2 text-sm text-primary border border-primary/30 rounded-lg hover:bg-primary/5 transition-colors"
+          type="button"
+          class="flex w-full items-start justify-between gap-4 border-b border-gray-200 px-4 py-4 text-left hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50"
+          @click="expandRow('desktop_mobile')"
         >
-          Test Sound
+          <div class="min-w-0">
+            <div class="text-xl sm:text-2xl font-medium leading-tight text-gray-900 dark:text-white">Desktop and mobile notifications</div>
+            <div class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ desktopAndMobileLabel }}</div>
+          </div>
+          <div class="mt-0.5 flex items-center gap-2">
+            <span
+              v-if="permissionRequired"
+              class="inline-flex items-center gap-1 rounded bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-900/30 dark:text-red-300"
+            >
+              <AlertTriangle class="h-3.5 w-3.5" />
+              Permission required
+            </span>
+            <span class="text-sm font-medium text-primary">Edit</span>
+          </div>
         </button>
       </div>
-    </SettingItemMax>
 
-    <!-- Email Notifications Row -->
-    <div v-if="expandedRow !== 'email_notifications'">
-      <SettingItemMin
-        label="Email Notifications"
-        :value="emailNotificationsLabel"
-        description="Receive email notifications for mentions and DMs"
-        @click="expandRow('email_notifications')"
+      <SettingItemMax
+        v-else
+        label="Desktop and mobile notifications"
+        description="Choose how desktop and mobile notifications are delivered"
+        :loading="saving"
+        @save="saveDesktopAndMobileSettings"
+        @cancel="cancelEdit"
       >
-        <template #icon>
-          <Mail class="w-5 h-5 text-gray-400" />
-        </template>
-      </SettingItemMin>
-    </div>
-    
-    <SettingItemMax
-      v-else
-      label="Email Notifications"
-      description="Control email notification settings"
-      :loading="saving"
-      @save="savePreference({ notify_email: localNotifyEmail })"
-      @cancel="cancelEdit"
-    >
-      <div class="space-y-3">
-        <label class="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
-          <div>
-            <div class="text-sm font-medium text-gray-900 dark:text-white">Enable email notifications</div>
-            <div class="text-xs text-gray-500">Send me emails for mentions and direct messages</div>
-          </div>
-          <input
-            type="checkbox"
-            v-model="localNotifyEmail"
-            class="w-5 h-5 text-primary rounded"
-          />
-        </label>
-      </div>
-    </SettingItemMax>
-
-    <!-- Mention Keywords Row -->
-    <div v-if="expandedRow !== 'mention_keywords'">
-      <SettingItemMin
-        label="Mention Keywords"
-        :value="mentionKeywordsLabel"
-        description="Additional words that trigger mentions"
-        @click="expandKeywordsRow"
-      >
-        <template #icon>
-          <MessageSquare class="w-5 h-5 text-gray-400" />
-        </template>
-      </SettingItemMin>
-    </div>
-    
-    <SettingItemMax
-      v-else
-      label="Mention Keywords"
-      description="Words that trigger mention notifications besides your username"
-      :loading="saving"
-      @save="saveKeywords"
-      @cancel="cancelEdit"
-    >
-      <div class="space-y-3">
-        <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Keywords (comma-separated)
-          </label>
-          <input
-            v-model="keywordsInput"
-            type="text"
-            placeholder="e.g. @channel, @here, urgent"
-            class="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm"
-          />
-          <p class="mt-1 text-xs text-gray-500">
-            You'll be notified when someone uses these words in a message
-          </p>
-        </div>
-      </div>
-    </SettingItemMax>
-
-    <!-- Troubleshooting Card -->
-    <div class="mt-6 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
-      <div class="flex items-start gap-3">
-        <AlertTriangle class="w-5 h-5 text-amber-500 mt-0.5" />
-        <div class="flex-1">
-          <h4 class="text-sm font-medium text-gray-900 dark:text-white">Troubleshooting</h4>
-          <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            Not receiving notifications? Check your browser and system notification settings.
-          </p>
-          <div class="mt-3 flex flex-wrap gap-2">
+        <div class="space-y-5">
+          <div v-if="permissionRequired" class="rounded-md border border-blue-200 bg-blue-50 p-3 dark:border-blue-800/60 dark:bg-blue-900/20">
+            <div class="text-sm font-medium text-blue-900 dark:text-blue-300">Permission required</div>
+            <p class="mt-1 text-xs text-blue-700 dark:text-blue-400">Allow browser notifications to receive desktop alerts.</p>
             <button
+              type="button"
+              class="mt-2 rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
               @click="requestNotificationPermission"
-              class="px-3 py-1.5 text-xs font-medium text-primary bg-white dark:bg-gray-800 border border-primary/30 rounded-lg hover:bg-primary/5 transition-colors"
             >
-              Check Permission
+              Allow notifications
+            </button>
+          </div>
+
+          <div>
+            <div class="mb-2 text-sm font-semibold text-gray-900 dark:text-white">Desktop</div>
+            <div class="space-y-2">
+              <label class="flex items-start gap-3 rounded-md border border-gray-200 p-3 text-sm hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50">
+                <input v-model="localNotifyDesktop" type="radio" value="all" class="mt-0.5 h-4 w-4" />
+                <span>For all activity</span>
+              </label>
+              <label class="flex items-start gap-3 rounded-md border border-gray-200 p-3 text-sm hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50">
+                <input v-model="localNotifyDesktop" type="radio" value="mentions" class="mt-0.5 h-4 w-4" />
+                <span>For mentions and direct messages</span>
+              </label>
+              <label class="flex items-start gap-3 rounded-md border border-gray-200 p-3 text-sm hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50">
+                <input v-model="localNotifyDesktop" type="radio" value="none" class="mt-0.5 h-4 w-4" />
+                <span>Never</span>
+              </label>
+            </div>
+          </div>
+
+          <div>
+            <div class="mb-2 text-sm font-semibold text-gray-900 dark:text-white">Mobile</div>
+            <div class="space-y-2">
+              <label class="flex items-start gap-3 rounded-md border border-gray-200 p-3 text-sm hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50">
+                <input v-model="localNotifyPush" type="radio" value="all" class="mt-0.5 h-4 w-4" />
+                <span>For all activity</span>
+              </label>
+              <label class="flex items-start gap-3 rounded-md border border-gray-200 p-3 text-sm hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50">
+                <input v-model="localNotifyPush" type="radio" value="mentions" class="mt-0.5 h-4 w-4" />
+                <span>For mentions and direct messages</span>
+              </label>
+              <label class="flex items-start gap-3 rounded-md border border-gray-200 p-3 text-sm hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50">
+                <input v-model="localNotifyPush" type="radio" value="none" class="mt-0.5 h-4 w-4" />
+                <span>Never</span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </SettingItemMax>
+
+      <div v-if="expandedRow !== 'desktop_sounds'">
+        <button
+          type="button"
+          class="flex w-full items-start justify-between gap-4 border-b border-gray-200 px-4 py-4 text-left hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50"
+          @click="expandRow('desktop_sounds')"
+        >
+          <div class="min-w-0">
+            <div class="text-xl sm:text-2xl font-medium leading-tight text-gray-900 dark:text-white">Desktop notification sounds</div>
+            <div class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ desktopNotificationSoundsLabel }}</div>
+          </div>
+          <span class="mt-0.5 text-sm font-medium text-primary">Edit</span>
+        </button>
+      </div>
+
+      <SettingItemMax
+        v-else
+        label="Desktop notification sounds"
+        description="Control desktop notification sounds"
+        :loading="saving"
+        @save="saveDesktopNotificationSounds"
+        @cancel="cancelEdit"
+      >
+        <div class="space-y-3">
+          <label class="flex items-center justify-between rounded-md border border-gray-200 p-3 text-sm dark:border-gray-700">
+            <span>Enable desktop notification sounds</span>
+            <input v-model="localNotifySounds" type="checkbox" class="h-4 w-4" />
+          </label>
+          <button
+            type="button"
+            class="rounded border border-primary/30 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/5"
+            @click="testNotificationSound"
+          >
+            Test sound
+          </button>
+        </div>
+      </SettingItemMax>
+
+      <div v-if="expandedRow !== 'email_notifications'">
+        <button
+          type="button"
+          class="flex w-full items-start justify-between gap-4 border-b border-gray-200 px-4 py-4 text-left hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50"
+          @click="expandRow('email_notifications')"
+        >
+          <div class="min-w-0">
+            <div class="text-xl sm:text-2xl font-medium leading-tight text-gray-900 dark:text-white">Email notifications</div>
+            <div class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ emailNotificationsLabel }}</div>
+          </div>
+          <span class="mt-0.5 text-sm font-medium text-primary">Edit</span>
+        </button>
+      </div>
+
+      <SettingItemMax
+        v-else
+        label="Email notifications"
+        description="Enable or disable email notifications"
+        :loading="saving"
+        @save="saveEmailNotifications"
+        @cancel="cancelEdit"
+      >
+        <label class="flex items-center justify-between rounded-md border border-gray-200 p-3 text-sm dark:border-gray-700">
+          <span>Send email notifications</span>
+          <input v-model="localNotifyEmail" type="checkbox" class="h-4 w-4" />
+        </label>
+      </SettingItemMax>
+
+      <div v-if="expandedRow !== 'trigger_keywords'">
+        <button
+          type="button"
+          class="flex w-full items-start justify-between gap-4 border-b border-gray-200 px-4 py-4 text-left hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50"
+          @click="expandRow('trigger_keywords')"
+        >
+          <div class="min-w-0">
+            <div class="text-xl sm:text-2xl font-medium leading-tight text-gray-900 dark:text-white">Keywords that trigger notifications</div>
+            <div class="mt-1 text-sm text-gray-500 dark:text-gray-400 break-words">{{ keywordsTriggerLabel }}</div>
+          </div>
+          <span class="mt-0.5 text-sm font-medium text-primary">Edit</span>
+        </button>
+      </div>
+
+      <SettingItemMax
+        v-else
+        label="Keywords that trigger notifications"
+        description="Messages containing these keywords will trigger notifications"
+        :loading="saving"
+        @save="saveKeywordsThatTriggerNotifications"
+        @cancel="cancelEdit"
+      >
+        <div>
+          <label class="mb-1 block text-sm font-medium text-gray-900 dark:text-white">Keywords (comma-separated)</label>
+          <input
+            v-model="mentionKeywordsInput"
+            type="text"
+            class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900"
+            placeholder="@username, @channel, @all, @here"
+          />
+        </div>
+      </SettingItemMax>
+
+      <div v-if="expandedRow !== 'highlight_keywords'">
+        <button
+          type="button"
+          class="flex w-full items-start justify-between gap-4 border-b border-gray-200 px-4 py-4 text-left hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50"
+          @click="expandRow('highlight_keywords')"
+        >
+          <div class="min-w-0">
+            <div class="text-xl sm:text-2xl font-medium leading-tight text-gray-900 dark:text-white">Keywords that get highlighted (without notifications)</div>
+            <div class="mt-1 text-sm text-gray-500 dark:text-gray-400 break-words">{{ highlightKeywordsLabel }}</div>
+          </div>
+          <span class="mt-0.5 text-sm font-medium text-primary">Edit</span>
+        </button>
+      </div>
+
+      <SettingItemMax
+        v-else
+        label="Keywords that get highlighted (without notifications)"
+        description="Messages containing these keywords are highlighted only"
+        :loading="saving"
+        @save="saveHighlightedKeywords"
+        @cancel="cancelEdit"
+      >
+        <div>
+          <label class="mb-1 block text-sm font-medium text-gray-900 dark:text-white">Keywords (comma-separated)</label>
+          <input
+            v-model="highlightKeywordsInput"
+            type="text"
+            class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900"
+            placeholder="release, incident, urgent"
+          />
+        </div>
+      </SettingItemMax>
+
+      <div v-if="expandedRow !== 'auto_responder'">
+        <button
+          type="button"
+          class="flex w-full items-start justify-between gap-4 px-4 py-4 text-left hover:bg-gray-50 dark:hover:bg-gray-800/50"
+          @click="expandRow('auto_responder')"
+        >
+          <div class="min-w-0">
+            <div class="text-xl sm:text-2xl font-medium leading-tight text-gray-900 dark:text-white">Automatic direct message replies</div>
+            <div class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ autoResponderLabel }}</div>
+          </div>
+          <span class="mt-0.5 text-sm font-medium text-primary">Edit</span>
+        </button>
+      </div>
+
+      <SettingItemMax
+        v-else
+        label="Automatic direct message replies"
+        description="Automatically send a message when you receive a direct message"
+        :loading="saving"
+        @save="saveAutomaticDirectMessageReplies"
+        @cancel="cancelEdit"
+      >
+        <div class="space-y-3">
+          <label class="flex items-center justify-between rounded-md border border-gray-200 p-3 text-sm dark:border-gray-700">
+            <span>Enable automatic direct message replies</span>
+            <input v-model="localAutoResponderEnabled" type="checkbox" class="h-4 w-4" />
+          </label>
+          <div>
+            <label class="mb-1 block text-sm font-medium text-gray-900 dark:text-white">Auto-reply message</label>
+            <textarea
+              v-model="localAutoResponderMessage"
+              rows="3"
+              class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900"
+              placeholder="I'm away right now and will reply as soon as possible."
+            />
+          </div>
+        </div>
+      </SettingItemMax>
+    </div>
+
+    <div class="mt-6 rounded-lg border border-blue-200 bg-blue-50 p-5 dark:border-blue-800/40 dark:bg-blue-900/15">
+      <div class="flex items-start gap-3">
+        <Lightbulb class="mt-0.5 h-5 w-5 text-blue-600 dark:text-blue-300" />
+        <div class="flex-1">
+          <h4 class="text-base font-semibold text-gray-900 dark:text-white">Troubleshooting notifications</h4>
+          <p class="mt-1 text-sm text-gray-700 dark:text-gray-300">
+            Not receiving notifications? Start by sending a test notification to all your devices to check if they are working as expected. If issues persist, explore ways to solve them with troubleshooting steps.
+          </p>
+          <div class="mt-4 flex flex-wrap gap-2">
+            <button
+              type="button"
+              class="rounded bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+              :disabled="sendingTestNotification"
+              @click="sendTestNotification"
+            >
+              {{ sendingTestNotification ? 'Sending a test notification' : 'Send a test notification' }}
             </button>
             <button
-              @click="testNotificationSound"
-              class="px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              type="button"
+              class="inline-flex items-center gap-1 rounded border border-blue-300 bg-white px-4 py-2 text-sm font-medium text-primary hover:bg-blue-100 dark:border-blue-700 dark:bg-gray-900"
+              @click="openTroubleshootingDocs"
             >
-              Test Sound
+              Troubleshooting docs
+              <ExternalLink class="h-4 w-4" />
             </button>
           </div>
         </div>

@@ -163,9 +163,6 @@ function handleLogout() {
 
                 <!-- Calls Tab -->
                 <div v-else-if="activeTab === 'calls'">
-                    <div class="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                        Configure your audio and video devices for calls.
-                    </div>
                     <CallsTab />
                 </div>
 

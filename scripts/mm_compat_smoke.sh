@@ -1,7 +1,8 @@
 #!/bin/bash
 set -e
 
-BASE=${BASE:-http://localhost:80}
+BASE=${BASE:-http://localhost:3000}
+EXPECTED_MM_VERSION=${EXPECTED_MM_VERSION:-10.11.10}
 
 echo "Testing against $BASE"
 
@@ -12,12 +13,12 @@ echo "OK"
 
 # 2. Version
 echo "2. Testing Version..."
-curl -i -s $BASE/api/v4/system/version | grep -E "200|10\.11\.0"
+curl -i -s $BASE/api/v4/system/version | grep -E "200|$EXPECTED_MM_VERSION"
 echo "OK"
 
 # 3. Client config
 echo "3. Testing Client Config..."
-curl -i -s $BASE/api/v4/config/client | grep -E "200|Version"
+curl -i -s "$BASE/api/v4/config/client?format=old" | grep -E "200|Version"
 echo "OK"
 
 # 4. Login (This expects a user 'test'/'test' to exist or provided via env)
@@ -25,9 +26,15 @@ LOGIN_ID=${LOGIN_ID:-test}
 PASSWORD=${PASSWORD:-test}
 
 echo "4. Testing Login for $LOGIN_ID..."
-TOKEN=$(curl -si -X POST $BASE/api/v4/users/login \
+LOGIN_RESPONSE=$(curl -si -X POST "$BASE/api/v4/users/login" \
   -H 'Content-Type: application/json' \
-  -d "{\"login_id\":\"$LOGIN_ID\",\"password\":\"$PASSWORD\"}" | awk -F': ' '/^Token:/{print $2}' | tr -d '\r')
+  -d "{\"login_id\":\"$LOGIN_ID\",\"password\":\"$PASSWORD\"}")
+
+# Prefer token header (case-insensitive), then fall back to JSON body token if present.
+TOKEN=$(printf '%s\n' "$LOGIN_RESPONSE" | awk 'BEGIN{IGNORECASE=1} /^token:/{print $2; exit}' | tr -d '\r')
+if [ -z "$TOKEN" ]; then
+  TOKEN=$(printf '%s\n' "$LOGIN_RESPONSE" | sed -n 's/.*"token":"\([^"]*\)".*/\1/p' | head -n 1)
+fi
 
 if [ -z "$TOKEN" ]; then
   echo "Failed to get token. Make sure user exists."
