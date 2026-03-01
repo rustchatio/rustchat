@@ -57,12 +57,17 @@ export const useAuthStore = defineStore('auth', () => {
         router.push('/login')
     }
 
-    async function updateStatus(status: { presence?: string, text?: string, emoji?: string, duration?: string, duration_minutes?: number }) {
+    async function updateStatus(status: { status?: string, presence?: string, text?: string, emoji?: string, duration?: string, duration_minutes?: number, dnd_end_time?: number }) {
         if (!token.value) return
         try {
-            const { data } = await client.put('/users/me/status', status)
+            const payload = { ...status }
+            if (payload.presence && !payload.status) {
+                payload.status = payload.presence
+            }
+            delete payload.presence
+
+            const { data } = await client.put('/users/me/status', payload)
             if (user.value) {
-                if (data.presence) user.value.presence = data.presence
                 if (data.status) user.value.presence = data.status
                 user.value.status_text = data.text
                 user.value.status_emoji = data.emoji

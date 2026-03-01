@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
-import { Smile, Paperclip, Send, X, File as FileIcon, Phone, Type } from 'lucide-vue-next'
+import { Smile, Paperclip, Send, X, File as FileIcon, Phone, ChevronDown, ChevronUp } from 'lucide-vue-next'
 import { useToast } from '../../composables/useToast'
 import { filesApi, type FileUploadResponse } from '../../api/files'
 import FileUploader from '../atomic/FileUploader.vue'
@@ -901,14 +901,16 @@ onUnmounted(() => {
           </div>
 
           <button
-            class="rounded p-1.5 transition-standard focus-ring"
+            class="inline-flex items-center gap-1 rounded px-2 py-1.5 transition-standard focus-ring"
             :class="showToolbar ? 'bg-brand/10 text-brand' : 'hover:bg-brand/10 hover:text-brand'"
             :disabled="!formattingAllowed"
-            :title="showToolbar ? 'Hide formatting toolbar (Ctrl+Alt+T)' : 'Show formatting toolbar (Ctrl+Alt+T)'"
+            :title="showToolbar ? 'Hide formatting (Ctrl+Alt+T)' : 'Show formatting (Ctrl+Alt+T)'"
             aria-label="Toggle formatting toolbar"
             @click="toggleFormatting"
           >
-            <Type class="h-4 w-4" />
+            <span class="text-sm font-medium">Aa</span>
+            <ChevronUp v-if="showToolbar" class="h-3.5 w-3.5" />
+            <ChevronDown v-else class="h-3.5 w-3.5" />
           </button>
 
           <button

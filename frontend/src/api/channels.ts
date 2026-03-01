@@ -68,6 +68,10 @@ export interface SidebarCategories {
     order: string[]
 }
 
+export interface ApiStatusResponse {
+    status: string
+}
+
 export const channelsApi = {
     list: (teamId: string) => api.get<Channel[]>('/channels', { params: { team_id: teamId } }),
     listJoinable: (teamId: string) => api.get<Channel[]>('/channels', { params: { team_id: teamId, available_to_join: true } }),
@@ -90,7 +94,7 @@ export const channelsApi = {
     
     // Notify props for mute/unmute
     updateNotifyProps: (channelId: string, userId: string, props: ChannelNotifyProps) =>
-        api.put<ChannelMember>(`/channels/${channelId}/members/${userId}/notify_props`, props),
+        api.put<ApiStatusResponse>(`/channels/${channelId}/members/${userId}/notify_props`, props),
     
     // Add member to channel
     addMember: (channelId: string, userId: string) =>
@@ -101,9 +105,12 @@ export const channelsApi = {
 export const categoriesApi = {
     getCategories: (userId: string, teamId: string) =>
         api.get<SidebarCategories>(`/users/${userId}/teams/${teamId}/channels/categories`),
+
+    getCategoriesOrder: (userId: string, teamId: string) =>
+        api.get<string[]>(`/users/${userId}/teams/${teamId}/channels/categories/order`),
     
     updateCategories: (userId: string, teamId: string, categories: SidebarCategory[]) =>
-        api.put<SidebarCategory[]>(`/users/${userId}/teams/${teamId}/channels/categories`, { categories }),
+        api.put<SidebarCategory[]>(`/users/${userId}/teams/${teamId}/channels/categories`, categories),
     
     updateCategory: (userId: string, teamId: string, categoryId: string, category: Partial<SidebarCategory>) =>
         api.put<SidebarCategory>(`/users/${userId}/teams/${teamId}/channels/categories/${categoryId}`, category),

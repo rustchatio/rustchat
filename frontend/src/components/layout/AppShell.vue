@@ -55,16 +55,16 @@ watch(() => channelStore.currentChannelId, () => {
       @click="ui.closeLhs()"
     ></div>
 
-    <div class="flex flex-1 overflow-hidden relative gap-1 p-1">
+    <div class="flex flex-1 overflow-hidden relative">
         <!-- Team Rail (Leftmost) -->
-        <TeamRail v-if="!isMobile" class="border border-border-1 rounded-r-2" />
+        <TeamRail v-if="!isMobile" class="border-r border-border-1" />
 
         <!-- Channel Sidebar (LHS) -->
-        <ChannelSidebar v-if="!isMobile" class="border border-border-1 rounded-r-2" />
+        <ChannelSidebar v-if="!isMobile" class="border-r border-border-1" />
 
         <!-- Main Content (Center) -->
         <main 
-          class="flex-1 flex flex-col min-w-0 bg-bg-surface-1 relative transition-standard overflow-hidden border border-border-1 rounded-r-2"
+          class="flex-1 flex flex-col min-w-0 bg-bg-surface-1 relative transition-standard overflow-hidden"
           :class="{ 'shadow-2': ui.isRhsOpen && isMobileOrTablet }"
         >
             <slot />
@@ -88,7 +88,7 @@ watch(() => channelStore.currentChannelId, () => {
         >
           <RightSidebar 
             v-if="ui.isRhsOpen" 
-            class="fixed lg:relative top-0 right-0 h-full z-40 lg:z-10 shadow-2 lg:shadow-none bg-bg-surface-1 border border-border-1 rounded-r-2"
+            class="fixed lg:relative top-0 right-0 h-full z-40 lg:z-10 shadow-2 lg:shadow-none bg-bg-surface-1 border-l border-border-1"
             :class="[isMobileOrTablet ? 'w-[85%] sm:w-[360px]' : 'w-[360px]']"
             @jump="emit('rhsJump', $event)"
             @openSettings="emit('openChannelSettings')"

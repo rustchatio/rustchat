@@ -141,7 +141,7 @@ async fn test_sidebar_categories() {
             &app.address, team_id
         ))
         .header("Authorization", format!("Bearer {}", token))
-        .json(&json!({ "categories": [updated_cat] }))
+        .json(&json!([updated_cat]))
         .send()
         .await
         .unwrap();
@@ -150,6 +150,21 @@ async fn test_sidebar_categories() {
     let update_body: serde_json::Value = update_res.json().await.unwrap();
     let expected_channel_id = encode_mm_id(Uuid::parse_str(channel_id).unwrap());
     assert_eq!(update_body[0]["channel_ids"][0], expected_channel_id);
+
+    let mut wrapped_cat = new_cat.clone();
+    wrapped_cat["channel_ids"] = json!([channel_id]);
+    let wrapped_update_res = app
+        .api_client
+        .put(&format!(
+            "{}/api/v4/users/me/teams/{}/channels/categories",
+            &app.address, team_id
+        ))
+        .header("Authorization", format!("Bearer {}", token))
+        .json(&json!({ "categories": [wrapped_cat] }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(200, wrapped_update_res.status().as_u16());
 
     // 6. Update category order
     let order_data = json!([cat_id]);
@@ -166,6 +181,20 @@ async fn test_sidebar_categories() {
         .unwrap();
 
     assert_eq!(200, order_res.status().as_u16());
+
+    let order_get_res = app
+        .api_client
+        .get(&format!(
+            "{}/api/v4/users/me/teams/{}/channels/categories/order",
+            &app.address, team_id
+        ))
+        .header("Authorization", format!("Bearer {}", token))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(200, order_get_res.status().as_u16());
+    let order_get_body: serde_json::Value = order_get_res.json().await.unwrap();
+    assert!(order_get_body.as_array().is_some());
 }
 
 #[tokio::test]

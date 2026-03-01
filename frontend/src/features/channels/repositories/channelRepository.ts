@@ -173,10 +173,9 @@ export const channelRepository = {
     channelId: ChannelId, 
     userId: UserId, 
     props: ChannelNotifyProps
-  ): Promise<ChannelMember> {
+  ): Promise<void> {
     return withRetry(async () => {
-      const response = await channelsApi.updateNotifyProps(channelId, userId, props)
-      return normalizeChannelMember(response.data)
+      await channelsApi.updateNotifyProps(channelId, userId, props)
     })
   },
 

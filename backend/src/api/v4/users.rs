@@ -37,8 +37,9 @@ use sidebar_categories::{
     create_category, get_categories, get_my_categories, update_categories, update_category_order,
 };
 pub(crate) use sidebar_categories::{
-    create_category_internal, get_categories_internal, resolve_user_id, update_categories_internal,
-    update_category_order_internal, CreateCategoryRequest, UpdateCategoriesRequest,
+    create_category_internal, get_categories_internal, get_category_order_internal,
+    resolve_user_id, update_categories_internal, update_category_order_internal,
+    CreateCategoryRequest, UpdateCategoriesPayload,
 };
 
 pub fn router(state: AppState) -> Router<AppState> {

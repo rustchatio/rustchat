@@ -16,7 +16,6 @@ import BrowseTeamsModal from '../modals/BrowseTeamsModal.vue';
 import BrowseChannelsModal from '../modals/BrowseChannelsModal.vue';
 import ChannelContextMenu from '../channels/ChannelContextMenu.vue';
 import AddChannelMembersModal from '../modals/AddChannelMembersModal.vue';
-import ChannelSettingsModal from '../modals/ChannelSettingsModal.vue';
 import type { SidebarCategory } from '../../api/channels';
 import { channelRepository } from '../../features/channels/repositories/channelRepository';
 
@@ -50,9 +49,6 @@ const contextMenuTrigger = ref<HTMLElement | null>(null);
 const showMoveToModal = ref(false);
 const moveToCategories = ref<SidebarCategory[]>([]);
 const moveToChannelId = ref('');
-
-// Channel settings modal state
-const showChannelSettings = ref(false);
 
 // Reload channels when team changes
 watch(() => teamStore.currentTeamId, (teamId) => {
@@ -264,15 +260,6 @@ function handleOpenMoveTo(cats: SidebarCategory[]) {
     }
 }
 
-// Handle open channel details
-function handleOpenChannelDetails() {
-    if (contextMenuChannel.value) {
-        // Select the channel first so it's loaded in the store
-        channelStore.selectChannel(contextMenuChannel.value.id)
-        showChannelSettings.value = true
-    }
-}
-
 // Handle move to category
 async function handleMoveToCategory(cat: SidebarCategory) {
     if (!authStore.user?.id || !teamStore.currentTeamId) return
@@ -423,6 +410,7 @@ async function handleLeaveTeam() {
             v-for="channel in cat.channels" 
             :key="channel.id"
             @click="selectChannel(channel.id)"
+            @contextmenu.prevent="openContextMenu(channel, $event)"
             class="group/item relative px-2 py-1.5 mx-1.5 rounded-r-1 flex items-center justify-between cursor-pointer transition-standard"
             :class="{ 
               'bg-brand text-white shadow-1': channelStore.currentChannelId === channel.id, 
@@ -503,7 +491,6 @@ async function handleLeaveTeam() {
                    @action="handleContextMenuAction"
                    @open-add-members="handleOpenAddMembers"
                    @open-move-to="handleOpenMoveTo"
-                   @open-details="handleOpenChannelDetails"
                  />
                </Teleport>
             </div>
@@ -598,13 +585,6 @@ async function handleLeaveTeam() {
         </div>
       </div>
     </Teleport>
-
-    <!-- Channel Settings Modal -->
-    <ChannelSettingsModal
-      :isOpen="showChannelSettings"
-      :channel="channelStore.currentChannel"
-      @close="showChannelSettings = false"
-    />
     </div>
   </aside>
 </template>

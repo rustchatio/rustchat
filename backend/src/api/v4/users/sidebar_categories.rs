@@ -88,14 +88,14 @@ pub(super) async fn update_categories(
     auth: MmAuthUser,
     Path(params): Path<CategoriesPath>,
     Query(query): Query<std::collections::HashMap<String, String>>,
-    Json(input): Json<UpdateCategoriesRequest>,
+    Json(input): Json<UpdateCategoriesPayload>,
 ) -> ApiResult<Json<Vec<mm::SidebarCategory>>> {
     let user_id = resolve_user_id(&params.user_id, &auth)?;
     let team_id_str = query
         .get("team_id")
         .ok_or_else(|| AppError::BadRequest("Missing team_id".to_string()))?;
     let team_id = resolve_team_id(&state, team_id_str).await?;
-    update_categories_internal(state, user_id, team_id, input).await
+    update_categories_internal(state, user_id, team_id, input.into_request()).await
 }
 
 pub(super) async fn update_category_order(
@@ -485,6 +485,22 @@ pub(crate) struct UpdateCategoriesRequest {
     categories: Vec<mm::SidebarCategory>,
 }
 
+#[derive(Deserialize)]
+#[serde(untagged)]
+pub(crate) enum UpdateCategoriesPayload {
+    Raw(Vec<mm::SidebarCategory>),
+    Wrapped(UpdateCategoriesRequest),
+}
+
+impl UpdateCategoriesPayload {
+    pub(crate) fn into_request(self) -> UpdateCategoriesRequest {
+        match self {
+            Self::Raw(categories) => UpdateCategoriesRequest { categories },
+            Self::Wrapped(input) => input,
+        }
+    }
+}
+
 pub(crate) async fn update_categories_internal(
     state: AppState,
     user_id: Uuid,
@@ -594,6 +610,15 @@ pub(crate) async fn update_category_order_internal(
     tx.commit().await?;
 
     Ok(Json(order))
+}
+
+pub(crate) async fn get_category_order_internal(
+    state: AppState,
+    user_id: Uuid,
+    team_id: Uuid,
+) -> ApiResult<Json<Vec<String>>> {
+    let categories = get_categories_internal(state, user_id, team_id).await?.0;
+    Ok(Json(categories.order))
 }
 
 #[cfg(test)]

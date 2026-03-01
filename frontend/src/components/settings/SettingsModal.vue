@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { X, LogOut, Bell, Monitor, Layout, Settings, Phone, User } from 'lucide-vue-next'
+import { X, LogOut, Bell, Monitor, Layout, Settings, Phone } from 'lucide-vue-next'
 import DisplayTab from './display/DisplayTab.vue'
 import SidebarTab from './sidebar/SidebarTab.vue'
 import AdvancedTab from './advanced/AdvancedTab.vue'
@@ -8,6 +8,7 @@ import CallsTab from './calls/CallsTab.vue'
 import NotificationsTab from './notifications/NotificationsTab.vue'
 import ProfileTab from './profile/ProfileTab.vue'
 import { useAuthStore } from '../../stores/auth'
+import { useUIStore, type SettingsTab } from '../../stores/ui'
 
 const props = defineProps<{
   isOpen: boolean
@@ -16,27 +17,37 @@ const props = defineProps<{
 const emit = defineEmits(['close'])
 
 const auth = useAuthStore()
-const activeTab = ref('notifications')
+const ui = useUIStore()
+const activeTab = ref<SettingsTab>('notifications')
 const error = ref('')
 const success = ref('')
 
-// Settings tabs
-const tabs = [
-  { id: 'profile', label: 'Profile', icon: User },
+const tabs: Array<{ id: SettingsTab; label: string; icon: unknown }> = [
   { id: 'notifications', label: 'Notifications', icon: Bell },
   { id: 'display', label: 'Display', icon: Monitor },
   { id: 'sidebar', label: 'Sidebar', icon: Layout },
   { id: 'advanced', label: 'Advanced', icon: Settings },
+]
+
+const pluginTabs: Array<{ id: SettingsTab; label: string; icon: unknown }> = [
   { id: 'calls', label: 'Calls', icon: Phone },
 ]
+
+const allTabs = [...tabs, ...pluginTabs, { id: 'profile' as SettingsTab, label: 'Profile', icon: Bell }]
 
 // Reset state when modal opens
 watch(() => props.isOpen, (isOpen) => {
   if (isOpen) {
     error.value = ''
     success.value = ''
+    activeTab.value = allTabs.some((tab) => tab.id === ui.settingsTab) ? ui.settingsTab : 'notifications'
   }
 })
+
+function setTab(tab: SettingsTab) {
+  activeTab.value = tab
+  ui.settingsTab = tab
+}
 
 function handleLogout() {
   emit('close')
@@ -59,7 +70,7 @@ function handleLogout() {
                 <button
                     v-for="tab in tabs"
                     :key="tab.id"
-                    @click="activeTab = tab.id"
+                    @click="setTab(tab.id)"
                     class="flex items-center px-3 py-2 text-sm font-medium rounded-md whitespace-nowrap"
                     :class="activeTab === tab.id 
                         ? 'bg-white dark:bg-gray-800 text-primary shadow-sm border border-gray-200 dark:border-gray-700' 
@@ -68,6 +79,24 @@ function handleLogout() {
                     <component :is="tab.icon" class="mr-2 flex-shrink-0 h-4 w-4 sm:h-5 sm:w-5" />
                     {{ tab.label }}
                 </button>
+            </nav>
+
+            <div class="px-3 pt-2 pb-1 text-xs font-bold tracking-wide text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700 mt-1">
+              PLUGIN PREFERENCES
+            </div>
+            <nav class="flex sm:flex-col gap-1 px-2 sm:px-3 pb-2 overflow-x-auto sm:overflow-x-visible">
+              <button
+                v-for="tab in pluginTabs"
+                :key="tab.id"
+                @click="setTab(tab.id)"
+                class="flex items-center px-3 py-2 text-sm font-medium rounded-md whitespace-nowrap"
+                :class="activeTab === tab.id
+                  ? 'bg-white dark:bg-gray-800 text-primary shadow-sm border border-gray-200 dark:border-gray-700'
+                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'"
+              >
+                <component :is="tab.icon" class="mr-2 flex-shrink-0 h-4 w-4 sm:h-5 sm:w-5" />
+                {{ tab.label }}
+              </button>
             </nav>
             
             <div class="hidden sm:block mt-auto p-3 border-t border-gray-200 dark:border-gray-700">
@@ -85,7 +114,7 @@ function handleLogout() {
         <div class="flex-1 flex flex-col min-w-0 min-h-0">
             <div class="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 dark:border-gray-700 shrink-0">
                 <h3 class="text-base sm:text-lg font-medium leading-6 text-gray-900 dark:text-white">
-                    {{ tabs.find(t => t.id === activeTab)?.label }}
+                    {{ allTabs.find(t => t.id === activeTab)?.label || 'Settings' }}
                 </h3>
                 <button @click="$emit('close')" class="rounded-md bg-white dark:bg-gray-800 text-gray-400 hover:text-gray-500 focus:outline-none p-1">
                     <X class="h-5 w-5 sm:h-6 sm:w-6" />
@@ -139,6 +168,7 @@ function handleLogout() {
                     </div>
                     <CallsTab />
                 </div>
+
             </div>
         </div>
     </div>

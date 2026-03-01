@@ -589,7 +589,7 @@ impl<'a> PolicyRepository<'a> {
                         &policy.policy.source_config,
                         &["group_names", "names"],
                     );
-                    
+
                     if group_ids.is_empty() && group_names.is_empty() {
                         false
                     } else {
@@ -606,7 +606,7 @@ impl<'a> PolicyRepository<'a> {
                         } else {
                             false
                         };
-                        
+
                         // Check by name if provided (for OIDC groups not synced to UUIDs)
                         let has_name_match = if !group_names.is_empty() {
                             let names_vec: Vec<String> = group_names.into_iter().collect();
@@ -621,13 +621,18 @@ impl<'a> PolicyRepository<'a> {
                                 "#,
                             )
                             .bind(user_id)
-                            .bind(&names_vec.iter().map(|n| n.to_lowercase()).collect::<Vec<_>>())
+                            .bind(
+                                &names_vec
+                                    .iter()
+                                    .map(|n| n.to_lowercase())
+                                    .collect::<Vec<_>>(),
+                            )
                             .fetch_one(self.db)
                             .await?
                         } else {
                             false
                         };
-                        
+
                         has_id_match || has_name_match
                     }
                 }
@@ -954,10 +959,10 @@ pub async fn apply_auto_membership_for_new_user(
     user_id: Uuid,
 ) -> ApiResult<Vec<AutoMembershipPolicyAudit>> {
     let repo = PolicyRepository::new(&state.db);
-    
+
     // Get all enabled global policies that apply to this user
     let policies = repo.get_applicable_policies(user_id, None).await?;
-    
+
     // Filter to only global policies (team-scoped policies don't apply to new users without teams)
     let global_policies: Vec<_> = policies
         .into_iter()

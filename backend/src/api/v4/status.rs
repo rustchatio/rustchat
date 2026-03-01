@@ -17,7 +17,8 @@ use crate::api::v4::extractors::MmAuthUser;
 use crate::api::AppState;
 use crate::error::{ApiResult, AppError};
 use crate::mattermost_compat::id::{encode_mm_id, parse_mm_or_uuid};
-use crate::realtime::{WsBroadcast, WsEnvelope};
+use crate::mattermost_compat::models as mm;
+use crate::realtime::WsEnvelope;
 
 /// Build status routes
 pub fn router() -> Router<AppState> {
@@ -171,6 +172,22 @@ pub struct UpdateMyStatusRequest {
 #[derive(Debug, Clone, Deserialize)]
 pub struct BulkStatusRequest {
     pub user_ids: Vec<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+enum BulkStatusRequestCompat {
+    Raw(Vec<String>),
+    Wrapped(BulkStatusRequest),
+}
+
+impl BulkStatusRequestCompat {
+    fn into_user_ids(self) -> Vec<String> {
+        match self {
+            Self::Raw(ids) => ids,
+            Self::Wrapped(req) => req.user_ids,
+        }
+    }
 }
 
 /// Get current user's status
@@ -441,7 +458,7 @@ async fn add_to_recent_custom_statuses(
     // Get existing recent statuses from preferences
     let existing: Option<serde_json::Value> = sqlx::query_scalar(
         r#"
-        SELECT value FROM user_preferences 
+        SELECT value FROM mattermost_preferences
         WHERE user_id = $1 AND category = 'display_settings' AND name = 'recent_custom_status'
         "#,
     )
@@ -466,7 +483,7 @@ async fn add_to_recent_custom_statuses(
     let json_str = serde_json::to_string(&recent).unwrap_or_default();
     sqlx::query(
         r#"
-        INSERT INTO user_preferences (user_id, category, name, value)
+        INSERT INTO mattermost_preferences (user_id, category, name, value)
         VALUES ($1, 'display_settings', 'recent_custom_status', $2)
         ON CONFLICT (user_id, category, name) DO UPDATE SET value = $2
         "#,
@@ -487,8 +504,7 @@ async fn update_user_custom_status(
     Path(user_id): Path<String>,
     Json(body): Json<CustomStatus>,
 ) -> ApiResult<Json<serde_json::Value>> {
-    let target_user_id = parse_mm_or_uuid(&user_id)
-        .ok_or_else(|| AppError::BadRequest("Invalid user ID".to_string()))?;
+    let target_user_id = resolve_status_target_user_id(&user_id, &auth)?;
 
     // Users can only update their own custom status unless admin
     if target_user_id != auth.user_id && !auth.has_role("admin") {
@@ -531,8 +547,7 @@ async fn clear_user_custom_status(
     auth: MmAuthUser,
     Path(user_id): Path<String>,
 ) -> ApiResult<Json<serde_json::Value>> {
-    let target_user_id = parse_mm_or_uuid(&user_id)
-        .ok_or_else(|| AppError::BadRequest("Invalid user ID".to_string()))?;
+    let target_user_id = resolve_status_target_user_id(&user_id, &auth)?;
 
     // Users can only clear their own custom status unless admin
     if target_user_id != auth.user_id && !auth.has_role("admin") {
@@ -553,8 +568,7 @@ async fn get_recent_custom_statuses(
     auth: MmAuthUser,
     Path(user_id): Path<String>,
 ) -> ApiResult<Json<Vec<CustomStatus>>> {
-    let target_user_id = parse_mm_or_uuid(&user_id)
-        .ok_or_else(|| AppError::BadRequest("Invalid user ID".to_string()))?;
+    let target_user_id = resolve_status_target_user_id(&user_id, &auth)?;
 
     // Users can only get their own recent statuses unless admin
     if target_user_id != auth.user_id && !auth.has_role("admin") {
@@ -565,7 +579,7 @@ async fn get_recent_custom_statuses(
 
     let recent: Option<String> = sqlx::query_scalar(
         r#"
-        SELECT value FROM user_preferences 
+        SELECT value FROM mattermost_preferences
         WHERE user_id = $1 AND category = 'display_settings' AND name = 'recent_custom_status'
         "#,
     )
@@ -588,8 +602,7 @@ async fn delete_recent_custom_status(
     Path(user_id): Path<String>,
     Json(body): Json<CustomStatus>,
 ) -> ApiResult<Json<serde_json::Value>> {
-    let target_user_id = parse_mm_or_uuid(&user_id)
-        .ok_or_else(|| AppError::BadRequest("Invalid user ID".to_string()))?;
+    let target_user_id = resolve_status_target_user_id(&user_id, &auth)?;
 
     // Users can only delete their own recent statuses unless admin
     if target_user_id != auth.user_id && !auth.has_role("admin") {
@@ -601,7 +614,7 @@ async fn delete_recent_custom_status(
     // Get existing recent statuses
     let existing: Option<String> = sqlx::query_scalar(
         r#"
-        SELECT value FROM user_preferences 
+        SELECT value FROM mattermost_preferences
         WHERE user_id = $1 AND category = 'display_settings' AND name = 'recent_custom_status'
         "#,
     )
@@ -620,7 +633,7 @@ async fn delete_recent_custom_status(
     let json_str = serde_json::to_string(&recent).unwrap_or_default();
     sqlx::query(
         r#"
-        INSERT INTO user_preferences (user_id, category, name, value)
+        INSERT INTO mattermost_preferences (user_id, category, name, value)
         VALUES ($1, 'display_settings', 'recent_custom_status', $2)
         ON CONFLICT (user_id, category, name) DO UPDATE SET value = $2
         "#,
@@ -637,21 +650,26 @@ async fn delete_recent_custom_status(
 /// POST /api/v4/users/status/ids
 async fn get_statuses_by_ids(
     State(state): State<AppState>,
-    Json(body): Json<BulkStatusRequest>,
-) -> ApiResult<Json<serde_json::Value>> {
-    let user_ids: Vec<Uuid> = body
-        .user_ids
-        .iter()
-        .filter_map(|id| parse_mm_or_uuid(id))
-        .collect();
+    headers: HeaderMap,
+    body: Bytes,
+) -> ApiResult<Json<Vec<mm::Status>>> {
+    let input: BulkStatusRequestCompat = parse_body(&headers, &body, "Invalid user_ids")?;
+    let user_ids_raw = input.into_user_ids();
 
-    if user_ids.is_empty() {
-        return Ok(Json(serde_json::json!({})));
+    if user_ids_raw.is_empty() {
+        return Err(AppError::BadRequest("Invalid user_ids".to_string()));
     }
 
-    let statuses: Vec<(Uuid, String)> = sqlx::query_as(
+    let mut user_ids = Vec::with_capacity(user_ids_raw.len());
+    for raw in user_ids_raw {
+        let parsed = parse_mm_or_uuid(&raw)
+            .ok_or_else(|| AppError::BadRequest("Invalid user_ids".to_string()))?;
+        user_ids.push(parsed);
+    }
+
+    let statuses: Vec<(Uuid, String, bool, Option<chrono::DateTime<Utc>>)> = sqlx::query_as(
         r#"
-        SELECT id, presence
+        SELECT id, presence, COALESCE(presence_manual, false), last_login_at
         FROM users
         WHERE id = ANY($1)
         "#,
@@ -660,13 +678,21 @@ async fn get_statuses_by_ids(
     .fetch_all(&state.db)
     .await?;
 
-    // Build response map
-    let mut result = serde_json::Map::new();
-    for (user_id, status) in statuses {
-        result.insert(encode_mm_id(user_id), serde_json::json!(status));
-    }
+    let result = statuses
+        .into_iter()
+        .map(|(user_id, status, manual, last_login)| mm::Status {
+            user_id: encode_mm_id(user_id),
+            status: if status.is_empty() {
+                "offline".to_string()
+            } else {
+                status
+            },
+            manual,
+            last_activity_at: last_login.map(|t| t.timestamp_millis()).unwrap_or(0),
+        })
+        .collect();
 
-    Ok(Json(serde_json::Value::Object(result)))
+    Ok(Json(result))
 }
 
 /// Parse request body helper - handles both JSON and form-urlencoded, and is
@@ -704,13 +730,16 @@ async fn broadcast_status_change(state: &AppState, user_id: Uuid, status: &str) 
             "user_id": encode_mm_id(user_id),
             "status": status,
         }),
-        broadcast: Some(WsBroadcast {
-            user_id: Some(user_id),
-            channel_id: None,
-            team_id: None,
-            exclude_user_id: None,
-        }),
+        broadcast: None,
     };
 
     state.ws_hub.broadcast(event).await;
+}
+
+fn resolve_status_target_user_id(user_id: &str, auth: &MmAuthUser) -> ApiResult<Uuid> {
+    if user_id == "me" {
+        return Ok(auth.user_id);
+    }
+
+    parse_mm_or_uuid(user_id).ok_or_else(|| AppError::BadRequest("Invalid user ID".to_string()))
 }

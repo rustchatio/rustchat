@@ -56,16 +56,43 @@ onUnmounted(() => {
 });
 
 async function setPresence(status: 'online' | 'away' | 'dnd' | 'offline') {
-    await auth.updateStatus({ presence: status });
+    await auth.updateStatus({ status });
     presenceStore.updatePresenceFromEvent(auth.user?.id || '', status);
     showUserMenu.value = false;
     showDndSubmenu.value = false;
 }
 
+function calculateDndEndTime(duration: string): number | undefined {
+    const now = new Date();
+    switch (duration) {
+        case 'thirty_minutes':
+            return now.getTime() + 30 * 60 * 1000;
+        case 'one_hour':
+            return now.getTime() + 60 * 60 * 1000;
+        case 'four_hours':
+            return now.getTime() + 4 * 60 * 60 * 1000;
+        case 'today': {
+            const midnight = new Date(now);
+            midnight.setHours(24, 0, 0, 0);
+            return midnight.getTime();
+        }
+        case 'this_week': {
+            const endOfWeek = new Date(now);
+            const daysUntilSunday = (7 - endOfWeek.getDay()) % 7;
+            endOfWeek.setDate(endOfWeek.getDate() + daysUntilSunday + 1);
+            endOfWeek.setHours(0, 0, 0, 0);
+            return endOfWeek.getTime();
+        }
+        default:
+            return undefined;
+    }
+}
+
 async function setDndWithDuration(duration: string) {
+    const dndEndTime = calculateDndEndTime(duration);
     await auth.updateStatus({ 
-        presence: 'dnd',
-        duration: duration
+        status: 'dnd',
+        dnd_end_time: dndEndTime
     });
     presenceStore.updatePresenceFromEvent(auth.user?.id || '', 'dnd');
     showUserMenu.value = false;
@@ -91,9 +118,9 @@ const userPresence = computed(() => {
 const dndDurations = [
     { label: '30 minutes', value: 'thirty_minutes' },
     { label: '1 hour', value: 'one_hour' },
-    { label: '2 hours', value: 'two_hours' },
+    { label: '4 hours', value: 'four_hours' },
     { label: 'Tomorrow', value: 'today' },
-    { label: 'Custom', value: 'custom_date_time' },
+    { label: 'This week', value: 'this_week' },
 ];
 </script>
 

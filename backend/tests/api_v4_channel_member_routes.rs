@@ -188,7 +188,7 @@ async fn mm_channel_member_routes() {
         .unwrap();
     assert_eq!(200, notify_res.status().as_u16());
     let notify_body: serde_json::Value = notify_res.json().await.unwrap();
-    assert_eq!(notify_body["notify_props"]["desktop"], "mention");
+    assert_eq!(notify_body["status"], "OK");
 }
 
 #[tokio::test]

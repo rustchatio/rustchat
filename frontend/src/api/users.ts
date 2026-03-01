@@ -38,6 +38,7 @@ export interface AuthConfig {
 }
 
 export interface UserStatus {
+    status?: 'online' | 'away' | 'dnd' | 'offline'
     presence?: 'online' | 'away' | 'dnd' | 'offline'
     text?: string
     emoji?: string
@@ -45,10 +46,14 @@ export interface UserStatus {
 }
 
 export interface UpdateStatusRequest {
+    status?: 'online' | 'away' | 'dnd' | 'offline'
+    // Legacy compatibility field; backend should prefer `status`.
     presence?: 'online' | 'away' | 'dnd' | 'offline'
     text?: string
     emoji?: string
+    duration?: string
     duration_minutes?: number
+    dnd_end_time?: number
 }
 
 export interface UserStatusResponse {

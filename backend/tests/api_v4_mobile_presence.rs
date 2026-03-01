@@ -145,6 +145,208 @@ async fn user_stays_online_until_last_websocket_disconnects() {
     assert_eq!(offline_status["manual"], false);
 }
 
+#[tokio::test]
+async fn status_ids_accepts_raw_and_wrapped_payloads() {
+    let app = spawn_app().await;
+
+    let org_id = insert_org(&app, "Presence Status IDs Org").await;
+    let (token, user_a) =
+        register_and_login(&app, org_id, "presence_ids_a", "presence_ids_a@example.com").await;
+    let (token_b, user_b) =
+        register_and_login(&app, org_id, "presence_ids_b", "presence_ids_b@example.com").await;
+
+    let user_b_mm = encode_mm_id(user_b);
+    let set_away = app
+        .api_client
+        .put(format!("{}/api/v4/users/{}/status", app.address, user_b_mm))
+        .header("Authorization", format!("Bearer {token_b}"))
+        .json(&serde_json::json!({
+            "user_id": user_b_mm,
+            "status": "away"
+        }))
+        .send()
+        .await
+        .expect("status update should succeed");
+    assert_eq!(set_away.status(), StatusCode::OK);
+
+    let raw_res = app
+        .api_client
+        .post(format!("{}/api/v4/users/status/ids", app.address))
+        .header("Authorization", format!("Bearer {token}"))
+        .json(&serde_json::json!([
+            encode_mm_id(user_a),
+            encode_mm_id(user_b)
+        ]))
+        .send()
+        .await
+        .expect("raw status ids request should succeed");
+    assert_eq!(raw_res.status(), StatusCode::OK);
+    let raw_body = raw_res
+        .json::<serde_json::Value>()
+        .await
+        .expect("raw status ids body should be json");
+    let raw_items = raw_body
+        .as_array()
+        .expect("status ids response should be an array");
+    assert!(raw_items
+        .iter()
+        .any(|item| item["user_id"] == encode_mm_id(user_b) && item["status"] == "away"));
+
+    let wrapped_res = app
+        .api_client
+        .post(format!("{}/api/v4/users/status/ids", app.address))
+        .header("Authorization", format!("Bearer {token}"))
+        .json(&serde_json::json!({
+            "user_ids": [encode_mm_id(user_a), encode_mm_id(user_b)]
+        }))
+        .send()
+        .await
+        .expect("wrapped status ids request should succeed");
+    assert_eq!(wrapped_res.status(), StatusCode::OK);
+    let wrapped_body = wrapped_res
+        .json::<serde_json::Value>()
+        .await
+        .expect("wrapped status ids body should be json");
+    assert!(wrapped_body.is_array());
+
+    let empty_res = app
+        .api_client
+        .post(format!("{}/api/v4/users/status/ids", app.address))
+        .header("Authorization", format!("Bearer {token}"))
+        .json(&serde_json::json!([]))
+        .send()
+        .await
+        .expect("empty status ids request should return validation error");
+    assert_eq!(empty_res.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn custom_status_me_routes_are_supported_and_scoped() {
+    let app = spawn_app().await;
+
+    let org_id = insert_org(&app, "Custom Status Me Org").await;
+    let (token_a, user_a) =
+        register_and_login(&app, org_id, "custom_me_a", "custom_me_a@example.com").await;
+    let (token_b, _user_b) =
+        register_and_login(&app, org_id, "custom_me_b", "custom_me_b@example.com").await;
+
+    let put_me = app
+        .api_client
+        .put(format!("{}/api/v4/users/me/status/custom", app.address))
+        .header("Authorization", format!("Bearer {token_a}"))
+        .json(&serde_json::json!({
+            "emoji": ":coffee:",
+            "text": "Focus mode",
+            "duration": "dont_clear"
+        }))
+        .send()
+        .await
+        .expect("put me custom status should succeed");
+    assert_eq!(put_me.status(), StatusCode::OK);
+    let put_body = put_me
+        .json::<serde_json::Value>()
+        .await
+        .expect("custom status response should be json");
+    assert_eq!(put_body["text"], "Focus mode");
+
+    let get_recent = app
+        .api_client
+        .get(format!(
+            "{}/api/v4/users/me/status/custom/recent",
+            app.address
+        ))
+        .header("Authorization", format!("Bearer {token_a}"))
+        .send()
+        .await
+        .expect("get me recent custom status should succeed");
+    assert_eq!(get_recent.status(), StatusCode::OK);
+
+    let delete_recent = app
+        .api_client
+        .post(format!(
+            "{}/api/v4/users/me/status/custom/recent/delete",
+            app.address
+        ))
+        .header("Authorization", format!("Bearer {token_a}"))
+        .json(&serde_json::json!({
+            "emoji": ":coffee:",
+            "text": "Focus mode"
+        }))
+        .send()
+        .await
+        .expect("delete me recent custom status should succeed");
+    assert_eq!(delete_recent.status(), StatusCode::OK);
+
+    let clear_me = app
+        .api_client
+        .delete(format!("{}/api/v4/users/me/status/custom", app.address))
+        .header("Authorization", format!("Bearer {token_a}"))
+        .send()
+        .await
+        .expect("delete me custom status should succeed");
+    assert_eq!(clear_me.status(), StatusCode::OK);
+
+    let forbidden = app
+        .api_client
+        .put(format!(
+            "{}/api/v4/users/{}/status/custom",
+            app.address,
+            encode_mm_id(user_a)
+        ))
+        .header("Authorization", format!("Bearer {token_b}"))
+        .json(&serde_json::json!({
+            "emoji": ":no_entry:",
+            "text": "forbidden"
+        }))
+        .send()
+        .await
+        .expect("cross-user custom status should return forbidden");
+    assert_eq!(forbidden.status(), StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn status_change_event_reaches_other_connected_users() {
+    let app = spawn_app().await;
+
+    let org_id = insert_org(&app, "Presence Broadcast Org").await;
+    let (token_a, user_a) = register_and_login(
+        &app,
+        org_id,
+        "presence_broadcast_a",
+        "presence_broadcast_a@example.com",
+    )
+    .await;
+    let (token_b, _user_b) = register_and_login(
+        &app,
+        org_id,
+        "presence_broadcast_b",
+        "presence_broadcast_b@example.com",
+    )
+    .await;
+
+    let mut ws_b = connect_ws_v4(&app.address, &token_b).await;
+    let _ = wait_for_event(&mut ws_b, "hello", Duration::from_secs(5)).await;
+
+    let update_status = app
+        .api_client
+        .put(format!("{}/api/v4/users/me/status", app.address))
+        .header("Authorization", format!("Bearer {token_a}"))
+        .json(&serde_json::json!({
+            "user_id": encode_mm_id(user_a),
+            "status": "away"
+        }))
+        .send()
+        .await
+        .expect("status update should succeed");
+    assert_eq!(update_status.status(), StatusCode::OK);
+
+    let event = wait_for_status_change_for_user(&mut ws_b, user_a, Duration::from_secs(5)).await;
+    assert_eq!(event["user_id"], encode_mm_id(user_a));
+    assert_eq!(event["status"], "away");
+
+    let _ = ws_b.close(None).await;
+}
+
 async fn poll_my_status(app: &common::TestApp, token: &str, within: Duration) -> serde_json::Value {
     let deadline = Instant::now() + within;
     loop {
@@ -220,6 +422,40 @@ async fn wait_for_event(
             let parsed: serde_json::Value =
                 serde_json::from_str(&text).expect("frame should be valid JSON");
             if parsed["event"] == expected_event {
+                return parsed["data"].clone();
+            }
+        }
+    }
+}
+
+async fn wait_for_status_change_for_user(
+    ws: &mut WsClient,
+    expected_user_id: Uuid,
+    within: Duration,
+) -> serde_json::Value {
+    let deadline = Instant::now() + within;
+    let expected_user_mm_id = encode_mm_id(expected_user_id);
+
+    loop {
+        let now = Instant::now();
+        assert!(
+            now < deadline,
+            "timed out waiting for status_change for user {expected_user_mm_id}"
+        );
+
+        let timeout_left = deadline.saturating_duration_since(now);
+        let message = tokio::time::timeout(timeout_left, ws.next())
+            .await
+            .expect("timeout while waiting for websocket frame")
+            .expect("websocket closed unexpectedly")
+            .expect("websocket frame should be valid");
+
+        if let Message::Text(text) = message {
+            let parsed: serde_json::Value =
+                serde_json::from_str(&text).expect("frame should be valid JSON");
+            if parsed["event"] == "status_change"
+                && parsed["data"]["user_id"] == expected_user_mm_id
+            {
                 return parsed["data"].clone();
             }
         }

@@ -1533,7 +1533,7 @@ async fn update_channel_member_notify_props(
     auth: MmAuthUser,
     Path(path): Path<ChannelMemberPath>,
     Json(input): Json<serde_json::Value>,
-) -> ApiResult<Json<mm::ChannelMember>> {
+) -> ApiResult<Json<serde_json::Value>> {
     let channel_id = parse_mm_or_uuid(&path.channel_id)
         .ok_or_else(|| crate::error::AppError::BadRequest("Invalid channel_id".to_string()))?;
     let user_id = parse_mm_or_uuid(&path.user_id)
@@ -1554,16 +1554,7 @@ async fn update_channel_member_notify_props(
     .execute(&state.db)
     .await?;
 
-    let rows = fetch_channel_member_compat_rows(&state, channel_id, Some(&[user_id])).await?;
-    let row = rows
-        .into_iter()
-        .next()
-        .ok_or_else(|| crate::error::AppError::NotFound("Member not found".to_string()))?;
-
-    Ok(Json(row_to_mm_channel_member(
-        row,
-        state.config.unread.post_priority_enabled,
-    )))
+    Ok(Json(serde_json::json!({"status": "OK"})))
 }
 
 async fn get_posts(
