@@ -1,7 +1,7 @@
 use crate::api::AppState;
 use crate::error::ApiResult;
 use serde::{Deserialize, Serialize};
-use sqlx::{FromRow, Row};
+use sqlx::FromRow;
 use std::collections::HashSet;
 
 use uuid::Uuid;
@@ -788,12 +788,12 @@ pub async fn apply_auto_membership_for_team_join(
             let (action, status, error_msg) = match target.target_type {
                 PolicyTargetType::Team => {
                     // Add to team
+                    // Note: team_members uses composite key (team_id, user_id), no id column
                     let result = sqlx::query(
                         r#"
                         INSERT INTO team_members (team_id, user_id, role)
                         VALUES ($1, $2, $3)
                         ON CONFLICT (team_id, user_id) DO NOTHING
-                        RETURNING id
                         "#,
                     )
                     .bind(target.target_id)
@@ -802,23 +802,26 @@ pub async fn apply_auto_membership_for_team_join(
                         RoleMode::Member => "member",
                         RoleMode::Admin => "admin",
                     })
-                    .fetch_optional(&state.db)
+                    .execute(&state.db)
                     .await;
 
                     match result {
-                        Ok(Some(row)) => {
-                            let membership_id: Uuid = row.get("id");
-                            let _ = record_membership_origin(
-                                &state.db,
-                                MembershipType::Team,
-                                membership_id,
-                                MembershipOrigin::Policy,
-                                Some(policy.policy.id),
-                            )
-                            .await;
-                            ("add", "success", None)
+                        Ok(query_result) => {
+                            if query_result.rows_affected() > 0 {
+                                // Record membership origin using team_id as identifier
+                                let _ = record_membership_origin(
+                                    &state.db,
+                                    MembershipType::Team,
+                                    target.target_id, // Use team_id as membership identifier
+                                    MembershipOrigin::Policy,
+                                    Some(policy.policy.id),
+                                )
+                                .await;
+                                ("add", "success", None)
+                            } else {
+                                ("skip", "success", Some("Already member".to_string()))
+                            }
                         }
-                        Ok(None) => ("skip", "success", Some("Already member".to_string())),
                         Err(e) => ("add", "failed", Some(e.to_string())),
                     }
                 }
@@ -973,12 +976,12 @@ pub async fn apply_auto_membership_for_new_user(
             let (action, status, error_msg) = match target.target_type {
                 PolicyTargetType::Team => {
                     // Add user to team
+                    // Note: team_members uses composite key (team_id, user_id), no id column
                     let result = sqlx::query(
                         r#"
                         INSERT INTO team_members (team_id, user_id, role)
                         VALUES ($1, $2, $3)
                         ON CONFLICT (team_id, user_id) DO NOTHING
-                        RETURNING id
                         "#,
                     )
                     .bind(target.target_id)
@@ -987,23 +990,26 @@ pub async fn apply_auto_membership_for_new_user(
                         RoleMode::Member => "member",
                         RoleMode::Admin => "admin",
                     })
-                    .fetch_optional(&state.db)
+                    .execute(&state.db)
                     .await;
 
                     match result {
-                        Ok(Some(row)) => {
-                            let membership_id: Uuid = row.get("id");
-                            let _ = record_membership_origin(
-                                &state.db,
-                                MembershipType::Team,
-                                membership_id,
-                                MembershipOrigin::Policy,
-                                Some(policy.policy.id),
-                            )
-                            .await;
-                            ("add", "success", None)
+                        Ok(query_result) => {
+                            if query_result.rows_affected() > 0 {
+                                // Record membership origin using team_id as identifier
+                                let _ = record_membership_origin(
+                                    &state.db,
+                                    MembershipType::Team,
+                                    target.target_id, // Use team_id as membership identifier
+                                    MembershipOrigin::Policy,
+                                    Some(policy.policy.id),
+                                )
+                                .await;
+                                ("add", "success", None)
+                            } else {
+                                ("skip", "success", Some("Already member".to_string()))
+                            }
                         }
-                        Ok(None) => ("skip", "success", Some("Already member".to_string())),
                         Err(e) => ("add", "failed", Some(e.to_string())),
                     }
                 }
