@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, computed } from 'vue'
 import ToastManager from './components/ui/ToastManager.vue'
 import CommandPalette from './components/ui/CommandPalette.vue'
 import SettingsModal from './components/settings/SettingsModal.vue'
 import { useToast } from './composables/useToast'
 import { useWebSocket } from './composables/useWebSocket'
+import { useSingleActiveTab } from './composables/useSingleActiveTab'
 import { useUIStore } from './stores/ui'
 import { useAuthStore } from './stores/auth'
 import { useUnreadStore } from './stores/unreads'
@@ -19,6 +20,8 @@ const authStore = useAuthStore()
 const unreadStore = useUnreadStore()
 const configStore = useConfigStore()
 const { connect, disconnect } = useWebSocket()
+const singleTabEnabled = computed(() => authStore.isAuthenticated)
+const { isActiveTab, takeOver } = useSingleActiveTab(singleTabEnabled)
 
 onMounted(async () => {
     if (toastManagerRef.value) {
@@ -28,9 +31,9 @@ onMounted(async () => {
     configStore.initSync()
 })
 
-// Connect WebSocket when authenticated
-watch(() => authStore.isAuthenticated, async (isAuth) => {
-    if (isAuth) {
+// Connect realtime only when this tab is the active tab for the session.
+watch([() => authStore.isAuthenticated, isActiveTab], async ([isAuth, isActive]) => {
+    if (isAuth && isActive) {
         connect()
         await unreadStore.fetchOverview()
     } else {
@@ -41,9 +44,26 @@ watch(() => authStore.isAuthenticated, async (isAuth) => {
 
 <template>
   <ToastManager ref="toastManagerRef" />
-  <CommandPalette />
-  <SettingsModal :isOpen="ui.isSettingsOpen" @close="ui.closeSettings()" />
-  <ActiveCall />
-  <IncomingCallModal />
+  <CommandPalette v-if="isActiveTab" />
+  <SettingsModal v-if="isActiveTab" :isOpen="ui.isSettingsOpen" @close="ui.closeSettings()" />
+  <ActiveCall v-if="isActiveTab" />
+  <IncomingCallModal v-if="isActiveTab" />
   <router-view />
+  <div
+    v-if="authStore.isAuthenticated && !isActiveTab"
+    class="fixed inset-0 z-[120] flex items-center justify-center bg-bg-app/90 backdrop-blur-sm p-6"
+  >
+    <div class="w-full max-w-md rounded-r-2 border border-border-1 bg-bg-surface-1 p-6 text-center shadow-2">
+      <h2 class="text-lg font-semibold text-text-1">This tab is inactive</h2>
+      <p class="mt-2 text-sm text-text-2">
+        Another tab is currently active for messaging in this browser session.
+      </p>
+      <button
+        class="mt-5 inline-flex items-center justify-center rounded-r-1 bg-brand px-4 py-2 text-sm font-medium text-white transition-standard hover:bg-brand-hover"
+        @click="takeOver"
+      >
+        Use this tab instead
+      </button>
+    </div>
+  </div>
 </template>
