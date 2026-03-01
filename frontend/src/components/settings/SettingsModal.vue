@@ -61,11 +61,18 @@ function handleLogout() {
     <div class="fixed inset-0 bg-gray-500/75 dark:bg-black/70" @click="$emit('close')"></div>
     
     <!-- Modal Panel -->
-    <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl ring-1 ring-black/5 w-full max-w-3xl max-h-[90vh] flex flex-col sm:flex-row overflow-hidden">
-        
-        <!-- Sidebar -->
-        <div class="w-full sm:w-56 bg-gray-50 dark:bg-gray-900 border-b sm:border-b-0 sm:border-r border-gray-200 dark:border-gray-700 flex flex-col shrink-0">
-            <div class="p-4 sm:p-6 font-bold text-lg dark:text-white">Settings</div>
+    <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl ring-1 ring-black/5 w-full max-w-6xl max-h-[92vh] flex flex-col overflow-hidden">
+        <!-- Top header -->
+        <div class="flex items-center justify-between px-6 sm:px-8 py-5 border-b border-gray-200 dark:border-gray-700 shrink-0">
+            <h2 class="text-3xl sm:text-4xl font-semibold tracking-tight text-gray-900 dark:text-white">Settings</h2>
+            <button @click="$emit('close')" class="rounded-md text-gray-400 hover:text-gray-500 focus:outline-none p-1">
+                <X class="h-7 w-7 sm:h-8 sm:w-8" />
+            </button>
+        </div>
+
+        <div class="flex-1 min-h-0 flex flex-col sm:flex-row">
+            <!-- Sidebar -->
+            <div class="w-full sm:w-72 bg-gray-50 dark:bg-gray-900 border-b sm:border-b-0 sm:border-r border-gray-200 dark:border-gray-700 flex flex-col shrink-0">
             <nav class="flex sm:flex-col gap-1 px-2 sm:px-3 pb-2 sm:pb-0 overflow-x-auto sm:overflow-x-visible">
                 <button
                     v-for="tab in tabs"
@@ -108,20 +115,10 @@ function handleLogout() {
                 Log out
               </button>
             </div>
-        </div>
-
-        <!-- Content -->
-        <div class="flex-1 flex flex-col min-w-0 min-h-0">
-            <div class="flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 dark:border-gray-700 shrink-0">
-                <h3 class="text-base sm:text-lg font-medium leading-6 text-gray-900 dark:text-white">
-                    {{ allTabs.find(t => t.id === activeTab)?.label || 'Settings' }}
-                </h3>
-                <button @click="$emit('close')" class="rounded-md bg-white dark:bg-gray-800 text-gray-400 hover:text-gray-500 focus:outline-none p-1">
-                    <X class="h-5 w-5 sm:h-6 sm:w-6" />
-                </button>
             </div>
-            
-            <div class="flex-1 overflow-y-auto p-4 sm:p-6">
+
+            <!-- Content -->
+            <div class="flex-1 min-w-0 min-h-0 overflow-y-auto p-4 sm:p-6">
                 <!-- Messages -->
                 <div v-if="error" class="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-600 dark:text-red-400 text-sm">
                   {{ error }}

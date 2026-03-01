@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { AlertTriangle, ExternalLink, Lightbulb } from 'lucide-vue-next'
+import { AlertTriangle, ExternalLink, Lightbulb, Pencil } from 'lucide-vue-next'
 import api from '../../../api/client'
 import SettingItemMax from '../SettingItemMax.vue'
 import { useAuthStore } from '../../../stores/auth'
@@ -304,7 +304,10 @@ function formatKeywordList(keywords: string[]): string {
               <AlertTriangle class="h-3.5 w-3.5" />
               Permission required
             </span>
-            <span class="text-sm font-medium text-primary">Edit</span>
+            <span class="inline-flex items-center gap-1 text-sm font-medium text-primary">
+              <Pencil class="h-4 w-4" />
+              Edit
+            </span>
           </div>
         </button>
       </div>
@@ -378,7 +381,10 @@ function formatKeywordList(keywords: string[]): string {
             <div class="text-xl sm:text-2xl font-medium leading-tight text-gray-900 dark:text-white">Desktop notification sounds</div>
             <div class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ desktopNotificationSoundsLabel }}</div>
           </div>
-          <span class="mt-0.5 text-sm font-medium text-primary">Edit</span>
+          <span class="mt-0.5 inline-flex items-center gap-1 text-sm font-medium text-primary">
+            <Pencil class="h-4 w-4" />
+            Edit
+          </span>
         </button>
       </div>
 
@@ -415,7 +421,10 @@ function formatKeywordList(keywords: string[]): string {
             <div class="text-xl sm:text-2xl font-medium leading-tight text-gray-900 dark:text-white">Email notifications</div>
             <div class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ emailNotificationsLabel }}</div>
           </div>
-          <span class="mt-0.5 text-sm font-medium text-primary">Edit</span>
+          <span class="mt-0.5 inline-flex items-center gap-1 text-sm font-medium text-primary">
+            <Pencil class="h-4 w-4" />
+            Edit
+          </span>
         </button>
       </div>
 
@@ -443,7 +452,10 @@ function formatKeywordList(keywords: string[]): string {
             <div class="text-xl sm:text-2xl font-medium leading-tight text-gray-900 dark:text-white">Keywords that trigger notifications</div>
             <div class="mt-1 text-sm text-gray-500 dark:text-gray-400 break-words">{{ keywordsTriggerLabel }}</div>
           </div>
-          <span class="mt-0.5 text-sm font-medium text-primary">Edit</span>
+          <span class="mt-0.5 inline-flex items-center gap-1 text-sm font-medium text-primary">
+            <Pencil class="h-4 w-4" />
+            Edit
+          </span>
         </button>
       </div>
 
@@ -476,7 +488,10 @@ function formatKeywordList(keywords: string[]): string {
             <div class="text-xl sm:text-2xl font-medium leading-tight text-gray-900 dark:text-white">Keywords that get highlighted (without notifications)</div>
             <div class="mt-1 text-sm text-gray-500 dark:text-gray-400 break-words">{{ highlightKeywordsLabel }}</div>
           </div>
-          <span class="mt-0.5 text-sm font-medium text-primary">Edit</span>
+          <span class="mt-0.5 inline-flex items-center gap-1 text-sm font-medium text-primary">
+            <Pencil class="h-4 w-4" />
+            Edit
+          </span>
         </button>
       </div>
 
@@ -509,7 +524,10 @@ function formatKeywordList(keywords: string[]): string {
             <div class="text-xl sm:text-2xl font-medium leading-tight text-gray-900 dark:text-white">Automatic direct message replies</div>
             <div class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ autoResponderLabel }}</div>
           </div>
-          <span class="mt-0.5 text-sm font-medium text-primary">Edit</span>
+          <span class="mt-0.5 inline-flex items-center gap-1 text-sm font-medium text-primary">
+            <Pencil class="h-4 w-4" />
+            Edit
+          </span>
         </button>
       </div>
 

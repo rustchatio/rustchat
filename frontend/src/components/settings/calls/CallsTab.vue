@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { Pencil } from 'lucide-vue-next'
 import SettingItemMax from '../SettingItemMax.vue'
 import { useCallsStore } from '../../../stores/calls'
 
@@ -109,7 +110,10 @@ async function saveVideoDevices() {
             <div class="text-xl sm:text-2xl font-medium leading-tight text-gray-900 dark:text-white">Audio devices</div>
             <div class="mt-1 text-sm text-gray-500 dark:text-gray-400">Set up audio devices to be used for Mattermost calls</div>
           </div>
-          <span class="mt-0.5 text-sm font-medium text-primary">Edit</span>
+          <span class="mt-0.5 inline-flex items-center gap-1 text-sm font-medium text-primary">
+            <Pencil class="h-4 w-4" />
+            Edit
+          </span>
         </button>
       </div>
 
@@ -171,7 +175,10 @@ async function saveVideoDevices() {
             <div class="text-xl sm:text-2xl font-medium leading-tight text-gray-900 dark:text-white">Video devices</div>
             <div class="mt-1 text-sm text-gray-500 dark:text-gray-400">Set up video devices to be used for Mattermost calls</div>
           </div>
-          <span class="mt-0.5 text-sm font-medium text-primary">Edit</span>
+          <span class="mt-0.5 inline-flex items-center gap-1 text-sm font-medium text-primary">
+            <Pencil class="h-4 w-4" />
+            Edit
+          </span>
         </button>
       </div>
 

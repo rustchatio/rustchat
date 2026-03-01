@@ -4,7 +4,7 @@
 
 - Contract closure: Complete
 - Mobile compatibility blockers: Closed
-- Remaining parity scope: UI pixel/microcopy refinement in Settings (Notifications, Calls)
+- Remaining parity scope: screenshot-based visual verification/automation only
 
 ## Completed checks
 
@@ -61,9 +61,9 @@
 - Rustchat target path: `frontend/src/components/settings/notifications/NotificationsTab.vue`, `frontend/src/components/settings/calls/CallsTab.vue`, `frontend/src/components/settings/SettingsModal.vue`
 - Required behavior: notifications/calls settings content and layout align closer to Mattermost row naming, descriptions, and troubleshooting/actions.
 - Current gap: previous tabs diverged in section naming, row labels, card actions, and calls row structure.
-- Planned change: Reworked Notifications rows (`Desktop and mobile notifications`, sounds, email, keywords, highlighted keywords, auto-replies), added `Learn more` and troubleshooting actions (including `/api/v4/notifications/test`), and refactored Calls tab to two-row `Audio devices`/`Video devices` structure with Mattermost wording.
+- Planned change: Reworked Notifications rows (`Desktop and mobile notifications`, sounds, email, keywords, highlighted keywords, auto-replies), added `Learn more` and troubleshooting actions (including `/api/v4/notifications/test`), refactored Calls tab to two-row `Audio devices`/`Video devices` structure with Mattermost wording, and refactored `SettingsModal` shell to top-level `Settings` header layout closer to Mattermost geometry.
 - Verification test: Frontend build success (`npm run build`).
-- Status: Done (content parity pass)
+- Status: Done (content + shell parity pass)
 
 - Rustchat target path: `frontend/src/components/channels/ChannelContextMenu.vue`, `frontend/src/components/layout/ChannelSidebar.vue`, `frontend/src/components/composer/MessageComposer.vue`, `frontend/src/components/layout/AppShell.vue`
 - Required behavior: closer web parity for context menu ordering, right-click opening, formatting toggle affordance, and shell spacing.
@@ -74,8 +74,7 @@
 
 ## Remaining risks
 
-- Visual parity still requires screenshot-level confirmation across desktop breakpoints; no automated screenshot diff gate is in CI yet.
-- Full parity screenshot regression suite is not yet wired in CI for these surfaces.
+- Screenshot capture exists, but automated screenshot-diff gating is not yet wired into CI.
 - Compatibility smoke scripts are currently environment-sensitive (expected server version and auth token extraction path) and should stay aligned when server defaults change.
 
 ## Test evidence
@@ -84,6 +83,14 @@
   - `cargo test --test api_v4_mobile_presence --test api_v4_channel_member_routes --test api_categories` (pass)
 - Frontend validation executed:
   - `npm run build` in `frontend/` (pass)
+- UI parity screenshots executed:
+  - `npx playwright test e2e/settings_parity.spec.ts --project=chromium` (pass)
+  - Artifacts generated:
+    - `frontend/test-results/settings_parity-capture-settings-parity-surfaces-chromium/settings-notifications.png`
+    - `frontend/test-results/settings_parity-capture-settings-parity-surfaces-chromium/settings-display.png`
+    - `frontend/test-results/settings_parity-capture-settings-parity-surfaces-chromium/settings-sidebar.png`
+    - `frontend/test-results/settings_parity-capture-settings-parity-surfaces-chromium/settings-advanced.png`
+    - `frontend/test-results/settings_parity-capture-settings-parity-surfaces-chromium/settings-calls.png`
 - Compatibility smoke executed:
   - `BASE=http://localhost:3000 ./scripts/mm_mobile_smoke.sh` (pass)
   - `BASE=http://localhost:3000 LOGIN_ID=compat_smoke_1772369282 PASSWORD=Password123! ./scripts/mm_compat_smoke.sh` (pass, including authenticated checks)
