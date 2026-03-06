@@ -14,13 +14,13 @@ use uuid::Uuid;
 use super::extractors::MmAuthUser;
 use crate::api::v4::posts::reactions_for_posts;
 use crate::api::AppState;
-use crate::error::ApiResult;
+use crate::auth::policy::permissions;
+use crate::error::{ApiResult, AppError};
 use crate::mattermost_compat::{
     id::{encode_mm_id, parse_mm_or_uuid},
     models as mm,
 };
-use crate::models::post::PostResponse;
-use crate::models::Channel;
+use crate::models::{post::PostResponse, Channel};
 use serde_json::json;
 
 mod compat;
@@ -108,7 +108,7 @@ pub fn router() -> Router<AppState> {
         )
         .route("/channels/direct", post(create_direct_channel))
         .route("/channels/group", post(create_group_channel))
-        .route("/channels", post(create_channel))
+        .route("/channels", get(get_all_channels).post(create_channel))
         .route("/channels/search", post(search_channels_compat))
         .route("/channels/group/search", post(search_group_channels))
         .route("/channels/{channel_id}/scheme", put(update_channel_scheme))
@@ -151,6 +151,79 @@ struct Pagination {
     since: Option<i64>,
 }
 
+#[derive(Debug, Deserialize, Default)]
+struct GetAllChannelsQuery {
+    #[serde(default)]
+    not_associated_to_group: Option<String>,
+    #[serde(default)]
+    page: Option<u64>,
+    #[serde(default)]
+    per_page: Option<u64>,
+    #[serde(default)]
+    exclude_default_channels: bool,
+    #[serde(default)]
+    include_deleted: bool,
+    #[serde(default)]
+    include_total_count: bool,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct ChannelWithTeamDataRow {
+    id: Uuid,
+    team_id: Uuid,
+    #[sqlx(rename = "type")]
+    channel_type: crate::models::channel::ChannelType,
+    name: String,
+    display_name: Option<String>,
+    purpose: Option<String>,
+    header: Option<String>,
+    is_archived: bool,
+    creator_id: Option<Uuid>,
+    created_at: chrono::DateTime<chrono::Utc>,
+    updated_at: chrono::DateTime<chrono::Utc>,
+    team_display_name: Option<String>,
+    team_name: String,
+    team_updated_at: chrono::DateTime<chrono::Utc>,
+}
+
+#[derive(Debug, serde::Serialize)]
+struct ChannelWithTeamDataResponse {
+    #[serde(flatten)]
+    channel: mm::Channel,
+    team_display_name: String,
+    team_name: String,
+    team_update_at: i64,
+}
+
+fn map_channel_with_team_data_row(row: ChannelWithTeamDataRow) -> ChannelWithTeamDataResponse {
+    let team_name = row.team_name;
+    let team_display_name = row
+        .team_display_name
+        .clone()
+        .unwrap_or_else(|| team_name.clone());
+
+    let channel = Channel {
+        id: row.id,
+        team_id: row.team_id,
+        channel_type: row.channel_type,
+        name: row.name,
+        display_name: row.display_name,
+        purpose: row.purpose,
+        header: row.header,
+        is_archived: row.is_archived,
+        creator_id: row.creator_id,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+    };
+
+    ChannelWithTeamDataResponse {
+        channel: channel.into(),
+        team_display_name,
+        team_name,
+        team_update_at: row.team_updated_at.timestamp_millis(),
+    }
+}
+
 fn parse_body<T: DeserializeOwned>(
     headers: &axum::http::HeaderMap,
     body: &Bytes,
@@ -172,6 +245,121 @@ fn parse_body<T: DeserializeOwned>(
             .or_else(|_| serde_urlencoded::from_bytes(body))
             .map_err(|_| crate::error::AppError::BadRequest(message.to_string()))
     }
+}
+
+async fn get_all_channels(
+    State(state): State<AppState>,
+    auth: MmAuthUser,
+    Query(query): Query<GetAllChannelsQuery>,
+) -> ApiResult<Json<serde_json::Value>> {
+    if !auth.has_permission(&permissions::SYSTEM_MANAGE)
+        && !auth.has_permission(&permissions::ADMIN_FULL)
+    {
+        return Err(AppError::Forbidden(
+            "Insufficient permissions to list all channels".to_string(),
+        ));
+    }
+
+    let not_associated_group_id = query
+        .not_associated_to_group
+        .as_deref()
+        .filter(|raw| !raw.trim().is_empty())
+        .map(|raw| {
+            parse_mm_or_uuid(raw)
+                .ok_or_else(|| AppError::BadRequest("Invalid not_associated_to_group".to_string()))
+        })
+        .transpose()?;
+
+    let page = query.page.unwrap_or(0);
+    let mut per_page = query.per_page.unwrap_or(60);
+    if per_page == 0 {
+        per_page = 60;
+    }
+    per_page = per_page.min(10_000);
+    let offset = page.saturating_mul(per_page) as i64;
+
+    let rows: Vec<ChannelWithTeamDataRow> = sqlx::query_as(
+        r#"
+        SELECT
+            c.id,
+            c.team_id,
+            c.type,
+            c.name,
+            c.display_name,
+            c.purpose,
+            c.header,
+            c.is_archived,
+            c.creator_id,
+            c.created_at,
+            c.updated_at,
+            t.display_name AS team_display_name,
+            t.name AS team_name,
+            t.updated_at AS team_updated_at
+        FROM channels c
+        JOIN teams t ON t.id = c.team_id
+        WHERE
+            ($1::bool OR c.is_archived = false)
+            AND (NOT $2::bool OR c.name NOT IN ('town-square', 'off-topic'))
+            AND (
+                $3::uuid IS NULL
+                OR NOT EXISTS (
+                    SELECT 1
+                    FROM group_syncables gs
+                    WHERE gs.syncable_type = 'channel'
+                      AND gs.group_id = $3
+                      AND gs.syncable_id = c.id
+                )
+            )
+        ORDER BY c.created_at ASC
+        LIMIT $4 OFFSET $5
+        "#,
+    )
+    .bind(query.include_deleted)
+    .bind(query.exclude_default_channels)
+    .bind(not_associated_group_id)
+    .bind(per_page as i64)
+    .bind(offset)
+    .fetch_all(&state.db)
+    .await?;
+
+    let channels: Vec<ChannelWithTeamDataResponse> = rows
+        .into_iter()
+        .map(map_channel_with_team_data_row)
+        .collect();
+
+    if query.include_total_count {
+        let total_count: i64 = sqlx::query_scalar(
+            r#"
+            SELECT COUNT(*)::BIGINT
+            FROM channels c
+            WHERE
+                ($1::bool OR c.is_archived = false)
+                AND (NOT $2::bool OR c.name NOT IN ('town-square', 'off-topic'))
+                AND (
+                    $3::uuid IS NULL
+                    OR NOT EXISTS (
+                        SELECT 1
+                        FROM group_syncables gs
+                        WHERE gs.syncable_type = 'channel'
+                          AND gs.group_id = $3
+                          AND gs.syncable_id = c.id
+                    )
+                )
+            "#,
+        )
+        .bind(query.include_deleted)
+        .bind(query.exclude_default_channels)
+        .bind(not_associated_group_id)
+        .fetch_one(&state.db)
+        .await?;
+
+        return Ok(Json(json!({
+            "channels": channels,
+            "total_count": total_count
+        })));
+    }
+
+    Ok(Json(json!(channels)))
 }
 
 #[derive(sqlx::FromRow, Clone)]
