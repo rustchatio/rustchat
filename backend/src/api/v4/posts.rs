@@ -37,7 +37,10 @@ pub fn router() -> Router<AppState> {
         .route("/posts", post(create_post_handler))
         .route("/posts/ids", post(get_posts_by_ids))
         .route("/posts/ids/reactions", post(get_reactions_by_post_ids))
-        .route("/posts/{post_id}", get(get_post).delete(delete_post))
+        .route(
+            "/posts/{post_id}",
+            get(get_post).put(update_post).delete(delete_post),
+        )
         .route("/posts/{post_id}/files/info", get(get_post_files_info))
         .route("/posts/{post_id}/pin", post(pin_post))
         .route("/posts/{post_id}/unpin", post(unpin_post))
@@ -51,8 +54,11 @@ pub fn router() -> Router<AppState> {
             "/posts/{post_id}/restore/{restore_version_id}",
             post(restore_post),
         )
-        .route("/posts/{post_id}/reveal", post(reveal_post))
-        .route("/posts/{post_id}/burn", post(burn_post))
+        .route(
+            "/posts/{post_id}/reveal",
+            get(reveal_post).post(reveal_post),
+        )
+        .route("/posts/{post_id}/burn", delete(burn_post).post(burn_post))
         .route("/posts/rewrite", post(rewrite_post))
         .route(
             "/users/{user_id}/posts/{post_id}/set_unread",
@@ -1204,6 +1210,31 @@ struct PatchPostRequest {
     message: String,
 }
 
+#[derive(Deserialize)]
+struct UpdatePostRequest {
+    id: String,
+    #[serde(default)]
+    message: String,
+}
+
+async fn update_post(
+    State(state): State<AppState>,
+    auth: MmAuthUser,
+    Path(post_id): Path<String>,
+    Json(input): Json<UpdatePostRequest>,
+) -> ApiResult<Json<mm::Post>> {
+    let post_id = parse_mm_or_uuid(&post_id)
+        .ok_or_else(|| AppError::BadRequest("Invalid post_id".to_string()))?;
+    let body_post_id = parse_mm_or_uuid(&input.id)
+        .ok_or_else(|| AppError::BadRequest("Invalid id".to_string()))?;
+
+    if post_id != body_post_id {
+        return Err(AppError::BadRequest("Invalid id".to_string()));
+    }
+
+    update_post_message(&state, auth.user_id, post_id, input.message).await
+}
+
 async fn patch_post(
     State(state): State<AppState>,
     auth: MmAuthUser,
@@ -1212,6 +1243,15 @@ async fn patch_post(
 ) -> ApiResult<Json<mm::Post>> {
     let post_id = parse_mm_or_uuid(&post_id)
         .ok_or_else(|| AppError::BadRequest("Invalid post_id".to_string()))?;
+    update_post_message(&state, auth.user_id, post_id, input.message).await
+}
+
+async fn update_post_message(
+    state: &AppState,
+    acting_user_id: Uuid,
+    post_id: Uuid,
+    message: String,
+) -> ApiResult<Json<mm::Post>> {
     let (post_user_id, post_channel_id): (Uuid, Uuid) =
         sqlx::query_as("SELECT user_id, channel_id FROM posts WHERE id = $1")
             .bind(post_id)
@@ -1219,7 +1259,7 @@ async fn patch_post(
             .await?
             .ok_or_else(|| AppError::NotFound("Post not found".to_string()))?;
 
-    if post_user_id != auth.user_id {
+    if post_user_id != acting_user_id {
         return Err(AppError::Forbidden("Cannot edit others' posts".to_string()));
     }
 
@@ -1239,7 +1279,7 @@ async fn patch_post(
         LEFT JOIN users u ON p.user_id = u.id
         "#,
     )
-    .bind(input.message)
+    .bind(message)
     .bind(post_id)
     .fetch_one(&state.db)
     .await?;

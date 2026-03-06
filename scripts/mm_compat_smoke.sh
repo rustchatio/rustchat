@@ -1,19 +1,38 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
-BASE=${BASE:-http://localhost:3000}
+if [ -z "${BASE:-}" ]; then
+  echo "BASE is required (example: BASE=http://127.0.0.1:3000 ./scripts/mm_compat_smoke.sh)"
+  exit 1
+fi
+BASE="${BASE%/}"
 EXPECTED_MM_VERSION=${EXPECTED_MM_VERSION:-10.11.10}
 
 echo "Testing against $BASE"
 
+# Preflight: make sure this target is RustChat v4 compatibility surface.
+echo "0. Preflight target validation..."
+PING_HEADERS="$(curl -sSI "$BASE/api/v4/system/ping" || true)"
+if ! printf '%s\n' "$PING_HEADERS" | head -n 1 | grep -q " 200 "; then
+  echo "Failed preflight: expected 200 from $BASE/api/v4/system/ping"
+  echo "$PING_HEADERS"
+  exit 1
+fi
+if ! printf '%s\n' "$PING_HEADERS" | grep -qi "^X-MM-COMPAT:[[:space:]]*1"; then
+  echo "Failed preflight: target does not advertise RustChat MM compatibility header X-MM-COMPAT: 1"
+  echo "$PING_HEADERS"
+  exit 1
+fi
+echo "OK"
+
 # 1. Ping
 echo "1. Testing Ping..."
-curl -i -s $BASE/api/v4/system/ping | grep -E "200|status|version"
+curl -i -s "$BASE/api/v4/system/ping" | grep -E "200|status|version"
 echo "OK"
 
 # 2. Version
 echo "2. Testing Version..."
-curl -i -s $BASE/api/v4/system/version | grep -E "200|$EXPECTED_MM_VERSION"
+curl -i -s "$BASE/api/v4/system/version" | grep -E "200|$EXPECTED_MM_VERSION"
 echo "OK"
 
 # 3. Client config
@@ -46,12 +65,12 @@ fi
 
 # 5. users/me
 echo "5. Testing users/me..."
-curl -si $BASE/api/v4/users/me -H "Authorization: Bearer $TOKEN" | head -n 1 | grep "200"
+curl -si "$BASE/api/v4/users/me" -H "Authorization: Bearer $TOKEN" | head -n 1 | grep "200"
 echo "OK"
 
 # 6. teams
 echo "6. Testing teams..."
-curl -si $BASE/api/v4/teams -H "Authorization: Bearer $TOKEN" | head -n 1 | grep "200"
+curl -si "$BASE/api/v4/teams" -H "Authorization: Bearer $TOKEN" | head -n 1 | grep "200"
 echo "OK"
 
 echo "Smoke test complete!"

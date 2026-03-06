@@ -195,14 +195,25 @@ async fn register(
     // Apply auto-membership policies for the new user (global policies that add to teams/channels)
     match apply_auto_membership_for_new_user(&state, user.id).await {
         Ok(audit_entries) => {
-            let success_count = audit_entries.iter().filter(|e| e.status == "success" && e.action == "add").count();
+            let success_count = audit_entries
+                .iter()
+                .filter(|e| e.status == "success" && e.action == "add")
+                .count();
             if success_count > 0 {
-                tracing::info!("Applied auto-membership policies for new user {}: {} memberships added", user.id, success_count);
+                tracing::info!(
+                    "Applied auto-membership policies for new user {}: {} memberships added",
+                    user.id,
+                    success_count
+                );
             }
         }
         Err(e) => {
             // Don't fail registration if policy application fails, just log the error
-            tracing::error!("Failed to apply auto-membership policies for new user {}: {}", user.id, e);
+            tracing::error!(
+                "Failed to apply auto-membership policies for new user {}: {}",
+                user.id,
+                e
+            );
         }
     }
 

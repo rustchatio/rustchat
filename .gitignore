@@ -4,7 +4,18 @@ debug/
 release/
 
 #AI
-.agents/
+.agents/*
+!.agents/skills/
+.agents/skills/*
+!.agents/skills/mm-endpoint-contract-parity/
+!.agents/skills/mm-websocket-calls-parity/
+!.agents/skills/mm-mobile-journey-parity/
+!.agents/skills/production-readiness-gate/
+.agents/skills/*/*
+!.agents/skills/mm-endpoint-contract-parity/SKILL.md
+!.agents/skills/mm-websocket-calls-parity/SKILL.md
+!.agents/skills/mm-mobile-journey-parity/SKILL.md
+!.agents/skills/production-readiness-gate/SKILL.md
 .agent.workflows/
 .agent.history/
 .agent.cache/

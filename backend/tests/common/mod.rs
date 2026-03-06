@@ -29,11 +29,8 @@ pub async fn spawn_app() -> TestApp {
 pub async fn spawn_app_with_config(config: Config) -> TestApp {
     Lazy::force(&TRACING);
 
-    let db_url = std::env::var("RUSTCHAT_DATABASE_URL")
-        .unwrap_or_else(|_| "postgres://rustchat:rustchat@localhost:5432/rustchat".to_string());
-
-    // Configure database
-    let db_pool = configure_database(&db_url).await;
+    // Configure database using explicit test URL first, then known local fallbacks.
+    let db_pool = configure_database_with_fallback(&collect_test_database_urls()).await;
 
     // Create a random socket address
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
@@ -45,13 +42,25 @@ pub async fn spawn_app_with_config(config: Config) -> TestApp {
     // Initialize dependencies
     let ws_hub = WsHub::new();
 
-    // Dummy S3 client
+    let s3_endpoint = std::env::var("RUSTCHAT_TEST_S3_ENDPOINT")
+        .or_else(|_| std::env::var("RUSTCHAT_S3_ENDPOINT"))
+        .unwrap_or_else(|_| "http://localhost:9000".to_string());
+    let s3_access_key = std::env::var("RUSTCHAT_TEST_S3_ACCESS_KEY")
+        .or_else(|_| std::env::var("RUSTCHAT_S3_ACCESS_KEY"))
+        .unwrap_or_else(|_| "minioadmin".to_string());
+    let s3_secret_key = std::env::var("RUSTCHAT_TEST_S3_SECRET_KEY")
+        .or_else(|_| std::env::var("RUSTCHAT_S3_SECRET_KEY"))
+        .unwrap_or_else(|_| "minioadmin".to_string());
+    let s3_bucket = std::env::var("RUSTCHAT_TEST_S3_BUCKET")
+        .or_else(|_| std::env::var("RUSTCHAT_S3_BUCKET"))
+        .unwrap_or_else(|_| "test-bucket".to_string());
+
     let s3_client = S3Client::new(
-        Some("http://localhost:9000".to_string()),
+        Some(s3_endpoint),
         None,
-        "test-bucket".to_string(),
-        Some("minioadmin".to_string()),
-        Some("minioadmin".to_string()),
+        s3_bucket,
+        Some(s3_access_key),
+        Some(s3_secret_key),
         "us-east-1".to_string(),
     );
 
@@ -65,11 +74,8 @@ pub async fn spawn_app_with_config(config: Config) -> TestApp {
     let jwt_secret = Uuid::new_v4().to_string();
     let jwt_expiry_hours = 1;
 
-    // Initialize Redis
-    let redis_cfg = deadpool_redis::Config::from_url("redis://localhost:6379/");
-    let redis_pool = redis_cfg
-        .create_pool(Some(deadpool_redis::Runtime::Tokio1))
-        .expect("Failed to create Redis pool");
+    // Initialize Redis using explicit test URL first, then known local fallbacks.
+    let redis_pool = configure_redis_with_fallback(&collect_test_redis_urls()).await;
 
     let app = api::router(
         db_pool.clone(),
@@ -140,34 +146,188 @@ pub fn test_config() -> Config {
     }
 }
 
-async fn configure_database(database_url: &str) -> PgPool {
+fn collect_test_database_urls() -> Vec<String> {
+    let mut urls = Vec::new();
+
+    for env_key in [
+        "RUSTCHAT_TEST_DATABASE_URL",
+        "RUSTCHAT_DATABASE_URL",
+        "DATABASE_URL",
+    ] {
+        if let Ok(url) = std::env::var(env_key) {
+            let trimmed = url.trim();
+            if !trimmed.is_empty() && !urls.iter().any(|existing| existing == trimmed) {
+                urls.push(trimmed.to_string());
+            }
+        }
+    }
+
+    for fallback in [
+        "postgres://rustchat:rustchat@127.0.0.1:55432/rustchat",
+        "postgres://rustchat:rustchat@localhost:5432/rustchat",
+        "postgres://postgres:postgres@localhost:5432/postgres",
+        "postgres://postgres@localhost:5432/postgres",
+    ] {
+        if !urls.iter().any(|existing| existing == fallback) {
+            urls.push(fallback.to_string());
+        }
+    }
+
+    urls
+}
+
+async fn configure_database_with_fallback(candidates: &[String]) -> PgPool {
+    let mut failures = Vec::new();
+
+    for candidate in candidates {
+        match configure_database(candidate).await {
+            Ok(pool) => {
+                tracing::info!(
+                    database_url = %redact_url(candidate),
+                    "Using PostgreSQL test bootstrap URL"
+                );
+                return pool;
+            }
+            Err(err) => {
+                failures.push(format!("{} => {}", redact_url(candidate), err));
+            }
+        }
+    }
+
+    panic!(
+        "Failed to bootstrap PostgreSQL for integration tests.\n\
+Set RUSTCHAT_TEST_DATABASE_URL to a superuser-capable database URL.\n\
+Tried:\n{}",
+        failures.join("\n")
+    );
+}
+
+fn collect_test_redis_urls() -> Vec<String> {
+    let mut urls = Vec::new();
+
+    for env_key in ["RUSTCHAT_TEST_REDIS_URL", "RUSTCHAT_REDIS_URL", "REDIS_URL"] {
+        if let Ok(url) = std::env::var(env_key) {
+            let trimmed = url.trim();
+            if !trimmed.is_empty() && !urls.iter().any(|existing| existing == trimmed) {
+                urls.push(trimmed.to_string());
+            }
+        }
+    }
+
+    for fallback in ["redis://127.0.0.1:56379/", "redis://localhost:6379/"] {
+        if !urls.iter().any(|existing| existing == fallback) {
+            urls.push(fallback.to_string());
+        }
+    }
+
+    urls
+}
+
+async fn configure_redis_with_fallback(candidates: &[String]) -> deadpool_redis::Pool {
+    let mut failures = Vec::new();
+
+    for candidate in candidates {
+        let redis_cfg = deadpool_redis::Config::from_url(candidate.to_string());
+        let pool = match redis_cfg.create_pool(Some(deadpool_redis::Runtime::Tokio1)) {
+            Ok(pool) => pool,
+            Err(err) => {
+                failures.push(format!("{} => {}", redact_url(candidate), err));
+                continue;
+            }
+        };
+
+        let mut conn = match pool.get().await {
+            Ok(conn) => conn,
+            Err(err) => {
+                failures.push(format!("{} => {}", redact_url(candidate), err));
+                continue;
+            }
+        };
+
+        match deadpool_redis::redis::cmd("PING")
+            .query_async::<String>(&mut conn)
+            .await
+        {
+            Ok(reply) if reply.eq_ignore_ascii_case("PONG") => {
+                tracing::info!(redis_url = %redact_url(candidate), "Using Redis test URL");
+                return pool;
+            }
+            Ok(reply) => {
+                failures.push(format!(
+                    "{} => unexpected PING reply {}",
+                    redact_url(candidate),
+                    reply
+                ));
+            }
+            Err(err) => {
+                failures.push(format!("{} => {}", redact_url(candidate), err));
+            }
+        }
+    }
+
+    panic!(
+        "Failed to bootstrap Redis for integration tests.\n\
+Set RUSTCHAT_TEST_REDIS_URL to a reachable redis URL.\n\
+Tried:\n{}",
+        failures.join("\n")
+    );
+}
+
+fn redact_url(database_url: &str) -> String {
+    let mut redacted = database_url.to_string();
+    if let Some(scheme_end) = redacted.find("://") {
+        let auth_start = scheme_end + 3;
+        if let Some(at_rel) = redacted[auth_start..].find('@') {
+            let at = auth_start + at_rel;
+            if let Some(colon_rel) = redacted[auth_start..at].find(':') {
+                let colon = auth_start + colon_rel;
+                redacted.replace_range((colon + 1)..at, "***");
+            }
+        }
+    }
+    redacted
+}
+
+async fn configure_database(database_url: &str) -> Result<PgPool, String> {
     let random_db_name = Uuid::new_v4().to_string();
 
     // Split URL to get base connection without DB name
-    let last_slash = database_url.rfind('/').expect("Invalid database URL");
+    let last_slash = database_url
+        .rfind('/')
+        .ok_or_else(|| format!("invalid database URL: {}", redact_url(database_url)))?;
     let base_url = &database_url[..last_slash];
     // Connect to postgres DB to create new DB
     let maintenance_url = format!("{}/postgres", base_url);
 
     let mut connection = PgConnection::connect(&maintenance_url)
         .await
-        .expect("Failed to connect to Postgres");
+        .map_err(|err| {
+            format!(
+                "failed maintenance connection ({}): {}",
+                redact_url(&maintenance_url),
+                err
+            )
+        })?;
 
     connection
         .execute(format!(r#"CREATE DATABASE "{}""#, random_db_name).as_str())
         .await
-        .expect("Failed to create database");
+        .map_err(|err| format!("failed to create database {}: {}", random_db_name, err))?;
 
     // Migrate database
     let new_db_url = format!("{}/{}", base_url, random_db_name);
-    let pool = PgPool::connect(&new_db_url)
-        .await
-        .expect("Failed to connect to new database");
+    let pool = PgPool::connect(&new_db_url).await.map_err(|err| {
+        format!(
+            "failed to connect new database ({}): {}",
+            redact_url(&new_db_url),
+            err
+        )
+    })?;
 
     sqlx::migrate!("./migrations")
         .run(&pool)
         .await
-        .expect("Failed to migrate database");
+        .map_err(|err| format!("failed to migrate database {}: {}", random_db_name, err))?;
 
-    pool
+    Ok(pool)
 }

@@ -119,6 +119,220 @@ async fn setup_team_channel(ctx: &TestContext) -> (Uuid, Uuid) {
     (team_id, channel_id)
 }
 
+async fn create_post(ctx: &TestContext, channel_id: Uuid, message: &str) -> String {
+    let post_res = ctx
+        .app
+        .api_client
+        .post(format!("{}/api/v4/posts", &ctx.app.address))
+        .header("Authorization", format!("Bearer {}", ctx.token))
+        .json(&json!({ "channel_id": channel_id.to_string(), "message": message }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(200, post_res.status().as_u16());
+    let post_body: serde_json::Value = post_res.json().await.unwrap();
+    post_body["id"].as_str().unwrap().to_string()
+}
+
+#[tokio::test]
+async fn mm_update_post_route_put_updates_post_message() {
+    let ctx = setup_mm_user().await;
+    let (_team_id, channel_id) = setup_team_channel(&ctx).await;
+    let post_id = create_post(&ctx, channel_id, "before update").await;
+
+    let update_res = ctx
+        .app
+        .api_client
+        .put(format!("{}/api/v4/posts/{}", &ctx.app.address, post_id))
+        .header("Authorization", format!("Bearer {}", ctx.token))
+        .json(&json!({
+            "id": post_id,
+            "message": "after update"
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(200, update_res.status().as_u16());
+    let update_body: serde_json::Value = update_res.json().await.unwrap();
+    assert_eq!(update_body["id"], post_id);
+    assert_eq!(update_body["message"], "after update");
+
+    let stored_message: String = sqlx::query_scalar("SELECT message FROM posts WHERE id = $1")
+        .bind(parse_mm_or_uuid(&post_id).unwrap())
+        .fetch_one(&ctx.app.db_pool)
+        .await
+        .unwrap();
+    assert_eq!(stored_message, "after update");
+}
+
+#[tokio::test]
+async fn mm_update_post_route_put_requires_matching_body_id() {
+    let ctx = setup_mm_user().await;
+    let (_team_id, channel_id) = setup_team_channel(&ctx).await;
+    let post_id = create_post(&ctx, channel_id, "before mismatch").await;
+
+    let mismatch_id = encode_mm_id(Uuid::new_v4());
+    let update_res = ctx
+        .app
+        .api_client
+        .put(format!("{}/api/v4/posts/{}", &ctx.app.address, post_id))
+        .header("Authorization", format!("Bearer {}", ctx.token))
+        .json(&json!({
+            "id": mismatch_id,
+            "message": "should fail"
+        }))
+        .send()
+        .await
+        .unwrap();
+
+    assert_eq!(400, update_res.status().as_u16());
+}
+
+#[tokio::test]
+async fn mm_update_post_route_put_rejects_non_author() {
+    let ctx = setup_mm_user().await;
+    let (team_id, channel_id) = setup_team_channel(&ctx).await;
+    let post_id = create_post(&ctx, channel_id, "author message").await;
+
+    let intruder_data = json!({
+        "username": "mmroutes_intruder",
+        "email": "mmroutes_intruder@example.com",
+        "password": "Password123!",
+        "display_name": "MM Routes Intruder",
+        "org_id": ctx.org_id
+    });
+    ctx.app
+        .api_client
+        .post(format!("{}/api/v1/auth/register", &ctx.app.address))
+        .json(&intruder_data)
+        .send()
+        .await
+        .unwrap();
+
+    let intruder_login = ctx
+        .app
+        .api_client
+        .post(format!("{}/api/v4/users/login", &ctx.app.address))
+        .json(&json!({
+            "login_id": "mmroutes_intruder@example.com",
+            "password": "Password123!"
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(200, intruder_login.status().as_u16());
+    let intruder_token = intruder_login
+        .headers()
+        .get("Token")
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .to_string();
+
+    let intruder_me = ctx
+        .app
+        .api_client
+        .get(format!("{}/api/v4/users/me", &ctx.app.address))
+        .header("Authorization", format!("Bearer {}", intruder_token))
+        .send()
+        .await
+        .unwrap();
+    let intruder_me_body: serde_json::Value = intruder_me.json().await.unwrap();
+    let intruder_user_uuid = parse_mm_or_uuid(intruder_me_body["id"].as_str().unwrap()).unwrap();
+
+    sqlx::query("INSERT INTO team_members (team_id, user_id, role) VALUES ($1, $2, 'member')")
+        .bind(team_id)
+        .bind(intruder_user_uuid)
+        .execute(&ctx.app.db_pool)
+        .await
+        .unwrap();
+    sqlx::query("INSERT INTO channel_members (channel_id, user_id, role, notify_props) VALUES ($1, $2, 'member', '{}')")
+        .bind(channel_id)
+        .bind(intruder_user_uuid)
+        .execute(&ctx.app.db_pool)
+        .await
+        .unwrap();
+
+    let intruder_update = ctx
+        .app
+        .api_client
+        .put(format!("{}/api/v4/posts/{}", &ctx.app.address, post_id))
+        .header("Authorization", format!("Bearer {}", intruder_token))
+        .json(&json!({
+            "id": post_id,
+            "message": "intruder edit"
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(403, intruder_update.status().as_u16());
+}
+
+#[tokio::test]
+async fn mm_burn_on_read_routes_support_mattermost_verbs_with_legacy_post_shim() {
+    let ctx = setup_mm_user().await;
+    let (_team_id, channel_id) = setup_team_channel(&ctx).await;
+    let post_id = create_post(&ctx, channel_id, "burn on read route parity").await;
+
+    let reveal_get = ctx
+        .app
+        .api_client
+        .get(format!(
+            "{}/api/v4/posts/{}/reveal",
+            &ctx.app.address, post_id
+        ))
+        .header("Authorization", format!("Bearer {}", ctx.token))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(200, reveal_get.status().as_u16());
+    let reveal_get_body: serde_json::Value = reveal_get.json().await.unwrap();
+    assert_eq!(reveal_get_body["status"], "OK");
+
+    let burn_delete = ctx
+        .app
+        .api_client
+        .delete(format!(
+            "{}/api/v4/posts/{}/burn",
+            &ctx.app.address, post_id
+        ))
+        .header("Authorization", format!("Bearer {}", ctx.token))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(200, burn_delete.status().as_u16());
+    let burn_delete_body: serde_json::Value = burn_delete.json().await.unwrap();
+    assert_eq!(burn_delete_body["status"], "OK");
+
+    // Temporary backward compatibility shim for existing callers using POST.
+    let reveal_post = ctx
+        .app
+        .api_client
+        .post(format!(
+            "{}/api/v4/posts/{}/reveal",
+            &ctx.app.address, post_id
+        ))
+        .header("Authorization", format!("Bearer {}", ctx.token))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(200, reveal_post.status().as_u16());
+
+    let burn_post = ctx
+        .app
+        .api_client
+        .post(format!(
+            "{}/api/v4/posts/{}/burn",
+            &ctx.app.address, post_id
+        ))
+        .header("Authorization", format!("Bearer {}", ctx.token))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(200, burn_post.status().as_u16());
+}
+
 #[tokio::test]
 async fn mm_post_files_info_returns_files() {
     let ctx = setup_mm_user().await;

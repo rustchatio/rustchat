@@ -1,8 +1,12 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
 # Configuration
-BASE=${BASE:-http://localhost:3000}
+if [ -z "${BASE:-}" ]; then
+    echo "BASE is required (example: BASE=http://127.0.0.1:3000 ./scripts/mm_mobile_smoke.sh)"
+    exit 1
+fi
+BASE="${BASE%/}"
 TOKEN=${TOKEN:-""}
 EXPECTED_MM_VERSION=${EXPECTED_MM_VERSION:-10.11.10}
 

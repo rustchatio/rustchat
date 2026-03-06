@@ -1023,7 +1023,8 @@ async fn oauth_callback(
 
     // Sync OIDC groups for the user (store for membership policy evaluation)
     if !user_info.groups.is_empty() {
-        if let Err(e) = sync_oidc_groups(&state.db, user.id, &provider_key, &user_info.groups).await {
+        if let Err(e) = sync_oidc_groups(&state.db, user.id, &provider_key, &user_info.groups).await
+        {
             tracing::warn!("Failed to sync OIDC groups for user {}: {}", user.id, e);
             // Don't fail login if group sync fails
         }
@@ -1033,13 +1034,24 @@ async fn oauth_callback(
     // Note: This is also called for existing users but is idempotent (skips if already member)
     match apply_auto_membership_for_new_user(&state, user.id).await {
         Ok(audit_entries) => {
-            let success_count = audit_entries.iter().filter(|e| e.status == "success" && e.action == "add").count();
+            let success_count = audit_entries
+                .iter()
+                .filter(|e| e.status == "success" && e.action == "add")
+                .count();
             if success_count > 0 {
-                tracing::info!("Applied auto-membership policies for OAuth user {}: {} memberships added", user.id, success_count);
+                tracing::info!(
+                    "Applied auto-membership policies for OAuth user {}: {} memberships added",
+                    user.id,
+                    success_count
+                );
             }
         }
         Err(e) => {
-            tracing::error!("Failed to apply auto-membership policies for OAuth user {}: {}", user.id, e);
+            tracing::error!(
+                "Failed to apply auto-membership policies for OAuth user {}: {}",
+                user.id,
+                e
+            );
         }
     }
 
@@ -1851,17 +1863,17 @@ async fn sync_oidc_groups(
     groups: &[String],
 ) -> ApiResult<()> {
     let mut tx = db.begin().await?;
-    
+
     // For each OIDC group, ensure it exists in groups table and user is a member
     for group_name in groups {
         let group_name = group_name.trim();
         if group_name.is_empty() {
             continue;
         }
-        
+
         // Normalize group name for storage (lowercase, spaces to underscores)
         let normalized_name = group_name.to_lowercase().replace(' ', "_");
-        
+
         // Upsert the group into groups table
         // Use auth_provider as source so we can identify OIDC-sourced groups
         let group_id: Uuid = sqlx::query_scalar(
@@ -1873,38 +1885,38 @@ async fn sync_oidc_groups(
                 deleted_at = NULL,
                 updated_at = NOW()
             RETURNING id
-            "#
+            "#,
         )
         .bind(&normalized_name)
-        .bind(group_name)  // Original display name
-        .bind(format!("oidc:{}", auth_provider))  // e.g., "oidc:keycloak"
-        .bind(&normalized_name)  // remote_id is the normalized name
+        .bind(group_name) // Original display name
+        .bind(format!("oidc:{}", auth_provider)) // e.g., "oidc:keycloak"
+        .bind(&normalized_name) // remote_id is the normalized name
         .fetch_one(&mut *tx)
         .await?;
-        
+
         // Add user to group
         sqlx::query(
             r#"
             INSERT INTO group_members (group_id, user_id)
             VALUES ($1, $2)
             ON CONFLICT (group_id, user_id) DO NOTHING
-            "#
+            "#,
         )
         .bind(group_id)
         .bind(user_id)
         .execute(&mut *tx)
         .await?;
     }
-    
+
     tx.commit().await?;
-    
+
     tracing::debug!(
         "Synced {} OIDC groups for user {} from provider {}",
         groups.len(),
         user_id,
         auth_provider
     );
-    
+
     Ok(())
 }
 
