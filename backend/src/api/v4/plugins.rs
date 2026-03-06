@@ -1,4 +1,5 @@
 use crate::api::AppState;
+use crate::auth::policy::permissions;
 use crate::error::ApiResult;
 use axum::{
     extract::{Path, State},
@@ -13,6 +14,8 @@ const CALLS_PLUGIN_VERSION: &str = "0.28.0";
 const CALLS_PLUGIN_MIN_SERVER_VERSION: &str = "7.0.0";
 const CALLS_PLUGIN_NAME: &str = "Calls";
 const CALLS_PLUGIN_DESCRIPTION: &str = "Mattermost Calls plugin for voice and video conferencing";
+const FIRST_ADMIN_VISIT_MARKETPLACE_KEY: &str = "FirstAdminVisitMarketplace";
+const FIRST_ADMIN_VISIT_MARKETPLACE_EVENT: &str = "first_admin_visit_marketplace_status_received";
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -26,11 +29,24 @@ pub fn router() -> Router<AppState> {
         .route("/plugins/{plugin_id}/disable", post(disable_plugin))
         .route("/plugins/statuses", get(get_plugin_statuses))
         .route("/plugins/webapp", get(get_webapp_plugins))
-        .route("/plugins/marketplace", get(get_marketplace_plugins))
+        .route(
+            "/plugins/marketplace",
+            get(get_marketplace_plugins).post(install_marketplace_plugin),
+        )
         .route(
             "/plugins/marketplace/first_admin_visit",
-            post(first_admin_visit_marketplace),
+            get(get_first_admin_visit_marketplace).post(first_admin_visit_marketplace),
         )
+}
+
+fn ensure_manage_system(auth: &crate::api::v4::extractors::MmAuthUser) -> ApiResult<()> {
+    if !auth.has_permission(&permissions::SYSTEM_MANAGE) {
+        return Err(crate::error::AppError::Forbidden(
+            "Insufficient permissions to manage system plugins".to_string(),
+        ));
+    }
+
+    Ok(())
 }
 
 /// GET /api/v4/plugins
@@ -170,21 +186,90 @@ async fn get_webapp_plugins(
 /// GET /api/v4/plugins/marketplace
 async fn get_marketplace_plugins(
     State(_state): State<AppState>,
-    _auth: crate::api::v4::extractors::MmAuthUser,
+    auth: crate::api::v4::extractors::MmAuthUser,
 ) -> ApiResult<Json<Vec<serde_json::Value>>> {
+    ensure_manage_system(&auth)?;
+
     Ok(Json(vec![]))
+}
+
+/// POST /api/v4/plugins/marketplace
+async fn install_marketplace_plugin(
+    State(_state): State<AppState>,
+    auth: crate::api::v4::extractors::MmAuthUser,
+) -> ApiResult<(StatusCode, Json<serde_json::Value>)> {
+    ensure_manage_system(&auth)?;
+
+    Ok(crate::api::v4::mm_not_implemented(
+        "api.plugins.marketplace.install.not_implemented.app_error",
+        "Marketplace plugin installation is not implemented.",
+        "POST /api/v4/plugins/marketplace is not supported in this server.",
+    ))
+}
+
+/// GET /api/v4/plugins/marketplace/first_admin_visit
+async fn get_first_admin_visit_marketplace(
+    State(state): State<AppState>,
+    auth: crate::api::v4::extractors::MmAuthUser,
+) -> ApiResult<Json<serde_json::Value>> {
+    ensure_manage_system(&auth)?;
+
+    let db_value: Option<Option<String>> = sqlx::query_scalar(
+        "SELECT plugins->'marketplace'->>'first_admin_visit' FROM server_config WHERE id = 'default'",
+    )
+    .fetch_optional(&state.db)
+    .await?;
+
+    let visited = db_value
+        .flatten()
+        .map(|raw| raw.eq_ignore_ascii_case("true"))
+        .unwrap_or(false);
+
+    Ok(Json(json!({
+        "name": FIRST_ADMIN_VISIT_MARKETPLACE_KEY,
+        "value": if visited { "true" } else { "false" }
+    })))
 }
 
 /// POST /api/v4/plugins/marketplace/first_admin_visit
 async fn first_admin_visit_marketplace(
-    State(_state): State<AppState>,
-    _auth: crate::api::v4::extractors::MmAuthUser,
+    State(state): State<AppState>,
+    auth: crate::api::v4::extractors::MmAuthUser,
 ) -> ApiResult<(StatusCode, Json<serde_json::Value>)> {
-    Ok(crate::api::v4::mm_not_implemented(
-        "api.plugins.marketplace.first_admin_visit.not_implemented.app_error",
-        "Marketplace onboarding is not implemented.",
-        "POST /api/v4/plugins/marketplace/first_admin_visit is not supported in this server.",
-    ))
+    ensure_manage_system(&auth)?;
+
+    sqlx::query(
+        r#"
+        UPDATE server_config
+        SET
+            plugins = jsonb_set(
+                COALESCE(plugins, '{}'::jsonb),
+                '{marketplace}',
+                COALESCE(plugins->'marketplace', '{}'::jsonb) || '{"first_admin_visit": true}'::jsonb,
+                true
+            ),
+            updated_at = NOW()
+        WHERE id = 'default'
+        "#,
+    )
+    .execute(&state.db)
+    .await?;
+
+    state
+        .ws_hub
+        .broadcast(crate::realtime::WsEnvelope {
+            msg_type: "event".to_string(),
+            event: FIRST_ADMIN_VISIT_MARKETPLACE_EVENT.to_string(),
+            seq: None,
+            channel_id: None,
+            data: json!({
+                "firstAdminVisitMarketplaceStatus": "true"
+            }),
+            broadcast: None,
+        })
+        .await;
+
+    Ok((StatusCode::OK, Json(json!({ "status": "OK" }))))
 }
 
 fn calls_plugin_summary() -> serde_json::Value {

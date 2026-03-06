@@ -7,7 +7,6 @@ mod common;
 
 struct AuthSession {
     token: String,
-    user_id: String,
     user_uuid: Uuid,
 }
 
@@ -85,17 +84,10 @@ async fn register_and_login_user(
     assert_eq!(200, me_res.status().as_u16());
 
     let me_body: serde_json::Value = me_res.json().await.expect("invalid /users/me body");
-    let user_id = me_body["id"]
-        .as_str()
-        .expect("missing /users/me id")
-        .to_string();
-    let user_uuid = parse_mm_or_uuid(&user_id).expect("invalid mattermost-compatible user id");
+    let user_id = me_body["id"].as_str().expect("missing /users/me id");
+    let user_uuid = parse_mm_or_uuid(user_id).expect("invalid mattermost-compatible user id");
 
-    AuthSession {
-        token,
-        user_id,
-        user_uuid,
-    }
+    AuthSession { token, user_uuid }
 }
 
 async fn setup_context() -> TestContext {

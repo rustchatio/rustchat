@@ -17,9 +17,10 @@
 ## Headline findings
 
 1. Core chat + team/channel + calls mobile paths are mostly present, but full Mattermost parity is not yet met.
-2. A high volume of uncovered endpoints sits in plugin/enterprise/admin surfaces (`plugins`, `groups`, `access_control_policies`, `custom_profile_attributes`, `license`, `reports`).
+2. A high volume of uncovered endpoints still sits in plugin/enterprise/admin surfaces (`plugins`, `groups`, `access_control_policies`, `custom_profile_attributes`, `license`, `reports`) even after closing `GET /api/v4/channels`.
 3. Post route contract mismatches identified for mobile/core flows in this iteration are closed (`PUT /posts/{post_id}`, `GET /posts/{post_id}/reveal`, `DELETE /posts/{post_id}/burn`), with temporary POST shims retained for burn-on-read routes.
-4. Verification environment now has deterministic integration bootstrap (`docker-compose.integration.yml` + `RUSTCHAT_TEST_*`), and smoke scripts now require explicit `BASE` with compatibility preflight.
+4. Plugin marketplace admin-status contract now has parity for `GET/POST /api/v4/plugins/marketplace/first_admin_visit` (permission gate + persisted system status + websocket event mapping), and missing `POST /api/v4/plugins/marketplace` route is now present with explicit 501 semantics.
+5. Verification environment now has deterministic integration bootstrap (`docker-compose.integration.yml` + `RUSTCHAT_TEST_*`), and smoke scripts now require explicit `BASE` with compatibility preflight.
 
 ## Production decision
 

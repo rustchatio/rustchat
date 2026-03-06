@@ -7,7 +7,7 @@ Date: 2026-03-06
 | Gate | Result | Notes |
 | :--- | :--- | :--- |
 | Build health (`cargo check`, frontend build) | PASS | both commands succeed |
-| Backend automated tests | PARTIAL | targeted parity suite (`api_v4_post_routes`) passes with deterministic integration profile; full backend suite not rerun in this iteration |
+| Backend automated tests | PARTIAL | targeted parity suites (`api_v4_post_routes`, `api_v4_channels_all`, `api_v4_plugins_dialogs`) pass with deterministic integration profile; full backend suite not rerun in this iteration |
 | Compatibility smoke scripts | PARTIAL | scripts now enforce explicit `BASE` + `X-MM-COMPAT` preflight; full smoke against a live RustChat app target still pending in this iteration |
 | Core mobile route compatibility (sampled) | PASS/PARTIAL | direct sampled gap closed (`PUT /posts/{post_id}`); broader parity backlog remains |
 | Full upstream v4 parity | FAIL | 438/570 method+path matches |

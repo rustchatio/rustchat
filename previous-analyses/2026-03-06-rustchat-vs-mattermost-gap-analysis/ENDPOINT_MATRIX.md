@@ -17,6 +17,8 @@
 | RustChat-only extras | 117 |
 | Coverage | 76.8% |
 
+Note: the aggregate counts above are from the initial extraction snapshot and were not recomputed after incremental fixes implemented later on 2026-03-06.
+
 ## Top resources by gap volume
 
 | Resource | Baseline | Matched | Missing | Coverage |
@@ -32,17 +34,18 @@
 
 ## Sampled core mobile route set (74 routes)
 
-- Covered: 73
-- Missing: 1
-- Missing endpoint: `PUT /api/v4/posts/{post_id}`
+- Covered: 74
+- Missing: 0
+- Previously missing endpoint `PUT /api/v4/posts/{post_id}` was implemented in this iteration.
 
 Note: `/api/v4/users/me/channel_members` is served by RustChat via parameterized route `/users/{user_id}/channel_members` with `me` resolution.
 
-## High-priority mismatches
+## High-priority mismatches (current state)
 
-| ID | Upstream | RustChat | Impact |
+| ID | Upstream | RustChat | Status |
 | :--- | :--- | :--- | :--- |
-| G-001 | `PUT /api/v4/posts/{post_id}` | not present | post update contract gap |
-| G-002 | `GET /api/v4/posts/{post_id}/reveal` | `POST /api/v4/posts/{post_id}/reveal` | method mismatch |
-| G-003 | `DELETE /api/v4/posts/{post_id}/burn` | `POST /api/v4/posts/{post_id}/burn` | method mismatch |
-| G-004 | `GET /api/v4/channels` | not present | admin/system listing gap |
+| G-001 | `PUT /api/v4/posts/{post_id}` | implemented | closed |
+| G-002 | `GET /api/v4/posts/{post_id}/reveal` | implemented (`GET` + temporary `POST` shim) | closed |
+| G-003 | `DELETE /api/v4/posts/{post_id}/burn` | implemented (`DELETE` + temporary `POST` shim) | closed |
+| G-004 | `GET /api/v4/channels` | implemented | closed |
+| G-008 | `GET/POST /api/v4/plugins/marketplace/first_admin_visit` | implemented | closed |

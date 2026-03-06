@@ -1527,6 +1527,12 @@ fn map_envelope_to_mm(env: &WsEnvelope) -> Option<mm::WebSocketMessage> {
             }),
             broadcast: map_broadcast(env.broadcast.as_ref()),
         }),
+        "first_admin_visit_marketplace_status_received" => Some(mm::WebSocketMessage {
+            seq,
+            event: "first_admin_visit_marketplace_status_received".to_string(),
+            data: env.data.clone(),
+            broadcast: map_broadcast(env.broadcast.as_ref()),
+        }),
         event_name if event_name.starts_with("custom_") => Some(mm::WebSocketMessage {
             seq,
             event: event_name.to_string(),

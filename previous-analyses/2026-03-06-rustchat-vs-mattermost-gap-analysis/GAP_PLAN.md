@@ -42,7 +42,16 @@
 - Current gap: large deltas (`plugins`, `groups`, `access_control_policies`, etc.).
 - Planned change: implement or explicitly document/defer endpoint classes by profile.
 - Verification test: endpoint matrix diff gate in CI with allowed-deviation policy file.
-- Status: Pending
+- Status: In Progress
+- Progress update (2026-03-06):
+  - Completed first high-impact slice: `GET /api/v4/channels` (admin/system list-all channels route).
+  - Verification: `cargo test --test api_v4_channels_all -- --nocapture` with deterministic integration profile (pass: 2/2).
+  - Completed plugin marketplace slice:
+    - `GET /api/v4/plugins/marketplace/first_admin_visit` and `POST /api/v4/plugins/marketplace/first_admin_visit` now match Mattermost semantics (manage_system permission + persisted `System` status).
+    - Added missing `POST /api/v4/plugins/marketplace` route with explicit 501 contract (route coverage closure for this method+path).
+    - Added websocket parity mapping for `first_admin_visit_marketplace_status_received`.
+  - Verification: `cargo test --test api_v4_plugins_dialogs -- --nocapture` with deterministic integration profile (pass: 5/5).
+  - Remaining: broader plugin/enterprise/admin endpoint classes (`plugins`, `groups`, `access_control_policies`, `custom_profile_attributes`, `license`, `reports`).
 
 4. **P1 operational verification stability**
 - Rustchat target path: test harness + local environment docs/scripts

@@ -17,6 +17,7 @@
   - Exact method+path matches: `438`
   - Missing from RustChat: `132`
   - RustChat extras: `117`
+- Note: these counts are from the initial matrix snapshot and were not recomputed after the incremental fixes implemented on 2026-03-06 (`G-001..G-004`, `G-008`).
 
 ### Top resource gaps by volume
 
@@ -29,37 +30,40 @@
 | `custom_profile_attributes` | 6 | 2 | 4 | 33.3% |
 | `license` | 5 | 2 | 3 | 40.0% |
 
-### Contract mismatches confirmed by source
+### Contract mismatches resolved in this iteration
 
-1. Missing `PUT /api/v4/posts/{post_id}` in RustChat.
-- Upstream contract exists: `../mattermost/api/v4/source/posts.yaml:206-263`.
-- RustChat defines only `GET/DELETE` on `/posts/{post_id}` and uses `/posts/{post_id}/patch` for update: `backend/src/api/v4/posts.rs:40-45`.
+1. `PUT /api/v4/posts/{post_id}` implemented with path/body `id` parity checks.
+- Upstream contract: `../mattermost/api/v4/source/posts.yaml:206-263`.
+- RustChat: `backend/src/api/v4/posts.rs` (`PUT /posts/{post_id}`).
 
-2. Method mismatch for reveal endpoint.
-- Upstream: `GET /api/v4/posts/{post_id}/reveal`: `../mattermost/api/v4/source/posts.yaml:1165-1214`.
-- RustChat: `POST /posts/{post_id}/reveal`: `backend/src/api/v4/posts.rs:54`.
+2. Burn-on-read verb parity aligned.
+- Upstream contracts: `GET /posts/{post_id}/reveal` and `DELETE /posts/{post_id}/burn` (`../mattermost/api/v4/source/posts.yaml:1165-1255`).
+- RustChat: `backend/src/api/v4/posts.rs` now supports canonical verbs, with temporary `POST` shims retained.
 
-3. Method mismatch for burn endpoint.
-- Upstream: `DELETE /api/v4/posts/{post_id}/burn`: `../mattermost/api/v4/source/posts.yaml:1216-1255`.
-- RustChat: `POST /posts/{post_id}/burn`: `backend/src/api/v4/posts.rs:55`.
+3. `GET /api/v4/channels` implemented for system/admin listing semantics.
+- Upstream contract/handler: `../mattermost/api/v4/source/channels.yaml:1-69`, `../mattermost/server/channels/api4/channel.go:getAllChannels`.
+- RustChat: `backend/src/api/v4/channels.rs` (`get_all_channels`).
 
-4. `GET /api/v4/channels` (system listing) exists upstream but not implemented in RustChat router.
-- Upstream: `../mattermost/api/v4/source/channels.yaml:1-69`.
-- RustChat routes include `POST /channels` only for root collection: `backend/src/api/v4/channels.rs:109-113`.
+4. Plugin marketplace first-admin-visit contract implemented.
+- Upstream route/handler: `../mattermost/api/v4/source/plugins.yaml:431-476`, `../mattermost/server/channels/api4/plugin.go:42-43,433-491`.
+- RustChat: `backend/src/api/v4/plugins.rs` now provides:
+  - `GET /plugins/marketplace/first_admin_visit` (`System` shape),
+  - `POST /plugins/marketplace/first_admin_visit` (persist + websocket event),
+  - `POST /plugins/marketplace` route with explicit 501 contract.
 
 ## Operational verification findings
 
 - `cargo check` passes.
 - Frontend production build passes (`npm run build`).
-- Backend integration test suite fails in this environment due Postgres auth (`password authentication failed for user "rustchat"`), so compatibility regression confidence is incomplete.
-- Local smoke scripts against `http://localhost:3000` fail because that port is currently serving a different stack and proxying to unresolved host `rafineri-api`.
+- Targeted backend parity integration suites pass with deterministic profile (`docker-compose.integration.yml` + `RUSTCHAT_TEST_*`):
+  - `api_v4_post_routes` (9/9),
+  - `api_v4_channels_all` (2/2),
+  - `api_v4_plugins_dialogs` (5/5).
+- Smoke scripts now fail fast unless explicit `BASE` + compatibility preflight requirements are met (prevents false-positive target selection).
 
 ## Server-side severity view
 
 - P1:
-  - `G-001` Missing `PUT /api/v4/posts/{post_id}`.
+  - None open in current register.
 - P2:
-  - `G-002` Reveal method mismatch (`GET` vs `POST`).
-  - `G-003` Burn method mismatch (`DELETE` vs `POST`).
-  - `G-004` Missing `GET /api/v4/channels`.
   - `G-005` Broad plugin/admin/enterprise endpoint delta.
