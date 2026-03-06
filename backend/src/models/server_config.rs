@@ -91,6 +91,10 @@ pub struct SiteConfig {
     /// WebSocket secure port (empty = use default)
     #[serde(default)]
     pub websocket_secure_port: String,
+    /// Post edit window in seconds:
+    /// -1 = unlimited, 0 = editing disabled, >0 = time-limited.
+    #[serde(default = "default_post_edit_time_limit_seconds")]
+    pub post_edit_time_limit_seconds: i32,
 }
 
 fn default_site_name() -> String {
@@ -134,6 +138,9 @@ fn default_locale() -> String {
 }
 fn default_timezone() -> String {
     "UTC".to_string()
+}
+fn default_post_edit_time_limit_seconds() -> i32 {
+    -1
 }
 
 /// Authentication configuration

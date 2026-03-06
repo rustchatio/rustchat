@@ -5,6 +5,7 @@ use axum::{
     routing::{delete, get, post, put},
     Json, Router,
 };
+use chrono::Utc;
 use serde::Deserialize;
 use serde_json::json;
 use uuid::Uuid;
@@ -1252,8 +1253,12 @@ async fn update_post_message(
     post_id: Uuid,
     message: String,
 ) -> ApiResult<Json<mm::Post>> {
-    let (post_user_id, post_channel_id): (Uuid, Uuid) =
-        sqlx::query_as("SELECT user_id, channel_id FROM posts WHERE id = $1")
+    let (post_user_id, post_channel_id, post_created_at, original_message): (
+        Uuid,
+        Uuid,
+        chrono::DateTime<Utc>,
+        String,
+    ) = sqlx::query_as("SELECT user_id, channel_id, created_at, message FROM posts WHERE id = $1")
             .bind(post_id)
             .fetch_optional(&state.db)
             .await?
@@ -1261,6 +1266,26 @@ async fn update_post_message(
 
     if post_user_id != acting_user_id {
         return Err(AppError::Forbidden("Cannot edit others' posts".to_string()));
+    }
+
+    if message != original_message {
+        let post_edit_time_limit_seconds = load_post_edit_time_limit_seconds(state).await?;
+        if post_edit_time_limit_seconds == 0 {
+            return Err(AppError::BadRequest(
+                "Message editing is disabled by server policy".to_string(),
+            ));
+        }
+        if post_edit_time_limit_seconds > 0 {
+            let post_age_seconds = Utc::now()
+                .signed_duration_since(post_created_at)
+                .num_seconds();
+            if post_age_seconds >= post_edit_time_limit_seconds {
+                return Err(AppError::BadRequest(format!(
+                    "Message edit window expired after {} seconds",
+                    post_edit_time_limit_seconds
+                )));
+            }
+        }
     }
 
     let updated: crate::models::post::PostResponse = sqlx::query_as(
@@ -1298,6 +1323,16 @@ async fn update_post_message(
     state.ws_hub.broadcast(broadcast).await;
 
     Ok(Json(updated.into()))
+}
+
+async fn load_post_edit_time_limit_seconds(state: &AppState) -> ApiResult<i64> {
+    let limit = sqlx::query_scalar::<_, i64>(
+        "SELECT COALESCE((site->>'post_edit_time_limit_seconds')::bigint, -1) FROM server_config WHERE id = 'default'",
+    )
+    .fetch_optional(&state.db)
+    .await?
+    .unwrap_or(-1);
+    Ok(limit)
 }
 
 /// POST /posts/{post_id}/ack - Acknowledge a post (push notification receipt)

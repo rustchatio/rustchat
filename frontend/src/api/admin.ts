@@ -76,6 +76,7 @@ export interface SiteConfig {
     diagnostics_enabled: boolean;
     default_locale: string;
     default_timezone: string;
+    post_edit_time_limit_seconds: number;
 }
 
 export interface AuthConfig {

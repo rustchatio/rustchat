@@ -7,6 +7,7 @@ import { useMessageStore } from '../../stores/messages'
 import { useAuthStore } from '../../stores/auth'
 import { useUnreadStore } from '../../stores/unreads'
 import { useUIStore } from '../../stores/ui'
+import { useConfigStore } from '../../stores/config'
 import { postsApi } from '../../api/posts'
 import EmojiPicker from '../atomic/EmojiPicker.vue'
 import FilePreview from '../atomic/FilePreview.vue'
@@ -37,6 +38,7 @@ const authStore = useAuthStore()
 const messageStore = useMessageStore()
 const unreadStore = useUnreadStore()
 const uiStore = useUIStore()
+const configStore = useConfigStore()
 
 const showActions = ref(false)
 const showMenu = ref(false)
@@ -48,6 +50,26 @@ const editInputRef = ref<HTMLTextAreaElement | null>(null)
 const saving = ref(false)
 
 const isOwnMessage = computed(() => authStore.user?.id === props.message.userId)
+const isEdited = computed(() => Boolean(props.message.editedAt))
+const canEditMessage = computed(() => {
+    if (!isOwnMessage.value) {
+        return false
+    }
+
+    const limit = Number(configStore.siteConfig.post_edit_time_limit_seconds ?? -1)
+    if (Number.isNaN(limit) || limit < 0) {
+        return true
+    }
+    if (limit === 0) {
+        return false
+    }
+
+    const createdAt = new Date(props.message.timestamp).getTime()
+    if (!Number.isFinite(createdAt)) {
+        return false
+    }
+    return Date.now() - createdAt < limit * 1000
+})
 const isSystemMessage = computed(() => {
     const type = props.message.props?.type
     return type === 'system_join_leave' || type === 'system_purpose' || type === 'system_header'
@@ -139,7 +161,15 @@ async function saveEdit() {
   
   saving.value = true
   try {
-    await postsApi.update(props.message.id, editContent.value)
+    const { data: updatedPost } = await postsApi.update(props.message.id, editContent.value)
+    messageStore.handleMessageUpdate(updatedPost)
+    if (!updatedPost?.edited_at && !updatedPost?.edit_at) {
+      messageStore.handleMessageUpdate({
+        id: props.message.id,
+        message: editContent.value,
+        edited_at: new Date().toISOString(),
+      })
+    }
     emit('update', props.message.id, editContent.value)
     isEditing.value = false
   } catch (e) {
@@ -198,17 +228,32 @@ async function handleEmojiSelect(emoji: string) {
 }
 
 async function toggleReaction(emoji: string) {
-    const reaction = props.message.reactions?.find(r => r.emoji === emoji)
+    const reaction = props.message.reactions?.find((r) => {
+        const rendered = getEmojiChar(r.emoji)
+        const selected = getEmojiChar(emoji)
+        return r.emoji === emoji || rendered === emoji || rendered === selected
+    })
     const me = authStore.user?.id
     if (!me) return
 
     const hasReacted = reaction?.users.includes(me)
+    const emojiKey = reaction?.emoji || emoji
 
     try {
         if (hasReacted) {
-            await postsApi.removeReaction(props.message.id, emoji)
+            await postsApi.removeReaction(props.message.id, emojiKey)
+            messageStore.handleReactionRemoved({
+                post_id: props.message.id,
+                user_id: me,
+                emoji_name: emojiKey,
+            })
         } else {
-            await postsApi.addReaction(props.message.id, emoji)
+            await postsApi.addReaction(props.message.id, emojiKey)
+            messageStore.handleReactionAdded({
+                post_id: props.message.id,
+                user_id: me,
+                emoji_name: emojiKey,
+            })
         }
     } catch (e) {
         console.error('Failed to toggle reaction', e)
@@ -332,6 +377,7 @@ async function toggleReaction(emoji: string) {
         <span class="text-xs text-text-3 font-medium tracking-tight hover:underline cursor-pointer">
           {{ format(new Date(message.timestamp), 'h:mm a') }}
         </span>
+        <span v-if="isEdited" class="text-[11px] text-text-3 italic">Edited</span>
         <!-- Status Indicators -->
         <span v-if="message.status === 'sending'" class="text-[10px] text-gray-400 ml-2 italic font-medium animate-pulse">Sending...</span>
         <span v-if="message.status === 'failed'" class="text-[10px] text-red-500 ml-2 font-bold uppercase tracking-wider">Failed</span>
@@ -483,7 +529,7 @@ async function toggleReaction(emoji: string) {
           class="absolute right-0 top-full mt-1 w-40 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl z-10 py-1"
         >
           <button 
-            v-if="isOwnMessage"
+            v-if="isOwnMessage && canEditMessage"
             @click="startEditing"
             class="w-full px-3 py-1.5 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"
           >

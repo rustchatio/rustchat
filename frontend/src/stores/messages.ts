@@ -27,6 +27,7 @@ export interface Message {
     clientMsgId?: string
     props?: any
     seq: number | string
+    editedAt?: string
 }
 
 function toIsoTimestamp(value: unknown): string {
@@ -40,7 +41,13 @@ function toIsoTimestamp(value: unknown): string {
 }
 
 function toOptionalIsoTimestamp(value: unknown): string | undefined {
-    if (value === null || value === undefined || value === '') {
+    if (
+        value === null ||
+        value === undefined ||
+        value === '' ||
+        value === 0 ||
+        value === '0'
+    ) {
         return undefined
     }
     return toIsoTimestamp(value)
@@ -104,6 +111,8 @@ export function postToMessage(post: Post): Message {
         root_id?: string
         create_at?: string | number
         update_at?: string | number
+        edit_at?: string | number
+        edited_at?: string | number
         pending_post_id?: string
         last_reply_at?: string | number | null
     }
@@ -122,7 +131,7 @@ export function postToMessage(post: Post): Message {
         reactions: rawPost.reactions?.map((r: any) => ({
             emoji: r.emoji,
             count: r.count,
-            users: r.users.map((u: any) => u.toString())
+            users: r.users.map((u: any) => normalizeEntityId(u) ?? u.toString())
         })) || [],
         rootId,
         threadCount: rawPost.reply_count || 0,
@@ -134,6 +143,7 @@ export function postToMessage(post: Post): Message {
         clientMsgId: rawPost.client_msg_id ?? rawPost.pending_post_id,
         props: rawPost.props,
         seq: rawPost.seq ?? 0,
+        editedAt: toOptionalIsoTimestamp(rawPost.edited_at ?? rawPost.edit_at),
     }
 }
 
@@ -454,6 +464,9 @@ export const useMessageStore = defineStore('messages', () => {
                 if (data.message !== undefined) msg.content = data.message
                 if (data.is_pinned !== undefined) msg.isPinned = data.is_pinned
                 if (data.reply_count !== undefined) msg.threadCount = data.reply_count
+                if (data.edited_at !== undefined || data.edit_at !== undefined) {
+                    msg.editedAt = toOptionalIsoTimestamp(data.edited_at ?? data.edit_at)
+                }
                 if (data.reply_count_inc) {
                     msg.threadCount = (msg.threadCount || 0) + data.reply_count_inc
                 }
@@ -472,6 +485,9 @@ export const useMessageStore = defineStore('messages', () => {
 
                 if (data.message !== undefined) msg.content = data.message
                 if (data.is_pinned !== undefined) msg.isPinned = data.is_pinned
+                if (data.edited_at !== undefined || data.edit_at !== undefined) {
+                    msg.editedAt = toOptionalIsoTimestamp(data.edited_at ?? data.edit_at)
+                }
             }
         }
     }
