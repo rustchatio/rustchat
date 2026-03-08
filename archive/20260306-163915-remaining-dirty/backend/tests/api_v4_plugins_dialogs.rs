@@ -7,13 +7,19 @@ mod common;
 #[tokio::test]
 async fn plugins_read_endpoints_reflect_calls_plugin_state() {
     let app = spawn_app().await;
-    let token = create_user_and_login(&app).await;
+    let admin_token = create_user_and_login_with_role(
+        &app,
+        "plugin_read_admin",
+        "plugin_read_admin@example.com",
+        "system_admin",
+    )
+    .await;
 
     // Calls plugin is enabled by default in server_config migration.
     let plugins_res = app
         .api_client
         .get(format!("{}/api/v4/plugins", &app.address))
-        .header("Authorization", format!("Bearer {}", token))
+        .header("Authorization", format!("Bearer {}", admin_token))
         .send()
         .await
         .unwrap();
@@ -36,7 +42,7 @@ async fn plugins_read_endpoints_reflect_calls_plugin_state() {
     let plugins_res = app
         .api_client
         .get(format!("{}/api/v4/plugins", &app.address))
-        .header("Authorization", format!("Bearer {}", token))
+        .header("Authorization", format!("Bearer {}", admin_token))
         .send()
         .await
         .unwrap();
@@ -54,7 +60,7 @@ async fn plugins_read_endpoints_reflect_calls_plugin_state() {
             "{}/api/v4/plugins/com.mattermost.calls",
             &app.address
         ))
-        .header("Authorization", format!("Bearer {}", token))
+        .header("Authorization", format!("Bearer {}", admin_token))
         .send()
         .await
         .unwrap();
@@ -66,7 +72,7 @@ async fn plugins_read_endpoints_reflect_calls_plugin_state() {
     let statuses_res = app
         .api_client
         .get(format!("{}/api/v4/plugins/statuses", &app.address))
-        .header("Authorization", format!("Bearer {}", token))
+        .header("Authorization", format!("Bearer {}", admin_token))
         .send()
         .await
         .unwrap();
@@ -78,7 +84,7 @@ async fn plugins_read_endpoints_reflect_calls_plugin_state() {
     let webapp_res = app
         .api_client
         .get(format!("{}/api/v4/plugins/webapp", &app.address))
-        .header("Authorization", format!("Bearer {}", token))
+        .header("Authorization", format!("Bearer {}", admin_token))
         .send()
         .await
         .unwrap();
@@ -88,29 +94,44 @@ async fn plugins_read_endpoints_reflect_calls_plugin_state() {
 }
 
 #[tokio::test]
-async fn plugin_mutations_return_explicit_mm_501() {
+async fn plugin_management_endpoints_require_system_manage() {
     let app = spawn_app().await;
-    let token = create_user_and_login(&app).await;
+    let member_token = create_user_and_login(&app).await;
 
     let responses =
         vec![
         app.api_client
+            .get(format!("{}/api/v4/plugins", &app.address))
+            .header("Authorization", format!("Bearer {}", member_token))
+            .send()
+            .await
+            .unwrap(),
+        app.api_client
             .post(format!("{}/api/v4/plugins", &app.address))
-            .header("Authorization", format!("Bearer {}", token))
+            .header("Authorization", format!("Bearer {}", member_token))
             .json(&serde_json::json!({"plugin": "ignored"}))
             .send()
             .await
             .unwrap(),
         app.api_client
             .post(format!("{}/api/v4/plugins/install_from_url", &app.address))
-            .header("Authorization", format!("Bearer {}", token))
+            .header("Authorization", format!("Bearer {}", member_token))
             .json(&serde_json::json!({"plugin_download_url": "https://example.com/plugin.tar.gz"}))
             .send()
             .await
             .unwrap(),
         app.api_client
+            .get(format!(
+                "{}/api/v4/plugins/com.mattermost.calls",
+                &app.address
+            ))
+            .header("Authorization", format!("Bearer {}", member_token))
+            .send()
+            .await
+            .unwrap(),
+        app.api_client
             .delete(format!("{}/api/v4/plugins/com.mattermost.calls", &app.address))
-            .header("Authorization", format!("Bearer {}", token))
+            .header("Authorization", format!("Bearer {}", member_token))
             .send()
             .await
             .unwrap(),
@@ -119,7 +140,7 @@ async fn plugin_mutations_return_explicit_mm_501() {
                 "{}/api/v4/plugins/com.mattermost.calls/enable",
                 &app.address
             ))
-            .header("Authorization", format!("Bearer {}", token))
+            .header("Authorization", format!("Bearer {}", member_token))
             .send()
             .await
             .unwrap(),
@@ -128,7 +149,71 @@ async fn plugin_mutations_return_explicit_mm_501() {
                 "{}/api/v4/plugins/com.mattermost.calls/disable",
                 &app.address
             ))
-            .header("Authorization", format!("Bearer {}", token))
+            .header("Authorization", format!("Bearer {}", member_token))
+            .send()
+            .await
+            .unwrap(),
+        app.api_client
+            .get(format!("{}/api/v4/plugins/statuses", &app.address))
+            .header("Authorization", format!("Bearer {}", member_token))
+            .send()
+            .await
+            .unwrap(),
+    ];
+
+    for response in responses {
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    }
+}
+
+#[tokio::test]
+async fn plugin_mutations_return_explicit_mm_501_for_system_manage() {
+    let app = spawn_app().await;
+    let admin_token = create_user_and_login_with_role(
+        &app,
+        "plugin_write_admin",
+        "plugin_write_admin@example.com",
+        "system_admin",
+    )
+    .await;
+
+    let responses =
+        vec![
+        app.api_client
+            .post(format!("{}/api/v4/plugins", &app.address))
+            .header("Authorization", format!("Bearer {}", admin_token))
+            .json(&serde_json::json!({"plugin": "ignored"}))
+            .send()
+            .await
+            .unwrap(),
+        app.api_client
+            .post(format!("{}/api/v4/plugins/install_from_url", &app.address))
+            .header("Authorization", format!("Bearer {}", admin_token))
+            .json(&serde_json::json!({"plugin_download_url": "https://example.com/plugin.tar.gz"}))
+            .send()
+            .await
+            .unwrap(),
+        app.api_client
+            .delete(format!("{}/api/v4/plugins/com.mattermost.calls", &app.address))
+            .header("Authorization", format!("Bearer {}", admin_token))
+            .send()
+            .await
+            .unwrap(),
+        app.api_client
+            .post(format!(
+                "{}/api/v4/plugins/com.mattermost.calls/enable",
+                &app.address
+            ))
+            .header("Authorization", format!("Bearer {}", admin_token))
+            .send()
+            .await
+            .unwrap(),
+        app.api_client
+            .post(format!(
+                "{}/api/v4/plugins/com.mattermost.calls/disable",
+                &app.address
+            ))
+            .header("Authorization", format!("Bearer {}", admin_token))
             .send()
             .await
             .unwrap(),
@@ -152,6 +237,35 @@ async fn plugin_marketplace_endpoints_require_system_manage() {
         .await
         .unwrap();
     assert_eq!(StatusCode::FORBIDDEN, get_marketplace.status());
+
+    let get_marketplace_remote_only = app
+        .api_client
+        .get(format!(
+            "{}/api/v4/plugins/marketplace?remote_only=true",
+            &app.address
+        ))
+        .header("Authorization", format!("Bearer {}", token))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(StatusCode::OK, get_marketplace_remote_only.status());
+    let remote_only_body: serde_json::Value = get_marketplace_remote_only.json().await.unwrap();
+    assert!(remote_only_body.is_array());
+
+    let get_marketplace_invalid_filter = app
+        .api_client
+        .get(format!(
+            "{}/api/v4/plugins/marketplace?remote_only=true&local_only=true",
+            &app.address
+        ))
+        .header("Authorization", format!("Bearer {}", token))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(
+        StatusCode::INTERNAL_SERVER_ERROR,
+        get_marketplace_invalid_filter.status()
+    );
 
     let get_first_admin_visit = app
         .api_client

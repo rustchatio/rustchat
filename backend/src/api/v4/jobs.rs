@@ -23,6 +23,7 @@ async fn get_jobs(
     _auth: crate::api::v4::extractors::MmAuthUser,
 ) -> ApiResult<Json<Vec<serde_json::Value>>> {
     // Fetch jobs from DB
+    #[allow(clippy::type_complexity)]
     let jobs: Vec<(uuid::Uuid, String, String, i32, serde_json::Value, Option<i32>, chrono::DateTime<chrono::Utc>)> = sqlx::query_as(
         "SELECT id, type, status, priority, data, progress, created_at FROM jobs ORDER BY created_at DESC LIMIT 100"
     )

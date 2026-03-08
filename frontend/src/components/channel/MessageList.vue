@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, computed, nextTick } from 'vue'
+import { format, isSameYear, isToday, isYesterday } from 'date-fns'
 import { ArrowDown } from 'lucide-vue-next'
 import { useMessageStore } from '../../stores/messages'
 import { useUnreadStore } from '../../stores/unreads'
@@ -26,6 +27,53 @@ const showNewMessagesBtn = ref(false)
 
 const messages = computed(() => messageStore.messagesByChannel[props.channelId] || [])
 const readState = computed(() => unreadStore.getChannelReadState(props.channelId))
+
+type TimelineItem =
+  | { kind: 'date'; key: string; label: string }
+  | { kind: 'message'; key: string; message: (typeof messages.value)[number] }
+
+function formatDateSeparator(date: Date): string {
+    if (!Number.isFinite(date.getTime())) {
+        return ''
+    }
+    if (isToday(date)) {
+        return 'Today'
+    }
+    if (isYesterday(date)) {
+        return 'Yesterday'
+    }
+    if (isSameYear(date, new Date())) {
+        return format(date, 'EEEE, MMM d')
+    }
+    return format(date, 'PP')
+}
+
+const timelineItems = computed<TimelineItem[]>(() => {
+    const items: TimelineItem[] = []
+    let lastDayKey: string | null = null
+
+    for (const message of messages.value) {
+        const date = new Date(message.timestamp)
+        const dayKey = Number.isFinite(date.getTime()) ? format(date, 'yyyy-MM-dd') : message.id
+
+        if (dayKey !== lastDayKey) {
+            items.push({
+                kind: 'date',
+                key: `date-${dayKey}`,
+                label: formatDateSeparator(date),
+            })
+            lastDayKey = dayKey
+        }
+
+        items.push({
+            kind: 'message',
+            key: `msg-${message.id}`,
+            message,
+        })
+    }
+
+    return items
+})
 
 // Batch fetch user statuses when messages change
 watch(() => messages.value, (newMessages) => {
@@ -182,29 +230,42 @@ function handleOpenProfile(userId: string) {
 
         <!-- Message List -->
         <div v-else class="space-y-[1px]">
-            <template v-for="msg in messages" :key="msg.id">
-                <!-- New Messages Divider -->
-                <div 
-                    v-if="readState?.first_unread_message_id && Number(msg.seq) === Number(readState.first_unread_message_id)" 
-                    class="flex items-center my-4 py-1.5"
+            <template v-for="item in timelineItems" :key="item.key">
+                <div
+                    v-if="item.kind === 'date'"
+                    class="flex items-center my-3 select-none"
                 >
-                    <div class="flex-1 h-px bg-rose-500/30"></div>
-                    <div class="px-sp-3 flex items-center space-x-sp-2">
-                        <span class="text-[11px] font-bold text-rose-500 uppercase tracking-widest">New Messages</span>
-                    </div>
-                    <div class="flex-1 h-px bg-rose-500/30"></div>
+                    <div class="flex-1 h-px bg-border-1"></div>
+                    <span class="px-3 text-[11px] font-semibold uppercase tracking-wide text-text-3">
+                        {{ item.label }}
+                    </span>
+                    <div class="flex-1 h-px bg-border-1"></div>
                 </div>
 
-                <MessageItem 
-                    :message="msg" 
-                    :data-message-id="msg.id"
-                    :class="{ 'bg-brand/5 ring-1 ring-brand/20': highlightedMessageId === msg.id }"
-                    class="transition-standard rounded-r-1"
-                    @reply="handleReply"
-                    @delete="handleDelete"
-                    @edit="handleEdit"
-                    @openProfile="handleOpenProfile"
-                />
+                <template v-else>
+                    <!-- New Messages Divider -->
+                    <div 
+                        v-if="readState?.first_unread_message_id && Number(item.message.seq) === Number(readState.first_unread_message_id)" 
+                        class="flex items-center my-4 py-1.5"
+                    >
+                        <div class="flex-1 h-px bg-rose-500/30"></div>
+                        <div class="px-sp-3 flex items-center space-x-sp-2">
+                            <span class="text-[11px] font-bold text-rose-500 uppercase tracking-widest">New Messages</span>
+                        </div>
+                        <div class="flex-1 h-px bg-rose-500/30"></div>
+                    </div>
+
+                    <MessageItem 
+                        :message="item.message" 
+                        :data-message-id="item.message.id"
+                        :class="{ 'bg-brand/5 ring-1 ring-brand/20': highlightedMessageId === item.message.id }"
+                        class="transition-standard rounded-r-1"
+                        @reply="handleReply"
+                        @delete="handleDelete"
+                        @edit="handleEdit"
+                        @openProfile="handleOpenProfile"
+                    />
+                </template>
             </template>
         </div>
     </div>

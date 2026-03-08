@@ -1,3 +1,4 @@
+#![allow(clippy::needless_borrows_for_generic_args)]
 use std::time::{Duration, Instant};
 
 use futures_util::StreamExt;

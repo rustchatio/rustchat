@@ -622,7 +622,7 @@ impl<'a> PolicyRepository<'a> {
                             )
                             .bind(user_id)
                             .bind(
-                                &names_vec
+                                names_vec
                                     .iter()
                                     .map(|n| n.to_lowercase())
                                     .collect::<Vec<_>>(),

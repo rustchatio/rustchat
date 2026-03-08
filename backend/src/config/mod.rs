@@ -275,18 +275,10 @@ impl Default for KeycloakSyncConfig {
 }
 
 /// Messaging policy configuration
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Default)]
 pub struct MessagingConfig {
     #[serde(default)]
     pub dm_acl_enabled: bool,
-}
-
-impl Default for MessagingConfig {
-    fn default() -> Self {
-        Self {
-            dm_acl_enabled: false,
-        }
-    }
 }
 
 /// Compatibility feature flags.
@@ -849,14 +841,12 @@ impl Config {
                     );
                 }
             }
-        } else {
-            if let Ok(site_url) = std::env::var("RUSTCHAT_SITE_URL") {
-                let normalized = site_url.trim().to_ascii_lowercase();
-                if !normalized.is_empty() && !normalized.starts_with("https://") {
-                    tracing::warn!(
-                        "RUSTCHAT_SITE_URL does not use https:// (allowed in non-production)"
-                    );
-                }
+        } else if let Ok(site_url) = std::env::var("RUSTCHAT_SITE_URL") {
+            let normalized = site_url.trim().to_ascii_lowercase();
+            if !normalized.is_empty() && !normalized.starts_with("https://") {
+                tracing::warn!(
+                    "RUSTCHAT_SITE_URL does not use https:// (allowed in non-production)"
+                );
             }
         }
 

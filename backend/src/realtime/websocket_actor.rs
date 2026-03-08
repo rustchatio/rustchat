@@ -395,7 +395,7 @@ impl ActorTask {
                             );
 
                             let reason = frame.map(|f| CloseReason {
-                                code: f.code.into(),
+                                code: f.code,
                                 reason: f.reason.to_string(),
                             }).unwrap_or_else(|| CloseReason {
                                 code: close_codes::NORMAL,
@@ -526,7 +526,7 @@ impl ActorTask {
 
                             let reason_clone = reason.clone();
                             let close_frame = CloseFrame {
-                                code: code.into(),
+                                code,
                                 reason: reason.into(),
                             };
 
@@ -611,7 +611,7 @@ impl ActorTask {
         // Send close frame for graceful shutdown (unless client already closed)
         // This prevents "Connection reset without closing handshake" errors
         let close_frame = CloseFrame {
-            code: close_codes::GOING_AWAY.into(),
+            code: close_codes::GOING_AWAY,
             reason: "Connection ended".into(),
         };
         // Best-effort close frame - don't wait or error if it fails

@@ -1,3 +1,5 @@
+#![allow(clippy::needless_borrows_for_generic_args)]
+#![allow(clippy::await_holding_lock)]
 use crate::common::spawn_app;
 use once_cell::sync::Lazy;
 use rustchat::models::Team;

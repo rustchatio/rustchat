@@ -1771,7 +1771,7 @@ async fn get_posts(
     let mut posts: Vec<PostResponse> = if let Some(since) = pagination.since {
         // Incremental sync: get posts created or edited since timestamp
         let since_time =
-            chrono::DateTime::from_timestamp_millis(since).unwrap_or_else(|| chrono::Utc::now());
+            chrono::DateTime::from_timestamp_millis(since).unwrap_or_else(chrono::Utc::now);
 
         sqlx::query_as(
             r#"
@@ -2328,7 +2328,7 @@ async fn mark_channel_as_unread(
     .await?;
 
     // Set last_viewed_at to the oldest post time, or epoch if no posts
-    let mark_time = oldest_post_time.unwrap_or_else(|| chrono::DateTime::UNIX_EPOCH);
+    let mark_time = oldest_post_time.unwrap_or(chrono::DateTime::UNIX_EPOCH);
 
     sqlx::query(
         "UPDATE channel_members SET last_viewed_at = $3, manually_unread = true, last_update_at = NOW() WHERE channel_id = $1 AND user_id = $2",

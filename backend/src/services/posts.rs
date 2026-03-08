@@ -360,19 +360,6 @@ fn truncate_preview(message: &str, max_chars: usize) -> String {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::truncate_preview;
-
-    #[test]
-    fn truncate_preview_keeps_valid_utf8_boundaries() {
-        let input = "🙂".repeat(101);
-        let truncated = truncate_preview(&input, 100);
-
-        assert_eq!(truncated, format!("{}...", "🙂".repeat(100)));
-    }
-}
-
 async fn ensure_permission(state: &AppState, user_id: Uuid, permission: &str) -> ApiResult<()> {
     let role: String = sqlx::query_scalar("SELECT role FROM users WHERE id = $1")
         .bind(user_id)
@@ -678,7 +665,7 @@ pub async fn get_posts(
 
     let posts: Vec<PostResponse> = if let Some(since) = query.since {
         let since_time =
-            chrono::DateTime::from_timestamp_millis(since).unwrap_or_else(|| chrono::Utc::now());
+            chrono::DateTime::from_timestamp_millis(since).unwrap_or_else(chrono::Utc::now);
 
         sqlx::query_as(
             r#"
@@ -822,4 +809,17 @@ pub async fn get_post_by_id(state: &AppState, post_id: Uuid) -> ApiResult<PostRe
     populate_files(state, std::slice::from_mut(&mut post)).await?;
 
     Ok(post)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::truncate_preview;
+
+    #[test]
+    fn truncate_preview_keeps_valid_utf8_boundaries() {
+        let input = "🙂".repeat(101);
+        let truncated = truncate_preview(&input, 100);
+
+        assert_eq!(truncated, format!("{}...", "🙂".repeat(100)));
+    }
 }

@@ -403,7 +403,7 @@ pub async fn send_push_to_user(
             title: title.clone(),
             body: body.clone(),
             data: data.clone(),
-            priority: priority,
+            priority,
             sound: Some("default".to_string()),
             badge: None,
             category: None,
@@ -477,7 +477,7 @@ pub async fn send_call_ringing_notification(
     // Get the call's thread_id (which is the post_id of the call post)
     let thread_id = state.call_state_manager.get_thread_id(call_id).await;
     let post_id = thread_id
-        .map(|id| crate::mattermost_compat::id::encode_mm_id(id))
+        .map(crate::mattermost_compat::id::encode_mm_id)
         .unwrap_or_else(|| call_id.to_string());
 
     // Get server URL for the mobile app to identify which server

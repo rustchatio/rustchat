@@ -450,7 +450,7 @@ pub async fn mark_thread_read_internal(
     let thread_id = parse_mm_or_uuid(&path.thread_id)
         .ok_or_else(|| AppError::BadRequest("Invalid thread_id".to_string()))?;
 
-    let read_at = DateTime::from_timestamp_millis(path.timestamp).unwrap_or_else(|| Utc::now());
+    let read_at = DateTime::from_timestamp_millis(path.timestamp).unwrap_or_else(Utc::now);
 
     // Upsert thread membership with read time
     sqlx::query(r#"

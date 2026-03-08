@@ -1,3 +1,4 @@
+#![allow(clippy::needless_borrows_for_generic_args)]
 //! Integration tests for password reset functionality
 //!
 //! Tests cover:

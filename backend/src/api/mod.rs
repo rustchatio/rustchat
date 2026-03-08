@@ -63,9 +63,9 @@ fn handle_panic(
     axum::http::Response::builder()
         .status(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
         .header("content-type", "application/json")
-        .body(axum::body::Body::from(format!(
-            r#"{{"error":{{"code":"PANIC","message":"Internal server error"}}}}"#
-        )))
+        .body(axum::body::Body::from(
+            r#"{"error":{"code":"PANIC","message":"Internal server error"}}"#.to_string(),
+        ))
         .unwrap()
 }
 

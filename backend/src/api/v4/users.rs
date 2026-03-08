@@ -1688,7 +1688,7 @@ async fn autocomplete_users(
     auth: MmAuthUser,
     Query(query): Query<AutocompleteQuery>,
 ) -> ApiResult<Json<Vec<mm::User>>> {
-    let limit = query.limit.unwrap_or(25).clamp(1, 200) as i64;
+    let limit = query.limit.unwrap_or(25).clamp(1, 200);
     let name = query.name.unwrap_or_default();
     let name_like = format!("%{}%", name);
 
@@ -2337,6 +2337,7 @@ async fn get_profiles_in_group_channels(
     }
 
     // Query users for each channel the requesting user is a member of
+    #[allow(clippy::type_complexity)]
     let rows: Vec<(
         Uuid,
         Uuid,

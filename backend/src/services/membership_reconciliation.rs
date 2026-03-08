@@ -146,7 +146,7 @@ impl ReconciliationWorker {
                           AND gm.group_id = ANY($1)
                         "#,
                     )
-                    .bind(&group_ids.into_iter().collect::<Vec<_>>())
+                    .bind(group_ids.into_iter().collect::<Vec<_>>())
                     .fetch_all(&self.state.db)
                     .await?;
                 }
@@ -164,7 +164,7 @@ impl ReconciliationWorker {
                         "#,
                     )
                     .bind(
-                        &names_vec
+                        names_vec
                             .iter()
                             .map(|n| n.to_lowercase())
                             .collect::<Vec<_>>(),

@@ -381,7 +381,7 @@ fn validate_sso_config(input: &CreateSsoConfig, is_update: bool) -> ApiResult<Ss
             }
             // Ensure scopes include 'openid' for OIDC
             let scopes = input.scopes.as_ref();
-            let has_openid = scopes.map_or(true, |s| s.iter().any(|scope| scope == "openid"));
+            let has_openid = scopes.is_none_or(|s| s.iter().any(|scope| scope == "openid"));
             if !has_openid {
                 return Err(AppError::Validation(
                     "OIDC providers require 'openid' in scopes".to_string(),
@@ -576,8 +576,8 @@ async fn update_sso_config(
     .bind(&input.client_id)
     .bind(&encrypted_secret)
     .bind(&input.scopes)
-    .bind(&input.is_active)
-    .bind(&input.auto_provision)
+    .bind(input.is_active)
+    .bind(input.auto_provision)
     .bind(&input.default_role)
     .bind(&input.allow_domains)
     .bind(&input.github_org)
@@ -2278,7 +2278,7 @@ async fn test_email_config(
             &test_email,
             false,
             Some(error_msg.clone()),
-            Some(&kind),
+            Some(kind),
         )
         .await;
         return Err(AppError::ExternalService(format!(
@@ -2349,7 +2349,7 @@ async fn test_email_config(
                 &test_email,
                 false,
                 Some(error_msg.clone()),
-                Some(&kind),
+                Some(kind),
             )
             .await;
             Err(AppError::ExternalService(format!(

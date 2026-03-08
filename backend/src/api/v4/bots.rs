@@ -95,6 +95,7 @@ pub async fn list_bots(
     _auth: MmAuthUser,
     Query(query): Query<BotQuery>,
 ) -> ApiResult<Json<Vec<mm::Bot>>> {
+    #[allow(clippy::type_complexity)]
     let rows: Vec<(Uuid, String, String, Option<String>, Uuid, chrono::DateTime<chrono::Utc>, chrono::DateTime<chrono::Utc>)> = sqlx::query_as(
         r#"
         SELECT b.user_id, u.username, b.display_name, b.description, b.owner_id, b.created_at, b.updated_at

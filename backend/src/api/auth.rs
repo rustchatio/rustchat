@@ -259,13 +259,13 @@ async fn register(
                 state.jwt_expiry_hours,
             )?;
 
-            return Ok(Json(serde_json::json!({
+            Ok(Json(serde_json::json!({
                 "success": true,
                 "message": "Registration successful. Please check your email to verify your account.",
                 "requires_password_setup": false,
                 "token": token,
                 "user": UserResponse::from(user)
-            })));
+            })))
         } else {
             // Passwordless registration: send password setup email
             match crate::services::password_reset::send_password_setup_email(
@@ -286,12 +286,12 @@ async fn register(
                 }
             }
 
-            return Ok(Json(serde_json::json!({
+            Ok(Json(serde_json::json!({
                 "success": true,
                 "message": "Registration successful. Please check your email to set your password.",
                 "requires_password_setup": true,
                 "email": user.email
-            })));
+            })))
         }
     } else {
         tracing::warn!("site_url not configured, skipping email sending");
@@ -309,20 +309,20 @@ async fn register(
                 state.jwt_expiry_hours,
             )?;
 
-            return Ok(Json(serde_json::json!({
+            Ok(Json(serde_json::json!({
                 "success": true,
                 "message": "Registration successful.",
                 "requires_password_setup": false,
                 "token": token,
                 "user": UserResponse::from(user)
-            })));
+            })))
         } else {
-            return Ok(Json(serde_json::json!({
+            Ok(Json(serde_json::json!({
                 "success": true,
                 "message": "Registration successful. Please contact administrator to set your password.",
                 "requires_password_setup": true,
                 "email": user.email
-            })));
+            })))
         }
     }
 }

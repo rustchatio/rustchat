@@ -1,3 +1,4 @@
+#![allow(clippy::needless_borrows_for_generic_args)]
 //! Security integration tests
 //!
 //! Tests for security-critical functionality including:

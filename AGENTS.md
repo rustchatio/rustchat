@@ -16,6 +16,47 @@ Rustchat is a self-hosted collaboration platform with:
 - Keep code, comments, docs, commit messages, and PR text in English.
 - Keep changes scoped to the request; do not bundle unrelated refactors.
 
+## Project Mission
+
+We are building `rustchat`, a high-performance, security-hardened Rust backend compatible with the Mattermost API.
+
+## Tech Stack Constraints
+
+- Prefer idiomatic asynchronous Rust using Tokio + Axum patterns.
+- Use PostgreSQL as the primary persistent data store.
+- Treat Meilisearch as the preferred indexing/search engine when building dedicated retrieval workflows.
+
+## Universal Coding Rules
+
+- All public functions must return `Result` or `Option`.
+- Preserve strict compatibility with Mattermost API response signatures for compatibility surfaces.
+- Run `cargo clippy` and `cargo test` before concluding a backend task.
+
+## Progressive Disclosure for Agents
+
+Use a three-tier documentation model to reduce context waste and improve decision quality:
+
+1. Tier 1 (`AGENTS.md`): global repository policy and non-negotiable rules.
+2. Tier 2 (`.agents/skills/*/SKILL.md`): specialized, trigger-based workflows and constraints.
+3. Tier 3 (task-local files): working memory artifacts such as `SPEC.md` and `task_plan.md`.
+
+Agents must load the minimum tier needed first, and only pull deeper context when required by task complexity.
+
+## Plan-First Workflow (Mandatory)
+
+For feature or behavior changes, use this gate before implementation:
+
+1. Requirement phase:
+   - Research the current code and compatibility context.
+   - Draft `SPEC.md` at repository root with scope, contract impact, and verification approach.
+2. Validation gate:
+   - Pause and ask: `Does this plan meet your expectations? Please approve or provide feedback.`
+   - Do not write implementation code until explicit user approval is received.
+3. Verification phase:
+   - Update `task_plan.md` at repository root with implementation and test status.
+   - Mark task readiness for testing.
+   - Provide at least one concrete manual verification command (for example, `curl`) for user acceptance.
+
 ## Compatibility-First Workflow (Mandatory, Strict)
 
 Use this workflow for any change that can affect external client compatibility (API v4 routes, websocket events, pagination, error semantics, calls behavior).
@@ -253,8 +294,19 @@ Use the following skills based on task category:
   - required for end-to-end mobile journey validation
 - `production-readiness-gate`:
   - required when evaluating release readiness or parity claims
+- `mattermost-api-parity`:
+  - required for API error envelope, error ID/message semantics, and parameter pattern parity
+- `ai-summarization-rag`:
+  - required for retrieval-augmented summarization features and thread-summary pipelines
+- `user-validation`:
+  - required for plan-first user-in-the-loop delivery (`SPEC.md` approval gate + `task_plan.md` verification tracking)
 - `guidelines`:
   - required as a final quality/scope sanity check
+
+Trigger composition guidance:
+- `user-validation` governs delivery process and approval gates; it does not replace compatibility skills.
+- For compatibility-sensitive API routes, combine `mattermost-analysis-first` + `mattermost-api-parity` + `mm-endpoint-contract-parity`.
+- Use `ai-summarization-rag` only when the requested change includes summarization or retrieval behavior.
 
 ## Important Reminders
 

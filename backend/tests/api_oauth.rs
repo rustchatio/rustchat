@@ -1,3 +1,4 @@
+#![allow(clippy::needless_borrows_for_generic_args)]
 //! OAuth2/OIDC integration tests
 
 mod common;

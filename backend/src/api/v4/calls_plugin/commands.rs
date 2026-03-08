@@ -54,8 +54,8 @@ async fn handle_call_command(
         .map_err(|_| AppError::BadRequest("Invalid channel_id".to_string()))?;
 
     // Parse command text
-    let args: Vec<&str> = payload.text.trim().split_whitespace().collect();
-    let subcommand = args.get(0).map(|s| *s).unwrap_or("start");
+    let args: Vec<&str> = payload.text.split_whitespace().collect();
+    let subcommand = args.first().copied().unwrap_or("start");
 
     match subcommand {
         "start" => handle_start_command(&state, auth.user_id, channel_uuid).await,
@@ -64,9 +64,8 @@ async fn handle_call_command(
         "end" => handle_end_command(&state, auth.user_id, channel_uuid).await,
         "mute" => handle_mute_command(&state, auth.user_id, channel_uuid).await,
         "unmute" => handle_unmute_command(&state, auth.user_id, channel_uuid).await,
-        "help" | _ => Ok(Json(SlashCommandResponse {
-            text: format!(
-                "**Call Commands**\n\
+        _ => Ok(Json(SlashCommandResponse {
+            text: "**Call Commands**\n\
                 • `/call start` - Start a new call in this channel\n\
                 • `/call join` - Join the active call\n\
                 • `/call leave` - Leave the current call\n\
@@ -74,7 +73,7 @@ async fn handle_call_command(
                 • `/call mute` - Mute yourself\n\
                 • `/call unmute` - Unmute yourself\n\
                 • `/call help` - Show this help message"
-            ),
+                .to_string(),
             response_type: "ephemeral".to_string(),
             props: None,
         })),

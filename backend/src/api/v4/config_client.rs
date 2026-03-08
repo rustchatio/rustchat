@@ -389,6 +389,19 @@ fn legacy_config(
     insert(&mut map, "WebsocketPort", "80");
     insert(&mut map, "WebsocketSecurePort", "443");
     insert(&mut map, "WebsocketURL", "");
+    insert(
+        &mut map,
+        "PostEditTimeLimit",
+        &site.post_edit_time_limit_seconds.to_string(),
+    );
+    let allow_edit_post = if site.post_edit_time_limit_seconds == 0 {
+        "never"
+    } else if site.post_edit_time_limit_seconds > 0 {
+        "time_limit"
+    } else {
+        "always"
+    };
+    insert(&mut map, "AllowEditPost", allow_edit_post);
     insert(&mut map, "MaxReactionsPerPost", "50");
     // Typing indicators (used by Mattermost mobile/web clients).
     // Mobile defaults to `false` when missing, which disables typing emits.

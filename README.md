@@ -1,258 +1,243 @@
 # rustchat
 
-Self-hosted team collaboration platform written in Rust, with a native web UI and a Mattermost-compatible API layer.
+Self-hosted team collaboration platform with a Rust backend and a Vue web client.
 
-[![Rust](https://img.shields.io/badge/rust-1.92+-orange.svg)](https://www.rust-lang.org/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+rustchat targets two audiences:
+- **Contributing developers** who want to build a Mattermost-compatible server in Rust.
+- **Self-hosting operators** who want to run their own collaboration stack.
 
-## Project Status
+## Scope and Honesty Policy
 
-Status: **active development / pre-release** (not production-hardened yet).
+This README is intentionally explicit about:
+- what is implemented,
+- what is partial,
+- what is not implemented,
+- what was actually verified in this workspace.
 
-Snapshot date: **2026-02-07**
+If a capability is uncertain, it is marked as partial or unverified.
 
-Verification signals from this repo:
-- Backend compiles: `cargo check` passes (with many warnings).
-- Frontend builds: `npm run build` passes.
-- Test health is not green yet:
-  - `cargo test` fails to compile several integration tests because `api::router` call sites were not updated after adding a new `Config` argument.
-  - `cargo test --lib` runs, and lib tests pass.
+## Current Status (as of 2026-03-07)
 
-## Implemented Functions
+Project maturity:
+- **Active development / pre-release**.
+- **No production-ready claim** is made here.
 
-RustChat currently includes these major function groups.
+Verification snapshot executed in this workspace:
+- `cd backend && cargo check` -> **PASS**
+- `cd frontend && npm run build` -> **PASS**
+- `cd backend && cargo test --no-fail-fast -- --nocapture` -> **PARTIAL/FAIL** (unit tests passed; many integration tests failed due missing DB bootstrap/test env)
+- `BASE=http://127.0.0.1:3000 ./scripts/mm_compat_smoke.sh` -> **FAIL** (target not running)
+- `BASE=http://127.0.0.1:3000 ./scripts/mm_mobile_smoke.sh` -> **FAIL** (target not running / no compatibility preflight)
 
-### Core collaboration
-- User registration/login and JWT auth.
-- Teams and channels (public/private/direct/group), membership management.
-- Posts/messages with edit/delete, reactions, pin/unpin, save/unsave.
-- Threads and thread-following routes.
-- Unread tracking and mark-read flows.
-- Real-time messaging via WebSocket.
-- File upload/download/preview and metadata endpoints.
-- Message search (PostgreSQL full-text queries).
+## What rustchat Does
 
-### Admin and operations
-- Admin dashboard APIs for config, users, teams, permissions, health, and audit views.
-- Server config persistence in DB (`server_config` table family).
-- Retention background job.
-- Health probes (`/api/v1/health/live`, `/api/v1/health/ready`).
+### Core platform
+- Rust backend (`Axum + Tokio + SQLx`) under [`backend/`](backend/).
+- Web app (`Vue 3 + TypeScript + Pinia`) under [`frontend/`](frontend/).
+- Push notification proxy service under [`push-proxy/`](push-proxy/).
+- PostgreSQL + Redis + S3-compatible object storage integration.
 
-### Integrations and automation
-- Incoming/outgoing webhooks.
-- Slash commands.
-- Bot accounts and bot tokens.
-- OAuth provider integration endpoints.
-- Playbooks/checklists/runs APIs.
+### API surfaces
+- Native API surface under `/api/v1` for first-party web features.
+- Mattermost compatibility surface under `/api/v4` with broad route coverage.
+- v4 compatibility behavior includes:
+  - `X-MM-COMPAT: 1` response header on v4 routes.
+  - Explicit `501 Not Implemented` fallback for unsupported v4 routes.
 
-### Calls
-- Mattermost Calls plugin route namespace under `/api/v4/plugins/com.mattermost.calls/*`.
-- Call lifecycle APIs (start/join/leave/state, mute/unmute, raise/lower hand, react, screenshare flags).
-- TURN/STUN config exposure for clients.
-- SFU/WebRTC signaling path (`offer`, `ice`) with ICE candidate handling and websocket signaling events.
-- Redis-backed call state backend with `memory|redis|auto` mode selection.
+Evidence:
+- [`backend/src/api/v4/mod.rs`](backend/src/api/v4/mod.rs)
+- [`scripts/mm_compat_smoke.sh`](scripts/mm_compat_smoke.sh)
+- [`scripts/mm_mobile_smoke.sh`](scripts/mm_mobile_smoke.sh)
 
-## Compatibility
+### Real-time and calls
+- WebSocket endpoint for Mattermost-style clients at `/api/v4/websocket`.
+- Separate legacy/first-party websocket surface exists (`/api/v1/ws`).
+- Calls plugin route surface under `/api/v4/plugins/com.mattermost.calls/*`.
+- Calls state backends:
+  - `memory` (single-node)
+  - `redis` (shared control-plane state)
+  - `auto` (Redis-first with fallback)
 
-Compatibility claims in this section were last verified on **2026-02-07** against:
-- `backend/src/api/v4/mod.rs`
-- `backend/src/api/v4/system.rs`
-- `backend/src/api/v4/plugins.rs`
-- `backend/src/api/v4/websocket.rs`
-- `docs/mattermost-compat.md`
-- `docs/mattermost-v4-comparison.md`
+Evidence:
+- [`backend/src/api/v4/websocket.rs`](backend/src/api/v4/websocket.rs)
+- [`backend/src/api/ws.rs`](backend/src/api/ws.rs)
+- [`backend/src/api/v4/calls_plugin/mod.rs`](backend/src/api/v4/calls_plugin/mod.rs)
+- [`docs/calls_deployment_modes.md`](docs/calls_deployment_modes.md)
 
-### Client compatibility matrix
+### Operations and security posture
+- Production-mode validation enforces stricter security constraints (JWT issuer/audience, HTTPS requirements, restricted legacy token transport).
+- Environment-based CORS behavior (development vs production).
 
-| Client/API | Status | Notes |
-|---|---|---|
-| RustChat Web UI (Vue 3) | Working baseline | Main first-party client. |
-| RustChat API v1 (`/api/v1`) | Working baseline | Native API used by web app and admin console. |
-| Mattermost API v4 (`/api/v4`) | Partial compatibility | Broad endpoint surface exists; parity varies by endpoint depth. |
-| Mattermost Mobile/Desktop clients | Partial compatibility | Login, teams/channels, posts, websocket, and calls plugin handshake paths are present; some features are stubbed or simplified. |
-| Mattermost Calls plugin API | Partial compatibility | Signaling and distributed call state baseline are implemented; media forwarding/scaling is still evolving. |
+Evidence:
+- [`backend/src/config/mod.rs`](backend/src/config/mod.rs)
+- [`backend/src/api/mod.rs`](backend/src/api/mod.rs)
 
-### Compatibility behavior notes
-- `/api/v4/*` responses include `X-MM-COMPAT: 1`.
-- v4 router has a fallback that returns `501 Not Implemented` for unmatched routes.
-- Mattermost compatibility version constant is currently `10.11.10`.
-- Plugin mutation and interactive dialogs routes are explicit `501` (not silent stubs).
-- Several enterprise-specific paths intentionally return `501` (e.g., many LDAP/SAML operations).
+## What rustchat Cannot (or Does Not Yet) Do Completely
 
-## Current Design Problems
+### Not fully implemented v4 areas (explicit or effective)
+- Some v4 modules intentionally return `501` for selected endpoints (examples: parts of plugins, dialogs, custom profile, selected system/calls plugin-management paths).
+- Several v4 domains expose placeholder-style responses for now (notably parts of OAuth app/outgoing connection management and some command/bot mutation paths).
 
-The following are known technical/design gaps in the current codebase:
+Evidence:
+- [`backend/src/api/v4/plugins.rs`](backend/src/api/v4/plugins.rs)
+- [`backend/src/api/v4/dialogs.rs`](backend/src/api/v4/dialogs.rs)
+- [`backend/src/api/v4/custom_profile.rs`](backend/src/api/v4/custom_profile.rs)
+- [`backend/src/api/v4/oauth.rs`](backend/src/api/v4/oauth.rs)
+- [`backend/src/api/v4/commands.rs`](backend/src/api/v4/commands.rs)
+- [`backend/src/api/v4/bots.rs`](backend/src/api/v4/bots.rs)
 
-1. API surface vs semantic completeness gap
-- Many v4 routes exist, but a subset return placeholder/hardcoded responses or stub success payloads (for example in cluster/compliance/terms/roles and other enterprise modules).
+### Calls architecture limits
+- Multi-node control-plane call state is available in Redis mode.
+- SFU media plane is still instance-local (no fully distributed media fabric claim).
 
-2. Calls architecture not fully production-ready
-- SFU media forwarding/scaling remains a baseline implementation.
+Evidence:
+- [`docs/calls_deployment_modes.md`](docs/calls_deployment_modes.md)
 
-3. Dual websocket stacks increase complexity
-- There is a v1 websocket endpoint and a separate Mattermost-style v4 websocket implementation with overlapping responsibilities.
+### Verification limits right now
+- Full integration test confidence requires a correctly bootstrapped test DB/Redis/S3 test environment.
+- Compatibility smoke checks require a live running backend exposing `/api/v4`.
 
-4. Test suite drift
-- Integration tests are out of sync with current router signature.
-- Some lib tests are environment-sensitive and currently fail in this environment.
+## What rustchat Does Differently
 
-5. Security and operations defaults need tightening
-- Global permissive CORS (`allow_origin(Any)` and broad methods/headers).
-- Default TURN credentials in compose are development-friendly but should not be treated as secure defaults.
+Compared with typical Mattermost-compatible deployments, rustchat explicitly differs in these areas:
 
-6. Maintainability debt
-- Large monolithic API files (notably v4 users/channels/posts modules) and a high warning count make evolution harder.
+1. **Rust-first server implementation**
+- The backend is implemented in Rust rather than Go.
 
-## Improvement Priorities
+2. **Dual API strategy**
+- Maintains native `/api/v1` plus compatibility `/api/v4` in the same server.
 
-1. Make tests green and enforced
-- Fix integration test compile breaks.
-- Stabilize or isolate environment-dependent tests.
-- Add CI gates for `cargo check`, `cargo test`, frontend build, and compatibility smoke tests.
+3. **Compatibility signaling discipline**
+- v4 explicitly advertises compatibility with `X-MM-COMPAT: 1` and uses explicit `501` fallback for unsupported routes.
 
-2. Harden Mattermost compatibility claims
-- Convert placeholder endpoints either to real behavior or explicit documented `501`.
-- Add an automated compatibility matrix generated from tests, not manual docs.
+4. **Command invocation policy in product UX**
+- Primary command invocation is keyboard-first (`Ctrl/Cmd+K` on desktop, `^k` token in composer/mobile-typed input).
+- Slash-command-first UX is intentionally not the primary entry path.
 
-3. Complete calls media architecture
-- Extend SFU media quality and scaling controls for high-participant calls.
-- Harden distributed SFU orchestration across instances.
+Evidence:
+- [`backend/src/api/v4/mod.rs`](backend/src/api/v4/mod.rs)
+- [`frontend/src/components/composer/MessageComposer.vue`](frontend/src/components/composer/MessageComposer.vue)
+- [`AGENTS.md`](AGENTS.md)
 
-4. Tighten security posture
-- Restrict CORS by environment.
-- Remove insecure development defaults from production examples.
-- Review auth/session handling paths (especially OAuth callback/token flow).
+## Target Audience Guidance
 
-5. Improve structure and docs
-- Split oversized route modules.
-- Keep compatibility docs and env examples aligned with code and compose updates.
+### For self-host operators
+Use rustchat if you want:
+- self-hosted collaboration infrastructure,
+- Rust backend stack,
+- gradual Mattermost client compatibility.
 
-## Quick Start (Dev)
+Do not treat this repository as production-ready by default unless your own deployment gates are green (tests, smoke checks, security hardening, operational monitoring).
+
+### For contributing developers
+You will work on:
+- strict API contract behavior for compatibility-sensitive endpoints,
+- websocket and calls parity details,
+- incremental replacement of partial/stubbed routes,
+- CI/test hardening for confidence.
+
+## Quick Start (Operator)
 
 ### Prerequisites
-- Rust `1.92+`
-- Node.js `24+` (frontend `package.json` engine)
-- Docker and Docker Compose
+- Docker + Docker Compose
+- `.env` file with required secrets
 
-### Run with Docker Compose
+### 1) Configure
 ```bash
 cp .env.example .env
+```
+Set at minimum:
+- `RUSTCHAT_JWT_SECRET`
+- `RUSTCHAT_JWT_ISSUER`
+- `RUSTCHAT_JWT_AUDIENCE`
+- `RUSTCHAT_ENCRYPTION_KEY`
+- `RUSTCHAT_S3_ACCESS_KEY`
+- `RUSTCHAT_S3_SECRET_KEY`
+- `RUSTFS_ACCESS_KEY`
+- `RUSTFS_SECRET_KEY`
+
+### 2) Run stack
+```bash
 docker compose up -d --build
 ```
 
-Important:
-- `docker-compose.yml` no longer ships fallback JWT/encryption secrets.
-- Set `RUSTCHAT_JWT_SECRET` and `RUSTCHAT_ENCRYPTION_KEY` in `.env` before startup.
-- Set `RUSTCHAT_S3_ACCESS_KEY`, `RUSTCHAT_S3_SECRET_KEY`, `RUSTFS_ACCESS_KEY`, and `RUSTFS_SECRET_KEY` in `.env` before startup.
-  For bundled `rustfs`, the `RUSTCHAT_S3_*` and `RUSTFS_*` credential values must match.
-- For production, set `RUSTCHAT_ENVIRONMENT=production` and define `RUSTCHAT_CORS_ALLOWED_ORIGINS`.
-- For production, terminate TLS at the edge/proxy and avoid HTTP-only exposure.
-- Query-token transport is removed and rejected at startup (`RUSTCHAT_SECURITY_OAUTH_TOKEN_DELIVERY=query` and `RUSTCHAT_SECURITY_WS_ALLOW_QUERY_TOKEN=true` are invalid).
-- In production mode, `RUSTCHAT_SITE_URL` (if set) and all `RUSTCHAT_CORS_ALLOWED_ORIGINS` entries must use `https://`.
-
-Default services:
-- Web UI / reverse proxy: `http://localhost:8080`
-- Backend API: `http://localhost:3000`
+Default endpoints:
+- Web UI: `http://localhost:8080`
+- Backend: `http://localhost:3000`
 - Postgres: `localhost:5432`
 - Redis: `localhost:6379`
-- S3-compatible storage (RustFS): `localhost:9000`
+- S3 API (RustFS): `localhost:9000`
 
-### Local backend + frontend
+### 3) Compatibility smoke checks
 ```bash
-# Terminal 1
-cd backend
-cargo run
-
-# Terminal 2
-cd frontend
-npm run dev
+BASE=http://127.0.0.1:3000 ./scripts/mm_compat_smoke.sh
+BASE=http://127.0.0.1:3000 ./scripts/mm_mobile_smoke.sh
 ```
 
-## Repository Layout
+## Local Development (Contributor)
+
+### Backend
+```bash
+cd backend
+cargo fmt
+cargo clippy --all-targets --all-features -- -D warnings
+cargo check
+cargo test --no-fail-fast -- --nocapture
+```
+
+If integration tests need dependencies:
+```bash
+docker compose up -d postgres redis rustfs
+```
+
+Or deterministic integration profile:
+```bash
+docker compose -f docker-compose.integration.yml up -d
+export RUSTCHAT_TEST_DATABASE_URL=postgres://rustchat:rustchat@127.0.0.1:55432/rustchat
+export RUSTCHAT_TEST_REDIS_URL=redis://127.0.0.1:56379/
+export RUSTCHAT_TEST_S3_ENDPOINT=http://127.0.0.1:59000
+export RUSTCHAT_TEST_S3_ACCESS_KEY=minioadmin
+export RUSTCHAT_TEST_S3_SECRET_KEY=minioadmin
+```
+
+### Frontend
+```bash
+cd frontend
+npm ci
+npm run build
+```
+
+Optional E2E:
+```bash
+npm run test:e2e
+```
+
+## Repository Map
 
 ```text
 rustchat/
-├── backend/        # Rust backend (API, realtime, DB, storage, compat layer)
-├── frontend/       # Vue 3 frontend
-├── docs/           # Project docs
-├── docker/         # Dockerfiles and Nginx config
-├── scripts/        # Smoke/build helper scripts
-└── tools/          # Compatibility tooling and reports
+├── backend/            Rust API server (v1 + v4 + websocket + calls)
+├── frontend/           Vue web client
+├── push-proxy/         Push notification proxy
+├── scripts/            Compatibility and operational smoke scripts
+├── tools/mm-compat/    Compatibility extraction/report tooling
+├── docs/               Operator/developer architecture and runbooks
+└── previous-analyses/  Historical compatibility analysis artifacts
 ```
 
-## Calls Deployment Modes
+## Key Documentation
 
-See `docs/calls_deployment_modes.md` for single-node vs multi-node behavior, fallback semantics, and current limits.
-
-## Push Notifications (Mobile)
-
-RustChat includes a push notification proxy service for mobile call ringing and message notifications.
-
-### Features
-- **FCM (Android)**: High-priority data messages for call notifications
-- **APNS (iOS)**: VoIP push support for CallKit integration (requires credentials)
-- **Call Identification**: Uses `sub_type: "calls"` for mobile app call detection
-
-### Configuration
-
-1. **Copy and edit `.env`:**
-```bash
-cp .env.example .env
-```
-
-2. **Add Firebase credentials:**
-```bash
-# Download service account key from Firebase Console
-# Place it at: ./secrets/firebase-key.json
-
-# Add to .env:
-FIREBASE_PROJECT_ID=your-project-id
-FIREBASE_KEY_PATH=./secrets/firebase-key.json
-```
-
-3. **(Optional) APNS for iOS:**
-```bash
-# Add to .env:
-APNS_KEY_PATH=./secrets/apns-key.p8
-APNS_KEY_ID=your-key-id
-APNS_TEAM_ID=your-team-id
-APNS_BUNDLE_ID=your-bundle-id
-```
-
-4. **Start services:**
-```bash
-docker compose up -d push-proxy
-```
-
-The push proxy runs on port `3001` (host) by default.
-
-### Testing
-
-```bash
-# Send test notification
-./scripts/test_push_notification.sh <device_token> [android|ios]
-```
-
-See [IMPLEMENTATION_SUMMARY.md](IMPLEMENTATION_SUMMARY.md) for detailed implementation notes and mobile app requirements.
-
-## Security Mode Notes
-
-- `RUSTCHAT_ENVIRONMENT=development` keeps developer-friendly CORS defaults.
-- `RUSTCHAT_ENVIRONMENT=production` makes CORS restricted by default unless `RUSTCHAT_CORS_ALLOWED_ORIGINS` is configured.
-- OAuth login now enforces Redis-backed CSRF `state` validation and decrypts stored SSO client secrets.
-
-## Documentation
-
-- [docs/user_guide.md](docs/user_guide.md)
-- [docs/admin_guide.md](docs/admin_guide.md)
-- [docs/architecture.md](docs/architecture.md)
-- [docs/mattermost-compat.md](docs/mattermost-compat.md)
-- [docs/mattermost-v4-comparison.md](docs/mattermost-v4-comparison.md)
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md).
+- [Architecture](docs/architecture.md)
+- [WebSocket Architecture](docs/websocket_architecture.md)
+- [Calls Deployment Modes](docs/calls_deployment_modes.md)
+- [Running Environment](docs/running_environment.md)
+- [Operations Runbook](docs/operations-runbook.md)
+- [Security Deployment Guide](docs/security-deployment-guide.md)
+- [Admin Guide](docs/admin_guide.md)
+- [User Guide](docs/user_guide.md)
+- [Contributing](CONTRIBUTING.md)
+- [Security Policy](SECURITY.md)
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT - see [LICENSE](LICENSE).

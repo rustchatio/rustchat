@@ -79,6 +79,7 @@ pub fn create_token(
 }
 
 /// Create a JWT token for a user with optional issuer/audience policy.
+#[allow(clippy::too_many_arguments)]
 pub fn create_token_with_policy(
     user_id: Uuid,
     email: &str,

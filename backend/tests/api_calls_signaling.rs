@@ -1,3 +1,5 @@
+#![allow(clippy::needless_borrows_for_generic_args)]
+#![allow(clippy::useless_conversion)]
 use std::time::{Duration, Instant};
 
 use futures_util::{SinkExt, StreamExt};

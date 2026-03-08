@@ -77,6 +77,33 @@ async fn create_team(app: &common::TestApp, owner_token: &str, name: &str) -> Te
     response.json().await.expect("invalid team response")
 }
 
+async fn create_custom_group(app: &common::TestApp, admin_token: &str, name: &str) -> Uuid {
+    let response = app
+        .api_client
+        .post(format!("{}/api/v4/groups", &app.address))
+        .header("Authorization", format!("Bearer {}", admin_token))
+        .json(&serde_json::json!({
+            "name": name,
+            "display_name": format!("{name} Display"),
+            "description": "group for route parity test",
+            "source": "custom",
+            "allow_reference": true,
+            "user_ids": []
+        }))
+        .send()
+        .await
+        .expect("group create request failed");
+
+    assert_eq!(
+        response.status().as_u16(),
+        201,
+        "group create should succeed"
+    );
+    let body: serde_json::Value = response.json().await.expect("invalid group create body");
+    parse_mm_or_uuid(body["id"].as_str().expect("missing group id"))
+        .expect("group id should parse as mm/uuid")
+}
+
 async fn insert_ldap_group(app: &common::TestApp, name: &str, display_name: &str) -> Uuid {
     sqlx::query_scalar(
         r#"
@@ -759,4 +786,55 @@ async fn v4_group_association_endpoints_reject_non_members_without_system_scope(
         .await
         .expect("outsider user groups request failed");
     assert_eq!(user_forbidden.status().as_u16(), 403);
+}
+
+#[tokio::test]
+async fn v4_group_patch_requires_canonical_patch_route() {
+    let _guard = TEST_MUTEX.lock().expect("test mutex poisoned");
+    let app = spawn_app().await;
+
+    register_user(
+        &app,
+        "group_patch_admin",
+        "group_patch_admin@example.com",
+        "Password123!",
+    )
+    .await;
+    set_user_role(&app, "group_patch_admin@example.com", "system_admin").await;
+
+    let admin_token = login_token(&app, "group_patch_admin@example.com", "Password123!").await;
+    let group_id = create_custom_group(&app, &admin_token, "route-parity-group").await;
+
+    let legacy_patch_response = app
+        .api_client
+        .put(format!("{}/api/v4/groups/{}", &app.address, group_id))
+        .header("Authorization", format!("Bearer {}", admin_token))
+        .json(&serde_json::json!({
+            "display_name": "Updated Legacy Route"
+        }))
+        .send()
+        .await
+        .expect("legacy patch request failed");
+    assert_eq!(
+        legacy_patch_response.status().as_u16(),
+        405,
+        "legacy PUT /groups/{group_id} should be method-not-allowed"
+    );
+
+    let canonical_patch_response = app
+        .api_client
+        .put(format!("{}/api/v4/groups/{}/patch", &app.address, group_id))
+        .header("Authorization", format!("Bearer {}", admin_token))
+        .json(&serde_json::json!({
+            "display_name": "Updated Canonical Route"
+        }))
+        .send()
+        .await
+        .expect("canonical patch request failed");
+    assert_eq!(canonical_patch_response.status().as_u16(), 200);
+    let patched_body: serde_json::Value = canonical_patch_response
+        .json()
+        .await
+        .expect("invalid canonical patch response");
+    assert_eq!(patched_body["display_name"], "Updated Canonical Route");
 }

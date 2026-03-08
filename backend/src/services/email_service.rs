@@ -422,6 +422,7 @@ impl EmailService {
     }
 
     /// Record an email event
+    #[allow(clippy::too_many_arguments)]
     async fn record_event(
         &self,
         outbox_id: Option<Uuid>,
@@ -571,7 +572,7 @@ impl EmailService {
         .bind(request.offline_notifications_opt_in)
         .bind(request.mention_notifications_opt_in)
         .bind(request.digest_opt_in)
-        .bind(request.quiet_hours.map(|q| sqlx::types::Json(q)))
+        .bind(request.quiet_hours.map(sqlx::types::Json))
         .bind(request.locale)
         .bind(request.offline_throttle_minutes)
         .bind(request.include_message_content)

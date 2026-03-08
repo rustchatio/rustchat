@@ -8,7 +8,8 @@ const DEFAULT_CONFIG: PublicConfig = {
   site_name: 'RustChat',
   logo_url: undefined,
   enable_sso: false,
-  require_sso: false
+  require_sso: false,
+  post_edit_time_limit_seconds: -1,
 }
 
 export const useConfigStore = defineStore('configStore', () => {

@@ -14,7 +14,8 @@ export const useConfigStore = defineStore('config', () => {
         site_name: 'RustChat',
         logo_url: undefined,
         enable_sso: false,
-        require_sso: false
+        require_sso: false,
+        post_edit_time_limit_seconds: -1,
     })
     
     const authConfig = ref<AuthConfig | null>(null)
@@ -88,8 +89,7 @@ export const useConfigStore = defineStore('config', () => {
             if (data.category === 'site') {
                 siteConfig.value = {
                     ...siteConfig.value,
-                    site_name: data.config.site_name,
-                    logo_url: data.config.logo_url
+                    ...data.config,
                 }
             } else if (data.category === 'authentication') {
                 authConfig.value = { ...authConfig.value, ...data.config }

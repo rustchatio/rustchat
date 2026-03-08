@@ -22,6 +22,7 @@
 2. The single direct sampled route gap is `PUT /api/v4/posts/{post_id}`.
 3. Calls plugin route surface expected by mobile is present in RustChat (`version`, `config`, `channels`, `turn-credentials`, host controls, recording, dismiss).
 4. Websocket custom calls action/event handling exists in RustChat (`custom_com.mattermost.calls_*`) and includes plain-text mobile action fallback for mute/unmute/raise-hand/leave.
+5. Custom profile values contract expected by mobile is now aligned for high-impact flows: map-shaped `PATCH /custom_profile_attributes/values` response and canonical `PATCH /users/{user_id}/custom_profile_attributes` route are present, with JSON value type preservation on reads.
 
 ## Ease-of-use implications
 
@@ -34,8 +35,8 @@
 ## Mobile severity view
 
 - P1:
-  - `G-001` missing canonical post update endpoint (`PUT /posts/{post_id}`).
+  - None open in current register.
 - P2:
-  - `G-002`, `G-003` method mismatches on burn-on-read endpoints.
+  - `G-005` broad plugin/admin/enterprise endpoint backlog still blocks "almost all Mattermost features" target.
 - P2/P3:
-  - Non-core enterprise/plugin parity backlog does not block basic mobile chat/calls, but blocks "almost all Mattermost features" target.
+  - Non-core enterprise/plugin parity backlog does not block basic mobile chat/calls, but remains incompatible with full upstream parity claims.

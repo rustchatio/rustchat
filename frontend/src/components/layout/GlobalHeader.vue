@@ -10,7 +10,7 @@ import RcAvatar from '../ui/RcAvatar.vue';
 import NotificationsDropdown from './NotificationsDropdown.vue';
 import { useConfigStore } from '../../stores/config';
 import { usePresenceStore } from '../../features/presence';
-import { useUnreadStore } from '../../features/unreads';
+import { useUnreadStore } from '../../stores/unreads';
 
 const auth = useAuthStore();
 const ui = useUIStore();

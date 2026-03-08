@@ -5,6 +5,7 @@ use axum::{
     routing::{delete, get, post},
     Json, Router,
 };
+use chrono::Utc;
 use serde::Deserialize;
 use std::collections::HashMap;
 use uuid::Uuid;
@@ -264,6 +265,26 @@ async fn update_post(
         return Err(AppError::Forbidden("Cannot edit this post".to_string()));
     }
 
+    if input.message != post.message {
+        let post_edit_time_limit_seconds = load_post_edit_time_limit_seconds(&state).await?;
+        if post_edit_time_limit_seconds == 0 {
+            return Err(AppError::BadRequest(
+                "Message editing is disabled by server policy".to_string(),
+            ));
+        }
+        if post_edit_time_limit_seconds > 0 {
+            let post_age_seconds = Utc::now()
+                .signed_duration_since(post.created_at)
+                .num_seconds();
+            if post_age_seconds >= post_edit_time_limit_seconds {
+                return Err(AppError::BadRequest(format!(
+                    "Message edit window expired after {} seconds",
+                    post_edit_time_limit_seconds
+                )));
+            }
+        }
+    }
+
     let updated: Post = sqlx::query_as(
         r#"
         UPDATE posts SET message = $1, edited_at = NOW() WHERE id = $2
@@ -298,6 +319,16 @@ async fn update_post(
     state.ws_hub.broadcast(broadcast).await;
 
     Ok(Json(updated))
+}
+
+async fn load_post_edit_time_limit_seconds(state: &AppState) -> ApiResult<i64> {
+    let limit = sqlx::query_scalar::<_, i64>(
+        "SELECT COALESCE((site->>'post_edit_time_limit_seconds')::bigint, -1) FROM server_config WHERE id = 'default'",
+    )
+    .fetch_optional(&state.db)
+    .await?
+    .unwrap_or(-1);
+    Ok(limit)
 }
 
 /// Soft delete a post

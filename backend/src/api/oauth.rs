@@ -1203,8 +1203,8 @@ async fn exchange_github_token(
         .map_err(|e| AppError::Internal(format!("Failed to parse GitHub user: {}", e)))?;
 
     // Get primary verified email (GitHub may return null for email in user endpoint)
-    let email = if github_user.email.is_some() {
-        github_user.email.unwrap()
+    let email = if let Some(email) = github_user.email {
+        email
     } else {
         // Fetch emails from /user/emails endpoint
         let emails_response = send_with_retry(
@@ -1324,6 +1324,7 @@ async fn exchange_github_token(
 }
 
 /// Exchange code for OIDC token and validate ID token
+#[allow(clippy::too_many_arguments)]
 async fn exchange_oidc_token(
     code: &str,
     client_id: &str,
@@ -1826,7 +1827,7 @@ async fn generate_unique_username(
             .fetch_optional(db)
             .await?;
 
-    if exists.map_or(true, |(e,)| !e) {
+    if exists.is_none_or(|(e,)| !e) {
         return Ok(base_username.to_string());
     }
 
@@ -1839,7 +1840,7 @@ async fn generate_unique_username(
                 .fetch_optional(db)
                 .await?;
 
-        if exists.map_or(true, |(e,)| !e) {
+        if exists.is_none_or(|(e,)| !e) {
             return Ok(candidate);
         }
     }

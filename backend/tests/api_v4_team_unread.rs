@@ -1,3 +1,4 @@
+#![allow(clippy::needless_borrows_for_generic_args)]
 use crate::common::{spawn_app_with_config, test_config};
 use rustchat::mattermost_compat::id::parse_mm_or_uuid;
 use serde_json::json;

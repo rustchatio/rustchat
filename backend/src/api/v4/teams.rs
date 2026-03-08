@@ -222,6 +222,7 @@ async fn get_team_members(
     ensure_team_member(&state, team_id, auth.user_id).await?;
 
     // Join with users table to get user information including presence
+    #[allow(clippy::type_complexity)]
     let rows: Vec<(Uuid, Uuid, String, String, Option<String>, Option<String>)> = sqlx::query_as(
         r#"
         SELECT

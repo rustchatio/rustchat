@@ -627,7 +627,7 @@ mod tests {
     use std::collections::HashSet;
 
     fn is_millis_timestamp(value: i64) -> bool {
-        value >= 1_000_000_000_000 && value <= 9_999_999_999_999
+        (1_000_000_000_000..=9_999_999_999_999).contains(&value)
     }
 
     fn row(display_name: &str, sort_order: i32) -> CategoryRow {

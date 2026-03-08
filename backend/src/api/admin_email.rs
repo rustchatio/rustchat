@@ -502,7 +502,7 @@ async fn update_workflow(
         }
     }
 
-    let policy_json = body.policy.map(|p| sqlx::types::Json(p));
+    let policy_json = body.policy.map(sqlx::types::Json);
 
     let workflow: NotificationWorkflow = sqlx::query_as(
         r#"
@@ -758,7 +758,7 @@ async fn update_template_version(
         ));
     }
 
-    let variables_json = body.variables.map(|v| sqlx::types::Json(v));
+    let variables_json = body.variables.map(sqlx::types::Json);
 
     let version: EmailTemplateVersion = sqlx::query_as(
         r#"

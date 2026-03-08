@@ -118,6 +118,7 @@ async fn compute_channel_unread_from_db(
     channel_id: Uuid,
     username: &str,
 ) -> ApiResult<ChannelUnreadV2> {
+    #[allow(clippy::type_complexity)]
     let row: Option<(
         Option<chrono::DateTime<chrono::Utc>>,
         bool,

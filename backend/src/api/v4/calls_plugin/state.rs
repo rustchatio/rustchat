@@ -38,13 +38,14 @@ pub struct Participant {
     pub hand_raised: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum CallStateBackend {
     /// Single-node mode only. State lives in-process.
     Memory,
     /// Redis-backed mode for multi-node. Falls back to in-memory on operation errors.
     Redis,
     /// Prefer Redis when available, otherwise use in-memory.
+    #[default]
     Auto,
 }
 
@@ -56,12 +57,6 @@ impl CallStateBackend {
             "auto" | "" => Self::Auto,
             _ => Self::Auto,
         }
-    }
-}
-
-impl Default for CallStateBackend {
-    fn default() -> Self {
-        Self::Auto
     }
 }
 
@@ -280,10 +275,7 @@ impl CallStateManager {
 
     /// Get call thread root post ID.
     pub async fn get_thread_id(&self, call_id: Uuid) -> Option<Uuid> {
-        self.get_call(call_id)
-            .await
-            .map(|call| call.thread_id)
-            .flatten()
+        self.get_call(call_id).await.and_then(|call| call.thread_id)
     }
 
     /// Mark a user as having dismissed incoming call notifications.

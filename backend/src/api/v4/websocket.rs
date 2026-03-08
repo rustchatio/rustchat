@@ -372,7 +372,7 @@ async fn run_connection(
             let msg_str = match hub_rx.recv().await {
                 Ok(msg) => msg,
                 Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
-                    metrics::record_ws_dropped("hub_receiver_lagged", skipped as u64);
+                    metrics::record_ws_dropped("hub_receiver_lagged", skipped);
                     warn!(
                         connection_id = %replay_connection_id,
                         skipped = skipped,
@@ -811,6 +811,7 @@ async fn build_reconnect_snapshot(
         .fetch_one(&state.db)
         .await?;
 
+    #[allow(clippy::type_complexity)]
     let membership_rows: Vec<(
         Uuid,
         String,

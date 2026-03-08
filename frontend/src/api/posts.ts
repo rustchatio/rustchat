@@ -10,6 +10,8 @@ export interface Post {
     parent_id?: string
     created_at: string
     updated_at: string
+    edited_at?: string | number | null
+    edit_at?: string | number | null
     is_pinned: boolean
     props?: any
     // Populated fields

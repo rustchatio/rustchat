@@ -57,10 +57,11 @@ pub struct UserStatusResponse {
 }
 
 /// Custom status duration options (Mattermost-compatible)
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum CustomStatusDuration {
     #[serde(alias = "")]
+    #[default]
     DontClear,
     ThirtyMinutes,
     OneHour,
@@ -100,12 +101,6 @@ impl CustomStatusDuration {
             }
             CustomStatusDuration::DateAndTime | CustomStatusDuration::CustomDateTime => custom_time,
         }
-    }
-}
-
-impl Default for CustomStatusDuration {
-    fn default() -> Self {
-        CustomStatusDuration::DontClear
     }
 }
 

@@ -30,7 +30,7 @@ fn default_per_page() -> i32 {
 }
 
 fn compute_limit_and_offset(page: i32, per_page: i32) -> (i64, i64) {
-    let limit = per_page.min(200).max(1) as i64;
+    let limit = per_page.clamp(1, 200) as i64;
     let offset = (page.max(0) as i64) * limit;
     (limit, offset)
 }

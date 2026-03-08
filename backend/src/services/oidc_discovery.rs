@@ -306,7 +306,7 @@ pub fn find_signing_key<'a>(jwks: &'a Jwks, kid: Option<&str>) -> Option<&'a Jwk
         let is_signing = key.use_.as_deref() == Some("sig") || key.use_.is_none();
 
         // If kid is specified, match it; otherwise return first valid signing key
-        let kid_matches = kid.map_or(true, |k| key.kid.as_deref() == Some(k));
+        let kid_matches = kid.is_none_or(|k| key.kid.as_deref() == Some(k));
 
         is_signing && kid_matches
     })

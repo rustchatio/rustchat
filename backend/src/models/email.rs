@@ -31,6 +31,7 @@ impl MailProviderType {
         }
     }
 
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Option<Self> {
         match s.to_lowercase().as_str() {
             "smtp" => Some(MailProviderType::Smtp),
@@ -61,6 +62,7 @@ impl TlsMode {
         }
     }
 
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Option<Self> {
         match s.to_lowercase().as_str() {
             "starttls" => Some(TlsMode::Starttls),
@@ -241,6 +243,7 @@ impl WorkflowKey {
         }
     }
 
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Option<Self> {
         match s {
             "user_registration" => Some(WorkflowKey::UserRegistration),

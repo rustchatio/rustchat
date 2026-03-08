@@ -130,7 +130,7 @@ async fn handle_socket(socket: WebSocket, user_id: uuid::Uuid, username: String,
                     metrics::record_ws_message("sent", "hub_event");
                 }
                 Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
-                    metrics::record_ws_dropped("hub_receiver_lagged", skipped as u64);
+                    metrics::record_ws_dropped("hub_receiver_lagged", skipped);
                     continue;
                 }
                 Err(tokio::sync::broadcast::error::RecvError::Closed) => break,

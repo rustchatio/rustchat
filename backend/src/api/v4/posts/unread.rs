@@ -31,8 +31,8 @@ fn default_limit() -> i32 {
 
 fn clamp_unread_limits(query: &PostsUnreadQuery) -> (i64, i64) {
     (
-        query.limit_before.min(200).max(0) as i64,
-        query.limit_after.min(200).max(1) as i64,
+        query.limit_before.clamp(0, 200) as i64,
+        query.limit_after.clamp(1, 200) as i64,
     )
 }
 

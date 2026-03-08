@@ -152,13 +152,13 @@ fn validate_secret_entropy(
 /// Check if a string looks like base64 or hex encoded
 fn looks_like_encoded(s: &str) -> bool {
     // Check for hex (only hex chars and even length)
-    let is_hex = s.len() % 2 == 0 && s.chars().all(|c| c.is_ascii_hexdigit());
+    let is_hex = s.len().is_multiple_of(2) && s.chars().all(|c| c.is_ascii_hexdigit());
 
     // Check for base64 (alphanumeric + / + = padding)
     let is_base64 = s
         .chars()
         .all(|c| c.is_ascii_alphanumeric() || c == '/' || c == '+' || c == '=')
-        && s.len() % 4 == 0;
+        && s.len().is_multiple_of(4);
 
     is_hex || is_base64
 }

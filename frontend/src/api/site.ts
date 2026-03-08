@@ -5,6 +5,7 @@ export interface PublicConfig {
     logo_url?: string
     enable_sso: boolean
     require_sso: boolean
+    post_edit_time_limit_seconds: number
 }
 
 export const siteApi = {

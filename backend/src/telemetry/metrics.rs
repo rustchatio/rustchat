@@ -270,11 +270,17 @@ pub struct QueryTimer {
     start: Instant,
 }
 
-impl QueryTimer {
-    pub fn new() -> Self {
+impl Default for QueryTimer {
+    fn default() -> Self {
         Self {
             start: Instant::now(),
         }
+    }
+}
+
+impl QueryTimer {
+    pub fn new() -> Self {
+        Self::default()
     }
 }
 
@@ -289,11 +295,17 @@ pub struct BroadcastTimer {
     start: Instant,
 }
 
-impl BroadcastTimer {
-    pub fn new() -> Self {
+impl Default for BroadcastTimer {
+    fn default() -> Self {
         Self {
             start: Instant::now(),
         }
+    }
+}
+
+impl BroadcastTimer {
+    pub fn new() -> Self {
+        Self::default()
     }
 }
 

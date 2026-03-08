@@ -11,6 +11,7 @@ pub struct PublicConfig {
     pub logo_url: Option<String>,
     pub enable_sso: bool,
     pub require_sso: bool,
+    pub post_edit_time_limit_seconds: i32,
 }
 
 pub fn router() -> Router<AppState> {
@@ -45,5 +46,6 @@ async fn get_site_info(State(state): State<AppState>) -> ApiResult<Json<PublicCo
         logo_url: config.0.logo_url.clone(),
         enable_sso,
         require_sso,
+        post_edit_time_limit_seconds: config.0.post_edit_time_limit_seconds,
     }))
 }

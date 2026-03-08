@@ -65,6 +65,7 @@ pub struct Participant {
 }
 
 /// SFU manages all peer connections and routes media
+#[allow(clippy::upper_case_acronyms)]
 pub struct SFU {
     call_id: Uuid,
     config: CallsConfig,
@@ -530,6 +531,7 @@ impl SFU {
             && !self.config.turn_server_username.trim().is_empty()
             && !self.config.turn_server_credential.trim().is_empty()
         {
+            #[allow(clippy::needless_update)]
             servers.push(RTCIceServer {
                 urls: vec![self.config.turn_server_url.clone()],
                 username: self.config.turn_server_username.clone(),

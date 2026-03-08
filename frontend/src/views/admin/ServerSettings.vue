@@ -35,6 +35,7 @@ const form = ref({
     diagnostics_enabled: false,
     default_locale: 'en',
     default_timezone: 'UTC',
+    post_edit_time_limit_seconds: -1,
 });
 
 const saving = ref(false);
@@ -324,6 +325,21 @@ const saveSettings = async () => {
                             <option value="staging">Staging</option>
                             <option value="development">Development</option>
                         </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            Message Edit Time Limit (seconds)
+                        </label>
+                        <input
+                            v-model.number="form.post_edit_time_limit_seconds"
+                            type="number"
+                            min="-1"
+                            class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white"
+                            placeholder="-1 for unlimited, 0 to disable, e.g. 1800 for 30 min"
+                        />
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            Use <code>-1</code> for unlimited editing, <code>0</code> to disable editing, or a positive number for a time window.
+                        </p>
                     </div>
                 </div>
 

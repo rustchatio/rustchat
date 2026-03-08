@@ -140,17 +140,17 @@ pub async fn verify_token(
         let error_codes = result.error_codes.unwrap_or_default();
         warn!("Turnstile verification failed: {:?}", error_codes);
 
-        // Map error codes to our error types
-        for code in error_codes {
-            return Err(match code.as_str() {
+        // Map first error code to our error type
+        Err(error_codes
+            .into_iter()
+            .next()
+            .map_or(TurnstileError::InvalidToken, |code| match code.as_str() {
                 "bad-request" => TurnstileError::BadRequest,
                 "timeout-or-duplicate" => TurnstileError::Timeout,
                 "invalid-input-secret" => TurnstileError::InvalidSecretKey,
                 "invalid-input-response" => TurnstileError::InvalidToken,
                 _ => TurnstileError::InvalidToken,
-            });
-        }
-        Err(TurnstileError::InvalidToken)
+            }))
     }
 }
 

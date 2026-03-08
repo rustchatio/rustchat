@@ -237,7 +237,7 @@ mod tests {
 
     #[test]
     fn custom_defaults_always_include_town_square_once() {
-        let resolved = resolve_team_default_channel_names(&vec![
+        let resolved = resolve_team_default_channel_names(&[
             "off-topic".to_string(),
             "town-square".to_string(),
             "engineering".to_string(),

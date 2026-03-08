@@ -279,6 +279,7 @@ pub async fn validate_token(
 ) -> Result<(Uuid, String), PasswordResetError> {
     let token_hash = hash_token(token);
 
+    #[allow(clippy::type_complexity)]
     let result: Option<(Uuid, String, String, Option<DateTime<Utc>>, DateTime<Utc>)> =
         sqlx::query_as(
             r#"
@@ -342,6 +343,7 @@ pub async fn reset_password(
     let token_hash = hash_token(token);
 
     // Find and validate token (with row lock to prevent race conditions)
+    #[allow(clippy::type_complexity)]
     let result: Option<(
         Uuid,
         String,
