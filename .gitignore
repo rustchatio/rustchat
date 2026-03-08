@@ -4,6 +4,7 @@ debug/
 release/
 
 #AI
+.codex/
 .agents/*
 !.agents/skills/
 .agents/skills/*

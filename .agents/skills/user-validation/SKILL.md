@@ -1,12 +1,14 @@
 ---
 name: user-validation
-description: Enforces a user-in-the-loop plan-first workflow: draft SPEC.md, require explicit approval, then update task_plan.md and provide manual verification commands.
+description: "Enforces a user-in-the-loop plan-first workflow for feature or behavior changes: draft SPEC.md, require explicit approval, then update task_plan.md and provide manual verification commands."
 license: MIT
 ---
 
 # User Validation
 
-Use this skill for feature delivery that requires explicit user approval before implementation.
+Use this skill for feature or behavior changes that require explicit user approval before implementation.
+
+This skill governs delivery workflow only. It does not replace compatibility analysis skills when contract-sensitive surfaces are involved.
 
 ## Default Working Files
 
@@ -34,6 +36,8 @@ After drafting `SPEC.md`, pause and ask exactly:
 `Does this plan meet your expectations? Please approve or provide feedback.`
 
 No code should be written until the user gives explicit approval.
+
+If approval is not granted, revise `SPEC.md` based on feedback and repeat this gate with the same approval prompt.
 
 ## Phase 3: Verification
 
