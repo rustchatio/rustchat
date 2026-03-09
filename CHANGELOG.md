@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.0.0] - 2026-03-09
+
 ### Added
 - VoIP Push Notification support for call ringing on mobile devices.
   - Push Proxy service with FCM (Android) and APNS (iOS) support.
@@ -19,6 +21,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Docker Compose configuration to include push-proxy service on port 3001.
 - Backend push notification service to route calls through push proxy.
+- Major version bump to 5.0.0 reflecting significant new features and maturity.
+
+### Security
+- Fixed protobuf vulnerability (RUSTSEC-2024-0437) by upgrading prometheus 0.13 -> 0.14.
+- Fixed rustls-pemfile warning (RUSTSEC-2025-0134) by upgrading yup-oauth2 11 -> 12.
+- Fixed dompurify XSS vulnerability (GHSA-v2wj-7wpq-c8vv).
+- Fixed rollup path traversal vulnerability (GHSA-mw96-cpmx-2vgc).
+- Updated AWS-LC to latest versions (aws-lc-rs 1.15.3 -> 1.16.1, aws-lc-sys 0.36.0 -> 0.38.0).
 
 ## [0.3.1] - 2026-02-12
 
