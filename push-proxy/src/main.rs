@@ -260,7 +260,7 @@ async fn send_notification(
             if is_call {
                 send_voip_push(&state, &payload).await
             } else {
-                send_fcm_push(&state, &payload).await
+                send_ios_message_push(&state, &payload).await
             }
         }
         "android" => {
@@ -270,6 +270,61 @@ async fn send_notification(
         _ => {
             warn!(platform = %platform, "Unknown platform, defaulting to FCM");
             send_fcm_push(&state, &payload).await
+        }
+    }
+}
+
+/// Send standard iOS push via APNS (non-VoIP).
+async fn send_ios_message_push(
+    state: &AppState,
+    payload: &PushRequest,
+) -> Result<StatusCode, (StatusCode, Json<PushResponse>)> {
+    let apns_client = match &state.apns_client {
+        Some(client) => client,
+        None => {
+            warn!("APNS client not configured for iOS message pushes, falling back to FCM");
+            return send_fcm_push(state, payload).await;
+        }
+    };
+
+    let message_payload = apns::ApnsMessagePayload {
+        topic: apns::build_alert_topic(&apns_client.config.bundle_id),
+        device_token: payload.token.clone(),
+        title: payload.title.clone(),
+        body: payload.body.clone(),
+        channel_id: payload.data.channel_id.clone(),
+        post_id: payload.data.post_id.clone(),
+        server_url: payload.data.server_url.clone().unwrap_or_default(),
+        notification_type: payload.data.data_type.clone(),
+        sub_type: payload.data.sub_type.clone(),
+        sender_name: payload.data.sender_name.clone(),
+        is_crt_enabled: payload.data.is_crt_enabled,
+    };
+
+    match apns_client.send_message_push(message_payload).await {
+        Ok(_) => {
+            info!("Standard iOS push sent successfully via APNS");
+            Ok(StatusCode::OK)
+        }
+        Err(apns::ApnsError::InvalidToken) => {
+            warn!("APNS token is invalid (device unregistered)");
+            Err((
+                StatusCode::GONE,
+                Json(PushResponse {
+                    success: false,
+                    message: "Token unregistered".to_string(),
+                }),
+            ))
+        }
+        Err(e) => {
+            error!("Failed to send standard iOS push: {}", e);
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(PushResponse {
+                    success: false,
+                    message: format!("APNS error: {}", e),
+                }),
+            ))
         }
     }
 }

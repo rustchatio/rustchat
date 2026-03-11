@@ -28,6 +28,33 @@ pub struct ApnsVoipPayload {
     pub has_video: bool,
 }
 
+/// APNS standard notification payload
+#[derive(Debug, Serialize)]
+pub struct ApnsMessagePayload {
+    /// APNS topic (bundle ID without ".voip")
+    pub topic: String,
+    /// Device token
+    pub device_token: String,
+    /// Notification title
+    pub title: String,
+    /// Notification body
+    pub body: String,
+    /// Channel ID for navigation
+    pub channel_id: String,
+    /// Post ID for navigation
+    pub post_id: String,
+    /// Server URL so app knows which server
+    pub server_url: String,
+    /// Notification type
+    pub notification_type: String,
+    /// Optional sub_type (e.g. "calls")
+    pub sub_type: Option<String>,
+    /// Optional sender name
+    pub sender_name: Option<String>,
+    /// Optional CRT flag
+    pub is_crt_enabled: Option<bool>,
+}
+
 /// APNS configuration
 #[derive(Debug, Clone)]
 pub struct ApnsConfig {
@@ -203,6 +230,71 @@ impl ApnsClient {
             Err(ApnsError::Apns(format!("HTTP {}: {}", status, body)))
         }
     }
+
+    /// Send a standard APNS push notification.
+    pub async fn send_message_push(&self, payload: ApnsMessagePayload) -> Result<(), ApnsError> {
+        let url = format!(
+            "{}/3/device/{}",
+            self.config.server.url(),
+            payload.device_token
+        );
+
+        let mut apns_payload = serde_json::json!({
+            "aps": {
+                "alert": {
+                    "title": payload.title,
+                    "body": payload.body
+                },
+                "sound": "default",
+                "badge": 1,
+                "content-available": 1,
+                "mutable-content": 1
+            },
+            "type": payload.notification_type,
+            "version": "2",
+            "channel_id": payload.channel_id,
+            "post_id": payload.post_id,
+            "server_url": payload.server_url,
+        });
+
+        if let Some(sub_type) = payload.sub_type {
+            apns_payload["sub_type"] = serde_json::Value::String(sub_type);
+        }
+        if let Some(sender_name) = payload.sender_name {
+            apns_payload["sender_name"] = serde_json::Value::String(sender_name);
+        }
+        if let Some(is_crt_enabled) = payload.is_crt_enabled {
+            apns_payload["is_crt_enabled"] = serde_json::Value::Bool(is_crt_enabled);
+        }
+
+        let response = self.http_client
+            .post(&url)
+            .header("authorization", format!("bearer {}", self.auth_token))
+            .header("apns-topic", &payload.topic)
+            .header("apns-push-type", "alert")
+            .header("apns-priority", "10")
+            .json(&apns_payload)
+            .send()
+            .await?;
+
+        let status = response.status();
+        if status.is_success() {
+            info!(
+                token_prefix = %&payload.device_token[..20.min(payload.device_token.len())],
+                "Standard APNS push sent successfully"
+            );
+            Ok(())
+        } else {
+            let body = response.text().await.unwrap_or_default();
+            if status.as_u16() == 410 {
+                warn!(status = %status, "APNS token is no longer valid");
+                return Err(ApnsError::InvalidToken);
+            }
+
+            warn!(status = %status, body = %body, "APNS error");
+            Err(ApnsError::Apns(format!("HTTP {}: {}", status, body)))
+        }
+    }
 }
 
 /// Generate JWT token for APNS authentication
@@ -246,6 +338,11 @@ pub fn build_voip_topic(bundle_id: &str) -> String {
     }
 }
 
+/// Build standard APNS topic (bundle ID without ".voip" suffix).
+pub fn build_alert_topic(bundle_id: &str) -> String {
+    bundle_id.trim_end_matches(".voip").to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -259,6 +356,18 @@ mod tests {
         assert_eq!(
             build_voip_topic("com.rustchat.app.voip"),
             "com.rustchat.app.voip"
+        );
+    }
+
+    #[test]
+    fn test_build_alert_topic() {
+        assert_eq!(
+            build_alert_topic("com.rustchat.app"),
+            "com.rustchat.app"
+        );
+        assert_eq!(
+            build_alert_topic("com.rustchat.app.voip"),
+            "com.rustchat.app"
         );
     }
 }
