@@ -15,7 +15,7 @@ services:
       - GOOGLE_APPLICATION_CREDENTIALS=/secrets/firebase-key.json
       
       # APNS (iOS) - JWT auth key (.p8)
-      - APNS_KEY_PATH=${APNS_KEY_PATH:-/secrets/apns-key.p8}
+      - APNS_KEY_PATH=/secrets/apns-key.p8
       - APNS_KEY_ID=${APNS_KEY_ID}
       - APNS_TEAM_ID=${APNS_TEAM_ID}
       - APNS_BUNDLE_ID=${APNS_BUNDLE_ID}
@@ -28,7 +28,7 @@ services:
       # Mount Firebase service account key
       - ${FIREBASE_KEY_PATH:-./secrets/firebase-key.json}:/secrets/firebase-key.json:ro
       # Mount APNS auth key (.p8)
-      - ${APNS_KEY_HOST_PATH:-./secrets/AuthKey_KEYID.p8}:/secrets/apns-key.p8:ro
+      - ${APNS_KEY_HOST_PATH:-${APNS_KEY_PATH:-./secrets/AuthKey_KEYID.p8}}:/secrets/apns-key.p8:ro
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/health"]
       interval: 30s

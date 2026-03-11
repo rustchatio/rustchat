@@ -158,7 +158,7 @@ services:
       - FIREBASE_PROJECT_ID=${FIREBASE_PROJECT_ID:-}
       - GOOGLE_APPLICATION_CREDENTIALS=/secrets/firebase-key.json
       # APNS (iOS) - JWT-based authentication
-      - APNS_KEY_PATH=${APNS_KEY_PATH:-/secrets/apns-key.p8}
+      - APNS_KEY_PATH=/secrets/apns-key.p8
       - APNS_KEY_ID=${APNS_KEY_ID:-}
       - APNS_TEAM_ID=${APNS_TEAM_ID:-}
       - APNS_BUNDLE_ID=${APNS_BUNDLE_ID:-}
@@ -169,8 +169,12 @@ services:
     volumes:
       # Firebase credentials
       - ${FIREBASE_KEY_PATH:-./secrets/firebase-key.json}:/secrets/firebase-key.json:ro
-      # APNS Auth Key (JWT-based) - mount only if configured
-      - ${APNS_KEY_HOST_PATH:-./secrets/apns-key.p8}:/secrets/apns-key.p8:ro
+      # APNS Auth Key (JWT-based)
+      # Backward-compatible fallback order:
+      # 1) APNS_KEY_HOST_PATH (preferred)
+      # 2) APNS_KEY_PATH (legacy host-path usage in older .env files)
+      # 3) ./secrets/apns-key.p8
+      - ${APNS_KEY_HOST_PATH:-${APNS_KEY_PATH:-./secrets/apns-key.p8}}:/secrets/apns-key.p8:ro
     ports:
       - "127.0.0.1:3001:3000"
     healthcheck:
