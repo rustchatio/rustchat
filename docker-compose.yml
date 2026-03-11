@@ -170,7 +170,7 @@ services:
       # Firebase credentials
       - ${FIREBASE_KEY_PATH:-./secrets/firebase-key.json}:/secrets/firebase-key.json:ro
       # APNS Auth Key (JWT-based) - mount only if configured
-      - ${APNS_KEY_HOST_PATH:-./secrets/AuthKey_KEYID.p8}:/secrets/apns-key.p8:ro
+      - ${APNS_KEY_HOST_PATH:-./secrets/apns-key.p8}:/secrets/apns-key.p8:ro
     ports:
       - "127.0.0.1:3001:3000"
     healthcheck:
