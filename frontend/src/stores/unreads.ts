@@ -34,6 +34,13 @@ export const useUnreadStore = defineStore('unreads', () => {
 
     const loading = ref(false)
 
+    function clearAllState() {
+        channelUnreads.value = {}
+        teamUnreads.value = {}
+        channelMentions.value = {}
+        channelReadStates.value = {}
+    }
+
     async function fetchOverview() {
         loading.value = true
         try {
@@ -145,6 +152,7 @@ export const useUnreadStore = defineStore('unreads', () => {
         channelMentions,
         channelReadStates,
         loading,
+        clearAllState,
         fetchOverview,
         markAsRead,
         markAsUnread,

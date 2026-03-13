@@ -42,6 +42,23 @@ const maxReconnectAttempts = 10
 const subscriptions = ref<Set<string>>(new Set())
 const listeners = ref<Record<string, Set<(data: any) => void>>>({})
 let actionSeq = 1
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+
+function clearReconnectTimer() {
+    if (reconnectTimer) {
+        clearTimeout(reconnectTimer)
+        reconnectTimer = null
+    }
+}
+
+function isAuthExpiryCloseEvent(event: CloseEvent): boolean {
+    const reason = (event.reason || '').toLowerCase()
+    return (
+        (event.code === 1008 && reason.includes('token')) ||
+        reason.includes('authentication token expired') ||
+        reason.includes('token expired')
+    )
+}
 
 function normalizeWsTimestamp(value: unknown, fallback: string): string {
     if (typeof value === 'number' && Number.isFinite(value)) {
@@ -296,6 +313,7 @@ export function useWebSocket() {
                 console.log('WebSocket connected')
                 connected.value = true
                 reconnectAttempts.value = 0
+                clearReconnectTimer()
 
                 // Resubscribe to channels
                 subscriptions.value.forEach(cid => {
@@ -326,6 +344,19 @@ export function useWebSocket() {
                 connected.value = false
                 ws.value = null
 
+                if (isAuthExpiryCloseEvent(event)) {
+                    clearReconnectTimer()
+                    reconnectAttempts.value = 0
+                    void authStore.logout('expired')
+                    return
+                }
+
+                if (!authStore.token) {
+                    clearReconnectTimer()
+                    reconnectAttempts.value = 0
+                    return
+                }
+
                 // Attempt to reconnect
                 if (reconnectAttempts.value < maxReconnectAttempts) {
                     reconnectAttempts.value++
@@ -335,7 +366,8 @@ export function useWebSocket() {
                     const delay = baseDelay + jitter
 
                     console.log(`Reconnecting in ${Math.round(delay)}ms...`)
-                    setTimeout(() => {
+                    clearReconnectTimer()
+                    reconnectTimer = setTimeout(() => {
                         if (!connected.value) connect()
                     }, delay)
                 }
@@ -532,11 +564,13 @@ export function useWebSocket() {
     }
 
     function disconnect() {
+        clearReconnectTimer()
         if (ws.value) {
             ws.value.close()
             ws.value = null
         }
         connected.value = false
+        reconnectAttempts.value = 0
         subscriptions.value.clear()
     }
 

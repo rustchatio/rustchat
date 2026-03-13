@@ -129,6 +129,12 @@ export const usePresenceStore = defineStore('presence', () => {
         return count
     })
 
+    function clear() {
+        self.value = null
+        presenceMap.value.clear()
+        typingUsers.value.clear()
+    }
+
     return {
         self,
         presenceMap,
@@ -141,5 +147,6 @@ export const usePresenceStore = defineStore('presence', () => {
         removeTypingUser,
         getTypingUsersForChannel,
         getUserPresence,
+        clear,
     }
 })

@@ -1,14 +1,54 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useStorage } from '@vueuse/core'
 import client from '../api/client'
-import { useRouter } from 'vue-router'
 import { useThemeStore } from './theme'
+import { useMessageStore } from './messages'
+import { useChannelStore } from './channels'
+import { useUnreadStore } from './unreads'
+import { usePresenceStore } from './presence'
+import { useTeamStore } from './teams'
+import { useChannelPreferencesStore } from './channelPreferences'
+import { useUIStore } from './ui'
+
+type LogoutReason = 'manual' | 'expired' | 'unauthorized'
+
+function parseJwtExpiryMs(tokenValue: string): number | null {
+    if (!tokenValue) {
+        return null
+    }
+
+    const parts = tokenValue.split('.')
+    if (parts.length < 2) {
+        return null
+    }
+
+    const payloadPart = parts[1]
+    if (!payloadPart) {
+        return null
+    }
+
+    const normalized = payloadPart.replace(/-/g, '+').replace(/_/g, '/')
+    const paddingLength = (4 - (normalized.length % 4)) % 4
+    const padded = normalized + '='.repeat(paddingLength)
+
+    try {
+        const payload = JSON.parse(atob(padded)) as { exp?: unknown }
+        const expSeconds = Number(payload.exp)
+        if (!Number.isFinite(expSeconds) || expSeconds <= 0) {
+            return null
+        }
+        return expSeconds * 1000
+    } catch {
+        return null
+    }
+}
 
 export const useAuthStore = defineStore('auth', () => {
     const token = useStorage('auth_token', '')
     const user = ref<any>(null)
-    const router = useRouter()
+    let tokenExpiryTimer: ReturnType<typeof setTimeout> | null = null
+    let isLoggingOut = false
 
     // Set MMAUTHTOKEN cookie for img/video tags that can't send headers
     function setAuthCookie(tokenValue: string) {
@@ -17,6 +57,55 @@ export const useAuthStore = defineStore('auth', () => {
 
     function clearAuthCookie() {
         document.cookie = 'MMAUTHTOKEN=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
+    }
+
+    function clearTokenExpiryTimer() {
+        if (tokenExpiryTimer) {
+            clearTimeout(tokenExpiryTimer)
+            tokenExpiryTimer = null
+        }
+    }
+
+    async function clearSessionState() {
+        useMessageStore().resetSessionState()
+        useChannelStore().clearChannels()
+        useUnreadStore().clearAllState()
+        usePresenceStore().clear()
+        useTeamStore().clear()
+        useChannelPreferencesStore().clearState()
+
+        const uiStore = useUIStore()
+        uiStore.closeVideoCall()
+        uiStore.closeRhs()
+        uiStore.closeSettings()
+        uiStore.closeLhs()
+
+        // Avoid import cycles with the calls store by loading it lazily.
+        try {
+            const callsModule = await import('./calls')
+            callsModule.useCallsStore().resetSessionState()
+        } catch (error) {
+            console.debug('Failed to reset calls state during logout', error)
+        }
+    }
+
+    function scheduleTokenExpiryLogout() {
+        clearTokenExpiryTimer()
+
+        const expiryMs = parseJwtExpiryMs(token.value)
+        if (!expiryMs) {
+            return
+        }
+
+        const remainingMs = expiryMs - Date.now()
+        if (remainingMs <= 0) {
+            void logout('expired')
+            return
+        }
+
+        tokenExpiryTimer = setTimeout(() => {
+            void logout('expired')
+        }, remainingMs)
     }
 
     const isAuthenticated = computed(() => !!token.value)
@@ -46,15 +135,29 @@ export const useAuthStore = defineStore('auth', () => {
             const themeStore = useThemeStore()
             await themeStore.syncFromServer()
         } catch (e) {
-            logout()
+            await logout('unauthorized')
         }
     }
 
-    async function logout() {
-        token.value = ''
-        clearAuthCookie()
-        user.value = null
-        router.push('/login')
+    async function logout(_reason: LogoutReason = 'manual') {
+        if (isLoggingOut) {
+            return
+        }
+        isLoggingOut = true
+        clearTokenExpiryTimer()
+        try {
+            token.value = ''
+            localStorage.setItem('auth_token', '')
+            clearAuthCookie()
+            user.value = null
+            await clearSessionState()
+
+            if (window.location.pathname !== '/login') {
+                window.location.replace('/login')
+            }
+        } finally {
+            isLoggingOut = false
+        }
     }
 
     async function updateStatus(status: { status?: string, presence?: string, text?: string, emoji?: string, duration?: string, duration_minutes?: number, dnd_end_time?: number }) {
@@ -98,6 +201,18 @@ export const useAuthStore = defineStore('auth', () => {
             console.error('Failed to fetch auth policy', e)
         }
     }
+
+    watch(
+        () => token.value,
+        () => {
+            if (!token.value) {
+                clearTokenExpiryTimer()
+                return
+            }
+            scheduleTokenExpiryLogout()
+        },
+        { immediate: true }
+    )
 
     return { token, user, isAuthenticated, login, logout, fetchMe, updateStatus, authPolicy, getAuthPolicy }
 })

@@ -8,17 +8,9 @@ description: "Task list template for feature implementation"
 **Input**: Design documents from `/specs/[###-feature-name]/`
 **Prerequisites**: plan.md (required), spec.md (required for user stories), research.md, data-model.md, contracts/
 
-**Tests**: The examples below include test tasks. For backend and compatibility-sensitive
-work, test and verification tasks are REQUIRED. For purely non-runtime doc tasks, tests
-may be omitted with explicit rationale in the plan.
+**Tests**: The examples below include test tasks. Tests are OPTIONAL - only include them if explicitly requested in the feature specification.
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
-
-## Execution Metadata
-
-- **Wave Plan**: [Wave 1 Foundation / Wave 2 Core / Wave 3 Hardening]
-- **Parallel Strategy**: [where `[P]` tasks are safe]
-- **Task Sizing**: Prefer tasks that can be completed in 15-30 minutes with one clear verification step
 
 ## Format: `[ID] [P?] [Story] Description`
 
@@ -42,6 +34,13 @@ may be omitted with explicit rationale in the plan.
   - Feature requirements from plan.md
   - Entities from data-model.md
   - Endpoints from contracts/
+  - Safety requirements (permission, migration, observability, rollback)
+  - Mobile alignment requirements
+  - Test coverage requirements (protocol, permission, failure, compat)
+  - Security requirements (Constitution X-XVI)
+  - Privacy requirements (Constitution XVII)
+  - Accessibility requirements (Constitution XVIII)
+  - DevSecOps requirements (Constitution XIX)
   
   Tasks MUST be organized by user story so each story can be:
   - Implemented independently
@@ -59,8 +58,6 @@ may be omitted with explicit rationale in the plan.
 - [ ] T001 Create project structure per implementation plan
 - [ ] T002 Initialize [language] project with [framework] dependencies
 - [ ] T003 [P] Configure linting and formatting tools
-- [ ] T004 Create/update `SPEC.md` with scope, contract impact, and verification approach
-- [ ] T005 Add explicit user approval checkpoint before implementation
 
 ---
 
@@ -72,14 +69,12 @@ may be omitted with explicit rationale in the plan.
 
 Examples of foundational tasks (adjust based on your project):
 
-- [ ] T006 Setup database schema and migrations framework
-- [ ] T007 [P] Implement authentication/authorization framework
-- [ ] T008 [P] Setup API routing and middleware structure
-- [ ] T009 Create base models/entities that all stories depend on
-- [ ] T010 Configure error handling and logging infrastructure
-- [ ] T011 Setup environment configuration management
-- [ ] T012 If compatibility-sensitive: create `previous-analyses/YYYY-MM-DD-<topic>/` and required analysis artifacts
-- [ ] T013 If compatibility-sensitive: populate `GAP_REGISTER.md` with testable gaps linked to implementation tasks
+- [ ] T004 Setup database schema and migrations framework
+- [ ] T005 [P] Implement authentication/authorization framework
+- [ ] T006 [P] Setup API routing and middleware structure
+- [ ] T007 Create base models/entities that all stories depend on
+- [ ] T008 Configure error handling and logging infrastructure
+- [ ] T009 Setup environment configuration management
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
@@ -91,21 +86,39 @@ Examples of foundational tasks (adjust based on your project):
 
 **Independent Test**: [How to verify this story works on its own]
 
-### Tests for User Story 1 (REQUIRED when constitution/spec requires) ⚠️
+### Tests for User Story 1 (OPTIONAL - only if tests requested) ⚠️
 
 > **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
 
-- [ ] T014 [P] [US1] Contract test for [endpoint] in tests/contract/test_[name].py
-- [ ] T015 [P] [US1] Integration test for [user journey] in tests/integration/test_[name].py
+#### Constitution IX: Protocol Behavior Tests
+- [ ] T010 [P] [US1] API contract test: status codes and response schema in tests/contract/test_[name]_protocol.py
+- [ ] T011 [P] [US1] WebSocket event format test in tests/contract/test_[name]_websocket.py
+- [ ] T012 [P] [US1] Pagination/ordering behavior test in tests/contract/test_[name]_pagination.py
+- [ ] T013 [P] [US1] Error envelope semantics test in tests/contract/test_[name]_errors.py
+
+#### Constitution IX: Permission Tests
+- [ ] T014 [P] [US1] Happy path authorization test in tests/integration/test_[name]_auth_happy.py
+- [ ] T015 [P] [US1] Edge case permission test in tests/integration/test_[name]_auth_edge.py
+- [ ] T016 [P] [US1] Privilege escalation attempt test in tests/integration/test_[name]_auth_escalation.py
+
+#### Constitution IX: Failure Case Tests
+- [ ] T017 [P] [US1] Error handling path test in tests/integration/test_[name]_errors.py
+- [ ] T018 [P] [US1] Degradation mode test in tests/integration/test_[name]_degradation.py
+- [ ] T019 [P] [US1] Resource exhaustion test in tests/integration/test_[name]_resources.py
+
+#### Constitution IX: Backward Compatibility Tests
+- [ ] T020 [P] [US1] Existing client compatibility test in tests/integration/test_[name]_compat.py
+- [ ] T021 [P] [US1] Mobile client compatibility test in tests/integration/test_[name]_mobile.py
 
 ### Implementation for User Story 1
 
-- [ ] T016 [P] [US1] Create [Entity1] model in src/models/[entity1].py
-- [ ] T017 [P] [US1] Create [Entity2] model in src/models/[entity2].py
-- [ ] T018 [US1] Implement [Service] in src/services/[service].py (depends on T016, T017)
-- [ ] T019 [US1] Implement [endpoint/feature] in src/[location]/[file].py
-- [ ] T020 [US1] Add validation and error handling
-- [ ] T021 [US1] Add logging for user story 1 operations
+- [ ] T022 [P] [US1] Create [Entity1] model in src/models/[entity1].py
+- [ ] T023 [P] [US1] Create [Entity2] model in src/models/[entity2].py
+- [ ] T024 [US1] Implement [Service] in src/services/[service].py (depends on T022, T023)
+- [ ] T025 [US1] Implement [endpoint/feature] in src/[location]/[file].py
+- [ ] T026 [US1] Add validation and error handling
+- [ ] T027 [US1] Add logging for user story 1 operations
+- [ ] T028 [US1] **Constitution VIII**: Implement permission boundaries
 
 **Checkpoint**: At this point, User Story 1 should be fully functional and testable independently
 
@@ -117,17 +130,21 @@ Examples of foundational tasks (adjust based on your project):
 
 **Independent Test**: [How to verify this story works on its own]
 
-### Tests for User Story 2 (REQUIRED when constitution/spec requires) ⚠️
+### Tests for User Story 2 (OPTIONAL - only if tests requested) ⚠️
 
-- [ ] T022 [P] [US2] Contract test for [endpoint] in tests/contract/test_[name].py
-- [ ] T023 [P] [US2] Integration test for [user journey] in tests/integration/test_[name].py
+#### Constitution IX: Required Test Coverage
+- [ ] T029 [P] [US2] Protocol behavior tests in tests/contract/test_[name]_protocol.py
+- [ ] T030 [P] [US2] Permission tests in tests/integration/test_[name]_auth.py
+- [ ] T031 [P] [US2] Failure case tests in tests/integration/test_[name]_errors.py
+- [ ] T032 [P] [US2] Backward compatibility tests in tests/integration/test_[name]_compat.py
 
 ### Implementation for User Story 2
 
-- [ ] T024 [P] [US2] Create [Entity] model in src/models/[entity].py
-- [ ] T025 [US2] Implement [Service] in src/services/[service].py
-- [ ] T026 [US2] Implement [endpoint/feature] in src/[location]/[file].py
-- [ ] T027 [US2] Integrate with User Story 1 components (if needed)
+- [ ] T033 [P] [US2] Create [Entity] model in src/models/[entity].py
+- [ ] T034 [US2] Implement [Service] in src/services/[service].py
+- [ ] T035 [US2] Implement [endpoint/feature] in src/[location]/[file].py
+- [ ] T036 [US2] Integrate with User Story 1 components (if needed)
+- [ ] T037 [US2] **Constitution VIII**: Implement permission boundaries
 
 **Checkpoint**: At this point, User Stories 1 AND 2 should both work independently
 
@@ -139,16 +156,20 @@ Examples of foundational tasks (adjust based on your project):
 
 **Independent Test**: [How to verify this story works on its own]
 
-### Tests for User Story 3 (REQUIRED when constitution/spec requires) ⚠️
+### Tests for User Story 3 (OPTIONAL - only if tests requested) ⚠️
 
-- [ ] T028 [P] [US3] Contract test for [endpoint] in tests/contract/test_[name].py
-- [ ] T029 [P] [US3] Integration test for [user journey] in tests/integration/test_[name].py
+#### Constitution IX: Required Test Coverage
+- [ ] T038 [P] [US3] Protocol behavior tests in tests/contract/test_[name]_protocol.py
+- [ ] T039 [P] [US3] Permission tests in tests/integration/test_[name]_auth.py
+- [ ] T040 [P] [US3] Failure case tests in tests/integration/test_[name]_errors.py
+- [ ] T041 [P] [US3] Backward compatibility tests in tests/integration/test_[name]_compat.py
 
 ### Implementation for User Story 3
 
-- [ ] T030 [P] [US3] Create [Entity] model in src/models/[entity].py
-- [ ] T031 [US3] Implement [Service] in src/services/[service].py
-- [ ] T032 [US3] Implement [endpoint/feature] in src/[location]/[file].py
+- [ ] T042 [P] [US3] Create [Entity] model in src/models/[entity].py
+- [ ] T043 [US3] Implement [Service] in src/services/[service].py
+- [ ] T044 [US3] Implement [endpoint/feature] in src/[location]/[file].py
+- [ ] T045 [US3] **Constitution VIII**: Implement permission boundaries
 
 **Checkpoint**: All user stories should now be independently functional
 
@@ -158,18 +179,91 @@ Examples of foundational tasks (adjust based on your project):
 
 ---
 
-## Phase N: Polish & Cross-Cutting Concerns
+## Phase N: Safety Requirements & Cross-Cutting Concerns
 
-**Purpose**: Improvements that affect multiple user stories
+**Purpose**: Constitution VIII requirements and improvements that affect multiple user stories
 
+### Constitution VIII: Migration & Rollback
+- [ ] TXXX Create database migration in migrations/[version]_[description].sql
+- [ ] TXXX Test migration on representative data volume
+- [ ] TXXX Verify rollback procedure works correctly
+- [ ] TXXX Document rollback steps in operations/runbook.md
+
+### Constitution VIII: Observability
+- [ ] TXXX Add metrics instrumentation for feature usage
+- [ ] TXXX Add structured logging at appropriate levels
+- [ ] TXXX Configure alerts for error rate thresholds (if applicable)
+
+### Constitution VI: Mobile Alignment Verification
+- [ ] TXXX Run mobile journey smoke tests
+- [ ] TXXX Verify API v4 contract compliance
+- [ ] TXXX Verify WebSocket event compatibility
+
+### General Polish
 - [ ] TXXX [P] Documentation updates in docs/
 - [ ] TXXX Code cleanup and refactoring
 - [ ] TXXX Performance optimization across all stories
-- [ ] TXXX [P] Additional unit tests (if requested) in tests/unit/
+- [ ] TXXX [P] Additional unit tests in tests/unit/
 - [ ] TXXX Security hardening
 - [ ] TXXX Run quickstart.md validation
-- [ ] TXXX Run required verification commands (`cargo clippy`, `cargo test`, and compatibility smoke checks when applicable)
-- [ ] TXXX Update `task_plan.md` with implementation status, verification results, and readiness for user testing
+
+---
+
+## Phase N+1: Security & Compliance Verification
+
+**Purpose**: Constitution X-XIX verification gates
+
+### Constitution X: Data Sovereignty
+- [ ] TXXX Verify no external API dependencies for core functionality
+- [ ] TXXX Document network egress requirements (if any)
+- [ ] TXXX Verify multi-tenant isolation
+
+### Constitution XI: Stateless Architecture
+- [ ] TXXX Verify no local session state
+- [ ] TXXX Confirm Redis usage for ephemeral data
+- [ ] TXXX WebSocket clustering uses Redis pub/sub
+
+### Constitution XII: Memory Safety
+- [ ] TXXX Review all `unsafe` blocks for necessity
+- [ ] TXXX Document any required `unsafe` with safety comments
+- [ ] TXXX Run miri test if applicable
+
+### Constitution XIII: Zero-Trust
+- [ ] TXXX Verify integration scope limitations
+- [ ] TXXX Webhook signature verification implemented
+- [ ] TXXX AI agent access uses API tokens only
+
+### Constitution XIV: Federated Identity
+- [ ] TXXX OIDC PKCE enforced for SPA
+- [ ] TXXX SAML assertion validation reviewed
+- [ ] TXXX Session context binding implemented
+
+### Constitution XV: RBAC
+- [ ] TXXX Multi-dimensional permission checks verified
+- [ ] TXXX Authorization tests pass
+- [ ] TXXX Role elevation workflow documented
+
+### Constitution XVI: Audit Logging
+- [ ] TXXX Critical events logged asynchronously
+- [ ] TXXX SIEM-compatible format verified
+- [ ] TXXX Log delivery non-blocking
+
+### Constitution XVII: Privacy/Compliance
+- [ ] TXXX Data retention policy implemented
+- [ ] TXXX Hard delete (no soft delete) for erasure
+- [ ] TXXX PII handling compliant
+
+### Constitution XVIII: Accessibility
+- [ ] TXXX Keyboard navigation works
+- [ ] TXXX ARIA labels present
+- [ ] TXXX Color contrast verified
+- [ ] TXXX Automated a11y tests pass
+
+### Constitution XIX: DevSecOps
+- [ ] TXXX `cargo audit` passes (no high/critical CVEs)
+- [ ] TXXX `cargo deny` license check passes
+- [ ] TXXX Container image signing configured
+- [ ] TXXX SBOM generated
 
 ---
 
@@ -182,13 +276,8 @@ Examples of foundational tasks (adjust based on your project):
 - **User Stories (Phase 3+)**: All depend on Foundational phase completion
   - User stories can then proceed in parallel (if staffed)
   - Or sequentially in priority order (P1 → P2 → P3)
-- **Polish (Final Phase)**: Depends on all desired user stories being complete
-
-### Wave Guidance
-
-- **Wave 1**: Setup + Foundational tasks only
-- **Wave 2**: User story implementation tasks
-- **Wave 3**: Cross-story hardening, compatibility validation, and release-readiness updates
+- **Safety Requirements (Phase N)**: Depends on all desired user stories being complete
+- **Security & Compliance (Phase N+1)**: Final verification gate before release
 
 ### User Story Dependencies
 
@@ -212,15 +301,18 @@ Examples of foundational tasks (adjust based on your project):
 - All tests for a user story marked [P] can run in parallel
 - Models within a story marked [P] can run in parallel
 - Different user stories can be worked on in parallel by different team members
+- Security & Compliance verification tasks can run in parallel
 
 ---
 
 ## Parallel Example: User Story 1
 
 ```bash
-# Launch all tests for User Story 1 together (if tests requested):
-Task: "Contract test for [endpoint] in tests/contract/test_[name].py"
-Task: "Integration test for [user journey] in tests/integration/test_[name].py"
+# Launch all Constitution IX tests for User Story 1 together:
+Task: "Protocol behavior test in tests/contract/test_[name]_protocol.py"
+Task: "Permission test in tests/integration/test_[name]_auth.py"
+Task: "Failure case test in tests/integration/test_[name]_errors.py"
+Task: "Backward compatibility test in tests/integration/test_[name]_compat.py"
 
 # Launch all models for User Story 1 together:
 Task: "Create [Entity1] model in src/models/[entity1].py"
@@ -235,16 +327,17 @@ Task: "Create [Entity2] model in src/models/[entity2].py"
 
 1. Complete Phase 1: Setup
 2. Complete Phase 2: Foundational (CRITICAL - blocks all stories)
-3. Complete Phase 3: User Story 1
+3. Complete Phase 3: User Story 1 (including Constitution IX tests)
 4. **STOP and VALIDATE**: Test User Story 1 independently
-5. Deploy/demo if ready
+5. Complete Phase N: Safety requirements for User Story 1
+6. Deploy/demo if ready
 
 ### Incremental Delivery
 
 1. Complete Setup + Foundational → Foundation ready
-2. Add User Story 1 → Test independently → Deploy/Demo (MVP!)
-3. Add User Story 2 → Test independently → Deploy/Demo
-4. Add User Story 3 → Test independently → Deploy/Demo
+2. Add User Story 1 → Test independently → Safety requirements → Deploy/Demo (MVP!)
+3. Add User Story 2 → Test independently → Safety requirements → Deploy/Demo
+4. Add User Story 3 → Test independently → Safety requirements → Deploy/Demo
 5. Each story adds value without breaking previous stories
 
 ### Parallel Team Strategy
@@ -253,10 +346,52 @@ With multiple developers:
 
 1. Team completes Setup + Foundational together
 2. Once Foundational is done:
-   - Developer A: User Story 1
-   - Developer B: User Story 2
-   - Developer C: User Story 3
+   - Developer A: User Story 1 + its safety requirements
+   - Developer B: User Story 2 + its safety requirements
+   - Developer C: User Story 3 + its safety requirements
 3. Stories complete and integrate independently
+4. Final phase: Security & Compliance verification (parallel tasks)
+
+---
+
+## Constitution Compliance Checklist
+
+Before marking feature complete, verify:
+
+### Workflow Principles (I-IX)
+- [ ] **I. Contract Compatibility First**: All API/websocket contracts match Mattermost
+- [ ] **II. Plan-First User Validation**: Spec approved, plan documented
+- [ ] **III. Evidence-Backed Analysis**: Upstream analysis artifacts linked
+- [ ] **IV. Test and Verification Gates**: All tests pass, `cargo clippy` clean
+- [ ] **V. Security and Operational Discipline**: No secrets, security reviewed
+- [ ] **VI. Mobile-First Alignment**: Mobile compatibility verified
+- [ ] **VII. Product Contract Immutability**: No implicit contract changes
+- [ ] **VIII. Feature Safety Requirements**:
+  - [ ] Permission boundaries implemented
+  - [ ] Migration impact addressed
+  - [ ] Observability requirements met
+  - [ ] Rollback safety verified
+- [ ] **IX. Comprehensive Test Coverage**:
+  - [ ] Protocol behavior tests
+  - [ ] Permission tests
+  - [ ] Failure case tests
+  - [ ] Backward compatibility tests
+
+### Architecture Principles (X-XIII)
+- [ ] **X. Absolute Data Sovereignty**: Air-gapped deployment support, no external deps
+- [ ] **XI. Stateless Application Tier**: Redis for ephemeral state, no local state
+- [ ] **XII. Memory Safety First**: Rust `#![forbid(unsafe_code)]` or documented justification
+- [ ] **XIII. Zero-Trust Extensibility**: Least privilege, scoped access, webhook verification
+
+### Security & Identity (XIV-XVI)
+- [ ] **XIV. Federated Identity**: OIDC PKCE, SAML validation
+- [ ] **XV. Strict RBAC**: Multi-dimensional authorization
+- [ ] **XVI. Immutable Audit Logging**: Async SIEM-formatted logs
+
+### Compliance & DevSecOps (XVII-XIX)
+- [ ] **XVII. Privacy by Design**: Retention, erasure, PII handling
+- [ ] **XVIII. Universal Accessibility**: WCAG 2.1 AA, BITV 2.0
+- [ ] **XIX. DevSecOps Automation**: `cargo audit`, `cargo deny`, signed containers
 
 ---
 
@@ -269,3 +404,6 @@ With multiple developers:
 - Commit after each task or logical group
 - Stop at any checkpoint to validate story independently
 - Avoid: vague tasks, same file conflicts, cross-story dependencies that break independence
+- All Constitution VIII safety requirements must be addressed before feature is complete
+- All Constitution IX test categories must be covered (or explicitly waived with justification)
+- All Constitution X-XIX requirements must be verified in final Security & Compliance phase

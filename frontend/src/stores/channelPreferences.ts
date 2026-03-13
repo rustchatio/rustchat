@@ -178,6 +178,12 @@ export const useChannelPreferencesStore = defineStore('channelPreferences', () =
         }
     }
 
+    function clearState() {
+        favoriteChannels.value.clear()
+        mutedChannels.value.clear()
+        channelNotifyProps.value = {}
+    }
+
     return {
         favoriteChannels,
         mutedChannels,
@@ -193,6 +199,7 @@ export const useChannelPreferencesStore = defineStore('channelPreferences', () =
         muteChannel,
         unmuteChannel,
         toggleMute,
-        fetchChannelNotifyProps
+        fetchChannelNotifyProps,
+        clearState
     }
 })

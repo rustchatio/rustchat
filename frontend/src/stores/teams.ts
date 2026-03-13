@@ -126,6 +126,14 @@ export const useTeamStore = defineStore('teams', () => {
         }
     }
 
+    function clear() {
+        teams.value = []
+        publicTeams.value = []
+        members.value = []
+        currentTeamId.value = null
+        error.value = null
+    }
+
     return {
         teams,
         publicTeams,
@@ -142,7 +150,7 @@ export const useTeamStore = defineStore('teams', () => {
         selectTeam,
         updateTeam,
         removeTeam,
+        clear,
         fetchMembers,
     }
 })
-

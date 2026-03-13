@@ -5,12 +5,12 @@
 //! bootstrap, presence lifecycle, and shared command handling.
 
 use axum::http::HeaderMap;
-use chrono::Utc;
+use chrono::{DateTime, TimeZone, Utc};
 use deadpool_redis::redis::AsyncCommands;
 use uuid::Uuid;
 
 use crate::api::AppState;
-use crate::auth::validate_token_with_policy;
+use crate::auth::{validate_token_with_policy, Claims};
 use crate::realtime::{
     ClientEnvelope, EventType, TypingCommandData, TypingEvent, WsBroadcast, WsEnvelope,
 };
@@ -26,6 +26,12 @@ pub struct EnvelopeCommandOptions {
     pub allow_send_message: bool,
     pub emit_unknown_error: bool,
     pub acknowledge_unsubscribe: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct WebSocketAuth {
+    pub user_id: Uuid,
+    pub expires_at: DateTime<Utc>,
 }
 
 impl EnvelopeCommandOptions {
@@ -360,17 +366,28 @@ pub fn resolve_auth_token(headers: &HeaderMap, protocol_token: Option<&str>) -> 
     resolve_auth_token_secure(headers, protocol_token)
 }
 
-pub fn validate_user_id(token: Option<&str>, state: &AppState) -> Option<Uuid> {
-    token.and_then(|t| {
-        validate_token_with_policy(
-            t,
-            &state.jwt_secret,
-            state.jwt_issuer.as_deref(),
-            state.jwt_audience.as_deref(),
-        )
-        .ok()
-        .map(|c| c.claims.sub)
+fn claims_to_websocket_auth(claims: Claims) -> Option<WebSocketAuth> {
+    let expires_at = Utc.timestamp_opt(claims.exp, 0).single()?;
+    Some(WebSocketAuth {
+        user_id: claims.sub,
+        expires_at,
     })
+}
+
+pub fn validate_auth_token(token: &str, state: &AppState) -> Option<WebSocketAuth> {
+    let token_data = validate_token_with_policy(
+        token,
+        &state.jwt_secret,
+        state.jwt_issuer.as_deref(),
+        state.jwt_audience.as_deref(),
+    )
+    .ok()?;
+
+    claims_to_websocket_auth(token_data.claims)
+}
+
+pub fn validate_auth_context(token: Option<&str>, state: &AppState) -> Option<WebSocketAuth> {
+    token.and_then(|t| validate_auth_token(t, state))
 }
 
 pub async fn initialize_connection_state(
@@ -681,5 +698,41 @@ mod tests {
         let headers = HeaderMap::new();
         let token = resolve_auth_token(&headers, None);
         assert_eq!(token, None);
+    }
+
+    #[test]
+    fn claims_to_websocket_auth_maps_valid_expiry() {
+        let user_id = Uuid::new_v4();
+        let exp = Utc::now().timestamp() + 120;
+        let claims = Claims {
+            sub: user_id,
+            email: "ws@example.com".to_string(),
+            role: "member".to_string(),
+            org_id: None,
+            iss: None,
+            aud: None,
+            iat: exp - 60,
+            exp,
+        };
+
+        let auth = claims_to_websocket_auth(claims).expect("expected valid websocket auth");
+        assert_eq!(auth.user_id, user_id);
+        assert_eq!(auth.expires_at.timestamp(), exp);
+    }
+
+    #[test]
+    fn claims_to_websocket_auth_rejects_invalid_expiry_timestamp() {
+        let claims = Claims {
+            sub: Uuid::new_v4(),
+            email: "ws@example.com".to_string(),
+            role: "member".to_string(),
+            org_id: None,
+            iss: None,
+            aud: None,
+            iat: 0,
+            exp: i64::MAX,
+        };
+
+        assert!(claims_to_websocket_auth(claims).is_none());
     }
 }

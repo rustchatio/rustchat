@@ -28,7 +28,6 @@ use uuid::Uuid;
 use crate::api::v4::calls_plugin;
 use crate::api::websocket_core::{self, EnvelopeCommandOptions};
 use crate::api::AppState;
-use crate::auth::validate_token_with_policy;
 use crate::mattermost_compat::{
     id::{encode_mm_id, parse_mm_or_uuid},
     mappers::map_channel_role,
@@ -85,19 +84,19 @@ pub async fn handle_websocket(
         }
     });
 
-    let user_id = websocket_core::validate_user_id(token.as_deref(), &state);
+    let auth = websocket_core::validate_auth_context(token.as_deref(), &state);
 
     trace!(
         has_token = token.is_some(),
         has_protocol = requested_protocol.is_some(),
-        has_user = user_id.is_some(),
+        has_user = auth.is_some(),
         connection_id = ?connection_id,
         sequence_number = ?sequence_number,
         "WebSocket connection request"
     );
 
     let mut response = ws.on_upgrade(move |socket| {
-        handle_socket(socket, state, user_id, connection_id, sequence_number, None)
+        handle_socket(socket, state, auth, connection_id, sequence_number, None)
     });
 
     // Match Mattermost behavior by echoing the requested protocol when present.
@@ -116,21 +115,29 @@ pub async fn handle_websocket(
 async fn handle_socket(
     socket: WebSocket,
     state: AppState,
-    user_id: Option<Uuid>,
+    auth: Option<websocket_core::WebSocketAuth>,
     connection_id: Option<String>,
     sequence_number: Option<i64>,
     addr: Option<SocketAddr>,
 ) {
     // Handle authentication if not already done
-    let user_id = match user_id {
-        Some(id) => id,
+    let auth = match auth {
+        Some(auth) => auth,
         None => {
             // Try to authenticate via WebSocket message
             match authenticate_via_websocket(socket, &state).await {
-                Some((id, sock)) => {
+                Some((auth, sock)) => {
                     // Continue with authenticated socket
-                    return run_connection(sock, state, id, connection_id, sequence_number, addr)
-                        .await;
+                    return run_connection(
+                        sock,
+                        state,
+                        auth.user_id,
+                        auth.expires_at,
+                        connection_id,
+                        sequence_number,
+                        addr,
+                    )
+                    .await;
                 }
                 None => {
                     warn!(addr = ?addr, "WebSocket authentication failed");
@@ -140,14 +147,23 @@ async fn handle_socket(
         }
     };
 
-    run_connection(socket, state, user_id, connection_id, sequence_number, addr).await;
+    run_connection(
+        socket,
+        state,
+        auth.user_id,
+        auth.expires_at,
+        connection_id,
+        sequence_number,
+        addr,
+    )
+    .await;
 }
 
 /// Authenticate via WebSocket message exchange
 async fn authenticate_via_websocket(
     mut socket: WebSocket,
     state: &AppState,
-) -> Option<(Uuid, WebSocket)> {
+) -> Option<(websocket_core::WebSocketAuth, WebSocket)> {
     // Wait for authentication challenge
     let timeout_duration = Duration::from_secs(30);
 
@@ -156,24 +172,15 @@ async fn authenticate_via_websocket(
             Ok(Some(Ok(Message::Text(text)))) => {
                 if let Some(challenge) = parse_authentication_challenge(&text) {
                     let valid_user = websocket_core::normalize_auth_token(&challenge.token)
-                        .and_then(|t| {
-                            validate_token_with_policy(
-                                &t,
-                                &state.jwt_secret,
-                                state.jwt_issuer.as_deref(),
-                                state.jwt_audience.as_deref(),
-                            )
-                            .ok()
-                        })
-                        .map(|c| c.claims.sub);
+                        .and_then(|t| websocket_core::validate_auth_token(&t, state));
 
-                    if let Some(user_id) = valid_user {
+                    if let Some(auth) = valid_user {
                         let resp = json!({
                             "status": "OK",
                             "seq_reply": challenge.seq_reply
                         });
                         let _ = socket.send(Message::Text(resp.to_string().into())).await;
-                        return Some((user_id, socket));
+                        return Some((auth, socket));
                     }
 
                     let resp = json!({
@@ -204,10 +211,20 @@ async fn run_connection(
     socket: WebSocket,
     state: AppState,
     user_id: Uuid,
+    token_expires_at: DateTime<Utc>,
     connection_id: Option<String>,
     sequence_number: Option<i64>,
     addr: Option<SocketAddr>,
 ) {
+    if token_expires_at <= Utc::now() {
+        warn!(
+            user_id = %user_id,
+            token_expires_at = %token_expires_at,
+            "Rejecting websocket connection because token is already expired"
+        );
+        return;
+    }
+
     // Check connection limits
     if let Err(limit) = websocket_core::enforce_connection_limit(&state, user_id).await {
         warn!(
@@ -424,6 +441,13 @@ async fn run_connection(
         }
     });
 
+    let token_ttl = token_expires_at
+        .signed_duration_since(Utc::now())
+        .to_std()
+        .unwrap_or(Duration::ZERO);
+    let auth_expiry_sleep = sleep(token_ttl);
+    tokio::pin!(auth_expiry_sleep);
+
     // Handle events from WebSocket actor
     loop {
         tokio::select! {
@@ -484,6 +508,16 @@ async fn run_connection(
             // If hub forward task ends, we should also close
             _ = &mut hub_forward_task => {
                 debug!(connection_id = %actor_connection_id, "Hub forward task ended");
+                break;
+            }
+            _ = &mut auth_expiry_sleep => {
+                info!(
+                    connection_id = %actor_connection_id,
+                    user_id = %user_id,
+                    token_expires_at = %token_expires_at,
+                    "Closing websocket because authentication token expired"
+                );
+                actor.close(close_codes::POLICY_VIOLATION, "Authentication token expired");
                 break;
             }
         }

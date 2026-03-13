@@ -11,6 +11,7 @@ use axum::{
     routing::get,
     Router,
 };
+use chrono::Utc;
 use futures_util::{SinkExt, StreamExt};
 use tokio::time::Duration;
 
@@ -44,8 +45,8 @@ async fn ws_handler(
         requested_protocol
     );
 
-    let user_id = match websocket_core::validate_user_id(token.as_deref(), &state) {
-        Some(user_id) => user_id,
+    let auth = match websocket_core::validate_auth_context(token.as_deref(), &state) {
+        Some(auth) => auth,
         None => {
             tracing::warn!("WS Handshake failed: Invalid token");
             return Response::builder()
@@ -55,7 +56,7 @@ async fn ws_handler(
         }
     };
 
-    if websocket_core::enforce_connection_limit(&state, user_id)
+    if websocket_core::enforce_connection_limit(&state, auth.user_id)
         .await
         .is_err()
     {
@@ -65,11 +66,11 @@ async fn ws_handler(
             .unwrap();
     }
 
-    let username = websocket_core::fetch_username(&state, user_id)
+    let username = websocket_core::fetch_username(&state, auth.user_id)
         .await
         .unwrap_or_else(|_| "Unknown".to_string());
 
-    let mut response = ws.on_upgrade(move |socket| handle_socket(socket, user_id, username, state));
+    let mut response = ws.on_upgrade(move |socket| handle_socket(socket, auth, username, state));
 
     // Spec compliance: if client requested a protocol, we MUST return it
     if let Some(p) = requested_protocol {
@@ -84,7 +85,22 @@ async fn ws_handler(
 }
 
 /// Handle WebSocket connection
-async fn handle_socket(socket: WebSocket, user_id: uuid::Uuid, username: String, state: AppState) {
+async fn handle_socket(
+    socket: WebSocket,
+    auth: websocket_core::WebSocketAuth,
+    username: String,
+    state: AppState,
+) {
+    let user_id = auth.user_id;
+    if auth.expires_at <= Utc::now() {
+        tracing::warn!(
+            user_id = %user_id,
+            token_expires_at = %auth.expires_at,
+            "Rejecting websocket connection because token is already expired"
+        );
+        return;
+    }
+
     let (mut sender, mut receiver) = socket.split();
 
     // Add connection to hub
@@ -120,7 +136,7 @@ async fn handle_socket(socket: WebSocket, user_id: uuid::Uuid, username: String,
     }
 
     // Spawn task to forward hub messages to client
-    let send_task = tokio::spawn(async move {
+    let mut send_task = tokio::spawn(async move {
         loop {
             match rx.recv().await {
                 Ok(msg) => {
@@ -142,7 +158,7 @@ async fn handle_socket(socket: WebSocket, user_id: uuid::Uuid, username: String,
     let state_for_receive = state.clone();
     let username_for_receive = username.clone();
     let connection_id_for_receive = connection_id_str.clone();
-    let receive_task = tokio::spawn(async move {
+    let mut receive_task = tokio::spawn(async move {
         while let Some(result) = receiver.next().await {
             match result {
                 Ok(Message::Text(text)) => {
@@ -182,12 +198,29 @@ async fn handle_socket(socket: WebSocket, user_id: uuid::Uuid, username: String,
         }
     });
 
+    let token_ttl = auth
+        .expires_at
+        .signed_duration_since(Utc::now())
+        .to_std()
+        .unwrap_or(Duration::ZERO);
+    let auth_expiry_sleep = tokio::time::sleep(token_ttl);
+    tokio::pin!(auth_expiry_sleep);
+
     // Wait for either task to complete
     tokio::select! {
-        _ = send_task => {},
-        _ = receive_task => {},
+        _ = &mut send_task => {},
+        _ = &mut receive_task => {},
+        _ = &mut auth_expiry_sleep => {
+            tracing::info!(
+                user_id = %user_id,
+                token_expires_at = %auth.expires_at,
+                "Closing websocket because authentication token expired"
+            );
+        },
     }
 
+    send_task.abort();
+    receive_task.abort();
     heartbeat_task.abort();
 
     // Cleanup

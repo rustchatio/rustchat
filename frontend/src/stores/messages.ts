@@ -351,6 +351,15 @@ export const useMessageStore = defineStore('messages', () => {
         }
     }
 
+    function resetSessionState() {
+        messagesByChannel.value = {}
+        repliesByThread.value = {}
+        hasMoreOlderByChannel.value = {}
+        loading.value = false
+        isLoadingOlder.value = false
+        error.value = null
+    }
+
     async function pinMessage(messageId: string, channelId: string) {
         try {
             await postsApi.pin(messageId)
@@ -600,6 +609,7 @@ export const useMessageStore = defineStore('messages', () => {
         handleReactionAdded,
         handleReactionRemoved,
         clearMessages,
+        resetSessionState,
         pinMessage,
         unpinMessage,
         saveMessage,

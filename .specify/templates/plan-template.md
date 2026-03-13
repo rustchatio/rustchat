@@ -31,26 +31,173 @@
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-- [ ] Contract compatibility impact identified (API/websocket/calls/pagination/errors)
-- [ ] If compatibility impact exists: upstream analysis artifacts planned under `previous-analyses/YYYY-MM-DD-<topic>/`
-- [ ] `SPEC.md` scope, contract impact, and verification approach are defined
-- [ ] User approval checkpoint is present before implementation
-- [ ] Verification plan includes `cargo clippy`, `cargo test`, and compatibility checks when applicable
-- [ ] Security/operations impact reviewed (secrets, production claims, environment hardening)
+### Principle Compliance
 
-## Phase -1: Pre-Implementation Gates
+| Principle | Status | Notes |
+|-----------|--------|-------|
+| I. Contract Compatibility First | [ ] | [API/websocket contract verification] |
+| II. Plan-First User Validation | [✓] | [This plan is the validation step] |
+| III. Evidence-Backed Analysis | [ ] | [Upstream analysis artifacts linked] |
+| IV. Test and Verification Gates | [ ] | [Test strategy defined] |
+| V. Security and Operational Discipline | [ ] | [Security review completed] |
+| VI. Mobile-First Alignment Priority | [ ] | [Mobile compatibility documented] |
+| VII. Product Contract Immutability | [ ] | [Core contract changes identified] |
+| VIII. Feature Safety Requirements | [ ] | [Permission/Migration/Observability/Rollback defined] |
+| IX. Comprehensive Test Coverage | [ ] | [Protocol/Permission/Failure/Compat tests planned] |
+| **X. Absolute Data Sovereignty** | [ ] | **[No external deps / Air-gapped support verified]** |
+| **XI. Stateless Application Tier** | [ ] | **[Redis/DB for shared state, no local state]** |
+| **XII. Memory Safety First** | [ ] | **[Rust `#![forbid(unsafe_code)]` where feasible]** |
+| **XIII. Zero-Trust Extensibility** | [ ] | **[Least privilege, scoped access]** |
+| **XIV. Federated Identity** | [ ] | **[OIDC/SAML PKCE compliance]** |
+| **XV. Strict RBAC** | [ ] | **[Multi-dimensional role enforcement]** |
+| **XVI. Immutable Audit Logging** | [ ] | **[Async SIEM-formatted logging]** |
+| **XVII. Privacy by Design** | [ ] | **[Retention, erasure, PII handling]** |
+| **XVIII. Universal Accessibility** | [ ] | **[WCAG 2.1 AA / BITV 2.0 compliance]** |
+| **XIX. DevSecOps Automation** | [ ] | **[cargo-audit, cargo-deny, CI gates]** |
 
-- [ ] Keep design simple and scoped (no speculative architecture or future-proofing)
-- [ ] Avoid unnecessary abstraction layers; justify any new indirection explicitly
-- [ ] Define integration and contract checks before implementation tasks
-- [ ] Document any gate exceptions in `Complexity Tracking` with rationale and approval owner
+### Architecture Constraints
 
-## Execution Waves
+- [ ] Backend remains idiomatic async Rust (Tokio + Axum)
+- [ ] PostgreSQL remains primary persistent store
+- [ ] Redis for ephemeral state (WebSocket, sessions)
+- [ ] No external dependencies for core functionality (Constitution X)
+- [ ] Stateless application tier (Constitution XI)
+- [ ] Memory-safe Rust implementation (Constitution XII)
+- [ ] No unapproved dependencies or framework additions
+- [ ] Minimal architecture, clear state transitions, explicit contracts
 
-- **Wave 1 (Foundation)**: blocking prerequisites and contract setup
-- **Wave 2 (Core)**: primary user-story implementation
-- **Wave 3 (Hardening)**: compatibility fixes, resilience, and release checks
-- For each wave, mark whether tasks are parallel-safe and list prerequisites
+## Safety Requirements Implementation
+
+<!--
+  Document implementation of Constitution VIII requirements.
+  These must be addressed in the implementation phases.
+-->
+
+### Permission Boundaries Implementation
+- [ ] Authorization middleware updates (if needed)
+- [ ] Permission check functions implemented
+- [ ] Edge case handling documented
+
+### Migration Implementation
+- [ ] Database migration files created
+- [ ] Migration tested on representative data volume
+- [ ] Rollback script verified
+
+### Observability Implementation
+- [ ] Metrics instrumentation added
+- [ ] Logging statements added at appropriate levels
+- [ ] Alert thresholds defined (if applicable)
+
+### Rollback Procedure
+- [ ] Feature flag controlled (if applicable)
+- [ ] Database migration reversible
+- [ ] Documentation updated with rollback steps
+
+## Mobile Alignment Implementation
+
+<!--
+  Document implementation of Constitution VI requirements.
+  Required for all features with mobile impact.
+-->
+
+### Mobile Compatibility Verification
+- [ ] API v4 endpoints match Mattermost contract
+- [ ] WebSocket events match mobile expectations
+- [ ] Calls plugin compatibility verified (if applicable)
+- [ ] Mobile journey smoke tests pass
+
+### Test Coverage for Mobile
+- [ ] Protocol behavior tests cover mobile use cases
+- [ ] Backward compatibility with existing mobile clients
+
+## Security & Identity Implementation
+
+<!--
+  Document implementation of Constitution XIII, XIV, XV, XVI requirements.
+-->
+
+### Zero-Trust Extensibility (Constitution XIII)
+- [ ] Integration scope limited (channel/user, not global)
+- [ ] Webhook signature verification implemented
+- [ ] AI agents use API with user-delegated tokens only
+
+### Federated Identity (Constitution XIV)
+- [ ] OIDC PKCE enforced for SPA flows
+- [ ] SAML assertion validation (XML signature)
+- [ ] Session context binding (MFA, device posture)
+
+### RBAC Enforcement (Constitution XV)
+- [ ] Multi-dimensional RBAC checks (global/team/channel)
+- [ ] Authorization checks centralized
+- [ ] Role elevation workflow documented
+
+### Audit Logging (Constitution XVI)
+- [ ] Critical security events logged
+- [ ] RBAC mutations logged
+- [ ] Data access operations logged
+- [ ] Asynchronous log delivery (non-blocking)
+- [ ] SIEM-compatible format (JSON/CEF)
+
+## Privacy & Compliance Implementation
+
+<!--
+  Document implementation of Constitution XVII requirements.
+-->
+
+### Data Retention
+- [ ] Retention policy configurable
+- [ ] Automated deletion scheduled
+- [ ] Legal hold support implemented
+
+### Right to Erasure
+- [ ] Hard delete from database (no soft delete)
+- [ ] Cryptographic wipe for files
+- [ ] Propagation to replicas/backups
+
+### PII Handling
+- [ ] PII encrypted at rest
+- [ ] PII access logged
+- [ ] Data export capability implemented
+
+## Accessibility Implementation
+
+<!--
+  Document implementation of Constitution XVIII requirements.
+-->
+
+### WCAG 2.1 Level AA
+- [ ] Keyboard navigation
+- [ ] Screen reader compatibility (ARIA)
+- [ ] Color contrast (4.5:1)
+- [ ] Focus management
+- [ ] Responsive design (200% zoom)
+
+### BITV 2.0 Compliance
+- [ ] German accessibility standard verification
+- [ ] Automated a11y testing in CI
+- [ ] Manual screen reader testing
+
+## DevSecOps Implementation
+
+<!--
+  Document implementation of Constitution XIX requirements.
+-->
+
+### CI/CD Security Gates
+- [ ] `cargo audit` integration
+- [ ] `cargo deny` license check
+- [ ] `cargo clippy` zero warnings
+- [ ] Container scanning (Trivy/Grype)
+
+### Supply Chain Security
+- [ ] Dependency checksum verification
+- [ ] SBOM generation
+- [ ] Private crate registry (if internal)
+
+### Deployment Security
+- [ ] Container image signing (cosign)
+- [ ] Immutable infrastructure
+- [ ] Canary deployment strategy
 
 ## Project Structure
 

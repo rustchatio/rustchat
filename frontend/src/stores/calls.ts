@@ -940,6 +940,18 @@ export const useCallsStore = defineStore('calls', () => {
         localStorage.setItem('calls_preferred_video_device', deviceId)
     }
 
+    function resetSessionState() {
+        cleanupWebRTC()
+        activeCalls.value.clear()
+        currentCall.value = null
+        incomingCall.value = null
+        isExpanded.value = false
+        isMuted.value = true
+        isHandRaised.value = false
+        isScreenSharing.value = false
+        speakingParticipants.value.clear()
+    }
+
     return {
         // State
         callsConfig,
@@ -980,6 +992,7 @@ export const useCallsStore = defineStore('calls', () => {
         toggleExpanded,
         initializeWebRTC,
         cleanupWebRTC,
+        resetSessionState,
         setPreferredAudioInput,
         setPreferredAudioOutput,
         setPreferredVideoDevice
