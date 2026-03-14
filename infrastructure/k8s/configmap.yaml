@@ -1,0 +1,61 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rustchat-config
+  namespace: rustchat
+  labels:
+    app: rustchat-backend
+data:
+  # Site configuration
+  site.url: "https://chat.rustchat.io"
+  cors.allowed-origins: "https://chat.rustchat.io,https://app.rustchat.io"
+  
+  # JWT configuration
+  jwt.issuer: "rustchat"
+  jwt.audience: "rustchat-api"
+  
+  # S3/RustFS configuration
+  s3.endpoint: "http://rustfs.rustchat.svc.cluster.local:9000"
+  s3.public-endpoint: "https://s3.rustchat.io"
+  s3.bucket: "rustchat-uploads"
+  s3.region: "us-east-1"
+  
+  # Push proxy
+  push-proxy.url: "http://push-proxy.rustchat.svc.cluster.local:3000"
+  
+  # Kafka configuration (optional)
+  kafka.enabled: "true"
+  kafka.bootstrap-servers: "kafka.rustchat.svc.cluster.local:9092"
+  kafka.posts-topic: "rustchat.posts"
+  kafka.consumer-group: "websocket-fanout"
+  kafka.fanout-threshold: "1000"
+  
+  # OpenSearch configuration (optional)
+  opensearch.enabled: "true"
+  opensearch.url: "http://opensearch.rustchat.svc.cluster.local:9200"
+  opensearch.index-prefix: "rustchat"
+  opensearch.number-of-shards: "3"
+  opensearch.number-of-replicas: "1"
+  
+  # Calls plugin
+  calls.enabled: "true"
+  calls.udp-port: "8443"
+  calls.tcp-port: "8443"
+  calls.state-backend: "redis"
+  
+  # TURN server
+  turn.server-enabled: "true"
+  turn.server-url: "turn:turn.rustchat.io:3478"
+  
+  # Security
+  security.rate-limit-enabled: "true"
+  security.rate-limit-auth-per-minute: "10"
+  security.rate-limit-ws-per-minute: "30"
+  
+  # Database pool
+  db.pool.max-connections: "50"
+  db.pool.min-connections: "10"
+  
+  # Feature flags
+  unread.v2-enabled: "true"
+  collapsed-threads.enabled: "true"

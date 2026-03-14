@@ -5,7 +5,11 @@
 use anyhow::anyhow;
 use serde::Deserialize;
 
+pub mod kafka;
+pub mod mcp;
 pub mod security;
+
+pub use kafka::KafkaConfig;
 
 /// Application configuration
 #[derive(Debug, Clone, Deserialize)]
@@ -124,6 +128,18 @@ pub struct Config {
     /// Compatibility-oriented feature flags.
     #[serde(default)]
     pub compatibility: CompatibilityConfig,
+
+    /// Kafka configuration for high-volume messaging
+    #[serde(default)]
+    pub kafka: KafkaConfig,
+
+    /// OpenSearch configuration for scalable search
+    #[serde(default)]
+    pub opensearch: crate::search::OpenSearchConfig,
+
+    /// MCP (Model Context Protocol) configuration
+    #[serde(default)]
+    pub mcp: mcp::McpConfig,
 }
 
 /// Calls plugin configuration
@@ -705,6 +721,11 @@ impl Config {
         Ok(())
     }
 
+    fn apply_mcp_env_overrides(&mut self) -> anyhow::Result<()> {
+        self.mcp.apply_env_overrides()?;
+        Ok(())
+    }
+
     /// Load configuration from environment variables
     pub fn load() -> anyhow::Result<Self> {
         let mut builder = config::Config::builder();
@@ -731,6 +752,7 @@ impl Config {
         settings.apply_keycloak_env_overrides()?;
         settings.apply_messaging_env_overrides()?;
         settings.apply_compatibility_env_overrides()?;
+        settings.apply_mcp_env_overrides()?;
 
         // Validate security settings
         settings.validate_security()?;
@@ -887,6 +909,119 @@ fn parse_csv_list(raw: &str) -> Vec<String> {
         .filter(|s| !s.is_empty())
         .map(|s| s.to_string())
         .collect()
+}
+
+/// OpenSearch configuration
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct OpenSearchConfig {
+    /// Enable OpenSearch integration
+    #[serde(default = "default_opensearch_enabled")]
+    pub enabled: bool,
+
+    /// OpenSearch endpoint URL
+    #[serde(default = "default_opensearch_url")]
+    pub url: String,
+
+    /// Username for basic auth
+    #[serde(default)]
+    pub username: Option<String>,
+
+    /// Password for basic auth
+    #[serde(default)]
+    pub password: Option<String>,
+
+    /// AWS region (for SigV4 auth)
+    #[serde(default)]
+    pub aws_region: Option<String>,
+
+    /// AWS access key (for SigV4 auth)
+    #[serde(default)]
+    pub aws_access_key: Option<String>,
+
+    /// AWS secret key (for SigV4 auth)
+    #[serde(default)]
+    pub aws_secret_key: Option<String>,
+
+    /// Enable SSL/TLS
+    #[serde(default = "default_opensearch_ssl_enabled")]
+    pub ssl_enabled: bool,
+
+    /// Skip certificate validation (development only)
+    #[serde(default)]
+    pub skip_ssl_verify: bool,
+
+    /// Connection timeout in seconds
+    #[serde(default = "default_opensearch_timeout")]
+    pub connection_timeout_secs: u64,
+
+    /// Request timeout in seconds
+    #[serde(default = "default_opensearch_request_timeout")]
+    pub request_timeout_secs: u64,
+
+    /// Index name prefix
+    #[serde(default = "default_index_prefix")]
+    pub index_prefix: String,
+
+    /// Number of shards for new indices
+    #[serde(default = "default_number_of_shards")]
+    pub number_of_shards: u32,
+
+    /// Number of replicas for new indices
+    #[serde(default = "default_number_of_replicas")]
+    pub number_of_replicas: u32,
+}
+
+impl Default for OpenSearchConfig {
+    fn default() -> Self {
+        Self {
+            enabled: default_opensearch_enabled(),
+            url: default_opensearch_url(),
+            username: None,
+            password: None,
+            aws_region: None,
+            aws_access_key: None,
+            aws_secret_key: None,
+            ssl_enabled: default_opensearch_ssl_enabled(),
+            skip_ssl_verify: false,
+            connection_timeout_secs: default_opensearch_timeout(),
+            request_timeout_secs: default_opensearch_request_timeout(),
+            index_prefix: default_index_prefix(),
+            number_of_shards: default_number_of_shards(),
+            number_of_replicas: default_number_of_replicas(),
+        }
+    }
+}
+
+fn default_opensearch_enabled() -> bool {
+    false
+}
+
+fn default_opensearch_url() -> String {
+    "http://localhost:9200".to_string()
+}
+
+fn default_opensearch_ssl_enabled() -> bool {
+    false
+}
+
+fn default_opensearch_timeout() -> u64 {
+    10
+}
+
+fn default_opensearch_request_timeout() -> u64 {
+    30
+}
+
+fn default_index_prefix() -> String {
+    "rustchat".to_string()
+}
+
+fn default_number_of_shards() -> u32 {
+    1
+}
+
+fn default_number_of_replicas() -> u32 {
+    1
 }
 
 #[cfg(test)]

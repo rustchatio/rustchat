@@ -1,0 +1,314 @@
+# High Availability Docker Compose Configuration
+#
+# This file extends docker-compose.yml with HA components:
+# - PostgreSQL primary-replica setup
+# - Redis Cluster (6 nodes: 3 masters, 3 replicas)
+# - Kafka for high-volume messaging
+# - OpenSearch for scalable search
+#
+# Usage: docker compose -f docker-compose.yml -f docker-compose.ha.yml up -d
+
+services:
+  # PostgreSQL Primary
+  postgres-primary:
+    image: bitnami/postgresql-repmgr:16
+    container_name: rustchat-postgres-primary
+    environment:
+      - POSTGRESQL_POSTGRES_PASSWORD=adminpassword
+      - POSTGRESQL_USERNAME=rustchat
+      - POSTGRESQL_PASSWORD=rustchat
+      - POSTGRESQL_DATABASE=rustchat
+      - REPMGR_PASSWORD=repmgrpassword
+      - REPMGR_PRIMARY_HOST=postgres-primary
+      - REPMGR_PRIMARY_PORT=5432
+      - REPMGR_PARTNER_NODES=postgres-primary:5432,postgres-replica:5432
+      - REPMGR_NODE_NAME=postgres-primary
+      - REPMGR_NODE_NETWORK_NAME=postgres-primary
+      - REPMGR_PORT_NUMBER=5432
+      - REPMGR_CONNECT_TIMEOUT=5
+      - REPMGR_RECONNECT_ATTEMPTS=3
+      - REPMGR_RECONNECT_INTERVAL=5
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_primary_data:/bitnami/postgresql
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U rustchat -d rustchat" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # PostgreSQL Replica
+  postgres-replica:
+    image: bitnami/postgresql-repmgr:16
+    container_name: rustchat-postgres-replica
+    environment:
+      - POSTGRESQL_POSTGRES_PASSWORD=adminpassword
+      - POSTGRESQL_USERNAME=rustchat
+      - POSTGRESQL_PASSWORD=rustchat
+      - POSTGRESQL_DATABASE=rustchat
+      - REPMGR_PASSWORD=repmgrpassword
+      - REPMGR_PRIMARY_HOST=postgres-primary
+      - REPMGR_PRIMARY_PORT=5432
+      - REPMGR_PARTNER_NODES=postgres-primary:5432,postgres-replica:5432
+      - REPMGR_NODE_NAME=postgres-replica
+      - REPMGR_NODE_NETWORK_NAME=postgres-replica
+      - REPMGR_PORT_NUMBER=5432
+      - REPMGR_CONNECT_TIMEOUT=5
+      - REPMGR_RECONNECT_ATTEMPTS=3
+      - REPMGR_RECONNECT_INTERVAL=5
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_replica_data:/bitnami/postgresql
+    depends_on:
+      postgres-primary:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U rustchat -d rustchat" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Update backend to use read replica
+  backend:
+    environment:
+      - RUSTCHAT_DATABASE_URL=postgres://rustchat:rustchat@postgres-primary:5432/rustchat
+      - RUSTCHAT_DATABASE_READ_URL=postgres://rustchat:rustchat@postgres-replica:5432/rustchat
+    depends_on:
+      postgres-primary:
+        condition: service_healthy
+      postgres-replica:
+        condition: service_healthy
+      redis-cluster:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      opensearch:
+        condition: service_healthy
+
+  # Redis Cluster - Node 1 (Master)
+  redis-node-1:
+    image: bitnami/redis-cluster:7.2
+    container_name: rustchat-redis-node-1
+    environment:
+      - REDIS_PASSWORD=rustchat
+      - REDIS_CLUSTER_REPLICAS=1
+      - REDIS_NODES=redis-node-1,redis-node-2,redis-node-3,redis-node-4,redis-node-5,redis-node-6
+      - REDIS_CLUSTER_CREATOR=yes
+      - REDIS_CLUSTER_CREATOR_TIMEOUT=60
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_node_1_data:/bitnami/redis/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "-a", "rustchat", "ping" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cluster - Node 2 (Master)
+  redis-node-2:
+    image: bitnami/redis-cluster:7.2
+    container_name: rustchat-redis-node-2
+    environment:
+      - REDIS_PASSWORD=rustchat
+      - REDIS_CLUSTER_REPLICAS=1
+      - REDIS_NODES=redis-node-1,redis-node-2,redis-node-3,redis-node-4,redis-node-5,redis-node-6
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_node_2_data:/bitnami/redis/data
+    depends_on:
+      - redis-node-1
+
+  # Redis Cluster - Node 3 (Master)
+  redis-node-3:
+    image: bitnami/redis-cluster:7.2
+    container_name: rustchat-redis-node-3
+    environment:
+      - REDIS_PASSWORD=rustchat
+      - REDIS_CLUSTER_REPLICAS=1
+      - REDIS_NODES=redis-node-1,redis-node-2,redis-node-3,redis-node-4,redis-node-5,redis-node-6
+    ports:
+      - "6381:6379"
+    volumes:
+      - redis_node_3_data:/bitnami/redis/data
+    depends_on:
+      - redis-node-1
+
+  # Redis Cluster - Node 4 (Replica)
+  redis-node-4:
+    image: bitnami/redis-cluster:7.2
+    container_name: rustchat-redis-node-4
+    environment:
+      - REDIS_PASSWORD=rustchat
+      - REDIS_CLUSTER_REPLICAS=1
+      - REDIS_NODES=redis-node-1,redis-node-2,redis-node-3,redis-node-4,redis-node-5,redis-node-6
+    ports:
+      - "6382:6379"
+    volumes:
+      - redis_node_4_data:/bitnami/redis/data
+    depends_on:
+      - redis-node-1
+
+  # Redis Cluster - Node 5 (Replica)
+  redis-node-5:
+    image: bitnami/redis-cluster:7.2
+    container_name: rustchat-redis-node-5
+    environment:
+      - REDIS_PASSWORD=rustchat
+      - REDIS_CLUSTER_REPLICAS=1
+      - REDIS_NODES=redis-node-1,redis-node-2,redis-node-3,redis-node-4,redis-node-5,redis-node-6
+    ports:
+      - "6383:6379"
+    volumes:
+      - redis_node_5_data:/bitnami/redis/data
+    depends_on:
+      - redis-node-1
+
+  # Redis Cluster - Node 6 (Replica)
+  redis-node-6:
+    image: bitnami/redis-cluster:7.2
+    container_name: rustchat-redis-node-6
+    environment:
+      - REDIS_PASSWORD=rustchat
+      - REDIS_CLUSTER_REPLICAS=1
+      - REDIS_NODES=redis-node-1,redis-node-2,redis-node-3,redis-node-4,redis-node-5,redis-node-6
+    ports:
+      - "6384:6379"
+    volumes:
+      - redis_node_6_data:/bitnami/redis/data
+    depends_on:
+      - redis-node-1
+
+  # Redis Cluster Health Check Aggregator
+  redis-cluster:
+    image: redis:7-alpine
+    container_name: rustchat-redis-cluster
+    command: >
+      sh -c "
+        while true; do
+          if redis-cli -h redis-node-1 -a rustchat --cluster check redis-node-1:6379 2>/dev/null; then
+            echo 'Redis Cluster is healthy'
+          else
+            echo 'Redis Cluster check failed'
+          fi
+          sleep 10
+        done
+      "
+    depends_on:
+      - redis-node-1
+      - redis-node-2
+      - redis-node-3
+      - redis-node-4
+      - redis-node-5
+      - redis-node-6
+    healthcheck:
+      test: [ "CMD", "redis-cli", "-h", "redis-node-1", "-a", "rustchat", "ping" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Kafka - Zookeeper
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: rustchat-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+      - zookeeper_logs:/var/lib/zookeeper/log
+    healthcheck:
+      test: [ "CMD", "echo", "ruok", "|", "nc", "localhost", "2181" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Kafka - Broker
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: rustchat-kafka
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_MIN_INSYNC_REPLICAS: 1
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # OpenSearch - Node 1 (Master)
+  opensearch:
+    image: opensearchproject/opensearch:2.11.0
+    container_name: rustchat-opensearch
+    environment:
+      - cluster.name=rustchat-opensearch
+      - node.name=opensearch
+      - discovery.type=single-node
+      - bootstrap.memory_lock=true
+      - "OPENSEARCH_JAVA_OPTS=-Xms512m -Xmx512m"
+      - DISABLE_SECURITY_PLUGIN=true
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    ports:
+      - "9200:9200"
+      - "9600:9600"
+    volumes:
+      - opensearch_data:/usr/share/opensearch/data
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:9200/_cluster/health" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # OpenSearch Dashboards
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:2.11.0
+    container_name: rustchat-opensearch-dashboards
+    environment:
+      - OPENSEARCH_HOSTS=["http://opensearch:9200"]
+      - DISABLE_SECURITY_DASHBOARDS_PLUGIN=true
+    ports:
+      - "5601:5601"
+    depends_on:
+      opensearch:
+        condition: service_healthy
+    profiles:
+      - search
+
+volumes:
+  postgres_primary_data:
+  postgres_replica_data:
+  redis_node_1_data:
+  redis_node_2_data:
+  redis_node_3_data:
+  redis_node_4_data:
+  redis_node_5_data:
+  redis_node_6_data:
+  zookeeper_data:
+  zookeeper_logs:
+  kafka_data:
+  opensearch_data:

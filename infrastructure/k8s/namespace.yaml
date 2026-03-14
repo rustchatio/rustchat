@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: rustchat
+  labels:
+    name: rustchat
+    app.kubernetes.io/name: rustchat
+    app.kubernetes.io/component: platform
+  annotations:
+    # Enable resource quotas and limits
+    scheduler.alpha.kubernetes.io/defaultTolerations: '[]'

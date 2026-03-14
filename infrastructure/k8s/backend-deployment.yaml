@@ -1,0 +1,229 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rustchat-backend
+  namespace: rustchat
+  labels:
+    app: rustchat-backend
+    version: v1
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: rustchat-backend
+  template:
+    metadata:
+      labels:
+        app: rustchat-backend
+        version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "3000"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: rustchat-backend
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: backend
+          image: rustchat/backend:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+            - name: webrtc-udp
+              containerPort: 8443
+              protocol: UDP
+            - name: webrtc-tcp
+              containerPort: 8443
+              protocol: TCP
+          env:
+            - name: RUSTCHAT_SERVER_HOST
+              value: "0.0.0.0"
+            - name: RUSTCHAT_SERVER_PORT
+              value: "3000"
+            - name: RUSTCHAT_ENVIRONMENT
+              value: "production"
+            - name: RUSTCHAT_LOG_LEVEL
+              value: "info"
+            # Database - will use secret for credentials
+            - name: RUSTCHAT_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: rustchat-db-credentials
+                  key: url
+            # Redis
+            - name: RUSTCHAT_REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: rustchat-redis-credentials
+                  key: url
+            # S3/RustFS
+            - name: RUSTCHAT_S3_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: rustchat-config
+                  key: s3.endpoint
+            - name: RUSTCHAT_S3_PUBLIC_ENDPOINT
+              valueFrom:
+                configMapKeyRef:
+                  name: rustchat-config
+                  key: s3.public-endpoint
+            - name: RUSTCHAT_S3_BUCKET
+              valueFrom:
+                configMapKeyRef:
+                  name: rustchat-config
+                  key: s3.bucket
+            - name: RUSTCHAT_S3_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: rustchat-s3-credentials
+                  key: access-key
+            - name: RUSTCHAT_S3_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: rustchat-s3-credentials
+                  key: secret-key
+            # Security - from secrets
+            - name: RUSTCHAT_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: rustchat-security
+                  key: jwt-secret
+            - name: RUSTCHAT_JWT_ISSUER
+              valueFrom:
+                configMapKeyRef:
+                  name: rustchat-config
+                  key: jwt.issuer
+            - name: RUSTCHAT_JWT_AUDIENCE
+              valueFrom:
+                configMapKeyRef:
+                  name: rustchat-config
+                  key: jwt.audience
+            - name: RUSTCHAT_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: rustchat-security
+                  key: encryption-key
+            # Site configuration
+            - name: RUSTCHAT_SITE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: rustchat-config
+                  key: site.url
+            - name: RUSTCHAT_CORS_ALLOWED_ORIGINS
+              valueFrom:
+                configMapKeyRef:
+                  name: rustchat-config
+                  key: cors.allowed-origins
+            # Calls plugin
+            - name: RUSTCHAT_CALLS_ENABLED
+              value: "true"
+            - name: RUSTCHAT_CALLS_UDP_PORT
+              value: "8443"
+            - name: RUSTCHAT_CALLS_TCP_PORT
+              value: "8443"
+            - name: RUSTCHAT_CALLS_STATE_BACKEND
+              value: "redis"
+            # Kafka configuration (optional)
+            - name: RUSTCHAT_KAFKA_ENABLED
+              valueFrom:
+                configMapKeyRef:
+                  name: rustchat-config
+                  key: kafka.enabled
+                  optional: true
+            - name: RUSTCHAT_KAFKA_BOOTSTRAP_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: rustchat-config
+                  key: kafka.bootstrap-servers
+                  optional: true
+            # OpenSearch configuration (optional)
+            - name: RUSTCHAT_OPENSEARCH_ENABLED
+              valueFrom:
+                configMapKeyRef:
+                  name: rustchat-config
+                  key: opensearch.enabled
+                  optional: true
+            - name: RUSTCHAT_OPENSEARCH_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: rustchat-config
+                  key: opensearch.url
+                  optional: true
+          envFrom:
+            - configMapRef:
+                name: rustchat-config
+                optional: true
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+            limits:
+              memory: "2Gi"
+              cpu: "2000m"
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health/live
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health/ready
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          startupProbe:
+            httpGet:
+              path: /api/v1/health/live
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 30
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                        - rustchat-backend
+                topologyKey: kubernetes.io/hostname
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: rustchat-backend
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: rustchat-backend
+  namespace: rustchat
+  labels:
+    app: rustchat-backend

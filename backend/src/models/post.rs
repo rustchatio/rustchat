@@ -6,7 +6,6 @@ use sqlx::FromRow;
 use uuid::Uuid;
 
 /// Post entity (message)
-/// Post entity (message)
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct Post {
     pub id: Uuid,

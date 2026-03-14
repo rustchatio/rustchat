@@ -1,0 +1,294 @@
+/* ============================================
+   RustChat Design Tokens
+   CSS Custom Properties for theming
+   ============================================ */
+
+/* License-safe chat-friendly font stacks */
+:root {
+  --font-inter: "Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-figtree: "Figtree", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-jetbrains-mono: "JetBrains Mono", "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
+  --font-quicksand: "Quicksand", "Avenir Next", "Segoe UI", sans-serif;
+  --font-montserrat: "Montserrat", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-source-sans-3: "Source Sans 3", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-nunito: "Nunito", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-manrope: "Manrope", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-work-sans: "Work Sans", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-ibm-plex-sans: "IBM Plex Sans", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+
+  /* Default font settings */
+  --chat-font-family: var(--font-inter);
+  --chat-font-size: 14px;
+
+  /* ==========================================
+     LIGHT THEME (Default)
+     ========================================== */
+  --theme-bg: #f6f8fb;
+  --theme-surface: #ffffff;
+  --theme-surface-muted: #eef2f7;
+
+  --theme-text: #0f172a;
+  --theme-text-muted: #334155;
+  --theme-text-soft: #64748b;
+
+  --theme-border: #dbe3ed;
+  --theme-border-strong: #c7d2e1;
+
+  --theme-primary: #2563eb;
+  --theme-primary-hover: #1d4ed8;
+  --theme-secondary: #1e40af;
+  --theme-accent: #0ea5e9;
+
+  --theme-danger: #dc2626;
+  --theme-success: #16a34a;
+
+  --theme-shadow: 0 10px 24px -18px rgb(15 23 42 / 0.35);
+  --theme-shadow-1: 0 1px 2px 0 rgb(15 23 42 / 0.08);
+  --theme-shadow-2: 0 10px 18px -8px rgb(15 23 42 / 0.16);
+
+  /* Spacing (4, 8, 12, 16, 20, 24, 32) */
+  --sp-1: 0.25rem;
+  --sp-2: 0.5rem;
+  --sp-3: 0.75rem;
+  --sp-4: 1rem;
+  --sp-5: 1.25rem;
+  --sp-6: 1.5rem;
+  --sp-7: 2rem;
+
+  /* Radius */
+  --r-1: 8px;
+  --r-2: 12px;
+  --r-3: 16px;
+
+  /* Message Layout */
+  --msg-max-width: 1040px;
+  --msg-gutter: 12px;
+  --msg-v-p-comfort: 9px;
+  --msg-v-p-compact: 6px;
+  --avatar-size: 30px;
+}
+
+/* ==========================================
+   THEME MAPPING
+   Maps theme variables to app tokens
+   ========================================== */
+:root,
+[data-theme] {
+  --bg-app: var(--theme-bg);
+  --bg-surface-1: var(--theme-surface);
+  --bg-surface-2: var(--theme-surface-muted);
+
+  --text-1: var(--theme-text);
+  --text-2: var(--theme-text-muted);
+  --text-3: var(--theme-text-soft);
+
+  --border-1: var(--theme-border);
+  --border-2: var(--theme-border-strong);
+
+  --brand: var(--theme-primary);
+  --brand-hover: var(--theme-primary-hover);
+  --danger: var(--theme-danger);
+  --success: var(--theme-success);
+
+  --shadow-1: var(--theme-shadow-1);
+  --shadow-2: var(--theme-shadow-2);
+
+  /* Font sizes (5-step scale: 13px -> 20px) */
+  --fs-xs: calc(var(--chat-font-size) * 0.928571);
+  --lh-xs: calc(var(--chat-font-size) * 1.285714);
+  --fs-sm: var(--chat-font-size);
+  --lh-sm: calc(var(--chat-font-size) * 1.384615);
+  --fs-base: calc(var(--chat-font-size) * 1.142857);
+  --lh-base: calc(var(--chat-font-size) * 1.428571);
+  --fs-md: calc(var(--chat-font-size) * 1.285714);
+  --lh-md: calc(var(--chat-font-size) * 1.5);
+  --fs-lg: calc(var(--chat-font-size) * 1.428571);
+  --lh-lg: calc(var(--chat-font-size) * 1.555556);
+}
+
+/* ==========================================
+   LIGHT THEME VARIANT
+   ========================================== */
+[data-theme='light'] {
+  color-scheme: light;
+  --theme-bg: #edf2fa;
+  --theme-surface: #ffffff;
+  --theme-surface-muted: #e2e8f3;
+  --theme-text: #0b1220;
+  --theme-text-muted: #1f2a3d;
+  --theme-text-soft: #475569;
+  --theme-border: #cbd5e1;
+  --theme-border-strong: #aeb9cb;
+  --theme-primary: #1d4ed8;
+  --theme-secondary: #1e3a8a;
+  --theme-primary-hover: #1e40af;
+  --theme-accent: #0284c7;
+}
+
+/* ==========================================
+   DARK THEME
+   ========================================== */
+[data-theme='dark'] {
+  color-scheme: dark;
+  --theme-bg: #0b1220;
+  --theme-surface: #111a2d;
+  --theme-surface-muted: #1a2640;
+  --theme-text: #f8fafc;
+  --theme-text-muted: #cbd5e1;
+  --theme-text-soft: #94a3b8;
+  --theme-border: #23314e;
+  --theme-border-strong: #334869;
+  --theme-primary: #38bdf8;
+  --theme-secondary: #0f766e;
+  --theme-primary-hover: #0ea5e9;
+  --theme-accent: #22d3ee;
+  --theme-danger: #f87171;
+  --theme-success: #34d399;
+  --theme-shadow: 0 14px 36px -20px rgb(2 6 23 / 0.9);
+  --theme-shadow-1: 0 1px 3px 0 rgb(2 6 23 / 0.45);
+  --theme-shadow-2: 0 16px 24px -14px rgb(2 6 23 / 0.75);
+}
+
+/* ==========================================
+   MODERN THEME (Green-tinted light)
+   ========================================== */
+[data-theme='modern'] {
+  color-scheme: light;
+  --theme-bg: #f3f7f6;
+  --theme-surface: #ffffff;
+  --theme-surface-muted: #e8f1ef;
+  --theme-text: #0f1f1b;
+  --theme-text-muted: #2f4b45;
+  --theme-text-soft: #5d7b74;
+  --theme-border: #cfe3de;
+  --theme-border-strong: #b8d3cc;
+  --theme-primary: #0f766e;
+  --theme-secondary: #155e75;
+  --theme-primary-hover: #0d5f59;
+  --theme-accent: #14b8a6;
+  --theme-danger: #dc2626;
+  --theme-success: #15803d;
+  --theme-shadow: 0 20px 40px -24px rgb(15 118 110 / 0.28);
+  --theme-shadow-1: 0 1px 2px 0 rgb(15 23 42 / 0.06);
+  --theme-shadow-2: 0 18px 28px -20px rgb(20 184 166 / 0.2);
+}
+
+/* ==========================================
+   METALLIC THEME (Industrial light)
+   ========================================== */
+[data-theme='metallic'] {
+  color-scheme: light;
+  --theme-bg: #e7eaee;
+  --theme-surface: #f7f8fa;
+  --theme-surface-muted: #dde2e8;
+  --theme-text: #1f2937;
+  --theme-text-muted: #374151;
+  --theme-text-soft: #6b7280;
+  --theme-border: #b7c1cc;
+  --theme-border-strong: #94a3b8;
+  --theme-primary: #475569;
+  --theme-secondary: #1f2937;
+  --theme-primary-hover: #334155;
+  --theme-accent: #d97706;
+  --theme-danger: #b91c1c;
+  --theme-success: #15803d;
+  --theme-shadow: 0 0 0 1px rgb(100 116 139 / 0.45), 0 6px 0 0 rgb(148 163 184 / 0.4);
+  --theme-shadow-1: 0 0 0 1px rgb(148 163 184 / 0.5);
+  --theme-shadow-2: 0 8px 0 0 rgb(148 163 184 / 0.45);
+}
+
+/* ==========================================
+   FUTURISTIC THEME (Cyber dark)
+   ========================================== */
+[data-theme='futuristic'] {
+  color-scheme: dark;
+  --theme-bg: #030712;
+  --theme-surface: #0b1220;
+  --theme-surface-muted: #121a2b;
+  --theme-text: #e0f2fe;
+  --theme-text-muted: #bae6fd;
+  --theme-text-soft: #7dd3fc;
+  --theme-border: #1e293b;
+  --theme-border-strong: #334155;
+  --theme-primary: #06b6d4;
+  --theme-secondary: #22c55e;
+  --theme-primary-hover: #0891b2;
+  --theme-accent: #22c55e;
+  --theme-danger: #fb7185;
+  --theme-success: #22c55e;
+  --theme-shadow: 0 0 0 1px rgb(6 182 212 / 0.45), 0 0 24px -8px rgb(6 182 212 / 0.45);
+  --theme-shadow-1: 0 0 0 1px rgb(6 182 212 / 0.35);
+  --theme-shadow-2: 0 0 20px -10px rgb(34 197 94 / 0.35);
+}
+
+/* ==========================================
+   HIGH CONTRAST THEME (Accessibility)
+   ========================================== */
+[data-theme='high-contrast'] {
+  color-scheme: dark;
+  --theme-bg: #000000;
+  --theme-surface: #0b0b0b;
+  --theme-surface-muted: #1a1a1a;
+  --theme-text: #ffffff;
+  --theme-text-muted: #f3f4f6;
+  --theme-text-soft: #e5e7eb;
+  --theme-border: #ffffff;
+  --theme-border-strong: #ffffff;
+  --theme-primary: #00e5ff;
+  --theme-secondary: #ffd400;
+  --theme-primary-hover: #7df9ff;
+  --theme-accent: #ffd400;
+  --theme-danger: #ff4d4d;
+  --theme-success: #00ff88;
+  --theme-shadow: 0 0 0 2px rgb(255 255 255 / 0.9);
+  --theme-shadow-1: 0 0 0 1px rgb(255 255 255 / 0.85);
+  --theme-shadow-2: 0 0 0 2px rgb(255 255 255 / 0.9);
+}
+
+/* ==========================================
+   SIMPLE THEME (Minimal light)
+   ========================================== */
+[data-theme='simple'] {
+  color-scheme: light;
+  --theme-bg: #fafaf9;
+  --theme-surface: #ffffff;
+  --theme-surface-muted: #f5f5f4;
+  --theme-text: #1c1917;
+  --theme-text-muted: #44403c;
+  --theme-text-soft: #78716c;
+  --theme-border: #e7e5e4;
+  --theme-border-strong: #d6d3d1;
+  --theme-primary: #0369a1;
+  --theme-secondary: #166534;
+  --theme-primary-hover: #075985;
+  --theme-accent: #16a34a;
+  --theme-danger: #dc2626;
+  --theme-success: #15803d;
+  --theme-shadow: 0 8px 20px -18px rgb(41 37 36 / 0.35);
+  --theme-shadow-1: 0 1px 1px 0 rgb(41 37 36 / 0.08);
+  --theme-shadow-2: 0 10px 16px -18px rgb(41 37 36 / 0.18);
+}
+
+/* ==========================================
+   DYNAMIC THEME (Vibrant dark)
+   ========================================== */
+[data-theme='dynamic'] {
+  color-scheme: dark;
+  --theme-bg: #111827;
+  --theme-surface: #1f2937;
+  --theme-surface-muted: #273549;
+  --theme-text: #f9fafb;
+  --theme-text-muted: #e5e7eb;
+  --theme-text-soft: #cbd5e1;
+  --theme-border: #334155;
+  --theme-border-strong: #475569;
+  --theme-primary: #e11d48;
+  --theme-secondary: #f59e0b;
+  --theme-primary-hover: #be123c;
+  --theme-accent: #f59e0b;
+  --theme-danger: #fb7185;
+  --theme-success: #34d399;
+  --theme-shadow: 0 14px 32px -18px rgb(225 29 72 / 0.4);
+  --theme-shadow-1: 0 1px 2px 0 rgb(15 23 42 / 0.4);
+  --theme-shadow-2: 0 16px 24px -16px rgb(245 158 11 / 0.35);
+}

@@ -1,0 +1,24 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: rustchat-backend
+  namespace: rustchat
+  labels:
+    app: rustchat-backend
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: rustchat-backend
+---
+# Alternative: maxUnavailable for different use case
+# apiVersion: policy/v1
+# kind: PodDisruptionBudget
+# metadata:
+#   name: rustchat-backend-max-unavailable
+#   namespace: rustchat
+# spec:
+#   maxUnavailable: 1
+#   selector:
+#     matchLabels:
+#       app: rustchat-backend

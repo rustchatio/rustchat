@@ -94,10 +94,22 @@ rtcp = "0.12"
 sdp = "0.6"
 interceptor = "0.12"
 
+# Kafka for high-volume messaging
+rdkafka = { version = "0.37", features = ["tokio", "ssl-vendored"] }
+
+# OpenSearch for scalable search
+opensearch = { version = "2.3", default-features = false, features = ["rustls-tls"] }
+aws-credential-types = { version = "1.2", features = ["hardcoded-credentials"] }
+aws-sigv4 = "1.2"
+
+# OpenAPI documentation
+utoipa = { version = "5", features = ["uuid", "chrono"] }
+
 [dev-dependencies]
 reqwest = { version = "0.12", features = ["json", "cookies", "multipart"] }
 tokio-test = "0.4"
 tokio-tungstenite = "0.24"
+testcontainers = "0.23"
 
 [[bin]]
 name = "rustchat"

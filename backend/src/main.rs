@@ -1,4 +1,5 @@
 use rustchat::{api, config::Config, db, realtime::WsHub, storage::S3Client, telemetry};
+use rustchat::services::kafka_producer::KafkaProducer;
 use std::net::SocketAddr;
 use tracing::{info, warn};
 
@@ -124,6 +125,43 @@ async fn main() -> anyhow::Result<()> {
         config.encryption_key.clone(),
     );
 
+    // Generate node ID for this instance
+    let node_id = format!(
+        "{}-{}",
+        hostname::get()
+            .ok()
+            .and_then(|h| h.into_string().ok())
+            .unwrap_or_else(|| "unknown".to_string()),
+        uuid::Uuid::new_v4()
+    );
+
+    // Initialize Kafka producer if enabled
+    let kafka_producer = if config.kafka.enabled {
+        let producer = KafkaProducer::new(config.kafka.clone(), node_id.clone());
+        if producer.is_available() {
+            info!("Kafka producer initialized");
+            Some(producer)
+        } else {
+            warn!("Kafka enabled but producer failed to initialize");
+            None
+        }
+    } else {
+        info!("Kafka integration disabled");
+        None
+    };
+
+    // Start Kafka consumer for WebSocket fan-out if enabled
+    if config.kafka.enabled {
+        let ws_hub_clone = ws_hub.clone();
+        let kafka_config = config.kafka.clone();
+        tokio::spawn(async move {
+            if let Err(e) = rustchat::realtime::start_kafka_fanout_consumer(kafka_config, ws_hub_clone).await {
+                tracing::error!(error = %e, "Failed to start Kafka fan-out consumer");
+            }
+        });
+        info!("Kafka fan-out consumer started");
+    }
+
     // Build application router (spawns reconciliation worker internally)
     let app = api::router(
         db_pool.clone(),
@@ -133,6 +171,7 @@ async fn main() -> anyhow::Result<()> {
         ws_hub,
         s3_client,
         config.clone(),
+        kafka_producer,
     );
 
     // Start server

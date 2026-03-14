@@ -2,6 +2,8 @@
 //!
 //! Provides PostgreSQL connection pool and migration runner.
 
+pub mod replica;
+
 use sqlx::{postgres::PgPoolOptions, PgPool};
 use std::time::Duration;
 use tracing::info;

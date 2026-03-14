@@ -2,6 +2,7 @@
 //!
 //! Provides HTTP routes and handlers.
 
+mod a2a;
 mod admin;
 mod admin_audit;
 mod admin_email;
@@ -9,9 +10,12 @@ mod admin_membership_policies;
 mod auth;
 mod calls;
 mod channels;
+mod docs;
 mod files;
 mod health;
 mod integrations;
+mod mcp;
+mod mcp_approval;
 mod oauth;
 mod playbooks;
 mod posts;
@@ -76,6 +80,7 @@ use crate::config::Config;
 use crate::middleware::reliability::ServiceCircuitBreakers;
 use crate::middleware::security_headers::{cors_compatible_config, SecurityHeadersLayer};
 use crate::realtime::{ConnectionStore, WsHub};
+use crate::services::kafka_producer::KafkaProducer;
 use crate::storage::S3Client;
 use tokio::sync::mpsc;
 
@@ -146,6 +151,8 @@ pub struct AppState {
     pub reconciliation_tx: Option<
         async_channel::Sender<crate::services::membership_reconciliation::ReconciliationTask>,
     >,
+    pub opensearch_client: Option<Arc<crate::search::OpenSearchClient>>,
+    pub kafka_producer: Option<Arc<KafkaProducer>>,
 }
 
 /// Build the main application router
@@ -157,6 +164,7 @@ pub fn router(
     ws_hub: Arc<WsHub>,
     s3_client: S3Client,
     config: Config,
+    kafka_producer: Option<Arc<KafkaProducer>>,
 ) -> Router {
     let (voice_event_tx, voice_event_rx) = mpsc::channel(VOICE_EVENT_CHANNEL_CAPACITY);
     let sfu_manager = SFUManager::new(config.calls.clone(), voice_event_tx);
@@ -184,6 +192,8 @@ pub fn router(
         call_state_manager: call_state_manager.clone(),
         circuit_breakers: Arc::new(ServiceCircuitBreakers::new()),
         reconciliation_tx: None,
+        opensearch_client: None,
+        kafka_producer: kafka_producer.clone(),
     });
 
     // Spawn membership reconciliation worker
@@ -214,6 +224,8 @@ pub fn router(
         call_state_manager,
         circuit_breakers: Arc::new(ServiceCircuitBreakers::new()),
         reconciliation_tx: Some(reconciliation_tx),
+        opensearch_client: None,
+        kafka_producer,
     };
 
     let _keycloak_sync_handle = if state.config.keycloak_sync.enabled {
@@ -274,6 +286,9 @@ pub fn router(
         .merge(calls::router().layer(DefaultBodyLimit::max(SMALL_BODY_LIMIT)))
         .merge(oauth::router(state.clone()).layer(DefaultBodyLimit::max(SMALL_BODY_LIMIT)))
         .merge(site::router().layer(DefaultBodyLimit::max(SMALL_BODY_LIMIT)))
+        .merge(mcp::router().layer(DefaultBodyLimit::max(MEDIUM_BODY_LIMIT)))
+        .merge(mcp_approval::router().layer(DefaultBodyLimit::max(SMALL_BODY_LIMIT)))
+        .merge(a2a::router().layer(DefaultBodyLimit::max(MEDIUM_BODY_LIMIT)))
         // WebSocket endpoint doesn't need body limit
         .merge(ws::router(state.clone()));
 
@@ -293,6 +308,7 @@ pub fn router(
     };
 
     Router::new()
+        .nest("/api", docs::router())
         .merge(oauth::web_compat_router())
         .nest("/api/v1", api_v1)
         .nest("/api/v4", api_v4)

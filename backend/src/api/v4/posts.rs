@@ -99,6 +99,11 @@ pub fn router() -> Router<AppState> {
             "/users/{user_id}/posts/{post_id}/ack",
             post(save_acknowledgement_for_post).delete(delete_acknowledgement_for_post),
         )
+        // GDPR Hard Delete endpoint (Track B1.2)
+        .route(
+            "/posts/{post_id}/hard_delete",
+            delete(hard_delete_post_gdpr),
+        )
 }
 
 #[derive(Debug, Deserialize)]
@@ -1706,4 +1711,79 @@ async fn set_post_reminder(
     .await?;
 
     Ok(Json(serde_json::json!({"status": "OK"})))
+}
+
+
+// GDPR Hard Delete Handler - Track B1.2
+
+/// DELETE /api/v4/posts/{post_id}/hard_delete
+/// Permanently deletes a post and all associated data (files, reactions, etc.)
+/// This is a GDPR-compliant hard delete that removes data from the database
+async fn hard_delete_post_gdpr(
+    State(state): State<AppState>,
+    auth: MmAuthUser,
+    Path(post_id): Path<String>,
+) -> ApiResult<Json<serde_json::Value>> {
+    use crate::services::gdpr;
+
+    let post_uuid = parse_mm_or_uuid(&post_id)
+        .ok_or_else(|| AppError::BadRequest("Invalid post_id".to_string()))?;
+
+    // Get the post to check ownership
+    let post: crate::models::Post = sqlx::query_as(
+        "SELECT * FROM posts WHERE id = $1",
+    )
+    .bind(post_uuid)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or_else(|| AppError::NotFound("Post not found".to_string()))?;
+
+    // Check permissions - users can only delete their own posts or be system admin
+    let is_author = post.user_id == auth.user_id;
+    let is_admin = auth.has_permission(&permissions::ADMIN_FULL) 
+        || auth.has_permission(&permissions::SYSTEM_MANAGE);
+    
+    if !is_author && !is_admin {
+        return Err(AppError::Forbidden(
+            "You can only delete your own posts".to_string(),
+        ));
+    }
+
+    // Get channel membership to verify access
+    let _: crate::models::ChannelMember =
+        sqlx::query_as("SELECT * FROM channel_members WHERE channel_id = $1 AND user_id = $2")
+            .bind(post.channel_id)
+            .bind(auth.user_id)
+            .fetch_optional(&state.db)
+            .await?
+            .ok_or_else(|| AppError::Forbidden("Not a member of this channel".to_string()))?;
+
+    // Perform hard delete
+    let s3_client = state.s3_client.clone();
+    gdpr::hard_delete_post(&state.db, &s3_client, post_uuid, auth.user_id).await?;
+
+    // Broadcast deletion event to channel members
+    let broadcast = WsEnvelope::event(
+        EventType::MessageDeleted,
+        json!({
+            "post_id": encode_mm_id(post_uuid),
+            "channel_id": encode_mm_id(post.channel_id),
+            "hard_delete": true,
+        }),
+        Some(post.channel_id),
+    )
+    .with_broadcast(WsBroadcast {
+        channel_id: Some(post.channel_id),
+        team_id: None,
+        user_id: None,
+        exclude_user_id: None,
+    });
+
+    state.ws_hub.broadcast(broadcast).await;
+
+    Ok(Json(serde_json::json!({
+        "status": "ok",
+        "message": "Post has been permanently deleted",
+        "post_id": encode_mm_id(post_uuid),
+    })))
 }

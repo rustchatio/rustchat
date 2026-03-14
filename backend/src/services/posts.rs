@@ -6,6 +6,7 @@ use crate::api::AppState;
 use crate::error::{ApiResult, AppError};
 use crate::models::{ChannelMember, CreatePost, FileUploadResponse, Post, PostResponse};
 use crate::realtime::{EventType, WsBroadcast, WsEnvelope};
+use std::sync::Arc;
 
 #[derive(Debug, Default)]
 pub struct PostsQuery {
@@ -217,6 +218,31 @@ pub async fn create_post(
 
     // Increment unread counts in Redis for other members
     let _ = crate::services::unreads::increment_unreads(state, channel_id, user_id, post.seq).await;
+
+    // Send Kafka event for post creation (non-blocking, log errors only)
+    if let Some(ref kafka) = state.kafka_producer {
+        if kafka.is_available() {
+            let kafka = Arc::clone(kafka);
+            let post_id = post.id;
+            let chan_id = channel_id;
+            let usr_id = user_id;
+            tokio::spawn(async move {
+                match kafka.send_post_event(post_id, chan_id, usr_id).await {
+                    Ok(result) => {
+                        tracing::debug!(
+                            post_id = %post_id,
+                            partition = result.partition,
+                            offset = result.offset,
+                            "Post event published to Kafka"
+                        );
+                    }
+                    Err(e) => {
+                        tracing::warn!(post_id = %post_id, error = %e, "Failed to publish post event to Kafka");
+                    }
+                }
+            });
+        }
+    }
 
     // Parse mentions (simple parsing for now)
     let mentions: Vec<String> = response

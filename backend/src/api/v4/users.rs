@@ -221,6 +221,19 @@ pub fn router(state: AppState) -> Router<AppState> {
             put(update_category_order),
         )
         .route("/users/{user_id}/groups", get(get_user_groups))
+        // GDPR endpoints (Track B1.2)
+        .route(
+            "/users/{user_id}/delete",
+            post(delete_user_hard), // GDPR Right to Erasure
+        )
+        .route(
+            "/users/{user_id}/export",
+            get(export_user_data_gdpr), // GDPR Article 20 - Data Portability
+        )
+        .route(
+            "/users/{user_id}/anonymize",
+            post(anonymize_user_gdpr), // Alternative to deletion - anonymization
+        )
 }
 
 #[derive(Deserialize)]
@@ -3165,4 +3178,149 @@ fn user_group_json(row: &UserGroupRow) -> serde_json::Value {
         "has_syncables": row.has_syncables,
         "member_count": row.member_count,
     })
+}
+
+// GDPR Compliance Handlers - Track B1.2
+
+/// DELETE /api/v4/users/{user_id} - Hard delete user (GDPR Right to Erasure)
+/// This permanently deletes all user data as per GDPR Article 17
+async fn delete_user_hard(
+    State(state): State<AppState>,
+    auth: MmAuthUser,
+    Path(user_id): Path<String>,
+) -> ApiResult<Json<serde_json::Value>> {
+    use crate::services::gdpr;
+
+    let target_user_id = if user_id == "me" {
+        auth.user_id
+    } else {
+        parse_mm_or_uuid(&user_id)
+            .ok_or_else(|| AppError::BadRequest("Invalid user_id".to_string()))?
+    };
+
+    // Check permissions - users can only delete themselves unless they're admin
+    if target_user_id != auth.user_id && !auth.has_permission(&crate::auth::policy::permissions::ADMIN_FULL) {
+        return Err(AppError::Forbidden(
+            "You can only delete your own account".to_string(),
+        ));
+    }
+
+    // Check if user is the last system admin
+    if auth.has_permission(&crate::auth::policy::permissions::SYSTEM_MANAGE) {
+        let admin_count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM users WHERE role = 'system_admin' AND deleted_at IS NULL AND id != $1",
+        )
+        .bind(target_user_id)
+        .fetch_one(&state.db)
+        .await?;
+
+        if admin_count == 0 {
+            return Err(AppError::Forbidden(
+                "Cannot delete the last system admin".to_string(),
+            ));
+        }
+    }
+
+    // Perform hard delete
+    let s3_client = state.s3_client.clone();
+    gdpr::hard_delete_user(
+        &state.db,
+        &s3_client,
+        target_user_id,
+        auth.user_id,
+        Some("GDPR Right to Erasure request"),
+    )
+    .await?;
+
+    Ok(Json(serde_json::json!({
+        "status": "ok",
+        "message": "User data has been permanently deleted",
+        "user_id": encode_mm_id(target_user_id),
+    })))
+}
+
+/// GET /api/v4/users/{user_id}/export - Export user data (GDPR Article 20)
+/// Returns all user data in a machine-readable format
+async fn export_user_data_gdpr(
+    State(state): State<AppState>,
+    auth: MmAuthUser,
+    Path(user_id): Path<String>,
+) -> ApiResult<Json<serde_json::Value>> {
+    use crate::services::gdpr;
+
+    let target_user_id = if user_id == "me" {
+        auth.user_id
+    } else {
+        parse_mm_or_uuid(&user_id)
+            .ok_or_else(|| AppError::BadRequest("Invalid user_id".to_string()))?
+    };
+
+    // Check permissions - users can only export their own data unless they're admin
+    if target_user_id != auth.user_id && !auth.has_permission(&crate::auth::policy::permissions::ADMIN_FULL) {
+        return Err(AppError::Forbidden(
+            "You can only export your own data".to_string(),
+        ));
+    }
+
+    // Generate export
+    let export = gdpr::export_user_data(&state.db, target_user_id).await?;
+
+    // Log the export request
+    sqlx::query(
+        r#"
+        INSERT INTO gdpr_export_log (user_id, requested_by, requested_at, export_format, ip_address)
+        VALUES ($1, $2, NOW(), 'json', NULL)
+        "#,
+    )
+    .bind(target_user_id)
+    .bind(auth.user_id)
+    .execute(&state.db)
+    .await
+    .ok();
+
+    Ok(Json(serde_json::json!({
+        "export_id": encode_mm_id(export.export_id),
+        "user_id": encode_mm_id(export.user_id),
+        "generated_at": export.export_generated_at.timestamp_millis(),
+        "user_profile": export.user_profile,
+        "posts": export.posts,
+        "reactions": export.reactions,
+        "files": export.files,
+        "preferences": export.preferences,
+        "channel_memberships": export.channel_memberships,
+        "audit_log": export.audit_log,
+    })))
+}
+
+/// POST /api/v4/users/{user_id}/anonymize - Anonymize user data
+/// Alternative to deletion - removes identifying information but keeps posts
+async fn anonymize_user_gdpr(
+    State(state): State<AppState>,
+    auth: MmAuthUser,
+    Path(user_id): Path<String>,
+) -> ApiResult<Json<serde_json::Value>> {
+    use crate::services::gdpr;
+
+    let target_user_id = if user_id == "me" {
+        auth.user_id
+    } else {
+        parse_mm_or_uuid(&user_id)
+            .ok_or_else(|| AppError::BadRequest("Invalid user_id".to_string()))?
+    };
+
+    // Check permissions
+    if target_user_id != auth.user_id && !auth.has_permission(&crate::auth::policy::permissions::ADMIN_FULL) {
+        return Err(AppError::Forbidden(
+            "You can only anonymize your own account".to_string(),
+        ));
+    }
+
+    let s3_client = state.s3_client.clone();
+    gdpr::anonymize_user(&state.db, &s3_client, target_user_id, auth.user_id).await?;
+
+    Ok(Json(serde_json::json!({
+        "status": "ok",
+        "message": "User data has been anonymized",
+        "user_id": encode_mm_id(target_user_id),
+    })))
 }
