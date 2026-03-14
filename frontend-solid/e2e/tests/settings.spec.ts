@@ -160,7 +160,7 @@ test.describe('Settings', () => {
       await backButton.click();
       
       // Should be back at channels
-      await expect(page).toHaveURL(/\/channels|\/@me/);
+      await expect(page).toHaveURL(/\/channels\/|\/settings\//);
     });
   });
 });

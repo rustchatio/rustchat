@@ -42,7 +42,7 @@ export class ChannelPage {
   async openChannel(channelName: string) {
     const channelLink = this.page.getByRole('link', { name: new RegExp(channelName, 'i') });
     await channelLink.click();
-    await expect(this.page).toHaveURL(new RegExp(channelName, 'i'));
+    await expect(this.page).toHaveURL(/\/channels\//);
   }
 
   async openUserMenu() {
@@ -51,14 +51,14 @@ export class ChannelPage {
 
   async logout() {
     await this.openUserMenu();
-    const logoutButton = this.page.getByRole('menuitem', { name: /logout|sign out/i });
+    const logoutButton = this.page.getByRole('button', { name: /logout|sign out/i });
     await logoutButton.click();
     await expect(this.page).toHaveURL(/\/login/);
   }
 
   async openSettings() {
     await this.openUserMenu();
-    const settingsLink = this.page.getByRole('menuitem', { name: /settings/i });
+    const settingsLink = this.page.getByRole('button', { name: /settings/i });
     await settingsLink.click();
     await expect(this.page).toHaveURL(/\/settings/);
   }

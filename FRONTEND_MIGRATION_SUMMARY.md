@@ -163,6 +163,17 @@ Completed:
 3. Phase 2 auth routing completion:
    - Added real default channel bootstrap on authenticated `/` route by resolving teams + channels and navigating to `/channels/:channelId`.
    - Login and callback flows now route through `/` bootstrap instead of hardcoded `/channels/general`.
+4. Additional migration leftovers fixed in Solid app:
+   - Fixed router mounting architecture in `frontend-solid/src/App.tsx` by using `Router` `root` layout (prevents blank page with empty `#root`).
+   - Added missing `/register` route and `Register` page (`frontend-solid/src/routes/Register.tsx`) to match existing login link behavior.
+   - Aligned login payload contract to backend (`email` instead of `username`) in `frontend-solid/src/routes/Login.tsx` and `frontend-solid/src/stores/auth.ts`.
+   - Fixed password recovery endpoint paths to backend contract:
+     - `POST /api/v1/auth/password/forgot`
+     - `POST /api/v1/auth/password/validate`
+     - `POST /api/v1/auth/password/reset`
+   - Updated auth/settings E2E selectors and route assumptions for current Solid UI structure.
 
 Still pending:
-1. Optional final pass on low-priority legacy wording in deep historical docs (kept intentionally for context).
+1. Redeploy frontend container to remote host (`10.5.199.85`) so the new bundle (`index-u4_VJhhh.js`) is live.
+2. Re-run remote browser smoke after deploy (`/login`, unauth redirect to `/login`, valid login redirect to `/channels/:channelId`).
+3. Optional final pass on low-priority legacy wording in deep historical docs (kept intentionally for context).

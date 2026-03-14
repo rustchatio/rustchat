@@ -51,7 +51,7 @@ export class RegisterPage {
   }
 
   async expectRegistrationSuccess() {
-    await expect(this.page).toHaveURL(/\/channels|\/@me|\/login/);
+    await expect(this.page).toHaveURL(/\/channels\/|\/settings\/|\/login/);
   }
 
   async expectValidationError(field: string) {

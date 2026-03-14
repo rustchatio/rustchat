@@ -113,14 +113,14 @@ test.describe('Authentication', () => {
       await channelPage.logout();
 
       // Try to access protected page - should redirect to login
-      await page.goto('/channels/general');
+      await page.goto('/channels/00000000-0000-0000-0000-000000000000');
       await expect(page).toHaveURL(/\/login/);
     });
   });
 
   test.describe('Protected Routes', () => {
     test('should redirect to login when accessing protected route unauthenticated', async ({ page }) => {
-      await page.goto('/channels/general');
+      await page.goto('/channels/00000000-0000-0000-0000-000000000000');
       await expect(page).toHaveURL(/\/login/);
     });
 

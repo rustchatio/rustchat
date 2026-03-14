@@ -140,9 +140,20 @@ export default function ResetPassword() {
 
     try {
       // Validate token with backend
-      const response = await fetch(`/api/v1/auth/reset-password/validate?token=${resetToken}`);
-      setIsValidToken(response.ok);
+      const response = await fetch('/api/v1/auth/password/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: resetToken }),
+      });
       if (!response.ok) {
+        setIsValidToken(false);
+        setErrors({ general: 'This reset link has expired or is invalid' });
+        return;
+      }
+
+      const data = (await response.json()) as { valid?: boolean };
+      setIsValidToken(Boolean(data.valid));
+      if (!data.valid) {
         setErrors({ general: 'This reset link has expired or is invalid' });
       }
     } catch {
@@ -170,12 +181,12 @@ export default function ResetPassword() {
     setIsLoading(true);
 
     try {
-      const response = await fetch('/api/v1/auth/reset-password', {
+      const response = await fetch('/api/v1/auth/password/reset', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           token: token(),
-          password: password(),
+          new_password: password(),
         }),
       });
 

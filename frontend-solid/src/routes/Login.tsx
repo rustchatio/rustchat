@@ -16,7 +16,7 @@ import Input from '../components/ui/Input';
 // ============================================
 
 interface FormErrors {
-  username?: string;
+  email?: string;
   password?: string;
   general?: string;
 }
@@ -42,23 +42,13 @@ function validateEmail(email: string): boolean {
   return emailRegex.test(email);
 }
 
-function validateUsername(username: string): boolean {
-  // Allow alphanumeric, dots, dashes, underscores
-  const usernameRegex = /^[a-zA-Z0-9._-]+$/;
-  return usernameRegex.test(username) && username.length >= 3;
-}
-
-function validateForm(username: string, password: string): FormErrors {
+function validateForm(email: string, password: string): FormErrors {
   const errors: FormErrors = {};
 
-  if (!username.trim()) {
-    errors.username = 'Username or email is required';
-  } else if (username.includes('@')) {
-    if (!validateEmail(username)) {
-      errors.username = 'Please enter a valid email address';
-    }
-  } else if (!validateUsername(username)) {
-    errors.username = 'Username must be at least 3 characters and contain only letters, numbers, dots, dashes, or underscores';
+  if (!email.trim()) {
+    errors.email = 'Email is required';
+  } else if (!validateEmail(email)) {
+    errors.email = 'Please enter a valid email address';
   }
 
   if (!password) {
@@ -78,7 +68,7 @@ export default function Login() {
   const navigate = useNavigate();
 
   // Form state
-  const [username, setUsername] = createSignal('');
+  const [email, setEmail] = createSignal('');
   const [password, setPassword] = createSignal('');
   const [remember, setRemember] = createSignal(false);
   const [isLoading, setIsLoading] = createSignal(false);
@@ -148,7 +138,7 @@ export default function Login() {
     setErrors({});
 
     // Validate form
-    const validationErrors = validateForm(username(), password());
+    const validationErrors = validateForm(email(), password());
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
       return;
@@ -158,7 +148,7 @@ export default function Login() {
 
     try {
       await login({
-        username: username(),
+        email: email(),
         password: password(),
         remember: remember(),
       });
@@ -278,20 +268,20 @@ export default function Login() {
               <div class="space-y-4">
                 <div>
                   <Input
-                    id="username"
-                    type="text"
-                    label="Username or Email"
-                    value={username()}
+                    id="email"
+                    type="email"
+                    label="Email"
+                    value={email()}
                     onInput={(e) => {
-                      setUsername(e.currentTarget.value);
-                      if (errors().username) {
-                        setErrors((prev) => ({ ...prev, username: undefined }));
+                      setEmail(e.currentTarget.value);
+                      if (errors().email) {
+                        setErrors((prev) => ({ ...prev, email: undefined }));
                       }
                     }}
-                    placeholder="Enter your username or email"
+                    placeholder="Enter your email"
                     required
                     disabled={isLoading()}
-                    error={errors().username}
+                    error={errors().email}
                     autofocus
                   />
                 </div>
@@ -341,7 +331,7 @@ export default function Login() {
                 variant="primary"
                 size="lg"
                 loading={isLoading()}
-                disabled={isLoading() || !username() || !password()}
+                disabled={isLoading() || !email() || !password()}
                 fullWidth
               >
                 {isLoading() ? 'Signing in...' : 'Sign in'}

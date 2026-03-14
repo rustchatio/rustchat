@@ -8,6 +8,7 @@ import ProtectedRoute from '../components/ProtectedRoute';
 
 // Lazy load route components for code splitting
 const Login = lazy(() => import('./Login'));
+const Register = lazy(() => import('./Register'));
 const LoginCallback = lazy(() => import('./LoginCallback'));
 const ForgotPassword = lazy(() => import('./ForgotPassword'));
 const ResetPassword = lazy(() => import('./ResetPassword'));
@@ -25,6 +26,7 @@ export function AppRoutes() {
     <>
       {/* Public Routes */}
       <Route path="/login" component={Login} />
+      <Route path="/register" component={Register} />
       <Route path="/login/callback" component={LoginCallback} />
       <Route path="/forgot-password" component={ForgotPassword} />
       <Route path="/reset-password" component={ResetPassword} />

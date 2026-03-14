@@ -3,7 +3,7 @@
 // ============================================
 
 import { Suspense, lazy, onMount } from 'solid-js';
-import { Router, Route, useNavigate } from '@solidjs/router';
+import { Router, Route, useNavigate, type RouteSectionProps } from '@solidjs/router';
 import { ThemeProvider } from './stores/theme';
 import { setupInterceptors } from './api/interceptors';
 import { AppShell } from './components/layout';
@@ -18,6 +18,7 @@ import { ErrorBoundary, OfflineIndicator } from './components/ErrorBoundary';
 
 // Eagerly load public routes
 import Login from './routes/Login';
+import Register from './routes/Register';
 import LoginCallback from './routes/LoginCallback';
 import ForgotPassword from './routes/ForgotPassword';
 import ResetPassword from './routes/ResetPassword';
@@ -66,14 +67,11 @@ function AuthenticatedRootRedirect() {
 // ============================================
 
 function AppRoutes() {
-  onMount(() => {
-    setupInterceptors();
-  });
-
   return (
     <>
       {/* Public Routes - No AppShell */}
       <Route path="/login" component={Login} />
+      <Route path="/register" component={Register} />
       <Route path="/login/callback" component={LoginCallback} />
       <Route path="/forgot-password" component={ForgotPassword} />
       <Route path="/reset-password" component={ResetPassword} />
@@ -132,17 +130,17 @@ function AppRoutes() {
   );
 }
 
-// ============================================
-// App Content Component
-// ============================================
+function RouterLayout(props: RouteSectionProps) {
+  onMount(() => {
+    setupInterceptors();
+  });
 
-function AppContent() {
   return (
     <ErrorBoundary>
       <div class="min-h-screen bg-bg-app text-text-1">
         <SkipLinks />
         <OfflineIndicator />
-        <AppRoutes />
+        {props.children}
         <SessionTimeoutModal />
         <ToastContainer />
         <ConnectionToastNotifier />
@@ -159,8 +157,8 @@ function AppContent() {
 function App() {
   return (
     <ThemeProvider>
-      <Router>
-        <AppContent />
+      <Router root={RouterLayout}>
+        <AppRoutes />
       </Router>
     </ThemeProvider>
   );

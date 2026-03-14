@@ -22,7 +22,7 @@ export class LoginPage {
 
   async goto() {
     await this.page.goto('/login');
-    await expect(this.page.getByRole('heading', { name: /sign in|login/i })).toBeVisible();
+    await expect(this.page.getByRole('heading', { name: /welcome to rustchat/i })).toBeVisible();
   }
 
   async login(email: string, password: string) {
@@ -33,7 +33,7 @@ export class LoginPage {
 
   async expectLoginSuccess() {
     // Should redirect to main app
-    await expect(this.page).toHaveURL(/\/channels|\/@me/);
+    await expect(this.page).toHaveURL(/\/channels\/|\/settings\//);
   }
 
   async expectLoginError(message?: string) {
