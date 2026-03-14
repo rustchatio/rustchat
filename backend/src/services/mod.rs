@@ -1,7 +1,9 @@
 //! Services module
 
 pub mod auth_config;
+#[cfg(feature = "kafka")]
 pub mod kafka_consumer;
+#[cfg(feature = "kafka")]
 pub mod kafka_producer;
 pub mod email_provider;
 pub mod email_service;

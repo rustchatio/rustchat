@@ -94,8 +94,8 @@ rtcp = "0.12"
 sdp = "0.6"
 interceptor = "0.12"
 
-# Kafka for high-volume messaging
-rdkafka = { version = "0.37", features = ["tokio", "ssl-vendored"] }
+# Kafka for high-volume messaging (optional, enable with --features kafka)
+rdkafka = { version = "0.37", features = ["tokio", "ssl-vendored"], optional = true }
 
 # OpenSearch for scalable search
 opensearch = { version = "2.3", default-features = false, features = ["rustls-tls"] }
@@ -114,3 +114,7 @@ testcontainers = "0.23"
 [[bin]]
 name = "rustchat"
 path = "src/main.rs"
+
+[features]
+default = []
+kafka = ["dep:rdkafka"]

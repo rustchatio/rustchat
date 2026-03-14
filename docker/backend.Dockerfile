@@ -1,7 +1,7 @@
 # Build stage
 FROM rust:1.93-alpine AS builder
 
-RUN apk add --no-cache musl-dev pkgconfig openssl-dev perl make
+RUN apk add --no-cache musl-dev pkgconfig openssl-dev perl make bash cmake clang
 
 # Keep builds architecture-neutral across amd64/arm64 hosts.
 ENV RUSTFLAGS="-C target-cpu=generic"
