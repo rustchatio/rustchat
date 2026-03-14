@@ -188,8 +188,8 @@ If there are many policies, this could return a large result set.
 
 ---
 
-### 16. **Frontend: Missing Error Handling for Missing Targets**
-**File:** `frontend/src/components/admin/PolicyEditorModal.vue:186-191`
+### 16. **Frontend: Missing Error Handling for Missing Targets (Legacy Vue)**
+**File:** `archive/frontend-vue-backup/src/components/admin/PolicyEditorModal.vue:186-191`
 
 The validation is good, but there's no handling for the case where the selected team/channel was deleted between loading the options and saving.
 

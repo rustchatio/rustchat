@@ -50,5 +50,5 @@ To allow clients to connect, you must ensure the following ports are open and ac
 ## Troubleshooting
 
 -   **Connection Refused**: Ensure the server is running and the port (8080) is not blocked by a firewall.
--   **WebSocket Disconnected**: If you see a banner about connection issues, ensure that your reverse proxy (if using one other than the provided Nginx) is configured to handle WebSocket upgrades. The provided `frontend/nginx.conf` already handles this.
+-   **WebSocket Disconnected**: If you see a banner about connection issues, ensure that your reverse proxy (if using one other than the provided Nginx) is configured to handle WebSocket upgrades. The provided `frontend-solid/nginx.conf` already handles this.
 -   **Invalid SSL**: If you are using HTTPS with a self-signed certificate, you may need to trust the certificate on your device or ignore SSL errors (development only).

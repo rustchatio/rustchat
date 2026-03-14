@@ -25,7 +25,7 @@ jobs:
             dockerfile: docker/backend.Dockerfile
             image_suffix: -backend
           - service: frontend
-            context: ./frontend
+            context: ./frontend-solid
             dockerfile: docker/frontend.Dockerfile
             image_suffix: -frontend
 

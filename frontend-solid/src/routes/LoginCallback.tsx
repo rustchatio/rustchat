@@ -9,13 +9,30 @@ import { handleOIDCCallback, getOIDCRedirectUrl, clearAllOIDCStorage } from '../
 import { handleSAMLCallback, clearAllSAMLStorage } from '../auth/saml';
 
 type CallbackStatus = 'processing' | 'success' | 'error';
+const DEFAULT_AUTH_REDIRECT = '/';
+
+function normalizeRedirectPath(path: string | null): string {
+  if (!path) return DEFAULT_AUTH_REDIRECT;
+
+  if (
+    path === '/channels/general' ||
+    path === '/login' ||
+    path === '/login/callback' ||
+    path === '/saml/callback' ||
+    path === '/auth/saml/callback'
+  ) {
+    return DEFAULT_AUTH_REDIRECT;
+  }
+
+  return path;
+}
 
 export default function LoginCallback() {
   const navigate = useNavigate();
 
   const [status, setStatus] = createSignal<CallbackStatus>('processing');
   const [errorMessage, setErrorMessage] = createSignal('');
-  const [redirectPath, setRedirectPath] = createSignal('/channels/general');
+  const [redirectPath, setRedirectPath] = createSignal<string>(DEFAULT_AUTH_REDIRECT);
 
   onMount(async () => {
     const url = window.location.href;
@@ -39,7 +56,7 @@ export default function LoginCallback() {
     // Try to get redirect URL from storage
     const storedRedirect = getOIDCRedirectUrl();
     if (storedRedirect) {
-      setRedirectPath(storedRedirect);
+      setRedirectPath(normalizeRedirectPath(storedRedirect));
     }
 
     try {
@@ -70,7 +87,7 @@ export default function LoginCallback() {
       // Small delay for UX
       setTimeout(() => {
         clearAllOIDCStorage();
-        navigate(redirectPath(), { replace: true });
+        navigate(normalizeRedirectPath(redirectPath()), { replace: true });
       }, 500);
     } else {
       setStatus('error');
@@ -89,7 +106,7 @@ export default function LoginCallback() {
       // Small delay for UX
       setTimeout(() => {
         clearAllSAMLStorage();
-        navigate(redirectPath(), { replace: true });
+        navigate(normalizeRedirectPath(redirectPath()), { replace: true });
       }, 500);
     } else {
       setStatus('error');

@@ -116,7 +116,7 @@ Compared with typical Mattermost-compatible deployments, rustchat explicitly dif
 
 Evidence:
 - [`backend/src/api/v4/mod.rs`](backend/src/api/v4/mod.rs)
-- [`frontend/src/components/composer/MessageComposer.vue`](frontend/src/components/composer/MessageComposer.vue)
+- [`frontend-solid/src/components/layout/Header.tsx`](frontend-solid/src/components/layout/Header.tsx)
 - [`AGENTS.md`](AGENTS.md)
 
 ## Target Audience Guidance
@@ -202,7 +202,7 @@ export RUSTCHAT_TEST_S3_SECRET_KEY=minioadmin
 
 ### Frontend
 ```bash
-cd frontend
+cd frontend-solid
 npm ci
 npm run build
 ```
@@ -217,7 +217,7 @@ npm run test:e2e
 ```text
 rustchat/
 ├── backend/            Rust API server (v1 + v4 + websocket + calls)
-├── frontend/           Vue web client
+├── frontend-solid/     Solid.js web client
 ├── push-proxy/         Push notification proxy
 ├── scripts/            Compatibility and operational smoke scripts
 ├── tools/mm-compat/    Compatibility extraction/report tooling

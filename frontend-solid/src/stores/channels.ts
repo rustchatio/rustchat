@@ -53,6 +53,10 @@ export interface CreateChannelRequest {
   target_user_id?: string;
 }
 
+interface TeamSummary {
+  id: string;
+}
+
 // ============================================
 // Store State
 // ============================================
@@ -152,6 +156,56 @@ export async function fetchChannels(teamId: string): Promise<void> {
   } finally {
     setIsLoading(false);
   }
+}
+
+async function fetchUserTeams(): Promise<TeamSummary[]> {
+  const token = authStore.token;
+  if (!token) return [];
+
+  const response = await fetch('/api/v1/teams', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!response.ok) {
+    throw new Error('Failed to fetch teams');
+  }
+
+  const payload = await response.json();
+  if (!Array.isArray(payload)) return [];
+
+  return payload.filter(
+    (team): team is TeamSummary =>
+      typeof team === 'object' && team !== null && typeof (team as TeamSummary).id === 'string'
+  );
+}
+
+export async function resolveDefaultChannelPath(): Promise<string | null> {
+  try {
+    const teams = await fetchUserTeams();
+    if (teams.length === 0) return null;
+
+    const knownTeamIds = new Set(teams.map((team) => team.id));
+    const preferredTeamIds = Object.keys(lastChannelByTeam).filter((teamId) => knownTeamIds.has(teamId));
+    const fallbackTeamIds = teams.map((team) => team.id).filter((teamId) => !preferredTeamIds.includes(teamId));
+    const orderedTeamIds = [...preferredTeamIds, ...fallbackTeamIds];
+
+    for (const teamId of orderedTeamIds) {
+      try {
+        await fetchChannels(teamId);
+      } catch {
+        continue;
+      }
+
+      const channelId = currentChannelId();
+      if (channelId) {
+        return `/channels/${channelId}`;
+      }
+    }
+  } catch (error) {
+    console.error('Failed to resolve default channel path', error);
+  }
+
+  return null;
 }
 
 export async function fetchJoinableChannels(teamId: string): Promise<void> {
@@ -425,6 +479,7 @@ export const channelStore = {
 
   // Actions
   fetchChannels,
+  resolveDefaultChannelPath,
   fetchChannel,
   fetchJoinableChannels,
   createChannel,

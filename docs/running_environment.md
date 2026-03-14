@@ -3,7 +3,7 @@
 RustMatch is containerized using Docker Compose for easy setup and development. The environment includes:
 
 - **Backend**: Rust (Axum) API
-- **Frontend**: Vue 3 + Vite (Served via Nginx)
+- **Frontend**: Solid.js + Vite (Served via Nginx)
 - **Postgres**: Database
 - **Redis**: Caching
 - **MinIO**: S3-compatible object storage
@@ -56,7 +56,7 @@ You can run the backend locally while keeping infrastructure services (DB, Redis
 1.  Stop the `frontend` container if running: `docker compose stop frontend`
 2.  Run npm locally:
     ```bash
-    cd frontend
+    cd frontend-solid
     npm run dev
     ```
     *Access at [http://localhost:5173](http://localhost:5173).*

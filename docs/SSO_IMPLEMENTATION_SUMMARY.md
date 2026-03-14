@@ -21,17 +21,20 @@ This implementation provides clean, production-grade SSO/OIDC authentication for
 - `backend/src/services/mod.rs` - Added oidc_discovery module
 - `backend/Cargo.toml` - Added `rand` dependency
 
-### Frontend (Vue/TypeScript)
+### Frontend (Legacy Vue/TypeScript, archived)
+
+Note: These frontend paths refer to the archived Vue client at `archive/frontend-vue-backup/`.  
+The active frontend is `frontend-solid/`.
 
 #### Modified Files
-- `frontend/src/api/admin.ts` - Added SSO types and API functions
-- `frontend/src/views/auth/LoginView.vue` - Updated with SSO support and require_sso mode
-- `frontend/src/views/admin/AdminConsole.vue` - Added SSO menu item
-- `frontend/src/router/index.ts` - Added SSO settings route
-- `frontend/src/stores/config.ts` - Added auth config support
+- `archive/frontend-vue-backup/src/api/admin.ts` - Added SSO types and API functions
+- `archive/frontend-vue-backup/src/views/auth/LoginView.vue` - Updated with SSO support and require_sso mode
+- `archive/frontend-vue-backup/src/views/admin/AdminConsole.vue` - Added SSO menu item
+- `archive/frontend-vue-backup/src/router/index.ts` - Added SSO settings route
+- `archive/frontend-vue-backup/src/stores/config.ts` - Added auth config support
 
 #### New Files
-- `frontend/src/views/admin/SsoSettings.vue` - SSO management UI
+- `archive/frontend-vue-backup/src/views/admin/SsoSettings.vue` - SSO management UI
 
 ### Tests
 - `backend/tests/api_oauth.rs` - 10 integration tests for SSO

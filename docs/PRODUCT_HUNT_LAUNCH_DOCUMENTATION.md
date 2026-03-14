@@ -30,17 +30,17 @@ Use this as the final pre-submit checklist.
 
 ### Tagline alternatives
 
-- `Own your team chat: Rust backend, Vue client, MM v4 compatible`
+- `Own your team chat: Rust backend, Solid client, MM v4 compatible`
 - `Open-source collaboration stack with Rust performance`
 - `Self-hosted collaboration with Mattermost-compatible APIs`
 
 ### Description (primary, 206 chars)
 
-`Open-source team collaboration you can self-host: Rust backend, Vue app, Mattermost-compatible API v4, realtime chat, channels, and calls surfaces. Keep data in your infra and migrate clients progressively.`
+`Open-source team collaboration you can self-host: Rust backend, Solid app, Mattermost-compatible API v4, realtime chat, channels, and calls surfaces. Keep data in your infra and migrate clients progressively.`
 
 ### Description alternatives
 
-- `Rustchat is a self-hosted collaboration platform with a Rust backend and Vue web app. It supports native APIs plus Mattermost-compatible v4 routes, so teams can adopt it gradually without giving up data ownership.`
+- `Rustchat is a self-hosted collaboration platform with a Rust backend and Solid web app. It supports native APIs plus Mattermost-compatible v4 routes, so teams can adopt it gradually without giving up data ownership.`
 - `Run your own team chat stack with Rustchat: channels, posts, realtime events, and compatibility-focused API v4 support for migration-friendly self-hosted deployments.`
 
 ## 3) First Maker Comment (Draft)
@@ -50,7 +50,7 @@ Paste as first comment and adjust names/links before launch:
 ```md
 Hi Product Hunt, we are the makers of Rustchat.
 
-Rustchat is an open-source, self-hosted collaboration platform built with a Rust backend and a Vue frontend. We built it for teams that want full infrastructure control and a migration path via Mattermost-compatible API v4 surfaces.
+Rustchat is an open-source, self-hosted collaboration platform built with a Rust backend and a Solid frontend. We built it for teams that want full infrastructure control and a migration path via Mattermost-compatible API v4 surfaces.
 
 What is live today:
 - Core collaboration flows (teams/channels/posts/realtime)

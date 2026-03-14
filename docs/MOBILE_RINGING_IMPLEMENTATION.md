@@ -109,9 +109,9 @@ When a user clicks the "Ring" button in the call UI:
 - Frontend calls `POST /plugins/com.mattermost.calls/calls/{channel_id}/ring`
 - Backend broadcasts `calls_ringing` event to all channel members
 
-## WebUI (Frontend) Implementation Reference
+## WebUI (Legacy Vue) Implementation Reference
 
-The WebUI already correctly handles ringing in `frontend/src/stores/calls.ts`:
+The legacy Vue WebUI handled ringing in `archive/frontend-vue-backup/src/stores/calls.ts`:
 
 ```typescript
 onEvent('custom_com.mattermost.calls_ringing', (data) => {

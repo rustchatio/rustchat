@@ -38,7 +38,7 @@ export function AppRoutes() {
         path="/"
         component={() => (
           <ProtectedRoute>
-            <Navigate href="/channels/general" />
+            <Navigate href="/settings/profile" />
           </ProtectedRoute>
         )}
       />

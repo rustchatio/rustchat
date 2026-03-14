@@ -5,7 +5,7 @@
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                      Web / SPA Client                       │
-│              (Vue 3 + TypeScript + Pinia)                   │
+│               (Solid.js + TypeScript + Vite)                │
 └─────────────────────────┬───────────────────────────────────┘
                           │ REST / WebSocket
                           │
@@ -75,92 +75,46 @@ Structured JSON logging with `tracing`.
 
 ---
 
-## Frontend Architecture (Refactored 2025)
+## Frontend Architecture (Solid)
 
-The frontend has been refactored from a flat, mixed-concern architecture to a **feature-based, layered architecture**.
+The active web client lives in `frontend-solid/` and is implemented with Solid.js + TypeScript.
 
 ### Directory Structure
 
 ```
-frontend/src/
-├── core/                          # Shared primitives
-│   ├── entities/                  # Domain models (User, Message, Channel, etc.)
-│   ├── errors/                    # Error hierarchy (AppError)
-│   ├── repositories/              # Base repository interfaces
-│   ├── services/                  # Shared utilities (retry logic)
-│   ├── types/                     # Type utilities (Result<T,E>)
-│   ├── websocket/                 # WebSocket infrastructure
-│   └── index.ts                   # Public API exports
-│
-├── features/                      # Domain features (13 modules)
-│   ├── auth/                      # Authentication & session
-│   ├── calls/                     # WebRTC voice/video calls
-│   ├── channels/                  # Channel management
-│   ├── messages/                  # Messaging & threads
-│   ├── teams/                     # Team management
-│   ├── presence/                  # User presence & typing
-│   ├── unreads/                   # Unread message counts
-│   ├── preferences/               # User preferences
-│   ├── theme/                     # UI theming
-│   ├── ui/                        # UI state (modals, sidebar)
-│   ├── admin/                     # Admin console
-│   ├── playbooks/                 # Incident response
-│   └── config/                    # Site configuration
-│
-├── api/                           # API clients (unchanged)
-├── components/                    # Vue components
-├── composables/                   # Vue composables
-└── stores/                        # Legacy stores (deprecated)
-```
-
-### Feature Module Structure
-
-Each feature follows the same layered pattern:
-
-```
-features/[feature]/
-├── repositories/[feature]Repository.ts  # Data access layer
-├── services/[feature]Service.ts         # Business logic
-├── stores/[feature]Store.ts             # State management
-├── handlers/[feature]SocketHandlers.ts  # WebSocket events
-├── composables/use[Feature].ts          # Vue integration (optional)
-└── index.ts                             # Public API
+frontend-solid/src/
+├── api/                           # API clients
+├── auth/                          # OIDC/SAML/auth helpers
+├── components/                    # Solid UI components
+├── hooks/                         # WebSocket/media query/toast hooks
+├── realtime/                      # Real-time websocket layer
+├── routes/                        # Route components
+├── stores/                        # Solid state stores
+├── styles/                        # Tailwind/CSS tokens and globals
+├── types/                         # TypeScript types
+└── utils/                         # Shared utilities
 ```
 
 ### Key Principles
 
-1. **Feature-Based Organization**: Code grouped by domain, not by type
-2. **Repository Pattern**: Data access abstraction
-3. **Service Layer**: Business logic, orchestration, WebRTC
-4. **Pure Stores**: State management only, no business logic
-5. **Dependency Inversion**: No circular dependencies
-6. **Single Responsibility**: Average 105 lines per file
-7. **Explicit Error Handling**: Result types, AppError hierarchy
-8. **Optimistic Updates**: UI responds immediately, syncs in background
-9. **WebSocket Decoupling**: Feature-specific handlers
-10. **Type Safety**: Branded types throughout
+1. **Route-first composition**: Route components orchestrate stores and API calls.
+2. **Thin API layer**: `src/api/*` wraps HTTP contracts and response typing.
+3. **State-centric UI**: `src/stores/*` is the primary client state boundary.
+4. **Realtime integration**: websocket events update stores via dedicated hooks/handlers.
+5. **Type safety**: strict TypeScript typing across DTOs and store state.
 
 ### Usage Example
 
 ```typescript
-// Import from features
-import { messageService, useMessageStore } from '@/features/messages'
-import { callService } from '@/features/calls'
-import { authService, useAuth } from '@/features/auth'
+import { authStore } from '@/stores/auth';
+import { channelStore } from '@/stores/channels';
+import { useWebSocket } from '@/hooks/useWebSocket';
 
-// WebSocket setup
-import { registerWebSocketHandlers } from '@/core/websocket'
-registerWebSocketHandlers()
+useWebSocket();
+if (authStore.isAuthenticated) {
+  // e.g. load channels/messages after auth
+}
 ```
-
-### Refactoring Statistics
-
-| Metric | Before | After | Improvement |
-|--------|--------|-------|-------------|
-| **Max file size** | 960 lines | 270 lines | **72% smaller** |
-| **Average file size** | 238 lines | 105 lines | **56% smaller** |
-| **Files** | 13 stores | 68 modules | Better organized |
-| **Lines** | 3,100 | 7,174 | More maintainable |
 
 ---
 
@@ -186,9 +140,9 @@ Detailed adapter boundaries and v1/v4 contract mapping:
 ### Frontend Data Flow
 
 ```
-Component → Store → Service → Repository → API
-                ↑
-WebSocket → Handler → Service
+Route/Component → Store → API Client → Backend
+                    ↑
+            WebSocket Hook/Event
 ```
 
 ---
@@ -219,7 +173,7 @@ Key tables:
 
 - `docs/websocket_architecture.md` — WebSocket protocol details
 - `docs/calls_deployment_modes.md` — Call service deployment
-- `frontend/REFACTORING_FINAL.md` — Frontend refactoring details
-- `frontend/MIGRATION_GUIDE.md` — Component migration guide
-- `frontend/ARCHITECTURE_DIAGRAM.md` — Visual architecture
-- `frontend/DEVELOPER_GUIDE.md` — Developer quick reference
+- `frontend-solid/README.md` — Frontend setup and scripts
+- `frontend-solid/PHASE_F3_SUMMARY.md` — Migration phase summary
+- `frontend-solid/PHASE_F4_SUMMARY.md` — Migration phase summary
+- `FRONTEND_MIGRATION_SUMMARY.md` — Repository-level migration status

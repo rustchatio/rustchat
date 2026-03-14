@@ -63,13 +63,13 @@ rustchat/
 - **Metrics**: Prometheus
 
 ### Frontend
-- **Framework**: Vue 3.5+ (Composition API)
+- **Framework**: Solid.js 1.9+
 - **Language**: TypeScript 5.9+
 - **Build Tool**: Vite 7+
-- **State**: Pinia 3+
+- **State**: Solid stores (`solid-js/store`)
 - **Styling**: Tailwind CSS 4+
-- **Icons**: Lucide Vue
-- **Utilities**: VueUse, date-fns, axios
+- **Icons**: solid-icons
+- **Utilities**: date-fns, axios
 - **E2E Testing**: Playwright
 
 ### Push Proxy
@@ -115,7 +115,7 @@ export RUSTCHAT_TEST_S3_SECRET_KEY=minioadmin
 ### Frontend
 
 ```bash
-cd frontend
+cd frontend-solid
 
 # Install dependencies
 npm ci
@@ -166,17 +166,17 @@ docker compose up -d --build
 5. **Formatting**: Use `cargo fmt` before committing.
 6. **Linting**: All code must pass `cargo clippy --all-targets --all-features -- -D warnings`.
 
-### Frontend TypeScript/Vue
+### Frontend TypeScript/Solid
 
 1. **Feature Organization**: Code is organized by feature (`src/features/*`), not by type.
 2. **Architecture Pattern**:
    - Repository: Data access layer
    - Service: Business logic & orchestration
-   - Store: State management (Pinia)
+   - Store: State management (Solid stores)
    - Handler: WebSocket event handlers
 3. **Type Safety**: Use branded types for IDs. Avoid `any`.
 4. **Imports**: Use `@/` path alias for project imports.
-5. **Composition API**: Use `<script setup>` syntax for components.
+5. **Solid Components**: Use idiomatic `.tsx` components and reactive primitives.
 
 ### Naming Conventions
 
@@ -208,7 +208,7 @@ Run with: `cargo test --no-fail-fast -- --nocapture`
 
 Frontend E2E tests use Playwright:
 ```bash
-cd frontend
+cd frontend-solid
 npm run test:e2e
 ```
 

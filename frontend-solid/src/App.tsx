@@ -3,12 +3,13 @@
 // ============================================
 
 import { Suspense, lazy, onMount } from 'solid-js';
-import { Router, Route } from '@solidjs/router';
+import { Router, Route, useNavigate } from '@solidjs/router';
 import { ThemeProvider } from './stores/theme';
 import { setupInterceptors } from './api/interceptors';
 import { AppShell } from './components/layout';
 import SessionTimeoutModal from './components/SessionTimeoutModal';
 import ProtectedRoute from './components/ProtectedRoute';
+import { resolveDefaultChannelPath } from './stores/channels';
 import { ToastContainer } from './components/ToastContainer';
 import { ConnectionToastNotifier } from './components/ConnectionStatus';
 import { LiveRegion } from './components/LiveRegion';
@@ -42,6 +43,24 @@ function LoadingFallback() {
   );
 }
 
+function AuthenticatedRootRedirect() {
+  const navigate = useNavigate();
+
+  onMount(async () => {
+    const targetPath = await resolveDefaultChannelPath();
+    navigate(targetPath || '/settings/profile', { replace: true });
+  });
+
+  return (
+    <div class="min-h-screen flex items-center justify-center bg-bg-app">
+      <div class="flex flex-col items-center gap-4">
+        <div class="w-12 h-12 border-4 border-brand/30 border-t-brand rounded-full animate-spin" />
+        <p class="text-text-3">Redirecting...</p>
+      </div>
+    </div>
+  );
+}
+
 // ============================================
 // Main App Routes Component
 // ============================================
@@ -66,14 +85,7 @@ function AppRoutes() {
         path="/"
         component={() => (
           <ProtectedRoute>
-            <AppShell>
-              <div class="flex items-center justify-center h-full text-text-3">
-                <div class="text-center">
-                  <div class="w-12 h-12 border-4 border-brand/30 border-t-brand rounded-full animate-spin mx-auto mb-4" />
-                  <p>Redirecting...</p>
-                </div>
-              </div>
-            </AppShell>
+            <AuthenticatedRootRedirect />
           </ProtectedRoute>
         )}
       />

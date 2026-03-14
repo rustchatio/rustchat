@@ -31,6 +31,8 @@ interface AuthConfig {
   oidc_provider_name?: string;
 }
 
+const DEFAULT_AUTH_REDIRECT = '/';
+
 // ============================================
 // Validation Helpers
 // ============================================
@@ -86,7 +88,7 @@ export default function Login() {
 
   // Redirect if already authenticated
   if (authStore.isAuthenticated) {
-    navigate('/channels/general', { replace: true });
+    navigate(DEFAULT_AUTH_REDIRECT, { replace: true });
     return null;
   }
 
@@ -112,7 +114,7 @@ export default function Login() {
         const result = await handleOIDCCallback(url);
         if (result.success && result.tokens) {
           await loginWithToken(result.tokens.access_token, result.tokens.refresh_token);
-          navigate('/channels/general', { replace: true });
+          navigate(DEFAULT_AUTH_REDIRECT, { replace: true });
         } else {
           setErrors({ general: result.error || 'Authentication failed' });
         }
@@ -128,7 +130,7 @@ export default function Login() {
         const result = await handleSAMLCallback();
         if (result.success && result.data) {
           await loginWithToken(result.data.token);
-          navigate('/channels/general', { replace: true });
+          navigate(DEFAULT_AUTH_REDIRECT, { replace: true });
         } else {
           setErrors({ general: result.error || 'SAML authentication failed' });
         }
@@ -160,7 +162,7 @@ export default function Login() {
         password: password(),
         remember: remember(),
       });
-      navigate('/channels/general', { replace: true });
+      navigate(DEFAULT_AUTH_REDIRECT, { replace: true });
     } catch (err) {
       setErrors({
         general: err instanceof Error ? err.message : 'Login failed. Please check your credentials.',

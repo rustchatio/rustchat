@@ -38,7 +38,7 @@ build_image() {
 build_image "backend" "docker/backend.Dockerfile" "backend"
 
 # Build Frontend
-build_image "frontend" "docker/frontend.Dockerfile" "frontend"
+build_image "frontend" "docker/frontend.Dockerfile" "frontend-solid"
 
 echo "----------------------------------------------------------------"
 echo "All images built successfully!"
