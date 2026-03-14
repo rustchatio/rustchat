@@ -6,14 +6,13 @@
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
-use tokio::sync::mpsc;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info};
 use uuid::Uuid;
 
 use crate::config::KafkaConfig;
 use crate::realtime::{WsEnvelope, WsHub};
 use crate::services::kafka_consumer::{ConsumedMessage, MessageHandler};
-use crate::services::kafka_producer::{DeliveryResult, KafkaMessage, KafkaProducer};
+use crate::services::kafka_producer::{KafkaMessage, KafkaProducer};
 
 /// Fan-out manager that routes messages based on channel size
 pub struct FanoutManager {
@@ -324,6 +323,7 @@ impl FanoutManager {
     }
 
     /// Convert post event back to WebSocket envelope
+    #[allow(dead_code)]
     fn event_to_envelope(&self, payload: &PostEventPayload, channel_id: Uuid) -> WsEnvelope {
         let (event_type, data) = match &payload.event {
             PostEvent::Created {

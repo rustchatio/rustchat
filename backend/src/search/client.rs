@@ -7,10 +7,9 @@ use std::time::Duration;
 
 use opensearch::auth::Credentials;
 use opensearch::cert::CertificateValidation;
-use opensearch::http::transport::{SingleNodeConnectionPool, Transport, TransportBuilder};
-use opensearch::{OpenSearch, SearchParts};
-use serde_json::json;
-use tracing::{debug, error, info, warn};
+use opensearch::http::transport::{SingleNodeConnectionPool, TransportBuilder};
+use opensearch::OpenSearch;
+use tracing::{error, info};
 
 pub use crate::config::OpenSearchConfig;
 

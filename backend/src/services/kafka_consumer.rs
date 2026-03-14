@@ -19,6 +19,7 @@ use crate::config::KafkaConfig;
 /// Kafka consumer wrapper with automatic reconnection
 pub struct KafkaConsumer {
     config: KafkaConfig,
+    #[allow(dead_code)]
     consumer: Option<Arc<StreamConsumer>>,
     node_id: String,
 }
@@ -179,7 +180,7 @@ impl KafkaConsumer {
 
         let (shutdown_tx, mut shutdown_rx) = mpsc::channel(1);
         let consumer_clone = consumer.clone();
-        let node_id = self.node_id.clone();
+        let _node_id = self.node_id.clone();
 
         // Spawn consumer task
         tokio::spawn(async move {
@@ -226,12 +227,12 @@ impl KafkaConsumer {
         };
 
         // Extract headers
-        let mut node_id = String::from("unknown");
+        let _node_id = String::from("unknown");
         if let Some(headers) = msg.headers() {
             for i in 0..headers.count() {
                 match headers.get_as::<str>(i) {
                     Ok(header) if header.key == "node_id" => {
-                        node_id = header.value.unwrap_or("unknown").to_string();
+                        let _ = header.value.unwrap_or("unknown");
                     }
                     _ => {}
                 }
@@ -242,6 +243,7 @@ impl KafkaConsumer {
         #[derive(Deserialize)]
         struct MessageEnvelope {
             event_type: String,
+            #[allow(dead_code)]
             timestamp: i64,
             #[serde(flatten)]
             _rest: serde_json::Value,

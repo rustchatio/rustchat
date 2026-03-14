@@ -36,10 +36,12 @@ use webrtc::track::track_remote::TrackRemote;
 use crate::config::CallsConfig;
 
 pub mod manager;
+pub mod performance;
 pub mod signaling;
 pub mod tracks;
 
 pub use manager::SFUManager;
+pub use performance::{RtpBufferPool, SfuMetrics, wait_for_ice_gathering};
 use signaling::{SignalingMessage, SignalingServer};
 use tracks::TrackManager;
 

@@ -5,16 +5,15 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use chrono::{DateTime, Datelike, Utc};
+use chrono::{DateTime, Utc};
 use opensearch::indices::{
     IndicesCreateParts, IndicesDeleteParts, IndicesExistsParts, IndicesGetParts,
     IndicesPutSettingsParts,
 };
 use serde_json::json;
-use tracing::{debug, error, info, warn};
+use tracing::{info, warn};
 
 use crate::search::OpenSearchClient;
-use crate::config::OpenSearchConfig;
 use crate::search::indexer::{posts_index_mapping, posts_index_settings};
 
 /// Index manager for OpenSearch operations

@@ -220,7 +220,7 @@ impl McpApprovalStore {
 
     /// Get pending approval by key
     pub async fn get_approval(&self, key: &str) -> Result<Option<PendingApproval>, ApprovalStoreError> {
-        let mut inner = self.inner.write().await;
+        let inner = self.inner.write().await;
 
         if let Some(ref redis) = inner.redis {
             let mut conn = redis.get().await.map_err(|e| {
@@ -422,6 +422,7 @@ pub struct McpAuditLog {
 }
 
 struct AuditLogInner {
+    #[allow(dead_code)]
     redis: Option<deadpool_redis::Pool>,
     memory_logs: Vec<AuditLogEntry>,
     enabled: bool,

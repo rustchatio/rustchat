@@ -62,6 +62,7 @@ pub fn router() -> Router<AppState> {
 /// Export OpenAPI spec to JSON string
 /// 
 /// This can be used to generate SDKs or for documentation
+#[allow(dead_code)]
 pub fn export_openapi_spec() -> String {
     ApiDoc::openapi().to_pretty_json().unwrap_or_default()
 }
@@ -69,6 +70,7 @@ pub fn export_openapi_spec() -> String {
 /// Export OpenAPI spec to file
 /// 
 /// Used for SDK generation pipeline
+#[allow(dead_code)]
 pub fn write_openapi_spec_to_file(path: &str) -> std::io::Result<()> {
     let spec = export_openapi_spec();
     std::fs::write(path, spec)

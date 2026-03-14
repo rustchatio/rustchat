@@ -3,14 +3,12 @@
 //! Provides document indexing, bulk operations, and index mapping definitions.
 
 use std::sync::Arc;
-use std::time::Duration;
 
 use chrono::{DateTime, Utc};
-use opensearch::indices::{IndicesCreateParts, IndicesPutMappingParts};
 use opensearch::IndexParts;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use tracing::{debug, error, info, warn};
+use tracing::warn;
 use uuid::Uuid;
 
 use crate::search::OpenSearchClient;

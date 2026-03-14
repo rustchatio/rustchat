@@ -308,6 +308,7 @@ async fn search_with_postgresql(
 }
 
 /// Convert anyhow::Error to AppError
+#[allow(dead_code)]
 fn map_search_error(e: anyhow::Error) -> crate::error::AppError {
     crate::error::AppError::Internal(format!("Search error: {}", e))
 }
@@ -341,6 +342,7 @@ async fn fetch_posts_by_ids(
 }
 
 /// Index a post in OpenSearch (called when posts are created/updated)
+#[allow(dead_code)]
 pub async fn index_post(
     indexer: Option<Arc<crate::search::SearchIndexer>>,
     post: &Post,
@@ -370,6 +372,7 @@ pub async fn index_post(
 }
 
 /// Delete a post from OpenSearch index
+#[allow(dead_code)]
 pub async fn delete_post_index(
     indexer: Option<Arc<crate::search::SearchIndexer>>,
     post_id: Uuid,

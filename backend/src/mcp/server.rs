@@ -29,6 +29,7 @@ struct McpServerInner {
     config: McpConfig,
     capabilities: ServerCapabilities,
     tool_registry: ToolRegistry,
+    #[allow(dead_code)]
     initialized: bool,
     sessions: HashMap<String, McpSession>,
 }

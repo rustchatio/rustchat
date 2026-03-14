@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use sqlx::postgres::PgPoolOptions;
 use sqlx::{Pool, Postgres};
-use tracing::{debug, error, info, warn};
+use tracing::{info, warn};
 
 /// Database pool manager with replica support
 pub struct DatabaseManager {
