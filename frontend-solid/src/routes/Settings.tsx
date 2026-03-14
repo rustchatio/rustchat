@@ -2,11 +2,12 @@
 // Settings Route - User Settings Framework
 // ============================================
 
-import { Show, For, createSignal, createMemo } from 'solid-js';
+import { Show, For, createSignal, createMemo, onMount, onCleanup } from 'solid-js';
 import { useNavigate, useLocation } from '@solidjs/router';
 import { logout, authStore } from '../stores/auth';
 import { userStore, updatePreferences, resetPreferences } from '../stores/user';
 import { useTheme, AVAILABLE_THEMES } from '../stores/theme';
+import { resolveDefaultChannelPath } from '../stores/channels';
 
 import { requestPermission } from '../hooks/useDesktopNotifications';
 import { SoundSettings } from '../utils/sounds';
@@ -32,6 +33,7 @@ const sections: SettingsSection[] = [
   { id: 'sounds', label: 'Sounds', icon: '🔊' },
   { id: 'advanced', label: 'Advanced', icon: '⚙️' },
 ];
+const SETTINGS_RETURN_KEY = 'rustchat_settings_return_to';
 
 // ============================================
 // Main Settings Component
@@ -41,15 +43,44 @@ export default function Settings() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Get current section from URL
   const currentSection = () => {
-    const match = location.pathname.match(/\/settings\/(\w+)/);
-    return match?.[1] || 'profile';
+    const match = location.pathname.match(/^\/settings\/([^/?#]+)/);
+    const section = match?.[1] || 'profile';
+    return sections.some((item) => item.id === section) ? section : 'profile';
   };
 
   const handleSectionClick = (sectionId: string) => {
     navigate(`/settings/${sectionId}`);
   };
+
+  const closeSettings = async () => {
+    let fallbackPath = '/';
+    try {
+      const stored = sessionStorage.getItem(SETTINGS_RETURN_KEY);
+      if (stored && stored.startsWith('/') && !stored.startsWith('/settings')) {
+        fallbackPath = stored;
+      } else {
+        fallbackPath = (await resolveDefaultChannelPath()) || '/';
+      }
+      sessionStorage.removeItem(SETTINGS_RETURN_KEY);
+    } catch {
+      fallbackPath = (await resolveDefaultChannelPath()) || '/';
+    }
+    navigate(fallbackPath, { replace: true });
+  };
+
+  onMount(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        void closeSettings();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    onCleanup(() => {
+      window.removeEventListener('keydown', onKeyDown);
+    });
+  });
 
   const handleLogout = async () => {
     await logout('manual');
@@ -57,76 +88,122 @@ export default function Settings() {
   };
 
   return (
-    <div class="flex h-full bg-bg-app">
-      {/* Settings Sidebar */}
-      <aside class="w-64 border-r border-border-1 bg-bg-surface-1 flex flex-col shrink-0">
-        <div class="p-4 border-b border-border-1">
-          <h1 class="font-semibold text-text-1 text-lg">Settings</h1>
-          <p class="text-sm text-text-3 mt-0.5">Manage your preferences</p>
+    <div class="fixed inset-0 z-[80] flex items-center justify-center p-3 sm:p-6" role="dialog" aria-modal="true">
+      <div
+        class="absolute inset-0 bg-black/55 backdrop-blur-[1px]"
+        onClick={() => {
+          void closeSettings();
+        }}
+        aria-hidden="true"
+      />
+
+      <div class="relative w-full max-w-6xl h-[92vh] bg-bg-surface-1 rounded-xl border border-border-1 shadow-2xl overflow-hidden flex flex-col">
+        <div class="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-border-1 shrink-0">
+          <div>
+            <h1 class="font-semibold text-text-1 text-lg">Settings</h1>
+            <p class="text-sm text-text-3 mt-0.5">Manage your preferences</p>
+          </div>
+          <button
+            type="button"
+            class="p-2 rounded-lg text-text-3 hover:text-text-1 hover:bg-bg-surface-2 transition-colors"
+            onClick={() => {
+              void closeSettings();
+            }}
+            aria-label="Close settings"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M18 6 6 18" />
+              <path d="m6 6 12 12" />
+            </svg>
+          </button>
         </div>
 
-        <nav class="flex-1 p-2 space-y-0.5 overflow-y-auto">
-          <For each={sections}>
-            {(section) => (
-              <button
-                onClick={() => handleSectionClick(section.id)}
-                class={`
+        <div class="flex-1 min-h-0 flex flex-col md:flex-row">
+          {/* Settings Sidebar */}
+          <aside class="w-full md:w-64 border-b md:border-b-0 md:border-r border-border-1 bg-bg-surface-1 flex flex-col shrink-0" data-testid="settings-sidebar">
+            <nav class="flex md:flex-col gap-1 p-2 md:space-y-0.5 overflow-x-auto md:overflow-y-auto">
+              <For each={sections}>
+                {(section) => (
+                  <button
+                    type="button"
+                    onClick={() => handleSectionClick(section.id)}
+                    class={`
+                  shrink-0 md:shrink
                   w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all
                   ${currentSection() === section.id
-                    ? 'bg-brand/10 text-brand font-medium'
+                    ? 'bg-brand/10 text-brand font-medium border border-brand/20'
                     : 'text-text-2 hover:bg-bg-surface-2 hover:text-text-1'
                   }
                 `}
+                  >
+                    <span class="text-lg">{section.icon}</span>
+                    <span>{section.label}</span>
+                  </button>
+                )}
+              </For>
+            </nav>
+
+            <div class="p-4 border-t border-border-1 space-y-3 hidden md:block">
+              <Button
+                variant="secondary"
+                size="sm"
+                class="w-full justify-center"
+                onClick={() => {
+                  void closeSettings();
+                }}
               >
-                <span class="text-lg">{section.icon}</span>
-                <span>{section.label}</span>
-              </button>
-            )}
-          </For>
-        </nav>
+                Close
+              </Button>
+              <Button variant="danger" size="sm" class="w-full justify-center" onClick={handleLogout}>
+                Sign Out
+              </Button>
+            </div>
+          </aside>
 
-        <div class="p-4 border-t border-border-1 space-y-3">
-          <Button variant="secondary" size="sm" class="w-full justify-center" onClick={() => navigate('/')}>
-            ← Back to Channels
-          </Button>
-          <Button variant="danger" size="sm" class="w-full justify-center" onClick={handleLogout}>
-            Sign Out
-          </Button>
+          {/* Settings Content */}
+          <main class="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+            <div class="max-w-2xl mx-auto">
+              <Show when={currentSection() === 'profile'}>
+                <ProfileSettings />
+              </Show>
+
+              <Show when={currentSection() === 'security'}>
+                <SecuritySettings />
+              </Show>
+
+              <Show when={currentSection() === 'notifications'}>
+                <NotificationSettings />
+              </Show>
+
+              <Show when={currentSection() === 'display'}>
+                <DisplaySettings />
+              </Show>
+
+              <Show when={currentSection() === 'sidebar'}>
+                <SidebarSettings />
+              </Show>
+
+              <Show when={currentSection() === 'sounds'}>
+                <SoundSettingsPanel />
+              </Show>
+
+              <Show when={currentSection() === 'advanced'}>
+                <AdvancedSettings />
+              </Show>
+            </div>
+          </main>
         </div>
-      </aside>
-
-      {/* Settings Content */}
-      <main class="flex-1 overflow-y-auto p-6 lg:p-8">
-        <div class="max-w-2xl mx-auto">
-          <Show when={currentSection() === 'profile'}>
-            <ProfileSettings />
-          </Show>
-
-          <Show when={currentSection() === 'security'}>
-            <SecuritySettings />
-          </Show>
-
-          <Show when={currentSection() === 'notifications'}>
-            <NotificationSettings />
-          </Show>
-
-          <Show when={currentSection() === 'display'}>
-            <DisplaySettings />
-          </Show>
-
-          <Show when={currentSection() === 'sidebar'}>
-            <SidebarSettings />
-          </Show>
-
-          <Show when={currentSection() === 'sounds'}>
-            <SoundSettingsPanel />
-          </Show>
-
-          <Show when={currentSection() === 'advanced'}>
-            <AdvancedSettings />
-          </Show>
-        </div>
-      </main>
+      </div>
     </div>
   );
 }
@@ -136,15 +213,15 @@ export default function Settings() {
 // ============================================
 
 function ProfileSettings() {
-  const user = () => authStore.user;
+  const user = authStore.user;
   const [isEditing, setIsEditing] = createSignal(false);
-  const [displayName, setDisplayName] = createSignal(user()?.()?.display_name || '');
-  const [firstName, setFirstName] = createSignal(user()?.()?.first_name || '');
-  const [lastName, setLastName] = createSignal(user()?.()?.last_name || '');
-  const [position, setPosition] = createSignal(user()?.()?.position || '');
+  const [displayName, setDisplayName] = createSignal(user()?.display_name || '');
+  const [firstName, setFirstName] = createSignal(user()?.first_name || '');
+  const [lastName, setLastName] = createSignal(user()?.last_name || '');
+  const [position, setPosition] = createSignal(user()?.position || '');
 
   const initials = createMemo(() => {
-    const u = user()?.();
+    const u = user();
     if (!u) return '?';
     if (firstName() && lastName()) {
       return `${firstName()[0]}${lastName()[0]}`.toUpperCase();
@@ -169,7 +246,7 @@ function ProfileSettings() {
       <div class="p-6 bg-bg-surface-1 rounded-xl border border-border-1">
         <div class="flex items-center gap-6">
           <Show
-            when={user()?.()?.avatar_url}
+            when={user()?.avatar_url}
             fallback={
               <div class="w-24 h-24 rounded-full bg-brand/10 flex items-center justify-center text-brand text-3xl font-bold">
                 {initials()}
@@ -177,8 +254,8 @@ function ProfileSettings() {
             }
           >
             <img
-              src={user()?.()?.avatar_url}
-              alt={user()?.()?.username}
+              src={user()?.avatar_url}
+              alt={user()?.username}
               class="w-24 h-24 rounded-full object-cover"
             />
           </Show>
@@ -189,7 +266,7 @@ function ProfileSettings() {
               <Button variant="secondary" size="sm" disabled={!isEditing()}>
                 Upload New
               </Button>
-              <Show when={user()?.()?.avatar_url}>
+              <Show when={user()?.avatar_url}>
                 <Button variant="ghost" size="sm" disabled={!isEditing()}>
                   Remove
                 </Button>
@@ -217,7 +294,7 @@ function ProfileSettings() {
             <label class="block text-sm font-medium text-text-2 mb-1.5">Username</label>
             <input
               type="text"
-              value={user()?.()?.username || ''}
+              value={user()?.username || ''}
               disabled
               class="w-full px-3 py-2 bg-bg-app border border-border-1 rounded-lg text-text-1 disabled:text-text-3"
             />
@@ -227,7 +304,7 @@ function ProfileSettings() {
             <label class="block text-sm font-medium text-text-2 mb-1.5">Email</label>
             <input
               type="email"
-              value={user()?.()?.email || ''}
+              value={user()?.email || ''}
               disabled
               class="w-full px-3 py-2 bg-bg-app border border-border-1 rounded-lg text-text-1 disabled:text-text-3"
             />

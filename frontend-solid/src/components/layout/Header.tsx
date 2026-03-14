@@ -8,6 +8,7 @@ import { authStore, logout } from '@/stores/auth';
 import { uiStore } from '@/stores/ui';
 import { useIsMobile } from '@/hooks/useMediaQuery';
 import { ConnectionIndicator } from '@/components/ConnectionStatus';
+import { isAdminRole } from '@/utils/roles';
 
 // Icons
 import {
@@ -35,6 +36,16 @@ export function Header() {
   const displayName = () => {
     const u = user();
     return u?.display_name || u?.username || 'User';
+  };
+  const isAdmin = () => isAdminRole(user()?.role);
+
+  const saveSettingsReturnTarget = () => {
+    try {
+      const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+      sessionStorage.setItem('rustchat_settings_return_to', current);
+    } catch {
+      // noop
+    }
   };
 
   const initials = () => {
@@ -173,9 +184,17 @@ export function Header() {
                   </For>
                 </div>
                 <div class="px-4 py-2 border-t border-border-1">
-                  <A href="/settings/notifications" class="text-sm text-brand hover:underline block text-center">
+                  <button
+                    type="button"
+                    class="text-sm text-brand hover:underline block text-center w-full"
+                    onClick={() => {
+                      saveSettingsReturnTarget();
+                      setNotificationsOpen(false);
+                      navigate('/settings/notifications');
+                    }}
+                  >
                     View all notifications
-                  </A>
+                  </button>
                 </div>
               </div>
             </>
@@ -235,6 +254,7 @@ export function Header() {
                     type="button"
                     class="w-full px-4 py-2 text-left text-sm text-text-1 hover:bg-bg-surface-2 flex items-center gap-2"
                     onClick={() => {
+                      saveSettingsReturnTarget();
                       setUserMenuOpen(false);
                       navigate('/settings/profile');
                     }}
@@ -246,13 +266,27 @@ export function Header() {
                     type="button"
                     class="w-full px-4 py-2 text-left text-sm text-text-1 hover:bg-bg-surface-2 flex items-center gap-2"
                     onClick={() => {
+                      saveSettingsReturnTarget();
                       setUserMenuOpen(false);
-                      navigate('/settings');
+                      navigate('/settings/profile');
                     }}
                   >
                     <HiOutlineCog6Tooth size={18} class="text-text-3" />
                     Settings
                   </button>
+                  <Show when={isAdmin()}>
+                    <button
+                      type="button"
+                      class="w-full px-4 py-2 text-left text-sm text-text-1 hover:bg-bg-surface-2 flex items-center gap-2"
+                      onClick={() => {
+                        setUserMenuOpen(false);
+                        navigate('/admin');
+                      }}
+                    >
+                      <HiOutlineCog6Tooth size={18} class="text-text-3" />
+                      Admin Console
+                    </button>
+                  </Show>
                 </div>
 
                 {/* Status Section */}

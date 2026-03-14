@@ -2,9 +2,11 @@
 // MobileNav - Bottom Navigation for Mobile
 // ============================================
 
-import { Show, For } from 'solid-js';
+import { Show, For, createMemo } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
 import { uiStore } from '@/stores/ui';
+import { authStore } from '@/stores/auth';
+import { isAdminRole } from '@/utils/roles';
 
 // Icons
 import {
@@ -12,6 +14,7 @@ import {
   HiOutlineHashtag,
   HiOutlineBell,
   HiOutlineUserCircle,
+  HiOutlineCog6Tooth,
   HiOutlineBars3,
 } from 'solid-icons/hi';
 
@@ -21,44 +24,70 @@ import {
 
 export function MobileNav() {
   const navigate = useNavigate();
+  const isAdmin = () => isAdminRole(authStore.user()?.role);
 
-  const navItems = [
-    {
-      id: 'home',
-      label: 'Home',
-      icon: HiOutlineHome,
-      onClick: () => navigate('/'),
-    },
-    {
-      id: 'channels',
-      label: 'Channels',
-      icon: HiOutlineHashtag,
-      onClick: () => {
-        uiStore.toggleMobileSidebar();
+  const saveSettingsReturnTarget = () => {
+    try {
+      const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+      sessionStorage.setItem('rustchat_settings_return_to', current);
+    } catch {
+      // noop
+    }
+  };
+
+  const navItems = createMemo(() => {
+    const items = [
+      {
+        id: 'home',
+        label: 'Home',
+        icon: HiOutlineHome,
+        onClick: () => navigate('/'),
       },
-    },
-    {
-      id: 'mentions',
-      label: 'Mentions',
-      icon: HiOutlineBell,
-      badge: () => 2, // Mock unread count
-      onClick: () => {
-        uiStore.toggleMobileSidebar();
+      {
+        id: 'channels',
+        label: 'Channels',
+        icon: HiOutlineHashtag,
+        onClick: () => {
+          uiStore.toggleMobileSidebar();
+        },
       },
-    },
-    {
-      id: 'menu',
-      label: 'Menu',
-      icon: HiOutlineBars3,
-      onClick: () => uiStore.toggleMobileSidebar(),
-    },
-    {
-      id: 'profile',
-      label: 'You',
-      icon: HiOutlineUserCircle,
-      onClick: () => navigate('/settings/profile'),
-    },
-  ];
+      {
+        id: 'mentions',
+        label: 'Mentions',
+        icon: HiOutlineBell,
+        badge: () => 2, // Mock unread count
+        onClick: () => {
+          uiStore.toggleMobileSidebar();
+        },
+      },
+      {
+        id: 'menu',
+        label: 'Menu',
+        icon: HiOutlineBars3,
+        onClick: () => uiStore.toggleMobileSidebar(),
+      },
+      {
+        id: 'profile',
+        label: 'You',
+        icon: HiOutlineUserCircle,
+        onClick: () => {
+          saveSettingsReturnTarget();
+          navigate('/settings/profile');
+        },
+      },
+    ];
+
+    if (isAdmin()) {
+      items.splice(items.length - 1, 0, {
+        id: 'admin',
+        label: 'Admin',
+        icon: HiOutlineCog6Tooth,
+        onClick: () => navigate('/admin'),
+      });
+    }
+
+    return items;
+  });
 
   return (
     <nav
@@ -66,7 +95,7 @@ export function MobileNav() {
       role="navigation"
       aria-label="Mobile navigation"
     >
-      <For each={navItems}>
+      <For each={navItems()}>
         {(item) => (
           <button
             type="button"

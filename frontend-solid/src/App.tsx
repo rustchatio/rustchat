@@ -5,6 +5,7 @@
 import { Suspense, lazy, onMount } from 'solid-js';
 import { Router, Route, useNavigate, type RouteSectionProps } from '@solidjs/router';
 import { ThemeProvider } from './stores/theme';
+import { authStore } from './stores/auth';
 import { setupInterceptors } from './api/interceptors';
 import { AppShell } from './components/layout';
 import SessionTimeoutModal from './components/SessionTimeoutModal';
@@ -27,6 +28,7 @@ import ResetPassword from './routes/ResetPassword';
 const Channel = lazy(() => import('./routes/Channel'));
 const Thread = lazy(() => import('./routes/Thread'));
 const Settings = lazy(() => import('./routes/Settings'));
+const Admin = lazy(() => import('./routes/Admin'));
 const NotFound = lazy(() => import('./routes/NotFound'));
 
 // ============================================
@@ -123,6 +125,18 @@ function AppRoutes() {
           </ProtectedRoute>
         )}
       />
+      <Route
+        path="/admin/*"
+        component={() => (
+          <ProtectedRoute>
+            <AppShell>
+              <Suspense fallback={<LoadingFallback />}>
+                <Admin />
+              </Suspense>
+            </AppShell>
+          </ProtectedRoute>
+        )}
+      />
 
       {/* 404 Catch-all */}
       <Route path="*" component={NotFound} />
@@ -133,6 +147,9 @@ function AppRoutes() {
 function RouterLayout(props: RouteSectionProps) {
   onMount(() => {
     setupInterceptors();
+    if (authStore.isAuthenticated && !authStore.user()) {
+      void authStore.fetchMe();
+    }
   });
 
   return (

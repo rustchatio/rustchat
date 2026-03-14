@@ -1,3 +1,99 @@
+# SPEC: Solid WebUI Parity Gap Closure (2026-03-14)
+
+## Problem Statement
+
+The Solid.js WebUI is not yet behaviorally aligned with the previously working Vue WebUI.
+Current user-reported gaps include:
+
+1. Post-login redirection inconsistencies.
+2. Missing admin page surface (no route entry point and no navigation affordance).
+3. Settings UX mismatch (not presented as expected overlay flow).
+4. Multiple additional parity gaps across navigation and page behavior.
+
+This task is to close the highest-impact parity gaps with a deterministic, testable plan.
+
+## Goals
+
+1. Make login redirection deterministic and preserved across protected route entry.
+2. Add an accessible admin entry surface in Solid WebUI, gated by role/permissions.
+3. Implement settings presentation parity as an overlay flow while preserving deep links.
+4. Produce and execute a prioritized gap-closure sequence for remaining Vue-to-Solid parity differences.
+
+## Non-Goals
+
+1. Full one-shot feature parity for every historical Vue screen in a single change.
+2. Re-architecting the entire frontend state layer.
+3. Unrelated backend feature additions outside what is required for UI parity.
+
+## Scope and Contract Impact
+
+In scope:
+
+1. Frontend route/navigation behavior around:
+   - `/login`
+   - protected route redirects
+   - settings entry and rendering mode
+   - admin entry route + links
+2. Frontend role-based visibility for admin navigation affordances.
+3. Solid UI overlay behavior for settings flow.
+4. Automated/manual verification updates for auth + navigation parity.
+
+Contract impact:
+
+1. No API schema changes are required for the base parity pass.
+2. Frontend route semantics will change for parity correctness (redirect + overlay behavior).
+3. Admin UI route surface will be explicitly discoverable in navigation for authorized users.
+
+## Implementation Outline
+
+### Phase A: Blockers (must complete first)
+
+1. Redirect parity hardening:
+   - verify and finalize redirect persistence from protected routes to login and back.
+   - ensure OAuth callback and redirect query interplay is stable.
+2. Admin surface parity:
+   - add admin route shell/page in Solid app.
+   - add admin navigation link(s) in desktop and mobile menus for authorized users.
+   - enforce role-based gating and unauthorized fallback behavior.
+3. Settings overlay parity:
+   - render settings UI as an overlay/modal flow (instead of standalone page-only behavior).
+   - preserve URL deep-linking (`/settings/<section>`) and browser back behavior.
+
+### Phase B: Remaining high-impact parity gaps
+
+1. Build a concrete gap register from existing Solid routes/components versus expected Vue behavior.
+2. Implement top-priority items in small, verifiable slices.
+3. Keep each slice focused and regression-tested.
+
+## Verification Plan
+
+Automated:
+
+1. `cd frontend-solid && npm run build`
+2. `cd frontend-solid && npm run test:e2e -- e2e/tests/auth.spec.ts --project=chromium` (when environment allows browser execution)
+
+Manual:
+
+1. Start frontend: `cd frontend-solid && npm run dev`
+2. Redirect flow:
+   - open a protected URL directly (example: `/settings/profile`) while logged out.
+   - login and verify return to intended destination.
+3. Admin flow:
+   - login as admin, verify admin link appears and route opens.
+   - login as non-admin, verify admin link is hidden and route is denied/redirected.
+4. Settings overlay flow:
+   - open `/settings/profile`, verify overlay presentation.
+   - refresh and back/forward navigation preserve section state and close/open behavior correctly.
+
+## Acceptance Criteria
+
+1. Login redirect always returns user to requested protected destination.
+2. Admin page is reachable from UI for authorized users and hidden/blocked for unauthorized users.
+3. Settings appears as overlay with functional deep linking and history behavior.
+4. Gap register for remaining parity issues is explicit and prioritized.
+
+---
+
 # SPEC: WebSocket Auth Expiry Enforcement (2026-03-13)
 
 ## Problem Statement

@@ -7,6 +7,7 @@ import { useNavigate } from '@solidjs/router';
 import { authStore, login, loginWithToken, getAuthPolicy } from '../stores/auth';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
+import { normalizeAuthRedirectPath, getDefaultAuthRedirectPath } from '../utils/authRedirect';
 
 // ============================================
 // Types
@@ -34,7 +35,7 @@ interface OAuthProvider {
   login_url: string;
 }
 
-const DEFAULT_AUTH_REDIRECT = '/';
+const AUTH_REDIRECT_STORAGE_KEY = 'rustchat_auth_redirect_to';
 
 // ============================================
 // Validation Helpers
@@ -63,25 +64,9 @@ function validateForm(email: string, password: string): FormErrors {
   return errors;
 }
 
-function normalizeRedirectPath(path: string | null): string {
-  if (!path) return DEFAULT_AUTH_REDIRECT;
-  if (
-    path === '/login' ||
-    path === '/login/callback' ||
-    path === '/saml/callback' ||
-    path === '/auth/saml/callback'
-  ) {
-    return DEFAULT_AUTH_REDIRECT;
-  }
-  if (!path.startsWith('/') || path.startsWith('//')) {
-    return DEFAULT_AUTH_REDIRECT;
-  }
-  return path;
-}
-
 function getRequestedRedirectPath(): string {
   const redirect = new URL(window.location.href).searchParams.get('redirect');
-  return normalizeRedirectPath(redirect);
+  return normalizeAuthRedirectPath(redirect);
 }
 
 function stripOauthQueryParam(path: string): string {
@@ -160,6 +145,12 @@ export default function Login() {
   }
 
   onMount(async () => {
+    try {
+      sessionStorage.setItem(AUTH_REDIRECT_STORAGE_KEY, postAuthRedirectPath || getDefaultAuthRedirectPath());
+    } catch {
+      // noop
+    }
+
     const config = await getAuthPolicy();
     if (config) {
       setAuthConfig(config);
@@ -182,6 +173,11 @@ export default function Login() {
       setIsProcessingCallback(true);
       try {
         await exchangeOauthCode();
+        try {
+          sessionStorage.removeItem(AUTH_REDIRECT_STORAGE_KEY);
+        } catch {
+          // noop
+        }
         navigate(postAuthRedirectPath, { replace: true });
       } catch (error) {
         setErrors({
@@ -213,6 +209,11 @@ export default function Login() {
         password: password(),
         remember: remember(),
       });
+      try {
+        sessionStorage.removeItem(AUTH_REDIRECT_STORAGE_KEY);
+      } catch {
+        // noop
+      }
       navigate(postAuthRedirectPath, { replace: true });
     } catch (err) {
       setErrors({
@@ -225,6 +226,11 @@ export default function Login() {
 
   const handleProviderLogin = (provider: OAuthProvider) => {
     setIsLoading(true);
+    try {
+      sessionStorage.setItem(AUTH_REDIRECT_STORAGE_KEY, postAuthRedirectPath || getDefaultAuthRedirectPath());
+    } catch {
+      // noop
+    }
     window.location.href = buildProviderLoginUrl(provider.login_url, postAuthRedirectPath);
   };
 

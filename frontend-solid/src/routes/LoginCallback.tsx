@@ -7,32 +7,17 @@ import { useNavigate } from '@solidjs/router';
 import { loginWithToken } from '../stores/auth';
 import { handleOIDCCallback, getOIDCRedirectUrl, clearAllOIDCStorage } from '../auth/oidc';
 import { handleSAMLCallback, clearAllSAMLStorage } from '../auth/saml';
+import { normalizeAuthRedirectPath, getDefaultAuthRedirectPath } from '../utils/authRedirect';
 
 type CallbackStatus = 'processing' | 'success' | 'error';
-const DEFAULT_AUTH_REDIRECT = '/';
-
-function normalizeRedirectPath(path: string | null): string {
-  if (!path) return DEFAULT_AUTH_REDIRECT;
-
-  if (
-    path === '/channels/general' ||
-    path === '/login' ||
-    path === '/login/callback' ||
-    path === '/saml/callback' ||
-    path === '/auth/saml/callback'
-  ) {
-    return DEFAULT_AUTH_REDIRECT;
-  }
-
-  return path;
-}
+const AUTH_REDIRECT_STORAGE_KEY = 'rustchat_auth_redirect_to';
 
 export default function LoginCallback() {
   const navigate = useNavigate();
 
   const [status, setStatus] = createSignal<CallbackStatus>('processing');
   const [errorMessage, setErrorMessage] = createSignal('');
-  const [redirectPath, setRedirectPath] = createSignal<string>(DEFAULT_AUTH_REDIRECT);
+  const [redirectPath, setRedirectPath] = createSignal<string>(getDefaultAuthRedirectPath());
 
   onMount(async () => {
     const url = window.location.href;
@@ -53,10 +38,26 @@ export default function LoginCallback() {
       return;
     }
 
-    // Try to get redirect URL from storage
+    // Resolve redirect path from query + auth storage + OIDC storage
+    const redirectFromQuery = urlObj.searchParams.get('redirect');
+    if (redirectFromQuery) {
+      setRedirectPath(normalizeAuthRedirectPath(redirectFromQuery));
+    }
+
+    const storedAuthRedirect = (() => {
+      try {
+        return sessionStorage.getItem(AUTH_REDIRECT_STORAGE_KEY);
+      } catch {
+        return null;
+      }
+    })();
+    if (storedAuthRedirect) {
+      setRedirectPath(normalizeAuthRedirectPath(storedAuthRedirect));
+    }
+
     const storedRedirect = getOIDCRedirectUrl();
     if (storedRedirect) {
-      setRedirectPath(normalizeRedirectPath(storedRedirect));
+      setRedirectPath(normalizeAuthRedirectPath(storedRedirect));
     }
 
     try {
@@ -87,7 +88,12 @@ export default function LoginCallback() {
       // Small delay for UX
       setTimeout(() => {
         clearAllOIDCStorage();
-        navigate(normalizeRedirectPath(redirectPath()), { replace: true });
+        try {
+          sessionStorage.removeItem(AUTH_REDIRECT_STORAGE_KEY);
+        } catch {
+          // noop
+        }
+        navigate(normalizeAuthRedirectPath(redirectPath()), { replace: true });
       }, 500);
     } else {
       setStatus('error');
@@ -106,7 +112,12 @@ export default function LoginCallback() {
       // Small delay for UX
       setTimeout(() => {
         clearAllSAMLStorage();
-        navigate(normalizeRedirectPath(redirectPath()), { replace: true });
+        try {
+          sessionStorage.removeItem(AUTH_REDIRECT_STORAGE_KEY);
+        } catch {
+          // noop
+        }
+        navigate(normalizeAuthRedirectPath(redirectPath()), { replace: true });
       }, 500);
     } else {
       setStatus('error');

@@ -1,5 +1,41 @@
 # Task Plan
 
+## 2026-03-14 Solid WebUI Parity Gap Closure (Phase A)
+
+### Task
+- Finalize deterministic post-login redirect behavior.
+- Add missing admin route/page surface and role-gated navigation entry points.
+- Convert settings to overlay/modal behavior while keeping `/settings/<section>` deep links.
+
+### Implementation Status
+- [x] Added shared auth redirect normalization utility (`frontend-solid/src/utils/authRedirect.ts`) and covered with tests.
+- [x] Hardened login + callback redirect handling with storage-backed redirect persistence (`frontend-solid/src/routes/Login.tsx`, `frontend-solid/src/routes/LoginCallback.tsx`).
+- [x] Added startup user rehydration for token-restored sessions (`frontend-solid/src/App.tsx`).
+- [x] Added admin route/page surface at `/admin/*` (`frontend-solid/src/routes/Admin.tsx`, `frontend-solid/src/App.tsx`).
+- [x] Added role helper + role-gated admin visibility in header and mobile nav (`frontend-solid/src/utils/roles.ts`, `frontend-solid/src/components/layout/Header.tsx`, `frontend-solid/src/components/layout/MobileNav.tsx`).
+- [x] Reworked settings route into overlay/modal presentation with escape/backdrop close and deep-link section handling (`frontend-solid/src/routes/Settings.tsx`).
+- [x] Added return-target preservation for settings entry from app menus.
+
+### Verification Status
+1. `cd frontend-solid && npm run test -- tests/auth/authRedirect.test.ts`
+- Result: PASS
+
+2. `cd frontend-solid && npm run build`
+- Result: PASS
+
+### Manual Verification Commands
+1. `cd frontend-solid && npm run dev`
+2. Login redirect parity:
+   - Open a protected URL while logged out: `http://localhost:5173/settings/profile`
+   - Login and verify redirect lands on `/settings/profile` (or requested protected URL).
+3. Admin parity:
+   - Login as admin and verify `Admin Console` appears in user menu and `/admin` opens.
+   - Login as non-admin and verify `Admin Console` is hidden and direct `/admin` redirects away.
+4. Settings overlay parity:
+   - From a channel page, open Settings from user menu and verify modal/overlay presentation.
+   - Verify `Esc`, backdrop click, and close button close settings and return to prior location.
+   - Open `/settings/notifications` directly and verify the notifications section opens in the overlay.
+
 ## 2026-03-13 WebSocket Token Expiry Enforcement
 
 ### Task
@@ -1391,4 +1427,3 @@ kubectl get ingress -n rustchat
 ✅ **Fully Tested:** Unit, integration, E2E, a11y  
 
 **Ready for deployment! 🚀**
-
