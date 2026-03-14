@@ -151,26 +151,16 @@ async fn update_user(
         return Err(AppError::Forbidden("Cannot update this user".to_string()));
     }
 
-    // Build dynamic update query
-    let mut updates = Vec::new();
-    let mut param_count = 1;
+    let has_updates = input.username.is_some()
+        || input.display_name.is_some()
+        || input.first_name.is_some()
+        || input.last_name.is_some()
+        || input.nickname.is_some()
+        || input.position.is_some()
+        || input.avatar_url.is_some()
+        || input.custom_status.is_some();
 
-    if input.username.is_some() {
-        updates.push(format!("username = ${}", param_count));
-        param_count += 1;
-    }
-    if input.display_name.is_some() {
-        updates.push(format!("display_name = ${}", param_count));
-        param_count += 1;
-    }
-    if input.avatar_url.is_some() {
-        updates.push(format!("avatar_url = ${}", param_count));
-    }
-    if input.custom_status.is_some() {
-        updates.push(format!("custom_status = ${}", param_count));
-    }
-
-    if updates.is_empty() {
+    if !has_updates {
         return Err(AppError::BadRequest("No fields to update".to_string()));
     }
 
@@ -192,6 +182,34 @@ async fn update_user(
     if let Some(ref display_name) = input.display_name {
         sqlx::query("UPDATE users SET display_name = $1 WHERE id = $2")
             .bind(display_name)
+            .bind(id)
+            .execute(&state.db)
+            .await?;
+    }
+    if let Some(ref first_name) = input.first_name {
+        sqlx::query("UPDATE users SET first_name = $1 WHERE id = $2")
+            .bind(first_name)
+            .bind(id)
+            .execute(&state.db)
+            .await?;
+    }
+    if let Some(ref last_name) = input.last_name {
+        sqlx::query("UPDATE users SET last_name = $1 WHERE id = $2")
+            .bind(last_name)
+            .bind(id)
+            .execute(&state.db)
+            .await?;
+    }
+    if let Some(ref nickname) = input.nickname {
+        sqlx::query("UPDATE users SET nickname = $1 WHERE id = $2")
+            .bind(nickname)
+            .bind(id)
+            .execute(&state.db)
+            .await?;
+    }
+    if let Some(ref position) = input.position {
+        sqlx::query("UPDATE users SET position = $1 WHERE id = $2")
+            .bind(position)
             .bind(id)
             .execute(&state.db)
             .await?;

@@ -27,6 +27,8 @@
 - [x] Phase B.3 slice: replaced static team/workspace selector with API-backed team list + switching flow + unread badges (`frontend-solid/src/components/layout/Sidebar.tsx`).
 - [x] Phase B.3 slice: replaced mock notification dropdown entries with unread-store-driven channel notifications and channel navigation/read actions (`frontend-solid/src/components/layout/Header.tsx`).
 - [x] Phase B.3 slice: replaced admin `security/compliance/audit` placeholders with endpoint-backed sections (`frontend-solid/src/routes/Admin.tsx`).
+- [x] Phase B.4 slice: fixed settings close-loop fallback by resolving non-settings destinations before closing overlay (`frontend-solid/src/routes/Settings.tsx`, `frontend-solid/src/App.tsx`).
+- [x] Phase B.4 slice: implemented real profile save flow (username/display name + backend support for first/last/nickname/position) (`frontend-solid/src/routes/Settings.tsx`, `frontend-solid/src/stores/user.ts`, `backend/src/models/user.rs`, `backend/src/api/users.rs`).
 
 ### Verification Status
 1. `cd frontend-solid && npm run test -- tests/auth/authRedirect.test.ts`
@@ -58,6 +60,18 @@
 
 10. `cd frontend-solid && PLAYWRIGHT_WEB_SERVER=1 npm run test:e2e -- e2e/tests/auth.spec.ts --project=chromium --grep "redirect to login when accessing (protected route|settings) unauthenticated"`
 - Result: PASS (2/2) after Phase B.3 changes.
+
+11. `cd backend && cargo check`
+- Result: PASS after profile update contract expansion (warnings only in unrelated files).
+
+12. `cd frontend-solid && npm run build`
+- Result: PASS after settings close + profile save fixes.
+
+13. `cd frontend-solid && npm run test -- tests/auth/authRedirect.test.ts`
+- Result: PASS after Phase B.4 changes.
+
+14. `cd frontend-solid && PLAYWRIGHT_WEB_SERVER=1 npm run test:e2e -- e2e/tests/auth.spec.ts --project=chromium --grep "redirect to login when accessing (protected route|settings) unauthenticated"`
+- Result: PASS (2/2) after Phase B.4 changes.
 
 ### Manual Verification Commands
 1. `cd frontend-solid && npm run dev`

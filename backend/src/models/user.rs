@@ -174,6 +174,10 @@ pub struct CreateUser {
 pub struct UpdateUser {
     pub username: Option<String>,
     pub display_name: Option<String>,
+    pub first_name: Option<String>,
+    pub last_name: Option<String>,
+    pub nickname: Option<String>,
+    pub position: Option<String>,
     pub avatar_url: Option<String>,
     pub custom_status: Option<serde_json::Value>,
 }

@@ -158,7 +158,17 @@ export async function updateProfile(updates: Partial<UserProfile>): Promise<void
       body: JSON.stringify(updates),
     });
 
-    if (!response.ok) throw new Error('Failed to update profile');
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => null)) as
+        | { message?: string; detailed_error?: string; error?: string }
+        | null;
+      throw new Error(
+        payload?.message ||
+        payload?.detailed_error ||
+        payload?.error ||
+        'Failed to update profile'
+      );
+    }
 
     const data: UserProfile = await response.json();
     setProfile(data);

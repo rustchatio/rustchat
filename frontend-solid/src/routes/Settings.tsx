@@ -274,6 +274,9 @@ function ProfileSettings() {
       await updateProfile({
         username: normalizedUsername,
         display_name: displayName().trim(),
+        first_name: firstName().trim(),
+        last_name: lastName().trim(),
+        position: position().trim(),
       });
       setSaveSuccess(true);
       setIsEditing(false);
