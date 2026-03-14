@@ -2,6 +2,7 @@
 //!
 //! These tests require a running Kafka instance on localhost:9092.
 //! Run with: `cargo test kafka_producer -- --nocapture`
+#![cfg(feature = "kafka")]
 
 use std::time::Duration;
 use uuid::Uuid;

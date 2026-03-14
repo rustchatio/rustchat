@@ -322,6 +322,7 @@ fn test_secret_entropy_validation() {
         compatibility: rustchat::config::CompatibilityConfig {
             mobile_sso_code_exchange: true,
         },
+        #[cfg(feature = "kafka")]
         kafka: Default::default(),
         opensearch: Default::default(),
         mcp: Default::default(),

@@ -42,6 +42,7 @@ const sections: SettingsSection[] = [
   { id: 'advanced', label: 'Advanced', icon: '⚙️' },
 ];
 const SETTINGS_RETURN_KEY = 'rustchat_settings_return_to';
+const CLOSE_RESOLUTION_TIMEOUT_MS = 1200;
 
 function normalizeReturnPath(path: string | null | undefined): string | null {
   if (!path || !path.startsWith('/') || path.startsWith('//')) {
@@ -102,8 +103,14 @@ export default function Settings() {
       return;
     }
 
-    const defaultPath = await resolveDefaultChannelPath();
-    navigate(defaultPath || '/', { replace: true });
+    const defaultPath = await Promise.race<string | null>([
+      resolveDefaultChannelPath(),
+      new Promise((resolve) => {
+        window.setTimeout(() => resolve(null), CLOSE_RESOLUTION_TIMEOUT_MS);
+      }),
+    ]);
+    const normalizedDefaultPath = normalizeReturnPath(defaultPath);
+    navigate(normalizedDefaultPath || '/', { replace: true });
   };
 
   onMount(() => {
@@ -263,6 +270,7 @@ function ProfileSettings() {
   const [position, setPosition] = createSignal(user()?.position || '');
   const [isSaving, setIsSaving] = createSignal(false);
   const [saveError, setSaveError] = createSignal('');
+  const [usernameError, setUsernameError] = createSignal('');
   const [saveSuccess, setSaveSuccess] = createSignal(false);
   const syncFromUser = () => {
     const current = user();
@@ -293,12 +301,14 @@ function ProfileSettings() {
   const handleSave = async () => {
     const normalizedUsername = username().trim();
     if (!normalizedUsername) {
-      setSaveError('Username is required');
+      setUsernameError('Username is required');
+      setSaveError('');
       return;
     }
 
     setIsSaving(true);
     setSaveError('');
+    setUsernameError('');
     setSaveSuccess(false);
 
     try {
@@ -310,10 +320,16 @@ function ProfileSettings() {
         position: position().trim(),
       });
       syncFromUser();
+      setUsernameError('');
       setSaveSuccess(true);
       setIsEditing(false);
     } catch (error) {
-      setSaveError(error instanceof Error ? error.message : 'Failed to save profile');
+      const message = error instanceof Error ? error.message : 'Failed to save profile';
+      if (/username|users_username_key|duplicate/i.test(message)) {
+        setUsernameError('Username is unavailable. Choose another one.');
+      } else {
+        setSaveError(message);
+      }
     } finally {
       setIsSaving(false);
     }
@@ -372,10 +388,12 @@ function ProfileSettings() {
                 setIsEditing(false);
                 syncFromUser();
                 setSaveError('');
+                setUsernameError('');
                 setSaveSuccess(false);
                 return;
               }
               setSaveError('');
+              setUsernameError('');
               setSaveSuccess(false);
               setIsEditing(true);
             }}
@@ -403,8 +421,12 @@ function ProfileSettings() {
               value={username()}
               onInput={(e) => setUsername(e.currentTarget.value)}
               disabled={!isEditing()}
+              aria-invalid={usernameError() ? 'true' : 'false'}
               class="w-full px-3 py-2 bg-bg-app border border-border-1 rounded-lg text-text-1 disabled:bg-bg-surface-2"
             />
+            <Show when={usernameError()}>
+              <p class="text-xs text-danger mt-1">{usernameError()}</p>
+            </Show>
             <p class="text-xs text-text-3 mt-1">Username changes are saved immediately when you click Save Changes</p>
           </div>
           <div>
@@ -480,6 +502,7 @@ function ProfileSettings() {
                 setIsEditing(false);
                 syncFromUser();
                 setSaveError('');
+                setUsernameError('');
                 setSaveSuccess(false);
               }}
             >

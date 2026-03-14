@@ -64,6 +64,10 @@ async fn test_user_custom_status() {
     let update_data = UpdateUser {
         username: None,
         display_name: None,
+        first_name: None,
+        last_name: None,
+        nickname: None,
+        position: None,
         avatar_url: None,
         custom_status: Some(status_payload.clone()),
     };

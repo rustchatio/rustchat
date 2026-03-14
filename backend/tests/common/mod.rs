@@ -143,6 +143,7 @@ pub fn test_config() -> Config {
         compatibility: rustchat::config::CompatibilityConfig {
             mobile_sso_code_exchange: true,
         },
+        #[cfg(feature = "kafka")]
         kafka: Default::default(),
         mcp: Default::default(),
         opensearch: Default::default(),

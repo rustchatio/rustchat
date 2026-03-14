@@ -112,6 +112,14 @@ Implemented in this pass:
    - removed hardcoded `isFollowing={false}`; thread follow state now loads and updates via API.
 6. Regression baseline alignment:
    - updated Playwright auth/register/settings page objects and settings tests to match current UI semantics.
+7. Admin route-guard reliability:
+   - `/admin/*` now renders only after role resolution and redirects non-admin users without exposing admin content during auth-user rehydrate.
+8. Settings close responsiveness hardening:
+   - default-channel resolution is now timeout-bounded to avoid “stuck in profile/settings” UX when backend lookups are slow or unavailable.
+9. Profile save UX feedback hardening:
+   - username-specific backend validation conflicts now surface inline on the username field while preserving unsaved local edits.
+10. Thread follow regression coverage:
+   - added dedicated Playwright thread follow/unfollow persistence scenario (`frontend-solid/e2e/tests/thread.spec.ts`) with environment-aware skip behavior.
 
 ---
 

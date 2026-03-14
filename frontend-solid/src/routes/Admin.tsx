@@ -1059,11 +1059,15 @@ function AdminAuditSection() {
 export default function Admin() {
   const location = useLocation();
   const navigate = useNavigate();
+  const adminAccessState = createMemo<'loading' | 'allowed' | 'denied'>(() => {
+    if (!authStore.isAuthenticated) return 'denied';
+    const currentUser = authStore.user();
+    if (!currentUser) return 'loading';
+    return isAdminRole(currentUser.role) ? 'allowed' : 'denied';
+  });
 
   createEffect(() => {
-    const currentUser = authStore.user();
-    if (!currentUser) return;
-    if (!isAdminRole(currentUser.role)) {
+    if (adminAccessState() === 'denied') {
       navigate('/', { replace: true });
     }
   });
@@ -1078,74 +1082,83 @@ export default function Admin() {
   );
 
   return (
-    <div class="p-6 lg:p-8 space-y-6" data-testid="admin-page">
-      <div class="space-y-1">
-        <h1 class="text-2xl font-bold text-text-1">Admin Console</h1>
-        <p class="text-text-3">
-          Centralized administration for users, teams, security, and system configuration.
-        </p>
-      </div>
-
-      <div class="rounded-xl border border-border-1 bg-bg-surface-1 p-2 flex flex-wrap gap-2">
-        <For each={sections}>
-          {(section) => {
-            const href = section.id ? `/admin/${section.id}` : '/admin';
-            return (
-              <A
-                href={href}
-                class={`px-3 py-2 rounded-lg text-sm transition-colors ${
-                  activeSectionId() === section.id
-                    ? 'bg-brand/10 text-brand font-medium'
-                    : 'text-text-2 hover:bg-bg-surface-2 hover:text-text-1'
-                }`}
-              >
-                {section.label}
-              </A>
-            );
-          }}
-        </For>
-      </div>
-
-      <div class="rounded-xl border border-border-1 bg-bg-surface-1 p-6 space-y-4">
-        <div>
-          <h2 class="text-lg font-semibold text-text-1">{activeSection().label}</h2>
-          <p class="text-sm text-text-3 mt-1">{activeSection().description}</p>
+    <Show
+      when={adminAccessState() === 'allowed'}
+      fallback={
+        <div class="p-6 lg:p-8">
+          <p class="text-sm text-text-3">Checking admin access...</p>
+        </div>
+      }
+    >
+      <div class="p-6 lg:p-8 space-y-6" data-testid="admin-page">
+        <div class="space-y-1">
+          <h1 class="text-2xl font-bold text-text-1">Admin Console</h1>
+          <p class="text-text-3">
+            Centralized administration for users, teams, security, and system configuration.
+          </p>
         </div>
 
-        <Show when={activeSectionId() === ''}>
-          <AdminOverviewSection />
-        </Show>
+        <div class="rounded-xl border border-border-1 bg-bg-surface-1 p-2 flex flex-wrap gap-2">
+          <For each={sections}>
+            {(section) => {
+              const href = section.id ? `/admin/${section.id}` : '/admin';
+              return (
+                <A
+                  href={href}
+                  class={`px-3 py-2 rounded-lg text-sm transition-colors ${
+                    activeSectionId() === section.id
+                      ? 'bg-brand/10 text-brand font-medium'
+                      : 'text-text-2 hover:bg-bg-surface-2 hover:text-text-1'
+                  }`}
+                >
+                  {section.label}
+                </A>
+              );
+            }}
+          </For>
+        </div>
 
-        <Show when={activeSectionId() === 'users'}>
-          <AdminUsersSection />
-        </Show>
+        <div class="rounded-xl border border-border-1 bg-bg-surface-1 p-6 space-y-4">
+          <div>
+            <h2 class="text-lg font-semibold text-text-1">{activeSection().label}</h2>
+            <p class="text-sm text-text-3 mt-1">{activeSection().description}</p>
+          </div>
 
-        <Show when={activeSectionId() === 'teams'}>
-          <AdminTeamsSection />
-        </Show>
+          <Show when={activeSectionId() === ''}>
+            <AdminOverviewSection />
+          </Show>
 
-        <Show when={activeSectionId() === 'settings'}>
-          <AdminSettingsSection />
-        </Show>
+          <Show when={activeSectionId() === 'users'}>
+            <AdminUsersSection />
+          </Show>
 
-        <Show when={activeSectionId() === 'security'}>
-          <AdminSecuritySection />
-        </Show>
+          <Show when={activeSectionId() === 'teams'}>
+            <AdminTeamsSection />
+          </Show>
 
-        <Show when={activeSectionId() === 'compliance'}>
-          <AdminComplianceSection />
-        </Show>
+          <Show when={activeSectionId() === 'settings'}>
+            <AdminSettingsSection />
+          </Show>
 
-        <Show when={activeSectionId() === 'audit'}>
-          <AdminAuditSection />
+          <Show when={activeSectionId() === 'security'}>
+            <AdminSecuritySection />
+          </Show>
+
+          <Show when={activeSectionId() === 'compliance'}>
+            <AdminComplianceSection />
+          </Show>
+
+          <Show when={activeSectionId() === 'audit'}>
+            <AdminAuditSection />
+          </Show>
+        </div>
+
+        <Show when={activeSectionId() !== ''}>
+          <div class="text-sm text-text-3">
+            Current route: <code class="text-text-2">{location.pathname}</code>
+          </div>
         </Show>
       </div>
-
-      <Show when={activeSectionId() !== ''}>
-        <div class="text-sm text-text-3">
-          Current route: <code class="text-text-2">{location.pathname}</code>
-        </div>
-      </Show>
-    </div>
+    </Show>
   );
 }

@@ -2,6 +2,7 @@
 //!
 //! These tests require a running Kafka instance.
 //! Use `docker compose up -d kafka` to start Kafka before running tests.
+#![cfg(feature = "kafka")]
 
 use std::sync::Arc;
 use std::time::Duration;
