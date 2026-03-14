@@ -1,6 +1,6 @@
 # rustchat
 
-Self-hosted team collaboration platform with a Rust backend and a Vue web client.
+Self-hosted team collaboration platform with a Rust backend and a Solid.js web client.
 
 rustchat targets two audiences:
 - **Contributing developers** who want to build a Mattermost-compatible server in Rust.
@@ -24,7 +24,7 @@ Project maturity:
 
 Verification snapshot executed in this workspace:
 - `cd backend && cargo check` -> **PASS**
-- `cd frontend && npm run build` -> **PASS**
+- `cd frontend-solid && npm run build` -> **PASS**
 - `cd backend && cargo test --no-fail-fast -- --nocapture` -> **PARTIAL/FAIL** (unit tests passed; many integration tests failed due missing DB bootstrap/test env)
 - `BASE=http://127.0.0.1:3000 ./scripts/mm_compat_smoke.sh` -> **FAIL** (target not running)
 - `BASE=http://127.0.0.1:3000 ./scripts/mm_mobile_smoke.sh` -> **FAIL** (target not running / no compatibility preflight)
@@ -33,7 +33,7 @@ Verification snapshot executed in this workspace:
 
 ### Core platform
 - Rust backend (`Axum + Tokio + SQLx`) under [`backend/`](backend/).
-- Web app (`Vue 3 + TypeScript + Pinia`) under [`frontend/`](frontend/).
+- Web app (`Solid.js 1.9 + TypeScript`) under [`frontend-solid/`](frontend-solid/).
 - Push notification proxy service under [`push-proxy/`](push-proxy/).
 - PostgreSQL + Redis + S3-compatible object storage integration.
 

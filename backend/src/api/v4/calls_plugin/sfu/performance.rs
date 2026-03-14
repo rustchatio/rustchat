@@ -7,7 +7,7 @@
 //! - Metrics collection
 
 use std::sync::Arc;
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::Mutex;
 use webrtc::rtp_transceiver::rtp_codec::RTCRtpCodecCapability;
 use webrtc::track::track_local::track_local_static_rtp::TrackLocalStaticRTP;
 
@@ -86,18 +86,16 @@ pub async fn wait_for_ice_gathering(
     pc: &RTCPeerConnection,
     timeout: Duration,
 ) -> Result<(), &'static str> {
-    use tokio::time::timeout;
-    use webrtc::peer_connection::peer_connection_state::RTCPeerConnectionState;
-
     // Check if already complete
-    if pc.ice_gathering_state().await == webrtc::ice_transport::ice_gatherer_state::RTCIceGathererState::Complete {
+    if pc.ice_gathering_state() == webrtc::ice_transport::ice_gathering_state::RTCIceGatheringState::Complete {
         return Ok(());
     }
 
     // Wait for gathering to complete with timeout
     let start = tokio::time::Instant::now();
-    while start.elapsed() < timeout {
-        if pc.ice_gathering_state().await == webrtc::ice_transport::ice_gatherer_state::RTCIceGathererState::Complete {
+    let timeout_duration = timeout;
+    while start.elapsed() < timeout_duration {
+        if pc.ice_gathering_state() == webrtc::ice_transport::ice_gathering_state::RTCIceGatheringState::Complete {
             return Ok(());
         }
         tokio::time::sleep(Duration::from_millis(50)).await;
@@ -136,15 +134,15 @@ pub fn create_video_track(session_id: &str, stream_id: &str) -> Arc<TrackLocalSt
             channels: 0,
             sdp_fmtp_line: String::new(),
             rtcp_feedback: vec![
-                webrtc::rtp_transceiver::rtp_codec::RTCPFeedback {
+                webrtc::rtp_transceiver::RTCPFeedback {
                     typ: "nack".to_string(),
                     parameter: String::new(),
                 },
-                webrtc::rtp_transceiver::rtp_codec::RTCPFeedback {
+                webrtc::rtp_transceiver::RTCPFeedback {
                     typ: "nack".to_string(),
                     parameter: "pli".to_string(),
                 },
-                webrtc::rtp_transceiver::rtp_codec::RTCPFeedback {
+                webrtc::rtp_transceiver::RTCPFeedback {
                     typ: "ccm".to_string(),
                     parameter: "fir".to_string(),
                 },
@@ -164,11 +162,11 @@ pub fn create_screen_track(session_id: &str, stream_id: &str) -> Arc<TrackLocalS
             channels: 0,
             sdp_fmtp_line: String::new(),
             rtcp_feedback: vec![
-                webrtc::rtp_transceiver::rtp_codec::RTCPFeedback {
+                webrtc::rtp_transceiver::RTCPFeedback {
                     typ: "nack".to_string(),
                     parameter: String::new(),
                 },
-                webrtc::rtp_transceiver::rtp_codec::RTCPFeedback {
+                webrtc::rtp_transceiver::RTCPFeedback {
                     typ: "nack".to_string(),
                     parameter: "pli".to_string(),
                 },
@@ -275,6 +273,12 @@ pub struct VoiceActivityDetector {
     silence_threshold_ms: u64,
 }
 
+impl Default for VoiceActivityDetector {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl VoiceActivityDetector {
     pub fn new() -> Self {
         Self {
@@ -330,8 +334,6 @@ impl VoiceActivityDetector {
 // ============================================
 // Rate Limiter for Logging
 // ============================================
-
-use std::sync::atomic::AtomicU64;
 
 /// Rate-limited logger to prevent log spam
 pub struct RateLimitedLogger {

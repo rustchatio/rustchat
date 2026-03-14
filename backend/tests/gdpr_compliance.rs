@@ -11,6 +11,7 @@ use uuid::Uuid;
 mod common;
 
 /// Test helper to create a test user
+#[allow(dead_code)]
 async fn create_test_user(db: &PgPool, username: &str) -> Uuid {
     let user_id = Uuid::new_v4();
     let email = format!("{}@test.local", username);
@@ -33,6 +34,7 @@ async fn create_test_user(db: &PgPool, username: &str) -> Uuid {
 }
 
 /// Test helper to create a test channel
+#[allow(dead_code)]
 async fn create_test_channel(db: &PgPool, team_id: Uuid, name: &str) -> Uuid {
     let channel_id = Uuid::new_v4();
     
@@ -54,6 +56,7 @@ async fn create_test_channel(db: &PgPool, team_id: Uuid, name: &str) -> Uuid {
 }
 
 /// Test helper to create a test team
+#[allow(dead_code)]
 async fn create_test_team(db: &PgPool, name: &str) -> Uuid {
     let team_id = Uuid::new_v4();
     
@@ -74,6 +77,7 @@ async fn create_test_team(db: &PgPool, name: &str) -> Uuid {
 }
 
 /// Test helper to create a test post
+#[allow(dead_code)]
 async fn create_test_post(db: &PgPool, channel_id: Uuid, user_id: Uuid, message: &str) -> Uuid {
     let post_id = Uuid::new_v4();
     
@@ -95,6 +99,7 @@ async fn create_test_post(db: &PgPool, channel_id: Uuid, user_id: Uuid, message:
 }
 
 /// Test helper to add a channel member
+#[allow(dead_code)]
 async fn add_channel_member(db: &PgPool, channel_id: Uuid, user_id: Uuid) {
     sqlx::query(
         r#"
@@ -212,7 +217,7 @@ async fn test_saml_xsw_detection() {
         "Should detect missing signature");
     
     // Test XML with duplicate IDs (XSW indicator)
-    let duplicate_id_xml = r#"<?xml version="1.0"?>
+    let duplicate_id_xml = r##"<?xml version="1.0"?>
     <samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="abc123">
         <Signature xmlns="http://www.w3.org/2000/09/xmldsig#">
             <SignedInfo>
@@ -224,14 +229,14 @@ async fn test_saml_xsw_detection() {
                 <NameID>user@example.com</NameID>
             </Subject>
         </Assertion>
-    </samlp:Response>"#;
+    </samlp:Response>"##;
     
     let result = XmlSignatureValidator::validate_no_wrapping_attack(duplicate_id_xml);
     assert!(matches!(result, Err(SamlSecurityError::DuplicateId)),
         "Should detect duplicate IDs as XSW attack");
     
     // Test XML with multiple signatures (XSW indicator)
-    let multi_sig_xml = r#"<?xml version="1.0"?>
+    let multi_sig_xml = r##"<?xml version="1.0"?>
     <samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol">
         <Signature xmlns="http://www.w3.org/2000/09/xmldsig#">
             <SignedInfo/>
@@ -244,7 +249,7 @@ async fn test_saml_xsw_detection() {
                 <NameID>user@example.com</NameID>
             </Subject>
         </Assertion>
-    </samlp:Response>"#;
+    </samlp:Response>"##;
     
     let result = XmlSignatureValidator::validate_no_wrapping_attack(multi_sig_xml);
     assert!(matches!(result, Err(SamlSecurityError::MultipleSignatures)),

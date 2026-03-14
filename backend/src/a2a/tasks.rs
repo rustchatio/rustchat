@@ -231,7 +231,8 @@ mod tests {
     use super::*;
     use crate::a2a::protocol::AgentId;
 
-    // Mock message bus for testing
+    // Mock message bus for testing (currently unused but reserved for future tests)
+    #[allow(dead_code)]
     struct MockBus;
 
     #[tokio::test]

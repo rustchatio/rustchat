@@ -12,11 +12,10 @@ static TRACING: Lazy<()> = Lazy::new(|| {
     rustchat::telemetry::init(log_level);
 });
 
+#[allow(dead_code)]
 pub struct TestApp {
     pub address: String,
-    #[allow(dead_code)]
     pub db_pool: PgPool,
-    #[allow(dead_code)]
     pub redis_pool: deadpool_redis::Pool,
     pub api_client: reqwest::Client,
 }
@@ -85,6 +84,7 @@ pub async fn spawn_app_with_config(config: Config) -> TestApp {
         ws_hub,
         s3_client,
         config,
+        None, // No Kafka producer in tests
     );
 
     let server = axum::serve(

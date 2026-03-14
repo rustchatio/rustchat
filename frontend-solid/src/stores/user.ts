@@ -13,9 +13,20 @@ export interface UserPreferences {
   clock_display: '12hour' | '24hour';
   teammate_name_display: 'username' | 'full_name' | 'nickname';
   enable_unread_scrollbar: boolean;
-  channel_switcher_mode: 'recent' | 'alpha';
+  channel_switcher_mode: 'recent' | 'alpha' | 'manual';
   language: string;
   timezone: string;
+  // Notification preferences
+  notify_dm: boolean;
+  notify_mention: boolean;
+  notify_channel_mention: boolean;
+  notify_thread: boolean;
+  email_digest: boolean;
+  // Display preferences
+  name_format: 'username' | 'full_name' | 'nickname';
+  reduced_motion: boolean;
+  larger_text: boolean;
+  show_badges: boolean;
 }
 
 export interface UserProfile {
@@ -48,6 +59,17 @@ const defaultPreferences: UserPreferences = {
   channel_switcher_mode: 'recent',
   language: 'en',
   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  // Notification defaults
+  notify_dm: true,
+  notify_mention: true,
+  notify_channel_mention: false,
+  notify_thread: true,
+  email_digest: false,
+  // Display defaults
+  name_format: 'username',
+  reduced_motion: false,
+  larger_text: false,
+  show_badges: true,
 };
 
 const getStoredPreferences = (): Partial<UserPreferences> => {

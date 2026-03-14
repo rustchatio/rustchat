@@ -322,6 +322,9 @@ fn test_secret_entropy_validation() {
         compatibility: rustchat::config::CompatibilityConfig {
             mobile_sso_code_exchange: true,
         },
+        kafka: Default::default(),
+        opensearch: Default::default(),
+        mcp: Default::default(),
     };
 
     // Test: Weak secret with low entropy

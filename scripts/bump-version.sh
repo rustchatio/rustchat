@@ -20,10 +20,10 @@ if [ -f "backend/Cargo.toml" ]; then
 fi
 
 # Update Frontend (package.json)
-if [ -f "frontend/package.json" ]; then
+if [ -f "frontend-solid/package.json" ]; then
   # Using a simpler sed approach for package.json to avoid complex JSON parsing dependencies
-  sed -i '' "s/\"version\": \".*\"/\"version\": \"$NEW_VERSION\"/" frontend/package.json
-  echo "Updated frontend/package.json"
+  sed -i '' "s/\"version\": \".*\"/\"version\": \"$NEW_VERSION\"/" frontend-solid/package.json
+  echo "Updated frontend-solid/package.json"
 fi
 
 echo "Successfully bumped version to $NEW_VERSION"

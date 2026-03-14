@@ -7,6 +7,7 @@ import { A, useNavigate } from '@solidjs/router';
 import { authStore, logout } from '@/stores/auth';
 import { uiStore } from '@/stores/ui';
 import { useIsMobile } from '@/hooks/useMediaQuery';
+import { ConnectionIndicator } from '@/components/ConnectionStatus';
 
 // Icons
 import {
@@ -110,6 +111,9 @@ export function Header() {
 
       {/* Right Section: Actions + User */}
       <div class="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+        {/* Connection Status */}
+        <ConnectionIndicator />
+
         {/* Command Palette Trigger (Desktop) */}
         <Show when={!isMobile()}>
           <button

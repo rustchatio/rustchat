@@ -25,7 +25,7 @@ mod site;
 mod teams;
 mod unreads;
 mod users;
-mod v4;
+pub mod v4;
 mod websocket_core;
 mod ws;
 
@@ -156,6 +156,7 @@ pub struct AppState {
 }
 
 /// Build the main application router
+#[allow(clippy::too_many_arguments)]
 pub fn router(
     db: PgPool,
     redis: deadpool_redis::Pool,

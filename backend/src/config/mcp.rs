@@ -132,12 +132,16 @@ mod tests {
 
     #[test]
     fn test_config_validation() {
-        let mut config = McpConfig::default();
-        config.max_tools_per_request = 0;
+        let config = McpConfig {
+            max_tools_per_request: 0,
+            ..Default::default()
+        };
         assert!(config.validate().is_err());
 
-        let mut config = McpConfig::default();
-        config.approval_timeout_seconds = 0;
+        let config = McpConfig {
+            approval_timeout_seconds: 0,
+            ..Default::default()
+        };
         assert!(config.validate().is_err());
     }
 

@@ -39,6 +39,7 @@ async fn config_client_returns_diagnostic_id() {
         ws_hub,
         s3_client,
         test_config(),
+        None, // No Kafka producer in tests
     );
 
     // 3. Make request
@@ -102,6 +103,7 @@ async fn license_client_returns_boolean() {
         ws_hub,
         s3_client,
         test_config(),
+        None, // No Kafka producer in tests
     );
 
     // 3. Make request
@@ -172,5 +174,8 @@ fn test_config() -> Config {
         compatibility: rustchat::config::CompatibilityConfig {
             mobile_sso_code_exchange: true,
         },
+        kafka: Default::default(),
+        opensearch: Default::default(),
+        mcp: Default::default(),
     }
 }

@@ -1,0 +1,117 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: rustchat
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+      external_labels:
+        cluster: rustchat
+        replica: '{{.ExternalURL}}'
+
+    scrape_configs:
+      - job_name: 'prometheus'
+        static_configs:
+          - targets: ['localhost:9090']
+
+      - job_name: 'rustchat-backend'
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names:
+                - rustchat
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_label_app]
+            action: keep
+            regex: rustchat-backend
+          - source_labels: [__meta_kubernetes_pod_ip]
+            action: replace
+            target_label: __address__
+            regex: (.*)
+            replacement: ${1}:3000
+          - source_labels: [__meta_kubernetes_pod_name]
+            action: replace
+            target_label: pod
+
+      - job_name: 'postgres'
+        static_configs:
+          - targets: ['postgres-exporter:9187']
+
+      - job_name: 'redis'
+        static_configs:
+          - targets: ['redis-exporter:9121']
+
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets: ['alertmanager:9093']
+
+    rule_files:
+      - /etc/prometheus/rules/*.yml
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-rules
+  namespace: rustchat
+data:
+  rustchat-alerts.yml: |
+    groups:
+      - name: rustchat
+        rules:
+          - alert: HighErrorRate
+            expr: rate(http_requests_total{status=~"5.."}[5m]) > 0.1
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "High error rate detected"
+              description: "Error rate is above 10% for 5 minutes"
+
+          - alert: HighLatency
+            expr: histogram_quantile(0.99, rate(http_request_duration_seconds_bucket[5m])) > 0.5
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "High latency detected"
+              description: "p99 latency is above 500ms for 5 minutes"
+
+          - alert: PodCrashLooping
+            expr: rate(kube_pod_container_status_restarts_total[15m]) > 0
+            for: 5m
+            labels:
+              severity: critical
+            annotations:
+              summary: "Pod is crash looping"
+              description: "Pod {{ $labels.pod }} is restarting frequently"
+
+          - alert: HighMemoryUsage
+            expr: container_memory_usage_bytes / container_spec_memory_limit_bytes > 0.85
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "High memory usage"
+              description: "Memory usage is above 85%"
+
+          - alert: DatabaseConnectionsHigh
+            expr: pg_stat_activity_count > 80
+            for: 5m
+            labels:
+              severity: warning
+            annotations:
+              summary: "High database connection count"
+              description: "Database has more than 80 active connections"
+
+          - alert: WebSocketConnectionsDropping
+            expr: rate(websocket_connections_total[5m]) < 0
+            for: 2m
+            labels:
+              severity: warning
+            annotations:
+              summary: "WebSocket connections dropping"
+              description: "WebSocket connections are decreasing rapidly"

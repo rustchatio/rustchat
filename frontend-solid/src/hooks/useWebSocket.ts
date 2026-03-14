@@ -17,6 +17,11 @@ import {
   sendStopTyping as wsSendStopTyping,
   sendPresence as wsSendPresence,
 } from '../realtime/websocket';
+import {
+  playNewMessageSound,
+  playMentionSound,
+  playDirectMessageSound,
+} from '../utils/sounds';
 import type {
   ServerEvent,
   WsEnvelope,
@@ -65,16 +70,32 @@ function handlePosted(data: PostedEvent, envelope: WsEnvelope) {
 
   messageStore.handleNewMessage(post as unknown as import('../stores/messages').Post);
 
-  // Update unread counts if not current channel
-  if (post.channel_id !== channelStore.currentChannelId()) {
-    if (post.user_id !== authStore.user()?.id) {
+  // Handle notifications and sounds for messages from others
+  if (post.user_id !== authStore.user()?.id) {
+    const isCurrentChannel = post.channel_id === channelStore.currentChannelId();
+    const currentUser = authStore.user();
+    const isMention = currentUser && post.message?.includes(`@${currentUser.username}`);
+    
+    // Check if this is a DM by looking up the channel
+    const channel = channelStore.getChannel(post.channel_id);
+    const isDirectMessage = channel?.channel_type === 'direct';
+
+    // Play sounds based on message type
+    if (!isCurrentChannel) {
+      // Update unread counts
       unreadStore.incrementChannelUnread(post.channel_id);
 
-      // Check for mentions
-      const currentUser = authStore.user();
-      if (currentUser && post.message?.includes(`@${currentUser.username}`)) {
+      if (isMention) {
         unreadStore.incrementChannelMention(post.channel_id);
+        playMentionSound();
+      } else if (isDirectMessage) {
+        playDirectMessageSound();
+      } else {
+        playNewMessageSound();
       }
+    } else if (isMention) {
+      // Mention in current channel - still play sound
+      playMentionSound();
     }
   }
 }

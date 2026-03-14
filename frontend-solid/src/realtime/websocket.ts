@@ -42,6 +42,7 @@ let isIntentionalClose = false;
 export const isConnected = () => connectionState().status === 'connected';
 export const isConnecting = () => connectionState().status === 'connecting';
 export const isReconnecting = () => connectionState().status === 'reconnecting';
+export { connectionState };
 
 // ============================================
 // Reconnection Logic

@@ -1,0 +1,178 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+  namespace: rustchat
+  labels:
+    grafana_dashboard: "1"
+data:
+  rustchat-overview.json: |
+    {
+      "dashboard": {
+        "id": null,
+        "title": "RustChat Overview",
+        "tags": ["rustchat"],
+        "timezone": "browser",
+        "schemaVersion": 36,
+        "refresh": "30s",
+        "panels": [
+          {
+            "id": 1,
+            "title": "HTTP Requests / Second",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "rate(http_requests_total[5m])",
+                "legendFormat": "{{method}} {{status}}"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0}
+          },
+          {
+            "id": 2,
+            "title": "Request Latency (p99)",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "histogram_quantile(0.99, rate(http_request_duration_seconds_bucket[5m]))",
+                "legendFormat": "p99 latency"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0}
+          },
+          {
+            "id": 3,
+            "title": "Active WebSocket Connections",
+            "type": "singlestat",
+            "targets": [
+              {
+                "expr": "websocket_connections_active",
+                "legendFormat": "Connections"
+              }
+            ],
+            "gridPos": {"h": 4, "w": 6, "x": 0, "y": 8}
+          },
+          {
+            "id": 4,
+            "title": "Messages Sent / Second",
+            "type": "singlestat",
+            "targets": [
+              {
+                "expr": "rate(messages_sent_total[5m])",
+                "legendFormat": "Messages/sec"
+              }
+            ],
+            "gridPos": {"h": 4, "w": 6, "x": 6, "y": 8}
+          },
+          {
+            "id": 5,
+            "title": "Database Connections",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "pg_stat_activity_count",
+                "legendFormat": "Active connections"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12}
+          },
+          {
+            "id": 6,
+            "title": "Pod CPU Usage",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "rate(container_cpu_usage_seconds_total{pod=~\"rustchat-.*\"}[5m])",
+                "legendFormat": "{{pod}}"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12}
+          },
+          {
+            "id": 7,
+            "title": "Pod Memory Usage",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "container_memory_usage_bytes{pod=~\"rustchat-.*\"}",
+                "legendFormat": "{{pod}}"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 20}
+          },
+          {
+            "id": 8,
+            "title": "Error Rate",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "rate(http_requests_total{status=~\"5..\"}[5m]) / rate(http_requests_total[5m])",
+                "legendFormat": "Error rate"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 20}
+          }
+        ]
+      }
+    }
+  rustchat-calls.json: |
+    {
+      "dashboard": {
+        "id": null,
+        "title": "RustChat Calls",
+        "tags": ["rustchat", "calls", "webrtc"],
+        "timezone": "browser",
+        "schemaVersion": 36,
+        "refresh": "30s",
+        "panels": [
+          {
+            "id": 1,
+            "title": "Active Calls",
+            "type": "singlestat",
+            "targets": [
+              {
+                "expr": "calls_active_total",
+                "legendFormat": "Active calls"
+              }
+            ],
+            "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0}
+          },
+          {
+            "id": 2,
+            "title": "Participants in Calls",
+            "type": "singlestat",
+            "targets": [
+              {
+                "expr": "call_participants_total",
+                "legendFormat": "Participants"
+              }
+            ],
+            "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0}
+          },
+          {
+            "id": 3,
+            "title": "SFU Connections",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "webrtc_peer_connections_total",
+                "legendFormat": "Peer connections"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4}
+          },
+          {
+            "id": 4,
+            "title": "ICE Connection State",
+            "type": "graph",
+            "targets": [
+              {
+                "expr": "ice_connections_by_state",
+                "legendFormat": "{{state}}"
+              }
+            ],
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4}
+          }
+        ]
+      }
+    }

@@ -26,10 +26,12 @@ async fn test_kafka_producer_send_event() {
     use rustchat::config::KafkaConfig;
     use rustchat::services::kafka_producer::KafkaProducer;
 
-    let mut config = KafkaConfig::default();
-    config.enabled = true;
-    config.bootstrap_servers = "localhost:9092".to_string();
-    config.posts_topic = "rustchat.posts.test".to_string();
+    let config = KafkaConfig {
+        enabled: true,
+        bootstrap_servers: "localhost:9092".to_string(),
+        posts_topic: "rustchat.posts.test".to_string(),
+        ..Default::default()
+    };
 
     let producer = KafkaProducer::new(config, "test-node".to_string());
     
@@ -69,10 +71,12 @@ async fn test_kafka_producer_publish_custom() {
     use rustchat::services::kafka_producer::KafkaProducer;
     use serde_json::json;
 
-    let mut config = KafkaConfig::default();
-    config.enabled = true;
-    config.bootstrap_servers = "localhost:9092".to_string();
-    config.posts_topic = "rustchat.posts.test".to_string();
+    let config = KafkaConfig {
+        enabled: true,
+        bootstrap_servers: "localhost:9092".to_string(),
+        posts_topic: "rustchat.posts.test".to_string(),
+        ..Default::default()
+    };
 
     let producer = KafkaProducer::new(config, "test-node".to_string());
     
@@ -91,7 +95,7 @@ async fn test_kafka_producer_publish_custom() {
     });
 
     let result = producer
-        .publish(&"rustchat.posts.test", Some("test-key"), &payload)
+        .publish("rustchat.posts.test", Some("test-key"), &payload)
         .await;
 
     assert!(

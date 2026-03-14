@@ -3,8 +3,6 @@
 //! These tests require a running OpenSearch instance.
 //! Use `docker compose up -d opensearch` to start OpenSearch before running tests.
 
-use std::sync::Arc;
-
 use chrono::Utc;
 use uuid::Uuid;
 
@@ -43,10 +41,7 @@ async fn is_opensearch_available() -> bool {
         return false;
     }
 
-    match client.ping().await {
-        Ok(true) => true,
-        _ => false,
-    }
+    matches!(client.ping().await, Ok(true))
 }
 
 #[tokio::test]
@@ -96,7 +91,7 @@ async fn test_index_creation() {
     }
 
     let config = test_opensearch_config();
-    let client = Arc::new(OpenSearchClient::new(config));
+    let client = OpenSearchClient::new(config);
     let manager = IndexManager::new(client);
 
     let index_name = manager.create_posts_index().await.expect("Failed to create index");
@@ -120,7 +115,7 @@ async fn test_document_indexing() {
     }
 
     let config = test_opensearch_config();
-    let client = Arc::new(OpenSearchClient::new(config));
+    let client = OpenSearchClient::new(config);
     let manager = IndexManager::new(client.clone());
     let indexer = SearchIndexer::new(client);
 
@@ -165,7 +160,7 @@ async fn test_bulk_indexing() {
     }
 
     let config = test_opensearch_config();
-    let client = Arc::new(OpenSearchClient::new(config));
+    let client = OpenSearchClient::new(config);
     let manager = IndexManager::new(client.clone());
     let indexer = SearchIndexer::new(client);
 
@@ -214,7 +209,7 @@ async fn test_document_update() {
     }
 
     let config = test_opensearch_config();
-    let client = Arc::new(OpenSearchClient::new(config));
+    let client = OpenSearchClient::new(config);
     let manager = IndexManager::new(client.clone());
     let indexer = SearchIndexer::new(client);
 
@@ -260,7 +255,7 @@ async fn test_document_deletion() {
     }
 
     let config = test_opensearch_config();
-    let client = Arc::new(OpenSearchClient::new(config));
+    let client = OpenSearchClient::new(config);
     let manager = IndexManager::new(client.clone());
     let indexer = SearchIndexer::new(client);
 
@@ -353,7 +348,7 @@ fn test_time_based_index_name() {
     use chrono::TimeZone;
 
     let config = OpenSearchConfig::default();
-    let client = Arc::new(OpenSearchClient::new(config));
+    let client = OpenSearchClient::new(config);
     let manager = IndexManager::new(client);
 
     let date = Utc.with_ymd_and_hms(2024, 1, 15, 0, 0, 0).unwrap();

@@ -89,7 +89,7 @@ impl ChannelSizeCache {
 
         // Use Kafka for approximately 10% of channels (simulating large channels)
         // This is a placeholder - replace with actual member count check
-        hash % 10 == 0
+        hash.is_multiple_of(10)
     }
 
     /// Get the fan-out threshold
@@ -492,7 +492,6 @@ pub async fn start_kafka_fanout_consumer(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::realtime::EventType;
 
     #[test]
     fn test_post_event_serialization() {

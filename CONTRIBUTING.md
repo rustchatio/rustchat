@@ -5,7 +5,7 @@ Thank you for contributing to rustchat.
 ## Prerequisites
 
 - Rust `1.92+` (see `backend/Cargo.toml`)
-- Node.js `24+` (see `frontend/package.json` engines)
+- Node.js `24+` (see `frontend-solid/package.json` engines)
 - Docker + Docker Compose
 
 ## Development Setup
@@ -29,7 +29,7 @@ Thank you for contributing to rustchat.
 5. Run backend and frontend locally (separate terminals):
    ```bash
    cd backend && cargo run
-   cd frontend && npm ci && npm run dev
+   cd frontend-solid && npm ci && npm run dev
    ```
 
 For full containerized startup, use:
@@ -41,7 +41,7 @@ docker compose up -d --build
 ## Project Structure
 
 - `backend/`: Rust API server and websocket layer
-- `frontend/`: Vue 3 + TypeScript client
+- `frontend-solid/`: Solid.js 1.9 + TypeScript client
 - `push-proxy/`: push notification proxy service
 - `scripts/`: smoke and utility scripts
 - `tools/mm-compat/`: API compatibility tooling
@@ -63,7 +63,7 @@ cargo test --no-fail-fast -- --nocapture
 ### Frontend
 
 ```bash
-cd frontend
+cd frontend-solid
 npm ci
 npm run build
 ```

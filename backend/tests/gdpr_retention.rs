@@ -2,16 +2,12 @@
 //!
 //! Verifies that the retention job uses hard delete (not soft delete)
 
-use chrono::Utc;
-use sqlx::PgPool;
-use uuid::Uuid;
-
 mod common;
 
 /// Test that retention cleanup uses hard delete
 #[tokio::test]
 async fn test_retention_uses_hard_delete() {
-    use rustchat::jobs::retention::{run_retention_cleanup, RetentionConfig};
+    use rustchat::jobs::retention::RetentionConfig;
     
     // Get database pool from test context
     // For now, this is a placeholder test structure

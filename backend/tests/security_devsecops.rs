@@ -47,7 +47,7 @@ fn test_security_headers_exist() {
 /// Test that the CI workflow includes security checks
 #[test]
 fn test_ci_security_checks() {
-    let ci_yaml = include_str!("../.github/workflows/backend-ci.yml");
+    let ci_yaml = include_str!("../../.github/workflows/backend-ci.yml");
     
     // Verify cargo-audit is in the CI
     assert!(ci_yaml.contains("cargo-audit"), "CI should run cargo-audit");
@@ -63,7 +63,7 @@ fn test_ci_security_checks() {
 /// Test Docker publishing workflow has security features
 #[test]
 fn test_docker_publish_security() {
-    let docker_yaml = include_str!("../.github/workflows/docker-publish.yml");
+    let docker_yaml = include_str!("../../.github/workflows/docker-publish.yml");
     
     // Verify container signing is configured
     assert!(docker_yaml.contains("cosign"), "Docker publish should use cosign for signing");

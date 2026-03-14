@@ -106,6 +106,7 @@ async fn search_messages(
 }
 
 /// Search using OpenSearch
+#[allow(clippy::too_many_arguments)]
 async fn search_with_opensearch(
     search_client: Arc<crate::search::OpenSearchClient>,
     db: &sqlx::PgPool,

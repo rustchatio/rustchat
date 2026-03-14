@@ -244,7 +244,7 @@ fn test_json_rpc_id_equality() {
 
 #[test]
 fn test_batch_message_parsing() {
-    use rustchat::mcp::protocol::McpMessage;
+    // McpMessage type reserved for future protocol tests
     
     let json = json!([
         {"jsonrpc": "2.0", "id": 1, "method": "tools/list"},

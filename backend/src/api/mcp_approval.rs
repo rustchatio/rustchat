@@ -139,8 +139,6 @@ pub struct ApprovalResponse {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     // Note: These tests would require a full integration test setup
     // with a running server and database. The actual handler logic
     // is tested indirectly through the MCP module tests.

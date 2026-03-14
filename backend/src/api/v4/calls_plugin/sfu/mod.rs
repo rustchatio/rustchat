@@ -41,7 +41,8 @@ pub mod signaling;
 pub mod tracks;
 
 pub use manager::SFUManager;
-pub use performance::{RtpBufferPool, SfuMetrics, wait_for_ice_gathering};
+// Performance module exports - currently unused but available for future optimization
+// pub use performance::RtpBufferPool;
 use signaling::{SignalingMessage, SignalingServer};
 use tracks::TrackManager;
 

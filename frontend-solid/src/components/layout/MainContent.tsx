@@ -39,7 +39,7 @@ export function MainContent(props: MainContentProps) {
   });
 
   return (
-    <main class="flex-1 flex flex-col min-w-0 bg-bg-app">
+    <main id="main-content" class="flex-1 flex flex-col min-w-0 bg-bg-app" tabIndex={-1}>
       {/* Channel Header (when in a channel) */}
       <Show when={channelStore.currentChannel()}>
         {(channel) => <ChannelHeader channel={channel()} />}

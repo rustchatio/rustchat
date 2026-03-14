@@ -66,7 +66,7 @@ services:
 
   frontend:
     build:
-      context: ./frontend
+      context: ./frontend-solid
       dockerfile: ../docker/frontend.Dockerfile
     image: rustchat-frontend
     container_name: rustchat-frontend

@@ -159,7 +159,7 @@ async fn create_task(
 
     // Create sender agent ID
     let sender = AgentId::new(
-        &format!("user-{}", auth.user_id),
+        format!("user-{}", auth.user_id),
         "rustchat_user",
     );
 

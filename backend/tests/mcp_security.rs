@@ -3,7 +3,7 @@
 //! Tests for MCP security features including approvals, rate limiting, and audit logging.
 
 use rustchat::mcp::security::{
-    ApprovalStatus, AuditLogEntry, AuditResult, McpApprovalStore, McpAuditLog, PendingApproval,
+    ApprovalStatus, AuditResult, McpApprovalStore, McpAuditLog, PendingApproval,
 };
 use serde_json::json;
 use uuid::Uuid;
@@ -279,8 +279,8 @@ async fn test_different_users_have_separate_approvals() {
         .unwrap();
 
     // Both should have pending approvals
-    let pending1 = store.list_pending_for_user(user1).await.unwrap();
-    let pending2 = store.list_pending_for_user(user2).await.unwrap();
+    let _pending1 = store.list_pending_for_user(user1).await.unwrap();
+    let _pending2 = store.list_pending_for_user(user2).await.unwrap();
 
     // Note: With the current mock implementation using a simple HashMap,
     // this behavior depends on key structure. In production with Redis,

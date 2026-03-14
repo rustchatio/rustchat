@@ -91,10 +91,8 @@ impl OpenSearchClient {
         }
 
         // Configure SSL/TLS
-        if config.ssl_enabled {
-            if config.skip_ssl_verify {
-                transport_builder = transport_builder.cert_validation(CertificateValidation::None);
-            }
+        if config.ssl_enabled && config.skip_ssl_verify {
+            transport_builder = transport_builder.cert_validation(CertificateValidation::None);
         }
 
         let transport = transport_builder.build()?;

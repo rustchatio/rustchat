@@ -13,7 +13,7 @@ use uuid::Uuid;
 
 use rustchat::config::KafkaConfig;
 use rustchat::services::kafka_consumer::{ConsumedMessage, KafkaConsumer, MessageHandler};
-use rustchat::services::kafka_producer::{DeliveryResult, KafkaMessage, KafkaProducer};
+use rustchat::services::kafka_producer::{KafkaMessage, KafkaProducer};
 
 /// Test configuration for local Kafka
 fn test_kafka_config() -> KafkaConfig {

@@ -41,6 +41,7 @@ pub struct PostDocument {
 
 impl PostDocument {
     /// Create a PostDocument from database post data
+    #[allow(clippy::too_many_arguments)]
     pub fn from_post(
         post_id: Uuid,
         channel_id: Uuid,

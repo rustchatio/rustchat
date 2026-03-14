@@ -6,7 +6,7 @@ This document defines how AI agents and contributors should work in `rustchat`.
 
 Rustchat is a self-hosted team collaboration platform built with:
 - **Backend**: Rust using Axum + Tokio + SQLx (PostgreSQL)
-- **Frontend**: Vue 3 + TypeScript + Pinia + Vite
+- **Frontend**: Solid.js 1.9 + TypeScript + Vite
 - **Push Proxy**: Rust service for mobile push notifications (FCM/APNS)
 - **Compatibility**: Mattermost API v4 compatibility layer for external clients
 
@@ -31,17 +31,15 @@ rustchat/
 │   │   └── telemetry/    # Logging & tracing
 │   ├── migrations/       # SQLx database migrations
 │   └── tests/            # Integration tests
-├── frontend/             # Vue 3 + TypeScript SPA
+├── frontend-solid/       # Solid.js 1.9 + TypeScript SPA
 │   ├── src/
 │   │   ├── api/          # API client functions
-│   │   ├── components/   # Vue components
-│   │   ├── composables/  # Vue composables
-│   │   ├── core/         # Shared entities, errors, websocket
-│   │   ├── features/     # Feature-based modules (auth, calls, messages, etc.)
-│   │   ├── router/       # Vue Router configuration
-│   │   ├── stores/       # Pinia stores
+│   │   ├── components/   # Solid.js components
+│   │   ├── hooks/        # Solid.js hooks/composables
+│   │   ├── routes/       # Route components
+│   │   ├── stores/       # State stores (Pinia-like)
 │   │   ├── types/        # TypeScript type definitions
-│   │   └── views/        # Page-level components
+│   │   └── utils/        # Utility functions
 │   └── e2e/              # Playwright E2E tests
 ├── push-proxy/           # Push notification proxy (FCM/APNS)
 ├── scripts/              # Utility & smoke test scripts

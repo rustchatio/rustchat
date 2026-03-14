@@ -9,6 +9,11 @@ import { setupInterceptors } from './api/interceptors';
 import { AppShell } from './components/layout';
 import SessionTimeoutModal from './components/SessionTimeoutModal';
 import ProtectedRoute from './components/ProtectedRoute';
+import { ToastContainer } from './components/ToastContainer';
+import { ConnectionToastNotifier } from './components/ConnectionStatus';
+import { LiveRegion } from './components/LiveRegion';
+import { SkipLinks } from './components/SkipLink';
+import { ErrorBoundary, OfflineIndicator } from './components/ErrorBoundary';
 
 // Eagerly load public routes
 import Login from './routes/Login';
@@ -121,10 +126,17 @@ function AppRoutes() {
 
 function AppContent() {
   return (
-    <div class="min-h-screen bg-bg-app text-text-1">
-      <AppRoutes />
-      <SessionTimeoutModal />
-    </div>
+    <ErrorBoundary>
+      <div class="min-h-screen bg-bg-app text-text-1">
+        <SkipLinks />
+        <OfflineIndicator />
+        <AppRoutes />
+        <SessionTimeoutModal />
+        <ToastContainer />
+        <ConnectionToastNotifier />
+        <LiveRegion />
+      </div>
+    </ErrorBoundary>
   );
 }
 

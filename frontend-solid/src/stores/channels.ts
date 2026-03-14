@@ -434,6 +434,9 @@ export const channelStore = {
   fetchChannelMembers,
   updateNotifyProps,
 
+  // Getters
+  getChannel: (id: string) => channels.find((c) => c.id === id),
+
   // Update helpers
   addChannel,
   updateChannel,

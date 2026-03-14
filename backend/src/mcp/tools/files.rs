@@ -13,6 +13,10 @@ use crate::mcp::capabilities::{ToolDefinition, ToolSchema};
 use crate::mcp::protocol::{McpError, ToolCallResult};
 use crate::mcp::security::McpSecurityContext;
 
+/// File info row from database query
+#[allow(clippy::type_complexity)]
+type FileInfoRow = (Uuid, String, Option<String>, i64, Uuid, String, Uuid, String, chrono::DateTime<chrono::Utc>);
+
 /// Create the list_files tool definition
 pub fn create_list_files_tool() -> ToolDefinition {
     let mut properties = HashMap::new();
@@ -172,7 +176,7 @@ pub async fn execute_get_file_info(
 
     // Fetch file info
     let file_info = if let Some(ref db) = context.db {
-        let row: Option<(Uuid, String, Option<String>, i64, Uuid, String, Uuid, String, chrono::DateTime<chrono::Utc>)> = sqlx::query_as(
+        let row: Option<FileInfoRow> = sqlx::query_as(
             r#"
             SELECT 
                 f.id,
