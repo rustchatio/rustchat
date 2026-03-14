@@ -358,6 +358,18 @@ export async function login(credentials: LoginCredentials): Promise<void> {
   });
 
   try {
+    const parseErrorMessage = async (response: Response, fallback: string): Promise<string> => {
+      const contentType = response.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) return fallback;
+
+      try {
+        const payload = (await response.json()) as { message?: string };
+        return payload.message || fallback;
+      } catch {
+        return fallback;
+      }
+    };
+
     const response = await fetch('/api/v1/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -365,8 +377,7 @@ export async function login(credentials: LoginCredentials): Promise<void> {
     });
 
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Login failed');
+      throw new Error(await parseErrorMessage(response, 'Login failed'));
     }
 
     const data: LoginResponse = await response.json();

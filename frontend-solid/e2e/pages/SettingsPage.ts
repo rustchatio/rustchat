@@ -56,8 +56,8 @@ export class SettingsPage {
   }
 
   async navigateToSection(section: 'profile' | 'security' | 'notifications' | 'display' | 'sidebar' | 'sounds' | 'advanced') {
-    const link = this.page.getByRole('link', { name: new RegExp(section, 'i') });
-    await link.click();
+    const trigger = this.page.getByRole('button', { name: new RegExp(`^${section}$`, 'i') }).first();
+    await trigger.click();
     await expect(this.page).toHaveURL(new RegExp(`/settings/${section}`));
   }
 

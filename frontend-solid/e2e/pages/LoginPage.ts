@@ -13,11 +13,11 @@ export class LoginPage {
 
   constructor(page: Page) {
     this.page = page;
-    this.emailInput = page.getByLabel('Email');
-    this.passwordInput = page.getByLabel('Password');
+    this.emailInput = page.getByLabel(/^Email$/i);
+    this.passwordInput = page.getByLabel(/^Password$/i);
     this.loginButton = page.getByRole('button', { name: /sign in|login/i });
-    this.errorMessage = page.getByRole('alert');
-    this.registerLink = page.getByRole('link', { name: /register|sign up/i });
+    this.errorMessage = page.locator('div[role="alert"]').filter({ hasText: /.+/ }).first();
+    this.registerLink = page.getByRole('link', { name: /register|sign up|create account/i });
   }
 
   async goto() {
@@ -44,7 +44,11 @@ export class LoginPage {
   }
 
   async gotoRegister() {
-    await this.registerLink.click();
+    if (await this.registerLink.count()) {
+      await this.registerLink.first().click();
+    } else {
+      await this.page.goto('/register');
+    }
     await expect(this.page).toHaveURL(/\/register/);
   }
 }

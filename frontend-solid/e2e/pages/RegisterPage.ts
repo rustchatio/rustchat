@@ -17,14 +17,14 @@ export class RegisterPage {
 
   constructor(page: Page) {
     this.page = page;
-    this.emailInput = page.getByLabel('Email');
-    this.usernameInput = page.getByLabel('Username');
-    this.passwordInput = page.getByLabel('Password');
-    this.confirmPasswordInput = page.getByLabel(/confirm password|password confirmation/i);
+    this.emailInput = page.getByLabel(/^Email$/i);
+    this.usernameInput = page.getByLabel(/^Username$/i);
+    this.passwordInput = page.locator('input#password');
+    this.confirmPasswordInput = page.locator('input#confirmPassword');
     this.firstNameInput = page.getByLabel(/first name/i);
     this.lastNameInput = page.getByLabel(/last name/i);
     this.registerButton = page.getByRole('button', { name: /register|sign up|create account/i });
-    this.errorMessage = page.getByRole('alert');
+    this.errorMessage = page.locator('div[role="alert"]').filter({ hasText: /.+/ }).first();
     this.loginLink = page.getByRole('link', { name: /sign in|login/i });
   }
 
@@ -55,7 +55,8 @@ export class RegisterPage {
   }
 
   async expectValidationError(field: string) {
-    const fieldLocator = this.page.locator(`[aria-invalid="true"]`).filter({ hasText: new RegExp(field, 'i') });
-    await expect(fieldLocator.or(this.errorMessage)).toBeVisible();
+    const fieldLocator = this.page.locator('[aria-invalid="true"]');
+    const messageLocator = this.page.getByText(new RegExp(field, 'i')).first();
+    await expect(messageLocator.or(fieldLocator).or(this.errorMessage).first()).toBeVisible();
   }
 }

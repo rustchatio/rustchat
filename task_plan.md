@@ -23,6 +23,12 @@
 2. `cd frontend-solid && npm run build`
 - Result: PASS
 
+3. `cd frontend-solid && PLAYWRIGHT_WEB_SERVER=1 npm run test:e2e -- e2e/tests/auth.spec.ts --project=chromium --grep "redirect to login when accessing (protected route|settings) unauthenticated"`
+- Result: PASS (2/2)
+
+4. `cd frontend-solid && PLAYWRIGHT_WEB_SERVER=1 npm run test:e2e -- e2e/tests/auth.spec.ts --project=chromium`
+- Result: PARTIAL/EXPECTED FAIL in local-only mode (tests requiring live auth backend data fail; unauth redirect checks pass).
+
 ### Manual Verification Commands
 1. `cd frontend-solid && npm run dev`
 2. Login redirect parity:
