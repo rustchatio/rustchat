@@ -5,6 +5,7 @@
 import { client } from './client';
 import type { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { authStore, logout } from '../stores/auth';
+import { generateUUID } from '../utils/uuid';
 
 // ============================================
 // Token Refresh Queue Management
@@ -59,7 +60,7 @@ export function setupRequestInterceptor() {
 
       // Add request ID for debugging
       if (config.headers) {
-        config.headers['X-Request-ID'] = crypto.randomUUID();
+        config.headers['X-Request-ID'] = generateUUID();
       }
 
       return config;

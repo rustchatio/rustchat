@@ -1,6 +1,7 @@
 import { createStore, produce } from 'solid-js/store';
 import { createSignal, batch, createMemo } from 'solid-js';
 import { authStore } from './auth';
+import { generateUUID } from '../utils/uuid';
 
 // ============================================
 // Types
@@ -284,7 +285,7 @@ export async function sendMessage(
   rootId?: string,
   fileIds: string[] = []
 ): Promise<Message> {
-  const clientMsgId = crypto.randomUUID();
+  const clientMsgId = generateUUID();
   const currentUser = authStore.user();
 
   // Create optimistic message

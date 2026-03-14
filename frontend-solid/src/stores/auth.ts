@@ -4,6 +4,7 @@
 
 import { createStore, produce } from 'solid-js/store';
 import { createSignal, createEffect, batch, onCleanup } from 'solid-js';
+import { generateUUID } from '../utils/uuid';
 
 // ============================================
 // Types
@@ -263,7 +264,7 @@ function checkConcurrentSession() {
 
   if (!currentSessionId) {
     // Initialize session
-    const newSessionId = crypto.randomUUID();
+    const newSessionId = generateUUID();
     localStorage.setItem('rustchat_session_id', newSessionId);
     localStorage.setItem('rustchat_session_iat', tokenIat.toString());
     concurrentSessionId = newSessionId;
@@ -287,7 +288,7 @@ function initializeSessionTracking() {
 
   const currentSessionId = localStorage.getItem('rustchat_session_id');
   if (!currentSessionId) {
-    const newSessionId = crypto.randomUUID();
+    const newSessionId = generateUUID();
     localStorage.setItem('rustchat_session_id', newSessionId);
     localStorage.setItem('rustchat_session_iat', tokenIat.toString());
     concurrentSessionId = newSessionId;
@@ -382,7 +383,7 @@ export async function login(credentials: LoginCredentials): Promise<void> {
     // Initialize session tracking
     const tokenIat = parseJwtIssuedAt(data.token);
     if (tokenIat) {
-      const sessionId = crypto.randomUUID();
+      const sessionId = generateUUID();
       localStorage.setItem('rustchat_session_id', sessionId);
       localStorage.setItem('rustchat_session_iat', tokenIat.toString());
       concurrentSessionId = sessionId;
@@ -414,7 +415,7 @@ export async function loginWithToken(token: string, refreshToken?: string): Prom
   // Initialize session tracking
   const tokenIat = parseJwtIssuedAt(token);
   if (tokenIat) {
-    const sessionId = crypto.randomUUID();
+    const sessionId = generateUUID();
     localStorage.setItem('rustchat_session_id', sessionId);
     localStorage.setItem('rustchat_session_iat', tokenIat.toString());
     concurrentSessionId = sessionId;

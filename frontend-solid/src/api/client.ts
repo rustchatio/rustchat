@@ -1,5 +1,6 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosError, AxiosResponse } from 'axios';
 import { authStore, logout } from '../stores/auth';
+import { generateUUID } from '../utils/uuid';
 
 // ============================================
 // Configuration
@@ -70,7 +71,7 @@ client.interceptors.request.use(
     }
 
     // Add request ID for debugging
-    config.headers['X-Request-ID'] = crypto.randomUUID();
+    config.headers['X-Request-ID'] = generateUUID();
 
     return config;
   },
