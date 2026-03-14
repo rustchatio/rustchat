@@ -51,7 +51,15 @@ export class RegisterPage {
   }
 
   async expectRegistrationSuccess() {
-    await expect(this.page).toHaveURL(/\/channels\/|\/settings\/|\/login/);
+    const successCard = this.page.getByText(/registration successful/i).first();
+    try {
+      await expect(successCard).toBeVisible({ timeout: 7000 });
+      return;
+    } catch {
+      // Fall back to route-based success flows if this build redirects after registration.
+    }
+
+    await expect(this.page).toHaveURL(/\/channels\/|\/settings\/|\/login/, { timeout: 7000 });
   }
 
   async expectValidationError(field: string) {

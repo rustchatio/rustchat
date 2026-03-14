@@ -4,8 +4,8 @@
 
 export const TEST_USERS = {
   admin: {
-    email: 'admin@rustchat.local',
-    password: 'Admin123!',
+    email: process.env.E2E_ADMIN_EMAIL || 'admin@rustchat.local',
+    password: process.env.E2E_ADMIN_PASSWORD || 'Admin123!',
     username: 'admin',
     firstName: 'Admin',
     lastName: 'User',

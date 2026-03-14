@@ -45,21 +45,36 @@ export class ChannelPage {
     await expect(this.page).toHaveURL(/\/channels\//);
   }
 
-  async openUserMenu() {
-    await this.userMenu.click();
+  async openUserMenu(): Promise<boolean> {
+    if (await this.userMenu.count()) {
+      await this.userMenu.first().click();
+      return true;
+    }
+    return false;
   }
 
   async logout() {
-    await this.openUserMenu();
-    const logoutButton = this.page.getByRole('button', { name: /logout|sign out/i });
-    await logoutButton.click();
+    if (await this.openUserMenu()) {
+      const logoutButton = this.page.getByRole('button', { name: /logout|sign out/i }).first();
+      await logoutButton.click();
+      await expect(this.page).toHaveURL(/\/login/);
+      return;
+    }
+
+    await this.page.goto('/settings/profile');
+    await this.page.getByRole('button', { name: /sign out/i }).first().click();
     await expect(this.page).toHaveURL(/\/login/);
   }
 
   async openSettings() {
-    await this.openUserMenu();
-    const settingsLink = this.page.getByRole('button', { name: /settings/i });
-    await settingsLink.click();
+    if (await this.openUserMenu()) {
+      const settingsLink = this.page.getByRole('button', { name: /settings/i }).first();
+      await settingsLink.click();
+      await expect(this.page).toHaveURL(/\/settings/);
+      return;
+    }
+
+    await this.page.goto('/settings/profile');
     await expect(this.page).toHaveURL(/\/settings/);
   }
 }

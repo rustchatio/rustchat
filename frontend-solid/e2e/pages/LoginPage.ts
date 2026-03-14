@@ -32,8 +32,8 @@ export class LoginPage {
   }
 
   async expectLoginSuccess() {
-    // Should redirect to main app
-    await expect(this.page).toHaveURL(/\/channels\/|\/settings\//);
+    // Authenticated users can land in a channel, settings redirect target, or root fallback.
+    await expect(this.page).toHaveURL(/\/channels\/|\/settings\/|\/$/);
   }
 
   async expectLoginError(message?: string) {

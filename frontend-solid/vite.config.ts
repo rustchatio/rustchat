@@ -2,6 +2,21 @@ import { defineConfig } from 'vite';
 import solid from 'vite-plugin-solid';
 import path from 'path';
 
+function resolveApiProxyTarget(): string {
+  const apiUrl = process.env.VITE_API_URL;
+  if (apiUrl) {
+    try {
+      return new URL(apiUrl).origin;
+    } catch {
+      // Ignore relative/non-URL values and fall through to the default target.
+    }
+  }
+
+  return process.env.VITE_API_PROXY_TARGET || 'http://127.0.0.1:3000';
+}
+
+const apiProxyTarget = resolveApiProxyTarget();
+
 export default defineConfig({
   plugins: [solid()],
   resolve: {
@@ -49,5 +64,12 @@ export default defineConfig({
   server: {
     port: 5173,
     host: '127.0.0.1',
+    proxy: {
+      '/api': {
+        target: apiProxyTarget,
+        changeOrigin: true,
+        ws: true,
+      },
+    },
   },
 });

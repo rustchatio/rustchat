@@ -42,9 +42,9 @@ export class SettingsPage {
     this.saveProfileButton = page.getByRole('button', { name: /save changes|save/i }).first();
     this.closeButton = page.getByRole('button', { name: /close settings/i }).first();
 
-    this.currentPasswordInput = page.getByLabel(/current password/i);
-    this.newPasswordInput = page.getByLabel(/new password/i);
-    this.confirmPasswordInput = page.getByLabel(/confirm.*password/i);
+    this.currentPasswordInput = page.getByPlaceholder(/enter current password/i);
+    this.newPasswordInput = page.getByPlaceholder(/enter new password/i);
+    this.confirmPasswordInput = page.getByPlaceholder(/confirm new password/i);
     this.changePasswordButton = page.getByRole('button', { name: /change password|update password/i });
 
     this.themeButtons = page.getByRole('button', { name: /light|dark|system/i });
@@ -68,7 +68,7 @@ export class SettingsPage {
   }
 
   async navigateToSection(section: 'profile' | 'security' | 'notifications' | 'display' | 'sidebar' | 'sounds' | 'advanced') {
-    const trigger = this.page.getByRole('button', { name: new RegExp(`^${section}$`, 'i') }).first();
+    const trigger = this.page.getByRole('button', { name: new RegExp(`\\b${section}\\b`, 'i') }).first();
     await trigger.click();
     await expect(this.page).toHaveURL(new RegExp(`/settings/${section}`));
   }

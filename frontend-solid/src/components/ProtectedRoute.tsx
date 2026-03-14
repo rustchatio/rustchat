@@ -7,11 +7,25 @@ interface ProtectedRouteProps {
   fallback?: JSX.Element;
 }
 
+function isPublicPath(pathname: string): boolean {
+  return pathname === '/login'
+    || pathname === '/register'
+    || pathname === '/forgot-password'
+    || pathname === '/reset-password'
+    || pathname === '/login/callback'
+    || pathname === '/saml/callback'
+    || pathname === '/auth/saml/callback';
+}
+
 export function ProtectedRoute(props: ProtectedRouteProps) {
   const navigate = useNavigate();
 
   createEffect(() => {
     if (!authStore.isAuthenticated) {
+      if (isPublicPath(window.location.pathname)) {
+        return;
+      }
+
       const requestedPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
       const redirect = encodeURIComponent(requestedPath);
       navigate(`/login?redirect=${redirect}`, { replace: true });
