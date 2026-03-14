@@ -2,7 +2,7 @@
 # Build and push this manually when Cargo.toml changes
 FROM rust:1.93-alpine AS builder
 
-RUN apk add --no-cache musl-dev pkgconfig openssl-dev perl
+RUN apk add --no-cache musl-dev pkgconfig openssl-dev perl make
 
 WORKDIR /app
 
