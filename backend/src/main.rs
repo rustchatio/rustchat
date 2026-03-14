@@ -1,4 +1,5 @@
 use rustchat::{api, config::Config, db, realtime::WsHub, storage::S3Client, telemetry};
+#[cfg(feature = "kafka")]
 use rustchat::services::kafka_producer::KafkaProducer;
 use std::net::SocketAddr;
 use tracing::{info, warn};
@@ -136,6 +137,7 @@ async fn main() -> anyhow::Result<()> {
     );
 
     // Initialize Kafka producer if enabled
+    #[cfg(feature = "kafka")]
     let kafka_producer = if config.kafka.enabled {
         let producer = KafkaProducer::new(config.kafka.clone(), node_id.clone());
         if producer.is_available() {
@@ -150,7 +152,11 @@ async fn main() -> anyhow::Result<()> {
         None
     };
 
+    #[cfg(not(feature = "kafka"))]
+    let kafka_producer = None;
+
     // Start Kafka consumer for WebSocket fan-out if enabled
+    #[cfg(feature = "kafka")]
     if config.kafka.enabled {
         let ws_hub_clone = ws_hub.clone();
         let kafka_config = config.kafka.clone();

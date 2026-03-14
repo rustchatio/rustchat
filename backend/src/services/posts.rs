@@ -220,6 +220,7 @@ pub async fn create_post(
     let _ = crate::services::unreads::increment_unreads(state, channel_id, user_id, post.seq).await;
 
     // Send Kafka event for post creation (non-blocking, log errors only)
+    #[cfg(feature = "kafka")]
     if let Some(ref kafka) = state.kafka_producer {
         if kafka.is_available() {
             let kafka = Arc::clone(kafka);

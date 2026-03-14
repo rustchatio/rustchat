@@ -9,18 +9,26 @@ use serde::{Deserialize, Serialize};
 use tracing::{debug, info};
 use uuid::Uuid;
 
-use crate::config::KafkaConfig;
 use crate::realtime::{WsEnvelope, WsHub};
+#[cfg(feature = "kafka")]
+use crate::config::KafkaConfig;
+#[cfg(feature = "kafka")]
 use crate::services::kafka_consumer::{ConsumedMessage, MessageHandler};
+#[cfg(feature = "kafka")]
 use crate::services::kafka_producer::{KafkaMessage, KafkaProducer};
 
 /// Fan-out manager that routes messages based on channel size
+#[cfg(feature = "kafka")]
 pub struct FanoutManager {
     config: KafkaConfig,
     producer: Option<Arc<KafkaProducer>>,
     hub: Arc<WsHub>,
     node_id: String,
 }
+
+/// Stub fan-out manager when Kafka is disabled
+#[cfg(not(feature = "kafka"))]
+pub struct FanoutManager; // Empty stub
 
 /// Post event types for Kafka
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -98,6 +106,7 @@ impl ChannelSizeCache {
     }
 }
 
+#[cfg(feature = "kafka")]
 impl FanoutManager {
     /// Create a new fan-out manager
     pub fn new(
@@ -405,17 +414,20 @@ impl FanoutManager {
 }
 
 /// Kafka message handler for WebSocket fan-out
+#[cfg(feature = "kafka")]
 pub struct WebSocketFanoutHandler {
     hub: Arc<WsHub>,
     node_id: String,
 }
 
+#[cfg(feature = "kafka")]
 impl WebSocketFanoutHandler {
     pub fn new(hub: Arc<WsHub>, node_id: String) -> Arc<Self> {
         Arc::new(Self { hub, node_id })
     }
 }
 
+#[cfg(feature = "kafka")]
 #[async_trait::async_trait]
 impl MessageHandler for WebSocketFanoutHandler {
     type Payload = PostEventPayload;
@@ -459,6 +471,7 @@ impl MessageHandler for WebSocketFanoutHandler {
 }
 
 /// Start the Kafka consumer for WebSocket fan-out
+#[cfg(feature = "kafka")]
 pub async fn start_kafka_fanout_consumer(
     config: KafkaConfig,
     hub: Arc<WsHub>,

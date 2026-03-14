@@ -80,6 +80,7 @@ use crate::config::Config;
 use crate::middleware::reliability::ServiceCircuitBreakers;
 use crate::middleware::security_headers::{cors_compatible_config, SecurityHeadersLayer};
 use crate::realtime::{ConnectionStore, WsHub};
+#[cfg(feature = "kafka")]
 use crate::services::kafka_producer::KafkaProducer;
 use crate::storage::S3Client;
 use tokio::sync::mpsc;
@@ -152,7 +153,10 @@ pub struct AppState {
         async_channel::Sender<crate::services::membership_reconciliation::ReconciliationTask>,
     >,
     pub opensearch_client: Option<Arc<crate::search::OpenSearchClient>>,
+    #[cfg(feature = "kafka")]
     pub kafka_producer: Option<Arc<KafkaProducer>>,
+    #[cfg(not(feature = "kafka"))]
+    pub kafka_producer: Option<Arc<()>>,
 }
 
 /// Build the main application router
@@ -165,7 +169,10 @@ pub fn router(
     ws_hub: Arc<WsHub>,
     s3_client: S3Client,
     config: Config,
+    #[cfg(feature = "kafka")]
     kafka_producer: Option<Arc<KafkaProducer>>,
+    #[cfg(not(feature = "kafka"))]
+    _kafka_producer: Option<Arc<()>>,
 ) -> Router {
     let (voice_event_tx, voice_event_rx) = mpsc::channel(VOICE_EVENT_CHANNEL_CAPACITY);
     let sfu_manager = SFUManager::new(config.calls.clone(), voice_event_tx);
@@ -194,7 +201,10 @@ pub fn router(
         circuit_breakers: Arc::new(ServiceCircuitBreakers::new()),
         reconciliation_tx: None,
         opensearch_client: None,
+        #[cfg(feature = "kafka")]
         kafka_producer: kafka_producer.clone(),
+        #[cfg(not(feature = "kafka"))]
+        kafka_producer: None,
     });
 
     // Spawn membership reconciliation worker
@@ -226,7 +236,10 @@ pub fn router(
         circuit_breakers: Arc::new(ServiceCircuitBreakers::new()),
         reconciliation_tx: Some(reconciliation_tx),
         opensearch_client: None,
+        #[cfg(feature = "kafka")]
         kafka_producer,
+        #[cfg(not(feature = "kafka"))]
+        kafka_producer: None,
     };
 
     let _keycloak_sync_handle = if state.config.keycloak_sync.enabled {

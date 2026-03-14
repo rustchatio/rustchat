@@ -5,10 +5,12 @@
 use anyhow::anyhow;
 use serde::Deserialize;
 
+#[cfg(feature = "kafka")]
 pub mod kafka;
 pub mod mcp;
 pub mod security;
 
+#[cfg(feature = "kafka")]
 pub use kafka::KafkaConfig;
 
 /// Application configuration
@@ -130,6 +132,7 @@ pub struct Config {
     pub compatibility: CompatibilityConfig,
 
     /// Kafka configuration for high-volume messaging
+    #[cfg(feature = "kafka")]
     #[serde(default)]
     pub kafka: KafkaConfig,
 
