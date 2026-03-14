@@ -2,10 +2,12 @@
 // Header - Global Application Header
 // ============================================
 
-import { createSignal, Show, For } from 'solid-js';
+import { createSignal, Show, For, createEffect, createMemo } from 'solid-js';
 import { A, useNavigate } from '@solidjs/router';
 import { authStore, logout } from '@/stores/auth';
 import { uiStore } from '@/stores/ui';
+import { unreadStore } from '@/stores/unreads';
+import { channelStore } from '@/stores/channels';
 import { useIsMobile } from '@/hooks/useMediaQuery';
 import { ConnectionIndicator } from '@/components/ConnectionStatus';
 import { isAdminRole } from '@/utils/roles';
@@ -67,12 +69,48 @@ export function Header() {
     window.dispatchEvent(new CustomEvent('rustchat:open-command-palette'));
   };
 
-  // Mock notifications for now
-  const notifications = () => [
-    { id: '1', title: 'New mention', message: 'Alice mentioned you in #general', read: false, time: '2m ago' },
-    { id: '2', title: 'Direct message', message: 'Bob sent you a message', read: false, time: '15m ago' },
-  ];
-  const unreadCount = () => notifications().filter((n) => !n.read).length;
+  const unreadCount = () => unreadStore.totalMentionCount() || unreadStore.totalUnreadCount();
+  const notifications = createMemo(() => {
+    const allChannelIds = new Set<string>([
+      ...Object.keys(unreadStore.channelUnreads),
+      ...Object.keys(unreadStore.channelMentions),
+    ]);
+
+    return Array.from(allChannelIds)
+      .map((channelId) => {
+        const unread = unreadStore.channelUnreads[channelId] || 0;
+        const mentions = unreadStore.channelMentions[channelId] || 0;
+        const channel = channelStore.getChannel(channelId);
+        const channelName = channel?.display_name || channel?.name || channelId.slice(0, 8);
+        const isMention = mentions > 0;
+        return {
+          id: channelId,
+          channelId,
+          unread,
+          mentions,
+          read: unread === 0 && mentions === 0,
+          title: isMention ? 'New mention' : 'Unread messages',
+          message: isMention
+            ? `${mentions} mention${mentions > 1 ? 's' : ''} in #${channelName}`
+            : `${unread} unread message${unread > 1 ? 's' : ''} in #${channelName}`,
+          time: 'recent',
+        };
+      })
+      .filter((item) => item.unread > 0 || item.mentions > 0)
+      .sort((a, b) => b.mentions - a.mentions || b.unread - a.unread);
+  });
+
+  const openNotificationChannel = async (channelId: string) => {
+    setNotificationsOpen(false);
+    navigate(`/channels/${channelId}`);
+    await unreadStore.markAsRead(channelId);
+  };
+
+  createEffect(() => {
+    if (authStore.isAuthenticated) {
+      void unreadStore.fetchOverview();
+    }
+  });
 
   return (
     <header class="h-14 bg-bg-surface-1 border-b border-border-1 flex items-center px-4 shrink-0 z-30">
@@ -167,21 +205,40 @@ export function Header() {
               <div class="absolute right-0 top-full mt-2 w-80 bg-bg-surface-1 border border-border-1 rounded-lg shadow-lg z-50 py-2">
                 <div class="px-4 py-2 border-b border-border-1 flex items-center justify-between">
                   <h3 class="font-semibold text-text-1">Notifications</h3>
-                  <button class="text-xs text-brand hover:underline">Mark all read</button>
+                  <button
+                    type="button"
+                    class="text-xs text-brand hover:underline"
+                    onClick={() => {
+                      void unreadStore.markAllAsRead();
+                    }}
+                  >
+                    Mark all read
+                  </button>
                 </div>
                 <div class="max-h-80 overflow-y-auto">
-                  <For each={notifications()}>
-                    {(notification) => (
-                      <div class="px-4 py-3 hover:bg-bg-surface-2 cursor-pointer flex gap-3">
-                        <div class={`w-2 h-2 rounded-full mt-2 ${notification.read ? 'bg-transparent' : 'bg-brand'} flex-shrink-0`} />
-                        <div class="flex-1">
-                          <p class="text-sm font-medium text-text-1">{notification.title}</p>
-                          <p class="text-xs text-text-3">{notification.message}</p>
-                          <p class="text-xs text-text-3 mt-1">{notification.time}</p>
-                        </div>
-                      </div>
-                    )}
-                  </For>
+                  <Show
+                    when={notifications().length > 0}
+                    fallback={<p class="px-4 py-4 text-sm text-text-3">No unread notifications.</p>}
+                  >
+                    <For each={notifications()}>
+                      {(notification) => (
+                        <button
+                          type="button"
+                          class="w-full px-4 py-3 hover:bg-bg-surface-2 text-left cursor-pointer flex gap-3"
+                          onClick={() => {
+                            void openNotificationChannel(notification.channelId);
+                          }}
+                        >
+                          <div class={`w-2 h-2 rounded-full mt-2 ${notification.read ? 'bg-transparent' : 'bg-brand'} flex-shrink-0`} />
+                          <div class="flex-1">
+                            <p class="text-sm font-medium text-text-1">{notification.title}</p>
+                            <p class="text-xs text-text-3">{notification.message}</p>
+                            <p class="text-xs text-text-3 mt-1">{notification.time}</p>
+                          </div>
+                        </button>
+                      )}
+                    </For>
+                  </Show>
                 </div>
                 <div class="px-4 py-2 border-t border-border-1">
                   <button

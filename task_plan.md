@@ -15,6 +15,18 @@
 - [x] Added role helper + role-gated admin visibility in header and mobile nav (`frontend-solid/src/utils/roles.ts`, `frontend-solid/src/components/layout/Header.tsx`, `frontend-solid/src/components/layout/MobileNav.tsx`).
 - [x] Reworked settings route into overlay/modal presentation with escape/backdrop close and deep-link section handling (`frontend-solid/src/routes/Settings.tsx`).
 - [x] Added return-target preservation for settings entry from app menus.
+- [x] Created Phase B parity gap register and priority matrix (`docs/frontend-solid-phase-b-gap-register-2026-03-14.md`).
+- [x] Phase B slice: improved auth failure resilience for non-JSON backend errors (`frontend-solid/src/stores/auth.ts`, `frontend-solid/src/routes/Register.tsx`).
+- [x] Phase B slice: preserved login register-link discoverability when auth policy fetch is unavailable (`frontend-solid/src/routes/Login.tsx`).
+- [x] Phase B slice: added sidebar admin discoverability for authorized users (`frontend-solid/src/components/layout/Sidebar.tsx`).
+- [x] Phase B slice: aligned auth/settings Playwright selectors to current Solid UI (`frontend-solid/e2e/pages/LoginPage.ts`, `frontend-solid/e2e/pages/RegisterPage.ts`, `frontend-solid/e2e/pages/SettingsPage.ts`).
+- [x] Phase B slice: replaced static notification badge counts with unread-store-backed counts and wired `Mark all read` (`frontend-solid/src/components/layout/Header.tsx`, `frontend-solid/src/components/layout/MobileNav.tsx`).
+- [x] Phase B.2 slice: replaced admin scaffold with data-backed overview/users/teams/server-settings sections (`frontend-solid/src/routes/Admin.tsx`).
+- [x] Phase B.2 slice: added admin-only settings overlay configuration section at `/settings/configuration` with save/reload controls (`frontend-solid/src/routes/Settings.tsx`).
+- [x] Phase B.2 slice: added startup `crypto.randomUUID` runtime polyfill for legacy environments (`frontend-solid/src/utils/cryptoPolyfills.ts`, `frontend-solid/src/index.tsx`).
+- [x] Phase B.3 slice: replaced static team/workspace selector with API-backed team list + switching flow + unread badges (`frontend-solid/src/components/layout/Sidebar.tsx`).
+- [x] Phase B.3 slice: replaced mock notification dropdown entries with unread-store-driven channel notifications and channel navigation/read actions (`frontend-solid/src/components/layout/Header.tsx`).
+- [x] Phase B.3 slice: replaced admin `security/compliance/audit` placeholders with endpoint-backed sections (`frontend-solid/src/routes/Admin.tsx`).
 
 ### Verification Status
 1. `cd frontend-solid && npm run test -- tests/auth/authRedirect.test.ts`
@@ -28,6 +40,24 @@
 
 4. `cd frontend-solid && PLAYWRIGHT_WEB_SERVER=1 npm run test:e2e -- e2e/tests/auth.spec.ts --project=chromium`
 - Result: PARTIAL/EXPECTED FAIL in local-only mode (tests requiring live auth backend data fail; unauth redirect checks pass).
+
+5. `cd frontend-solid && PLAYWRIGHT_WEB_SERVER=1 npm run test:e2e -- e2e/tests/auth.spec.ts --project=chromium --grep "redirect to login when accessing (protected route|settings) unauthenticated"`
+- Result: PASS (2/2) after Phase B selector/auth-resilience updates.
+
+6. `cd frontend-solid && npm run build`
+- Result: PASS after Phase B.2 admin/settings/polyfill implementation.
+
+7. `cd frontend-solid && PLAYWRIGHT_WEB_SERVER=1 npm run test:e2e -- e2e/tests/auth.spec.ts --project=chromium --grep "redirect to login when accessing (protected route|settings) unauthenticated"`
+- Result: PASS (2/2) after Phase B.2 changes.
+
+8. `cd frontend-solid && npm run build`
+- Result: PASS after Phase B.3 team-switcher/notification/admin-section updates.
+
+9. `cd frontend-solid && npm run test -- tests/auth/authRedirect.test.ts`
+- Result: PASS after Phase B.3 changes.
+
+10. `cd frontend-solid && PLAYWRIGHT_WEB_SERVER=1 npm run test:e2e -- e2e/tests/auth.spec.ts --project=chromium --grep "redirect to login when accessing (protected route|settings) unauthenticated"`
+- Result: PASS (2/2) after Phase B.3 changes.
 
 ### Manual Verification Commands
 1. `cd frontend-solid && npm run dev`

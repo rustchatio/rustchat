@@ -8,6 +8,7 @@ import { logout, authStore } from '../stores/auth';
 import { userStore, updatePreferences, resetPreferences } from '../stores/user';
 import { useTheme, AVAILABLE_THEMES } from '../stores/theme';
 import { resolveDefaultChannelPath } from '../stores/channels';
+import { isAdminRole } from '../utils/roles';
 
 import { requestPermission } from '../hooks/useDesktopNotifications';
 import { SoundSettings } from '../utils/sounds';
@@ -28,6 +29,7 @@ const sections: SettingsSection[] = [
   { id: 'profile', label: 'Profile', icon: '👤' },
   { id: 'security', label: 'Security', icon: '🔒' },
   { id: 'notifications', label: 'Notifications', icon: '🔔' },
+  { id: 'configuration', label: 'Configuration', icon: '🧩', adminOnly: true },
   { id: 'display', label: 'Display', icon: '🎨' },
   { id: 'sidebar', label: 'Sidebar', icon: '📑' },
   { id: 'sounds', label: 'Sounds', icon: '🔊' },
@@ -42,11 +44,15 @@ const SETTINGS_RETURN_KEY = 'rustchat_settings_return_to';
 export default function Settings() {
   const navigate = useNavigate();
   const location = useLocation();
+  const isAdmin = () => isAdminRole(authStore.user()?.role);
+  const visibleSections = createMemo(() =>
+    sections.filter((section) => !section.adminOnly || isAdmin())
+  );
 
   const currentSection = () => {
     const match = location.pathname.match(/^\/settings\/([^/?#]+)/);
     const section = match?.[1] || 'profile';
-    return sections.some((item) => item.id === section) ? section : 'profile';
+    return visibleSections().some((item) => item.id === section) ? section : 'profile';
   };
 
   const handleSectionClick = (sectionId: string) => {
@@ -132,7 +138,7 @@ export default function Settings() {
           {/* Settings Sidebar */}
           <aside class="w-full md:w-64 border-b md:border-b-0 md:border-r border-border-1 bg-bg-surface-1 flex flex-col shrink-0" data-testid="settings-sidebar">
             <nav class="flex md:flex-col gap-1 p-2 md:space-y-0.5 overflow-x-auto md:overflow-y-auto">
-              <For each={sections}>
+              <For each={visibleSections()}>
                 {(section) => (
                   <button
                     type="button"
@@ -183,6 +189,10 @@ export default function Settings() {
 
               <Show when={currentSection() === 'notifications'}>
                 <NotificationSettings />
+              </Show>
+
+              <Show when={currentSection() === 'configuration'}>
+                <ConfigurationSettings />
               </Show>
 
               <Show when={currentSection() === 'display'}>
@@ -614,6 +624,196 @@ function NotificationSettings() {
           />
         </div>
       </div>
+    </div>
+  );
+}
+
+function ConfigurationSettings() {
+  const navigate = useNavigate();
+  const [isLoading, setIsLoading] = createSignal(true);
+  const [isSaving, setIsSaving] = createSignal(false);
+  const [error, setError] = createSignal<string | null>(null);
+  const [notice, setNotice] = createSignal<string | null>(null);
+  const [siteName, setSiteName] = createSignal('');
+  const [allowRegistration, setAllowRegistration] = createSignal(false);
+  const [siteConfig, setSiteConfig] = createSignal<Record<string, unknown> | null>(null);
+  const [authConfig, setAuthConfig] = createSignal<Record<string, unknown> | null>(null);
+
+  const parseErrorMessage = async (response: Response) => {
+    try {
+      const payload = (await response.json()) as {
+        message?: string;
+        error?: string;
+        detailed_error?: string;
+      };
+      return payload.message || payload.error || payload.detailed_error || 'Request failed';
+    } catch {
+      return `Request failed (${response.status})`;
+    }
+  };
+
+  const loadConfig = async () => {
+    const token = authStore.token;
+    if (!token) return;
+
+    setIsLoading(true);
+    setError(null);
+    setNotice(null);
+
+    try {
+      const response = await fetch('/api/v1/admin/config', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) {
+        throw new Error(await parseErrorMessage(response));
+      }
+
+      const payload = (await response.json()) as {
+        site?: Record<string, unknown>;
+        authentication?: Record<string, unknown>;
+      };
+      const nextSite = payload.site || {};
+      const nextAuth = payload.authentication || {};
+      setSiteConfig(nextSite);
+      setAuthConfig(nextAuth);
+      setSiteName(String(nextSite.site_name || ''));
+      setAllowRegistration(Boolean(nextAuth.allow_registration));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load configuration');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  onMount(() => {
+    void loadConfig();
+  });
+
+  const saveConfig = async () => {
+    const token = authStore.token;
+    const currentSite = siteConfig();
+    const currentAuth = authConfig();
+    if (!token || !currentSite || !currentAuth) return;
+
+    setIsSaving(true);
+    setError(null);
+    setNotice(null);
+
+    try {
+      const nextSite = {
+        ...currentSite,
+        site_name: siteName(),
+      };
+
+      const siteResponse = await fetch('/api/v1/admin/config/site', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(nextSite),
+      });
+      if (!siteResponse.ok) {
+        throw new Error(await parseErrorMessage(siteResponse));
+      }
+
+      const nextAuth = {
+        ...currentAuth,
+        allow_registration: allowRegistration(),
+      };
+
+      const authResponse = await fetch('/api/v1/admin/config/authentication', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(nextAuth),
+      });
+      if (!authResponse.ok) {
+        throw new Error(await parseErrorMessage(authResponse));
+      }
+
+      setSiteConfig(nextSite);
+      setAuthConfig(nextAuth);
+      setNotice('Configuration saved.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save configuration');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <div class="space-y-6">
+      <div>
+        <h2 class="text-2xl font-bold text-text-1">Configuration</h2>
+        <p class="text-text-3 mt-1">Quick server configuration controls in settings overlay</p>
+      </div>
+
+      <Show when={error()}>
+        <div class="p-3 rounded-lg border border-danger/30 bg-danger/10 text-danger text-sm">
+          {error()}
+        </div>
+      </Show>
+
+      <Show when={notice()}>
+        <div class="p-3 rounded-lg border border-success/30 bg-success/10 text-success text-sm">
+          {notice()}
+        </div>
+      </Show>
+
+      <Show when={!isLoading()} fallback={<p class="text-sm text-text-3">Loading configuration...</p>}>
+        <div class="p-6 bg-bg-surface-1 rounded-xl border border-border-1 space-y-4">
+          <label class="block">
+            <span class="block text-sm font-medium text-text-2 mb-1.5">Site Name</span>
+            <input
+              type="text"
+              value={siteName()}
+              onInput={(event) => setSiteName(event.currentTarget.value)}
+              class="w-full px-3 py-2 bg-bg-app border border-border-1 rounded-lg text-text-1"
+            />
+          </label>
+
+          <ToggleSetting
+            label="Allow Registration"
+            description="Allow new users to register without admin invitation"
+            checked={allowRegistration()}
+            onChange={setAllowRegistration}
+          />
+
+          <div class="flex flex-wrap items-center gap-3">
+            <Button
+              size="sm"
+              onClick={() => {
+                void saveConfig();
+              }}
+              disabled={isSaving()}
+            >
+              {isSaving() ? 'Saving...' : 'Save'}
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => {
+                void loadConfig();
+              }}
+              disabled={isSaving()}
+            >
+              Reload
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                navigate('/admin/settings');
+              }}
+            >
+              Open Full Admin Console
+            </Button>
+          </div>
+        </div>
+      </Show>
     </div>
   );
 }

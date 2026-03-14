@@ -6,6 +6,7 @@ import { Show, For, createMemo } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
 import { uiStore } from '@/stores/ui';
 import { authStore } from '@/stores/auth';
+import { unreadStore } from '@/stores/unreads';
 import { isAdminRole } from '@/utils/roles';
 
 // Icons
@@ -25,6 +26,7 @@ import {
 export function MobileNav() {
   const navigate = useNavigate();
   const isAdmin = () => isAdminRole(authStore.user()?.role);
+  const mentionsBadgeCount = () => unreadStore.totalMentionCount() || unreadStore.totalUnreadCount();
 
   const saveSettingsReturnTarget = () => {
     try {
@@ -55,7 +57,7 @@ export function MobileNav() {
         id: 'mentions',
         label: 'Mentions',
         icon: HiOutlineBell,
-        badge: () => 2, // Mock unread count
+        badge: mentionsBadgeCount,
         onClick: () => {
           uiStore.toggleMobileSidebar();
         },

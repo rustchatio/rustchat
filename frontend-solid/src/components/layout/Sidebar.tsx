@@ -2,11 +2,14 @@
 // Sidebar - Left Navigation Sidebar
 // ============================================
 
-import { Show, createSignal, For } from 'solid-js';
-import { A } from '@solidjs/router';
-import { channelStore, selectChannel, type Channel } from '@/stores/channels';
+import { Show, createSignal, For, createMemo, createEffect } from 'solid-js';
+import { A, useNavigate } from '@solidjs/router';
+import { channelStore, fetchChannels, selectChannel, type Channel } from '@/stores/channels';
+import { authStore } from '@/stores/auth';
 import { uiStore } from '@/stores/ui';
+import { unreadStore } from '@/stores/unreads';
 import { cn } from '@/utils/cn';
+import { isAdminRole } from '@/utils/roles';
 
 // Icons
 import {
@@ -17,6 +20,7 @@ import {
   HiOutlineLockClosed,
   HiOutlineUser,
   HiOutlineStar,
+  HiOutlineCog6Tooth,
   HiOutlineBars3,
   HiOutlineXMark,
 } from 'solid-icons/hi';
@@ -35,6 +39,7 @@ export interface SidebarProps {
 
 export function Sidebar(props: SidebarProps) {
   const isCollapsed = () => uiStore.preferences.sidebarCollapsed && !props.isMobile;
+  const canAccessAdmin = () => isAdminRole(authStore.user()?.role);
 
   const currentChannelId = () => channelStore.currentChannelId();
   const prefs = () => uiStore.preferences;
@@ -211,6 +216,15 @@ export function Sidebar(props: SidebarProps) {
       {/* Sidebar Footer */}
       <Show when={!isCollapsed()}>
         <div class="p-3 border-t border-border-1 shrink-0">
+          <Show when={canAccessAdmin()}>
+            <A
+              href="/admin"
+              class="w-full mb-2 flex items-center gap-2 px-3 py-2 rounded-lg bg-bg-app border border-border-1 hover:border-border-2 transition-colors text-left text-text-2 hover:text-text-1"
+            >
+              <HiOutlineCog6Tooth size={18} class="text-text-3" />
+              <span class="text-sm">Admin Console</span>
+            </A>
+          </Show>
           <button
             type="button"
             class="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-bg-app border border-border-1 hover:border-border-2 transition-colors text-left"
@@ -229,18 +243,88 @@ export function Sidebar(props: SidebarProps) {
 // ============================================
 
 function TeamSelector() {
+  const navigate = useNavigate();
   const [isOpen, setIsOpen] = createSignal(false);
+  const [teams, setTeams] = createSignal<Array<{ id: string; name: string; display_name?: string | null }>>([]);
+  const [isLoadingTeams, setIsLoadingTeams] = createSignal(false);
+  const [teamError, setTeamError] = createSignal<string | null>(null);
 
-  // Mock team data
-  const currentTeam = () => ({
-    id: 'default',
-    name: 'Default Team',
-    display_name: 'RustChat',
+  const loadTeams = async () => {
+    const token = authStore.token;
+    if (!token) return;
+
+    setIsLoadingTeams(true);
+    setTeamError(null);
+
+    try {
+      const response = await fetch('/api/v1/teams', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to fetch teams (${response.status})`);
+      }
+
+      const payload = (await response.json()) as Array<{
+        id?: unknown;
+        name?: unknown;
+        display_name?: unknown;
+      }>;
+
+      const safeTeams = Array.isArray(payload)
+        ? payload.filter(
+            (team): team is { id: string; name: string; display_name?: string | null } =>
+              typeof team.id === 'string' && typeof team.name === 'string'
+          )
+        : [];
+
+      setTeams(safeTeams);
+    } catch (error) {
+      setTeams([]);
+      setTeamError(error instanceof Error ? error.message : 'Failed to fetch teams');
+    } finally {
+      setIsLoadingTeams(false);
+    }
+  };
+
+  createEffect(() => {
+    if (authStore.isAuthenticated) {
+      void loadTeams();
+    }
   });
 
-  const teams = () => [
-    { id: 'default', name: 'Default Team', display_name: 'RustChat' },
-  ];
+  const currentTeam = createMemo(() => {
+    const currentTeamId = channelStore.currentChannel()?.team_id;
+    if (currentTeamId) {
+      const matched = teams().find((team) => team.id === currentTeamId);
+      if (matched) return matched;
+    }
+    return teams()[0] || null;
+  });
+
+  const switchTeam = async (teamId: string) => {
+    if (currentTeam()?.id === teamId) {
+      setIsOpen(false);
+      return;
+    }
+
+    try {
+      await fetchChannels(teamId);
+      const nextChannelId = channelStore.currentChannelId();
+      if (nextChannelId) {
+        navigate(`/channels/${nextChannelId}`);
+      } else {
+        navigate('/');
+      }
+      setIsOpen(false);
+      uiStore.setMobileSidebarOpen(false);
+    } catch (error) {
+      setTeamError(error instanceof Error ? error.message : 'Failed to switch team');
+    }
+  };
+
+  const unreadForTeam = (teamId: string) => unreadStore.teamUnreads[teamId] || 0;
+  const teamInitial = (team: { name: string; display_name?: string | null }) =>
+    (team.display_name || team.name).charAt(0).toUpperCase();
 
   return (
     <div class="relative flex-1">
@@ -252,9 +336,11 @@ function TeamSelector() {
         aria-haspopup="listbox"
       >
         <div class="w-6 h-6 rounded bg-brand flex items-center justify-center text-white text-xs font-bold">
-          {currentTeam().display_name.charAt(0)}
+          {currentTeam() ? teamInitial(currentTeam()!) : 'R'}
         </div>
-        <span class="font-semibold text-text-1 truncate">{currentTeam().display_name}</span>
+        <span class="font-semibold text-text-1 truncate">
+          {currentTeam()?.display_name || currentTeam()?.name || 'RustChat'}
+        </span>
         <HiOutlineChevronDown size={16} class="ml-auto text-text-3" />
       </button>
 
@@ -269,20 +355,33 @@ function TeamSelector() {
             <div class="px-3 py-2 border-b border-border-1">
               <p class="text-xs text-text-3 uppercase tracking-wider">Your Teams</p>
             </div>
+            <Show when={teamError()}>
+              <p class="px-3 py-2 text-xs text-danger">{teamError()}</p>
+            </Show>
+            <Show when={isLoadingTeams()}>
+              <p class="px-3 py-2 text-xs text-text-3">Loading teams...</p>
+            </Show>
             <For each={teams()}>
               {(team) => (
                 <button
                   type="button"
                   class={cn(
                     'w-full px-3 py-2 flex items-center gap-2 hover:bg-bg-surface-2 transition-colors',
-                    team.id === currentTeam().id ? 'bg-bg-surface-2' : ''
+                    team.id === currentTeam()?.id ? 'bg-bg-surface-2' : ''
                   )}
-                  onClick={() => setIsOpen(false)}
+                  onClick={() => {
+                    void switchTeam(team.id);
+                  }}
                 >
                   <div class="w-6 h-6 rounded bg-brand flex items-center justify-center text-white text-xs font-bold">
-                    {team.display_name.charAt(0)}
+                    {teamInitial(team)}
                   </div>
-                  <span class="text-sm text-text-1 truncate">{team.display_name}</span>
+                  <span class="text-sm text-text-1 truncate">{team.display_name || team.name}</span>
+                  <Show when={unreadForTeam(team.id) > 0}>
+                    <span class="ml-auto min-w-[18px] h-[18px] px-1.5 bg-danger text-white text-[10px] font-semibold rounded-full flex items-center justify-center">
+                      {unreadForTeam(team.id) > 99 ? '99+' : unreadForTeam(team.id)}
+                    </span>
+                  </Show>
                 </button>
               )}
             </For>

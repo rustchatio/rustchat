@@ -236,6 +236,7 @@ export default function Login() {
 
   const ssoEnabled = () => authConfig()?.enable_sso ?? false;
   const hasSsoProviders = () => ssoProviders().length > 0;
+  const allowRegistration = () => authConfig()?.allow_registration ?? true;
   const emailPasswordEnabled = () => {
     if (authConfig()?.require_sso) return false;
     return (authConfig()?.enable_email_password ?? true) &&
@@ -404,7 +405,7 @@ export default function Login() {
           </Show>
 
           {/* Registration Link */}
-          <Show when={authConfig()?.allow_registration && emailPasswordEnabled()}>
+          <Show when={allowRegistration() && emailPasswordEnabled()}>
             <p class="mt-8 text-center text-sm text-text-3">
               Don't have an account?{' '}
               <a href="/register" class="text-brand hover:text-brand-hover font-medium transition-colors">

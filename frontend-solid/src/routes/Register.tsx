@@ -91,6 +91,17 @@ export default function Register() {
 
     setIsLoading(true);
     try {
+      const parseErrorMessage = async (response: Response, fallback: string): Promise<string> => {
+        const contentType = response.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) return fallback;
+        try {
+          const payload = (await response.json()) as { message?: string };
+          return payload.message || fallback;
+        } catch {
+          return fallback;
+        }
+      };
+
       const response = await fetch('/api/v1/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -103,8 +114,7 @@ export default function Register() {
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || 'Registration failed');
+        throw new Error(await parseErrorMessage(response, 'Registration failed'));
       }
 
       setIsSuccess(true);
