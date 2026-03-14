@@ -5,9 +5,9 @@
 import { Show, For, createSignal, createMemo, onMount, onCleanup } from 'solid-js';
 import { useNavigate, useLocation } from '@solidjs/router';
 import { logout, authStore } from '../stores/auth';
-import { userStore, updatePreferences, resetPreferences } from '../stores/user';
+import { userStore, updatePreferences, resetPreferences, updateProfile } from '../stores/user';
 import { useTheme, AVAILABLE_THEMES } from '../stores/theme';
-import { resolveDefaultChannelPath } from '../stores/channels';
+import { resolveDefaultChannelPath, channelStore } from '../stores/channels';
 import { isAdminRole } from '../utils/roles';
 
 import { requestPermission } from '../hooks/useDesktopNotifications';
@@ -60,19 +60,35 @@ export default function Settings() {
   };
 
   const closeSettings = async () => {
-    let fallbackPath = '/';
+    let fallbackPath: string | null = null;
     try {
       const stored = sessionStorage.getItem(SETTINGS_RETURN_KEY);
       if (stored && stored.startsWith('/') && !stored.startsWith('/settings')) {
         fallbackPath = stored;
       } else {
-        fallbackPath = (await resolveDefaultChannelPath()) || '/';
+        const selectedChannelId = channelStore.currentChannelId();
+        if (selectedChannelId) {
+          fallbackPath = `/channels/${selectedChannelId}`;
+        } else {
+          fallbackPath = await resolveDefaultChannelPath();
+        }
       }
       sessionStorage.removeItem(SETTINGS_RETURN_KEY);
     } catch {
-      fallbackPath = (await resolveDefaultChannelPath()) || '/';
+      fallbackPath = await resolveDefaultChannelPath();
     }
-    navigate(fallbackPath, { replace: true });
+
+    if (fallbackPath && fallbackPath !== location.pathname) {
+      navigate(fallbackPath, { replace: true });
+      return;
+    }
+
+    if (window.history.length > 1) {
+      navigate(-1);
+      return;
+    }
+
+    navigate(isAdmin() ? '/admin' : '/', { replace: true });
   };
 
   onMount(() => {
@@ -225,10 +241,14 @@ export default function Settings() {
 function ProfileSettings() {
   const user = authStore.user;
   const [isEditing, setIsEditing] = createSignal(false);
+  const [username, setUsername] = createSignal(user()?.username || '');
   const [displayName, setDisplayName] = createSignal(user()?.display_name || '');
   const [firstName, setFirstName] = createSignal(user()?.first_name || '');
   const [lastName, setLastName] = createSignal(user()?.last_name || '');
   const [position, setPosition] = createSignal(user()?.position || '');
+  const [isSaving, setIsSaving] = createSignal(false);
+  const [saveError, setSaveError] = createSignal('');
+  const [saveSuccess, setSaveSuccess] = createSignal(false);
 
   const initials = createMemo(() => {
     const u = user();
@@ -240,9 +260,28 @@ function ProfileSettings() {
   });
 
   const handleSave = async () => {
-    // TODO: Implement API call to update profile
-    console.log('Saving profile:', { displayName: displayName(), firstName: firstName(), lastName: lastName(), position: position() });
-    setIsEditing(false);
+    const normalizedUsername = username().trim();
+    if (!normalizedUsername) {
+      setSaveError('Username is required');
+      return;
+    }
+
+    setIsSaving(true);
+    setSaveError('');
+    setSaveSuccess(false);
+
+    try {
+      await updateProfile({
+        username: normalizedUsername,
+        display_name: displayName().trim(),
+      });
+      setSaveSuccess(true);
+      setIsEditing(false);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'Failed to save profile');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
@@ -293,22 +332,49 @@ function ProfileSettings() {
           <Button
             variant={isEditing() ? 'ghost' : 'secondary'}
             size="sm"
-            onClick={() => isEditing() ? setIsEditing(false) : setIsEditing(true)}
+            onClick={() => {
+              if (isEditing()) {
+                setIsEditing(false);
+                setUsername(user()?.username || '');
+                setDisplayName(user()?.display_name || '');
+                setFirstName(user()?.first_name || '');
+                setLastName(user()?.last_name || '');
+                setPosition(user()?.position || '');
+                setSaveError('');
+                setSaveSuccess(false);
+                return;
+              }
+              setSaveError('');
+              setSaveSuccess(false);
+              setIsEditing(true);
+            }}
           >
             {isEditing() ? 'Cancel' : 'Edit'}
           </Button>
         </div>
+
+        <Show when={saveError()}>
+          <div class="p-3 bg-danger/10 border border-danger/20 rounded-lg text-danger text-sm">
+            {saveError()}
+          </div>
+        </Show>
+        <Show when={saveSuccess()}>
+          <div class="p-3 bg-success/10 border border-success/20 rounded-lg text-success text-sm">
+            Profile updated successfully.
+          </div>
+        </Show>
 
         <div class="grid grid-cols-2 gap-4">
           <div>
             <label class="block text-sm font-medium text-text-2 mb-1.5">Username</label>
             <input
               type="text"
-              value={user()?.username || ''}
-              disabled
-              class="w-full px-3 py-2 bg-bg-app border border-border-1 rounded-lg text-text-1 disabled:text-text-3"
+              value={username()}
+              onInput={(e) => setUsername(e.currentTarget.value)}
+              disabled={!isEditing()}
+              class="w-full px-3 py-2 bg-bg-app border border-border-1 rounded-lg text-text-1 disabled:bg-bg-surface-2"
             />
-            <p class="text-xs text-text-3 mt-1">Username cannot be changed</p>
+            <p class="text-xs text-text-3 mt-1">Username changes are saved immediately when you click Save Changes</p>
           </div>
           <div>
             <label class="block text-sm font-medium text-text-2 mb-1.5">Email</label>
@@ -374,10 +440,22 @@ function ProfileSettings() {
 
         <Show when={isEditing()}>
           <div class="pt-4 border-t border-border-1 flex gap-2">
-            <Button variant="primary" onClick={handleSave}>
-              Save Changes
+            <Button variant="primary" onClick={handleSave} disabled={isSaving()}>
+              {isSaving() ? 'Saving...' : 'Save Changes'}
             </Button>
-            <Button variant="ghost" onClick={() => setIsEditing(false)}>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setIsEditing(false);
+                setUsername(user()?.username || '');
+                setDisplayName(user()?.display_name || '');
+                setFirstName(user()?.first_name || '');
+                setLastName(user()?.last_name || '');
+                setPosition(user()?.position || '');
+                setSaveError('');
+                setSaveSuccess(false);
+              }}
+            >
               Cancel
             </Button>
           </div>

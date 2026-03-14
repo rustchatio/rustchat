@@ -2,7 +2,7 @@
 // App Component with Session Management
 // ============================================
 
-import { Suspense, lazy, onMount } from 'solid-js';
+import { Suspense, lazy, onMount, Show, createSignal } from 'solid-js';
 import { Router, Route, useNavigate, type RouteSectionProps } from '@solidjs/router';
 import { ThemeProvider } from './stores/theme';
 import { authStore } from './stores/auth';
@@ -16,6 +16,7 @@ import { ConnectionToastNotifier } from './components/ConnectionStatus';
 import { LiveRegion } from './components/LiveRegion';
 import { SkipLinks } from './components/SkipLink';
 import { ErrorBoundary, OfflineIndicator } from './components/ErrorBoundary';
+import { isAdminRole } from './utils/roles';
 
 // Eagerly load public routes
 import Login from './routes/Login';
@@ -48,18 +49,61 @@ function LoadingFallback() {
 
 function AuthenticatedRootRedirect() {
   const navigate = useNavigate();
+  const [isResolving, setIsResolving] = createSignal(true);
+  const [hasWorkspaceTarget, setHasWorkspaceTarget] = createSignal(true);
+  const canAccessAdmin = () => isAdminRole(authStore.user()?.role);
 
   onMount(async () => {
     const targetPath = await resolveDefaultChannelPath();
-    navigate(targetPath || '/settings/profile', { replace: true });
+    if (targetPath) {
+      navigate(targetPath, { replace: true });
+      return;
+    }
+    setHasWorkspaceTarget(false);
+    setIsResolving(false);
   });
 
   return (
-    <div class="min-h-screen flex items-center justify-center bg-bg-app">
-      <div class="flex flex-col items-center gap-4">
-        <div class="w-12 h-12 border-4 border-brand/30 border-t-brand rounded-full animate-spin" />
-        <p class="text-text-3">Redirecting...</p>
-      </div>
+    <div class="min-h-screen flex items-center justify-center bg-bg-app px-4">
+      <Show
+        when={isResolving()}
+        fallback={
+          <Show when={!hasWorkspaceTarget()}>
+            <div class="w-full max-w-xl rounded-xl border border-border-1 bg-bg-surface-1 p-6 space-y-4">
+              <div>
+                <h1 class="text-xl font-semibold text-text-1">No Channel Available Yet</h1>
+                <p class="text-sm text-text-3 mt-1">
+                  There is currently no channel in your visible workspace. You can open settings, or
+                  use the admin console if you have access.
+                </p>
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  class="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover"
+                  onClick={() => navigate('/settings/profile')}
+                >
+                  Open Profile Settings
+                </button>
+                <Show when={canAccessAdmin()}>
+                  <button
+                    type="button"
+                    class="rounded-lg border border-border-1 px-4 py-2 text-sm font-medium text-text-2 hover:bg-bg-surface-2"
+                    onClick={() => navigate('/admin')}
+                  >
+                    Open Admin Console
+                  </button>
+                </Show>
+              </div>
+            </div>
+          </Show>
+        }
+      >
+        <div class="flex flex-col items-center gap-4">
+          <div class="w-12 h-12 border-4 border-brand/30 border-t-brand rounded-full animate-spin" />
+          <p class="text-text-3">Redirecting...</p>
+        </div>
+      </Show>
     </div>
   );
 }
