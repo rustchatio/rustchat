@@ -16,12 +16,15 @@ export function ProtectedRoute(props: ProtectedRouteProps) {
     }
   });
 
-  // Show fallback or nothing while checking auth
-  if (!authStore.isAuthenticated) {
-    return <>{props.fallback || null}</>;
-  }
+  // Use a function to check auth state reactively
+  // In Solid, we need to access the store property to track reactivity
+  const isAuth = () => authStore.isAuthenticated;
 
-  return <>{props.children}</>;
+  return (
+    <>
+      {isAuth() ? props.children : props.fallback || null}
+    </>
+  );
 }
 
 export default ProtectedRoute;

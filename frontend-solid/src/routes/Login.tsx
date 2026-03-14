@@ -2,7 +2,7 @@
 // Login Page with Form Validation & SSO
 // ============================================
 
-import { createSignal, Show, onMount } from 'solid-js';
+import { createSignal, Show, onMount, createEffect } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
 import { authStore, login, loginWithToken } from '../stores/auth';
 import { oidc, handleOIDCCallback } from '../auth/oidc';
@@ -76,11 +76,12 @@ export default function Login() {
   const [errors, setErrors] = createSignal<FormErrors>({});
   const [authConfig, setAuthConfig] = createSignal<AuthConfig | null>(null);
 
-  // Redirect if already authenticated
-  if (authStore.isAuthenticated) {
-    navigate(DEFAULT_AUTH_REDIRECT, { replace: true });
-    return null;
-  }
+  // Redirect if already authenticated - use createEffect for reactivity
+  createEffect(() => {
+    if (authStore.isAuthenticated) {
+      navigate(DEFAULT_AUTH_REDIRECT, { replace: true });
+    }
+  });
 
   // Check for OIDC/SAML callbacks on mount
   onMount(async () => {
