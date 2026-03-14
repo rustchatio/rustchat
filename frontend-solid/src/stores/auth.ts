@@ -647,6 +647,8 @@ export function extendSession(): Promise<boolean> {
 
 const [authPolicy, setAuthPolicy] = createSignal<{
   enable_email_password: boolean;
+  enable_sign_in_with_email?: boolean;
+  enable_sign_in_with_username?: boolean;
   enable_sso: boolean;
   require_sso: boolean;
   allow_registration: boolean;

@@ -39,7 +39,7 @@ export interface PaginationParams {
 // ============================================
 
 export interface LoginRequest {
-  username: string;
+  email: string;
   password: string;
   remember?: boolean;
 }
@@ -51,6 +51,8 @@ export interface LoginResponse {
 
 export interface AuthPolicy {
   enable_email_password: boolean;
+  enable_sign_in_with_email?: boolean;
+  enable_sign_in_with_username?: boolean;
   enable_sso: boolean;
   require_sso: boolean;
   allow_registration: boolean;

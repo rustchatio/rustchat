@@ -12,7 +12,9 @@ export function ProtectedRoute(props: ProtectedRouteProps) {
 
   createEffect(() => {
     if (!authStore.isAuthenticated) {
-      navigate('/login', { replace: true });
+      const requestedPath = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+      const redirect = encodeURIComponent(requestedPath);
+      navigate(`/login?redirect=${redirect}`, { replace: true });
     }
   });
 

@@ -2,12 +2,9 @@
 // Login Page with Form Validation & SSO
 // ============================================
 
-import { createSignal, Show, onMount, createEffect } from 'solid-js';
+import { createSignal, Show, onMount, createEffect, For } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
-import { authStore, login, loginWithToken } from '../stores/auth';
-import { oidc, handleOIDCCallback } from '../auth/oidc';
-import { saml, handleSAMLCallback } from '../auth/saml';
-import { getAuthPolicy } from '../stores/auth';
+import { authStore, login, loginWithToken, getAuthPolicy } from '../stores/auth';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 
@@ -26,9 +23,15 @@ interface AuthConfig {
   enable_sso: boolean;
   require_sso: boolean;
   allow_registration: boolean;
-  saml_enabled?: boolean;
-  oidc_enabled?: boolean;
-  oidc_provider_name?: string;
+  enable_sign_in_with_email?: boolean;
+}
+
+interface OAuthProvider {
+  id: string;
+  provider_key: string;
+  provider_type: string;
+  display_name: string;
+  login_url: string;
 }
 
 const DEFAULT_AUTH_REDIRECT = '/';
@@ -60,12 +63,50 @@ function validateForm(email: string, password: string): FormErrors {
   return errors;
 }
 
+function normalizeRedirectPath(path: string | null): string {
+  if (!path) return DEFAULT_AUTH_REDIRECT;
+  if (
+    path === '/login' ||
+    path === '/login/callback' ||
+    path === '/saml/callback' ||
+    path === '/auth/saml/callback'
+  ) {
+    return DEFAULT_AUTH_REDIRECT;
+  }
+  if (!path.startsWith('/') || path.startsWith('//')) {
+    return DEFAULT_AUTH_REDIRECT;
+  }
+  return path;
+}
+
+function getRequestedRedirectPath(): string {
+  const redirect = new URL(window.location.href).searchParams.get('redirect');
+  return normalizeRedirectPath(redirect);
+}
+
+function stripOauthQueryParam(path: string): string {
+  const url = new URL(path, window.location.origin);
+  if (url.searchParams.has('oauth')) {
+    url.searchParams.delete('oauth');
+  }
+  const query = url.searchParams.toString();
+  return `${url.pathname}${query ? `?${query}` : ''}${url.hash}`;
+}
+
+function buildProviderLoginUrl(loginUrl: string, redirectPath: string): string {
+  const url = new URL(loginUrl, window.location.origin);
+  url.searchParams.set('redirect_uri', redirectPath);
+  return url.toString();
+}
+
 // ============================================
 // Component
 // ============================================
 
 export default function Login() {
   const navigate = useNavigate();
+  const redirectPath = getRequestedRedirectPath();
+  const postAuthRedirectPath = stripOauthQueryParam(redirectPath);
 
   // Form state
   const [email, setEmail] = createSignal('');
@@ -75,58 +116,77 @@ export default function Login() {
   const [isProcessingCallback, setIsProcessingCallback] = createSignal(false);
   const [errors, setErrors] = createSignal<FormErrors>({});
   const [authConfig, setAuthConfig] = createSignal<AuthConfig | null>(null);
+  const [ssoProviders, setSsoProviders] = createSignal<OAuthProvider[]>([]);
 
   // Redirect if already authenticated - use createEffect for reactivity
   createEffect(() => {
     if (authStore.isAuthenticated) {
-      navigate(DEFAULT_AUTH_REDIRECT, { replace: true });
+      navigate(postAuthRedirectPath, { replace: true });
     }
   });
 
-  // Check for OIDC/SAML callbacks on mount
+  async function fetchSsoProviders() {
+    try {
+      const response = await fetch('/api/v1/oauth2/providers');
+      if (!response.ok) {
+        setSsoProviders([]);
+        return;
+      }
+      const data = (await response.json()) as OAuthProvider[];
+      setSsoProviders(Array.isArray(data) ? data : []);
+    } catch {
+      setSsoProviders([]);
+    }
+  }
+
+  async function exchangeOauthCode() {
+    const response = await fetch('/api/v1/oauth2/exchange', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => null);
+      throw new Error(error?.message || 'Single Sign-On login failed');
+    }
+
+    const data = (await response.json()) as { token: string };
+    if (!data?.token) {
+      throw new Error('Single Sign-On login failed');
+    }
+
+    await loginWithToken(data.token);
+  }
+
   onMount(async () => {
-    // Load auth config
     const config = await getAuthPolicy();
     if (config) {
       setAuthConfig(config);
+      if (config.enable_sso) {
+        await fetchSsoProviders();
+      }
     }
 
-    // Check if this is an OIDC callback
-    const url = window.location.href;
-    const urlObj = new URL(url);
-    const code = urlObj.searchParams.get('code');
-    const state = urlObj.searchParams.get('state');
-    const samlResponse = urlObj.searchParams.get('SAMLResponse');
+    const urlObj = new URL(window.location.href);
+    const oauth = urlObj.searchParams.get('oauth');
+    const providerError = urlObj.searchParams.get('error');
+    const redirectHasOauth = new URL(redirectPath, window.location.origin).searchParams.get('oauth') === '1';
 
-    if (code && state) {
-      // OIDC callback
+    if (providerError) {
+      setErrors({ general: providerError });
+      return;
+    }
+
+    if (oauth === '1' || redirectHasOauth) {
       setIsProcessingCallback(true);
       try {
-        const result = await handleOIDCCallback(url);
-        if (result.success && result.tokens) {
-          await loginWithToken(result.tokens.access_token, result.tokens.refresh_token);
-          navigate(DEFAULT_AUTH_REDIRECT, { replace: true });
-        } else {
-          setErrors({ general: result.error || 'Authentication failed' });
-        }
-      } catch (err) {
-        setErrors({ general: 'Authentication failed' });
-      } finally {
-        setIsProcessingCallback(false);
-      }
-    } else if (samlResponse || urlObj.pathname.includes('/saml/callback')) {
-      // SAML callback - handle via form post
-      setIsProcessingCallback(true);
-      try {
-        const result = await handleSAMLCallback();
-        if (result.success && result.data) {
-          await loginWithToken(result.data.token);
-          navigate(DEFAULT_AUTH_REDIRECT, { replace: true });
-        } else {
-          setErrors({ general: result.error || 'SAML authentication failed' });
-        }
-      } catch (err) {
-        setErrors({ general: 'SAML authentication failed' });
+        await exchangeOauthCode();
+        navigate(postAuthRedirectPath, { replace: true });
+      } catch (error) {
+        setErrors({
+          general: error instanceof Error ? error.message : 'Single Sign-On login failed',
+        });
       } finally {
         setIsProcessingCallback(false);
       }
@@ -153,7 +213,7 @@ export default function Login() {
         password: password(),
         remember: remember(),
       });
-      navigate(DEFAULT_AUTH_REDIRECT, { replace: true });
+      navigate(postAuthRedirectPath, { replace: true });
     } catch (err) {
       setErrors({
         general: err instanceof Error ? err.message : 'Login failed. Please check your credentials.',
@@ -163,59 +223,18 @@ export default function Login() {
     }
   };
 
-  // Handle OIDC login
-  const handleOIDCLogin = async () => {
+  const handleProviderLogin = (provider: OAuthProvider) => {
     setIsLoading(true);
-    try {
-      // Fetch OIDC config from backend
-      const response = await fetch('/api/v1/auth/oidc/config');
-      if (!response.ok) {
-        throw new Error('Failed to fetch OIDC configuration');
-      }
-      const config = await response.json();
-
-      await oidc.initiateOIDCLogin({
-        authorizationEndpoint: config.authorization_endpoint,
-        clientId: config.client_id,
-        redirectUri: `${window.location.origin}/login/callback`,
-        scope: config.scope || 'openid email profile',
-      });
-    } catch (err) {
-      setErrors({
-        general: err instanceof Error ? err.message : 'Failed to initiate SSO login',
-      });
-      setIsLoading(false);
-    }
-  };
-
-  // Handle SAML login
-  const handleSAMLLogin = async () => {
-    setIsLoading(true);
-    try {
-      const config = await saml.getSAMLConfig();
-      if (!config || !config.enabled) {
-        throw new Error('SAML is not enabled');
-      }
-
-      await saml.initiateSAMLLogin({
-        idpUrl: config.idp_url,
-      });
-    } catch (err) {
-      setErrors({
-        general: err instanceof Error ? err.message : 'Failed to initiate SAML login',
-      });
-      setIsLoading(false);
-    }
+    window.location.href = buildProviderLoginUrl(provider.login_url, postAuthRedirectPath);
   };
 
   const ssoEnabled = () => authConfig()?.enable_sso ?? false;
-  const oidcEnabled = () => authConfig()?.oidc_enabled ?? false;
-  const samlEnabled = () => authConfig()?.saml_enabled ?? false;
+  const hasSsoProviders = () => ssoProviders().length > 0;
   const emailPasswordEnabled = () => {
     if (authConfig()?.require_sso) return false;
-    return authConfig()?.enable_email_password ?? true;
+    return (authConfig()?.enable_email_password ?? true) &&
+      (authConfig()?.enable_sign_in_with_email ?? true);
   };
-  const oidcProviderName = () => authConfig()?.oidc_provider_name || 'SSO';
 
   return (
     <div class="min-h-screen flex items-center justify-center bg-bg-app px-4 py-12">
@@ -341,7 +360,7 @@ export default function Login() {
           </Show>
 
           {/* SSO Section */}
-          <Show when={ssoEnabled() && (oidcEnabled() || samlEnabled())}>
+          <Show when={ssoEnabled() && hasSsoProviders()}>
             <div class="relative mt-6">
               <div class="absolute inset-0 flex items-center" aria-hidden="true">
                 <div class="w-full border-t border-border-1" />
@@ -352,39 +371,29 @@ export default function Login() {
             </div>
 
             <div class="mt-6 grid gap-3">
-              {/* OIDC Button */}
-              <Show when={oidcEnabled()}>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="lg"
-                  onClick={handleOIDCLogin}
-                  disabled={isLoading()}
-                  fullWidth
-                >
-                  <svg class="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm0 2c5.514 0 10 4.486 10 10s-4.486 10-10 10S2 17.514 2 12 6.486 2 12 2zm-1 5v4H7v2h4v4h2v-4h4v-2h-4V7h-2z" />
-                  </svg>
-                  Sign in with {oidcProviderName()}
-                </Button>
-              </Show>
+              <For each={ssoProviders()}>
+                {(provider) => (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="lg"
+                    onClick={() => handleProviderLogin(provider)}
+                    disabled={isLoading()}
+                    fullWidth
+                  >
+                    Sign in with {provider.display_name}
+                  </Button>
+                )}
+              </For>
+            </div>
+          </Show>
 
-              {/* SAML Button */}
-              <Show when={samlEnabled()}>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="lg"
-                  onClick={handleSAMLLogin}
-                  disabled={isLoading()}
-                  fullWidth
-                >
-                  <svg class="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z" />
-                  </svg>
-                  Sign in with SAML
-                </Button>
-              </Show>
+          <Show when={authConfig()?.require_sso && !hasSsoProviders()}>
+            <div class="mt-6 p-4 rounded-lg bg-warning/10 border border-warning/20">
+              <p class="text-sm text-warning text-center">
+                Single Sign-On is required for this workspace, but no SSO providers are configured.
+                Please contact your administrator.
+              </p>
             </div>
           </Show>
 
