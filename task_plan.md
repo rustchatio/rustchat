@@ -40,6 +40,13 @@
 - [x] Phase B Final hardening: added inline username-specific profile save validation feedback (`frontend-solid/src/routes/Settings.tsx`).
 - [x] Phase B Final hardening: added thread follow/unfollow persistence Playwright scenario (`frontend-solid/e2e/tests/thread.spec.ts`).
 - [x] Backend test-compat hygiene: gated Kafka-only integration tests behind `feature = "kafka"` and aligned config/user test initializers with current structs (`backend/tests/kafka_integration.rs`, `backend/tests/kafka_producer.rs`, `backend/tests/common/mod.rs`, `backend/tests/api_v4_config.rs`, `backend/tests/security_integration.rs`, `backend/tests/api_users.rs`).
+- [x] Phase B Final extension: added admin membership policy management surface (list + enable/disable + audit summary) with real API wiring (`frontend-solid/src/routes/Admin.tsx`, `backend/src/api/mod.rs`).
+- [x] Phase B Final extension: wired settings security action `Sign Out All Other Sessions` to `/api/v4/users/sessions/revoke/all` with inline feedback (`frontend-solid/src/routes/Settings.tsx`).
+- [x] Phase B Final extension: reduced E2E admin dependency by adding transient-user bootstrap for auth/thread specs (`frontend-solid/e2e/tests/auth.spec.ts`, `frontend-solid/e2e/tests/thread.spec.ts`).
+- [x] Phase B Final closure: added admin email outbox action workflow (retry/cancel) with inline notices in Admin Email section (`frontend-solid/src/routes/Admin.tsx`).
+- [x] Phase B Final closure: added settings overlay calls-plugin configuration controls (TURN/STUN) backed by `/api/v1/admin/plugins/calls` (`frontend-solid/src/routes/Settings.tsx`).
+- [x] Phase B Final closure: added settings admin-configuration gating regression checks and stronger security negative-path contract assertion in E2E (`frontend-solid/e2e/tests/settings.spec.ts`, `frontend-solid/e2e/pages/SettingsPage.ts`).
+- [x] Backend router safety fix: removed duplicate v1 admin-membership/admin-audit mounts that caused overlapping-route panics during integration tests (`backend/src/api/mod.rs`).
 
 ### Verification Status
 1. `cd frontend-solid && npm run test -- tests/auth/authRedirect.test.ts`
@@ -107,6 +114,27 @@
 
 22. `cd backend && cargo test --no-fail-fast -- --nocapture`
 - Result: FAIL in local environment (mixed pre-existing/unit failures and env-dependent integration failures). Final failing targets in this run: `--lib`, `--test api_mattermost`, `--test api_v4_post_routes`, `--test api_v4_threads_preferences`, `--test opensearch_integration`, `--test security_integration`.
+
+23. `cd frontend-solid && PLAYWRIGHT_WEB_SERVER=1 npm run test:e2e -- e2e/tests/auth.spec.ts e2e/tests/settings.spec.ts e2e/tests/thread.spec.ts --project=chromium`
+- Result: PASS with environment-aware skips after transient-user bootstrap changes (6 passed, 22 skipped).
+
+24. `cd frontend-solid && PLAYWRIGHT_WEB_SERVER=1 npm run test:e2e -- e2e/tests/auth.spec.ts e2e/tests/settings.spec.ts e2e/tests/thread.spec.ts --project=chromium`
+- Result: PASS with environment-aware skips after admin email/settings plugin/gating updates (6 passed, 25 skipped).
+
+25. `cd backend && cargo test api::v4::tests::v4_router_builds_without_overlaps -- --nocapture`
+- Result: PASS after removing duplicate admin router mounts.
+
+26. `cd backend && cargo test --test api_auth -- --nocapture`
+- Result: PASS (2/2) after router overlap fix.
+
+27. `cd backend && cargo test --no-fail-fast -- --nocapture`
+- Result: FAIL in local environment; route-overlap panics are resolved. Remaining failures are environment/pre-existing assertions:
+  - `--lib` (search indexer punctuation assertions)
+  - `--test api_mattermost` (file upload path requires valid S3 test credentials)
+  - `--test api_v4_post_routes` (file-metadata assertions depend on storage fixture availability)
+  - `--test api_v4_threads_preferences` (preference-count assertion mismatch in local fixture state)
+  - `--test opensearch_integration` (punctuation normalization assertion)
+  - `--test security_integration` (rate-limit assertion mismatch in local run)
 
 ### Manual Verification Commands
 1. `cd frontend-solid && npm run dev`

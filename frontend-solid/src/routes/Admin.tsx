@@ -123,12 +123,72 @@ interface AdminAuditLog {
   created_at: string;
 }
 
+interface AdminMembershipPolicyTarget {
+  id: string;
+  policy_id: string;
+  target_type: 'team' | 'channel';
+  target_id: string;
+  role_mode: 'member' | 'admin';
+  created_at: string;
+}
+
+interface AdminMembershipPolicy {
+  id: string;
+  name: string;
+  description?: string | null;
+  scope_type: 'global' | 'team';
+  team_id?: string | null;
+  source_type: 'all_users' | 'auth_service' | 'group' | 'role' | 'org';
+  enabled: boolean;
+  priority: number;
+  created_at: string;
+  updated_at: string;
+  targets: AdminMembershipPolicyTarget[];
+}
+
+interface AdminMembershipAuditSummary {
+  total_operations_24h: number;
+  successful_operations_24h: number;
+  failed_operations_24h: number;
+  failure_rate_24h: number;
+  pending_operations: number;
+  policies_with_failures: number;
+}
+
+interface AdminEmailProvider {
+  id: string;
+  provider_type: string;
+  host: string;
+  port: number;
+  username: string;
+  from_address: string;
+  from_name: string;
+  enabled: boolean;
+  is_default: boolean;
+  updated_at: string;
+}
+
+interface AdminEmailOutboxEntry {
+  id: string;
+  workflow_key?: string | null;
+  recipient_email: string;
+  subject: string;
+  status: string;
+  priority: string;
+  attempt_count: number;
+  max_attempts: number;
+  sent_at?: string | null;
+  created_at: string;
+}
+
 const sections: AdminSection[] = [
   { id: '', label: 'Overview', description: 'System summary and quick links' },
   { id: 'users', label: 'Users', description: 'Manage users and account lifecycle' },
   { id: 'teams', label: 'Teams', description: 'Manage teams and channels' },
   { id: 'settings', label: 'Server Settings', description: 'Server and platform configuration' },
   { id: 'security', label: 'Security', description: 'Authentication and access controls' },
+  { id: 'email', label: 'Email', description: 'Email providers and recent outbox activity' },
+  { id: 'membership-policies', label: 'Membership Policies', description: 'Auto-membership policy controls and audit health' },
   { id: 'compliance', label: 'Compliance', description: 'Retention, exports, and compliance controls' },
   { id: 'audit', label: 'Audit Logs', description: 'Administrative events and audit trail' },
 ];
@@ -162,13 +222,30 @@ async function fetchAdminJson<T>(
   path: string,
   init: RequestInit = {}
 ): Promise<T> {
+  return fetchAdminScopedJson<T>(token, '/api/v1', path, init);
+}
+
+async function fetchAdminV4Json<T>(
+  token: string,
+  path: string,
+  init: RequestInit = {}
+): Promise<T> {
+  return fetchAdminScopedJson<T>(token, '/api/v4', path, init);
+}
+
+async function fetchAdminScopedJson<T>(
+  token: string,
+  basePath: '/api/v1' | '/api/v4',
+  path: string,
+  init: RequestInit = {}
+): Promise<T> {
   const headers = new Headers(init.headers);
   headers.set('Authorization', `Bearer ${token}`);
   if (!(init.body instanceof FormData)) {
     headers.set('Content-Type', 'application/json');
   }
 
-  const response = await fetch(`/api/v1${path}`, {
+  const response = await fetch(`${basePath}${path}`, {
     ...init,
     headers,
   });
@@ -852,6 +929,250 @@ function AdminSecuritySection() {
   );
 }
 
+function AdminEmailSection() {
+  const [providers, setProviders] = createSignal<AdminEmailProvider[]>([]);
+  const [outbox, setOutbox] = createSignal<AdminEmailOutboxEntry[]>([]);
+  const [isLoading, setIsLoading] = createSignal(true);
+  const [isSettingDefaultId, setIsSettingDefaultId] = createSignal<string | null>(null);
+  const [isMutatingOutboxId, setIsMutatingOutboxId] = createSignal<string | null>(null);
+  const [notice, setNotice] = createSignal<string | null>(null);
+  const [error, setError] = createSignal<string | null>(null);
+
+  const outboxStatusCounts = createMemo(() => {
+    const counts = new Map<string, number>();
+    for (const entry of outbox()) {
+      counts.set(entry.status, (counts.get(entry.status) || 0) + 1);
+    }
+    return Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
+  });
+
+  const loadEmailData = async () => {
+    const token = authStore.token;
+    if (!token) return;
+
+    setIsLoading(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const [providerData, outboxData] = await Promise.all([
+        fetchAdminV4Json<AdminEmailProvider[]>(token, '/admin/email/providers'),
+        fetchAdminV4Json<AdminEmailOutboxEntry[]>(token, '/admin/email/outbox?page=1&per_page=20'),
+      ]);
+      setProviders(providerData || []);
+      setOutbox(outboxData || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load email admin data');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  createEffect(() => {
+    if (authStore.isAuthenticated) {
+      void loadEmailData();
+    }
+  });
+
+  const setDefaultProvider = async (providerId: string) => {
+    const token = authStore.token;
+    if (!token) return;
+
+    setIsSettingDefaultId(providerId);
+    setError(null);
+    try {
+      await fetchAdminV4Json<{ success: boolean }>(token, `/admin/email/providers/${providerId}/default`, {
+        method: 'POST',
+      });
+      await loadEmailData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to set default provider');
+    } finally {
+      setIsSettingDefaultId(null);
+    }
+  };
+
+  const mutateOutbox = async (outboxId: string, action: 'retry' | 'cancel') => {
+    const token = authStore.token;
+    if (!token) return;
+
+    setError(null);
+    setNotice(null);
+    setIsMutatingOutboxId(outboxId);
+    try {
+      await fetchAdminV4Json<{ status: string }>(
+        token,
+        `/admin/email/outbox/${outboxId}/${action}`,
+        { method: 'POST' }
+      );
+      setNotice(action === 'retry' ? 'Outbox entry queued for retry.' : 'Queued outbox entry cancelled.');
+      await loadEmailData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update outbox entry');
+    } finally {
+      setIsMutatingOutboxId(null);
+    }
+  };
+
+  return (
+    <div class="space-y-4">
+      <Show when={error()}>
+        <div class="rounded-lg border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
+          {error()}
+        </div>
+      </Show>
+
+      <Show when={notice()}>
+        <div class="rounded-lg border border-success/30 bg-success/10 px-4 py-3 text-sm text-success">
+          {notice()}
+        </div>
+      </Show>
+
+      <Show when={!isLoading()} fallback={<p class="text-sm text-text-3">Loading email configuration...</p>}>
+        <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
+          <OverviewCard label="Providers" value={String(providers().length)} />
+          <OverviewCard
+            label="Enabled Providers"
+            value={String(providers().filter((provider) => provider.enabled).length)}
+          />
+          <OverviewCard label="Outbox Entries" value={String(outbox().length)} />
+        </div>
+
+        <div class="rounded-xl border border-border-1 bg-bg-surface-1 p-4 space-y-3">
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm font-semibold text-text-1">Mail Providers</h3>
+            <button
+              type="button"
+              class="rounded-lg border border-border-1 px-3 py-1.5 text-sm font-medium text-text-2 hover:bg-bg-surface-2"
+              onClick={() => {
+                void loadEmailData();
+              }}
+            >
+              Reload
+            </button>
+          </div>
+
+          <Show when={providers().length > 0} fallback={<p class="text-sm text-text-3">No mail providers configured.</p>}>
+            <div class="space-y-2">
+              <For each={providers()}>
+                {(provider) => (
+                  <div class="rounded-lg border border-border-1 px-3 py-3">
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                      <div class="space-y-1">
+                        <p class="text-sm font-medium text-text-1">
+                          {provider.provider_type.toUpperCase()} · {provider.host}:{provider.port}
+                        </p>
+                        <p class="text-xs text-text-3">
+                          From {provider.from_name} &lt;{provider.from_address}&gt;
+                        </p>
+                      </div>
+
+                      <div class="flex items-center gap-2">
+                        <span
+                          class={`rounded-full px-2 py-1 text-xs font-medium ${
+                            provider.enabled ? 'bg-success/15 text-success' : 'bg-warning/20 text-warning'
+                          }`}
+                        >
+                          {provider.enabled ? 'Enabled' : 'Disabled'}
+                        </span>
+                        <button
+                          type="button"
+                          class="rounded-lg border border-border-1 px-3 py-1.5 text-xs font-medium text-text-2 hover:bg-bg-surface-2 disabled:opacity-60"
+                          onClick={() => {
+                            void setDefaultProvider(provider.id);
+                          }}
+                          disabled={provider.is_default || isSettingDefaultId() === provider.id}
+                        >
+                          {provider.is_default
+                            ? 'Default'
+                            : isSettingDefaultId() === provider.id
+                              ? 'Applying...'
+                              : 'Set Default'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </For>
+            </div>
+          </Show>
+        </div>
+
+        <div class="rounded-xl border border-border-1 bg-bg-surface-1 p-4 space-y-3">
+          <h3 class="text-sm font-semibold text-text-1">Recent Outbox Status</h3>
+          <Show when={outboxStatusCounts().length > 0} fallback={<p class="text-sm text-text-3">Outbox is empty.</p>}>
+            <div class="grid grid-cols-2 gap-2 md:grid-cols-4">
+              <For each={outboxStatusCounts()}>
+                {(entry) => (
+                  <div class="rounded-lg border border-border-1 px-3 py-2 text-sm">
+                    <p class="font-medium text-text-1 capitalize">{entry[0]}</p>
+                    <p class="text-text-3">{entry[1]} messages</p>
+                  </div>
+                )}
+              </For>
+            </div>
+          </Show>
+
+          <Show when={outbox().length > 0}>
+            <div class="overflow-x-auto rounded-lg border border-border-1">
+              <table class="w-full text-left text-xs">
+                <thead class="border-b border-border-1 bg-bg-surface-2 text-text-3">
+                  <tr>
+                    <th class="px-3 py-2 font-medium">Recipient</th>
+                    <th class="px-3 py-2 font-medium">Subject</th>
+                    <th class="px-3 py-2 font-medium">Status</th>
+                    <th class="px-3 py-2 font-medium">Attempts</th>
+                    <th class="px-3 py-2 font-medium">Created</th>
+                    <th class="px-3 py-2 font-medium text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <For each={outbox()}>
+                    {(entry) => (
+                      <tr class="border-b border-border-1/60 last:border-b-0">
+                        <td class="px-3 py-2 text-text-2">{entry.recipient_email}</td>
+                        <td class="px-3 py-2 text-text-2">{entry.subject}</td>
+                        <td class="px-3 py-2 text-text-2 capitalize">{entry.status}</td>
+                        <td class="px-3 py-2 text-text-2">{entry.attempt_count}/{entry.max_attempts}</td>
+                        <td class="px-3 py-2 text-text-2">{formatDateTime(entry.created_at)}</td>
+                        <td class="px-3 py-2 text-right">
+                          <Show when={entry.status === 'failed'}>
+                            <button
+                              type="button"
+                              class="rounded-lg border border-border-1 px-2 py-1 font-medium text-text-2 hover:bg-bg-surface-2 disabled:opacity-60"
+                              onClick={() => {
+                                void mutateOutbox(entry.id, 'retry');
+                              }}
+                              disabled={isMutatingOutboxId() === entry.id}
+                            >
+                              {isMutatingOutboxId() === entry.id ? 'Working...' : 'Retry'}
+                            </button>
+                          </Show>
+                          <Show when={entry.status === 'queued'}>
+                            <button
+                              type="button"
+                              class="rounded-lg border border-warning/40 px-2 py-1 font-medium text-warning hover:bg-warning/10 disabled:opacity-60"
+                              onClick={() => {
+                                void mutateOutbox(entry.id, 'cancel');
+                              }}
+                              disabled={isMutatingOutboxId() === entry.id}
+                            >
+                              {isMutatingOutboxId() === entry.id ? 'Working...' : 'Cancel'}
+                            </button>
+                          </Show>
+                        </td>
+                      </tr>
+                    )}
+                  </For>
+                </tbody>
+              </table>
+            </div>
+          </Show>
+        </div>
+      </Show>
+    </div>
+  );
+}
+
 function AdminComplianceSection() {
   const [complianceConfig, setComplianceConfig] = createSignal<Record<string, unknown> | null>(null);
   const [messageRetentionDays, setMessageRetentionDays] = createSignal(0);
@@ -977,6 +1298,143 @@ function AdminComplianceSection() {
               Reload
             </button>
           </div>
+        </div>
+      </Show>
+    </div>
+  );
+}
+
+function AdminMembershipPoliciesSection() {
+  const [policies, setPolicies] = createSignal<AdminMembershipPolicy[]>([]);
+  const [summary, setSummary] = createSignal<AdminMembershipAuditSummary | null>(null);
+  const [isLoading, setIsLoading] = createSignal(true);
+  const [isMutatingPolicyId, setIsMutatingPolicyId] = createSignal<string | null>(null);
+  const [error, setError] = createSignal<string | null>(null);
+
+  const loadMembershipData = async () => {
+    const token = authStore.token;
+    if (!token) return;
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const [policiesData, summaryData] = await Promise.all([
+        fetchAdminJson<AdminMembershipPolicy[]>(token, '/admin/membership-policies'),
+        fetchAdminJson<AdminMembershipAuditSummary>(token, '/admin/audit/membership/summary'),
+      ]);
+      setPolicies(policiesData || []);
+      setSummary(summaryData || null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load membership policy data');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  createEffect(() => {
+    if (authStore.isAuthenticated) {
+      void loadMembershipData();
+    }
+  });
+
+  const togglePolicyEnabled = async (policy: AdminMembershipPolicy) => {
+    const token = authStore.token;
+    if (!token) return;
+
+    setIsMutatingPolicyId(policy.id);
+    setError(null);
+    try {
+      const updatedPolicy = await fetchAdminJson<AdminMembershipPolicy>(
+        token,
+        `/admin/membership-policies/${policy.id}`,
+        {
+          method: 'PUT',
+          body: JSON.stringify({ enabled: !policy.enabled }),
+        }
+      );
+
+      setPolicies((current) =>
+        current.map((item) => (item.id === updatedPolicy.id ? updatedPolicy : item))
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update policy');
+    } finally {
+      setIsMutatingPolicyId(null);
+    }
+  };
+
+  return (
+    <div class="space-y-4">
+      <Show when={error()}>
+        <div class="rounded-lg border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
+          {error()}
+        </div>
+      </Show>
+
+      <Show when={!isLoading()} fallback={<p class="text-sm text-text-3">Loading membership policies...</p>}>
+        <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
+          <OverviewCard label="Policies" value={String(policies().length)} />
+          <OverviewCard label="Operations (24h)" value={String(summary()?.total_operations_24h ?? 0)} />
+          <OverviewCard label="Failure Rate (24h)" value={`${(summary()?.failure_rate_24h ?? 0).toFixed(1)}%`} />
+        </div>
+
+        <div class="rounded-xl border border-border-1 bg-bg-surface-1 p-4 space-y-3">
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm font-semibold text-text-1">Policy List</h3>
+            <button
+              type="button"
+              class="rounded-lg border border-border-1 px-3 py-1.5 text-sm font-medium text-text-2 hover:bg-bg-surface-2"
+              onClick={() => {
+                void loadMembershipData();
+              }}
+            >
+              Reload
+            </button>
+          </div>
+
+          <Show when={policies().length > 0} fallback={<p class="text-sm text-text-3">No membership policies found.</p>}>
+            <div class="space-y-2">
+              <For each={policies()}>
+                {(policy) => (
+                  <div class="rounded-lg border border-border-1 px-3 py-3">
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                      <div class="space-y-1">
+                        <p class="text-sm font-medium text-text-1">{policy.name}</p>
+                        <p class="text-xs text-text-3">
+                          {policy.scope_type} · {policy.source_type} · {policy.targets.length} targets
+                        </p>
+                      </div>
+
+                      <div class="flex items-center gap-2">
+                        <span
+                          class={`rounded-full px-2 py-1 text-xs font-medium ${
+                            policy.enabled ? 'bg-success/15 text-success' : 'bg-warning/20 text-warning'
+                          }`}
+                        >
+                          {policy.enabled ? 'Enabled' : 'Disabled'}
+                        </span>
+                        <button
+                          type="button"
+                          class="rounded-lg border border-border-1 px-3 py-1.5 text-xs font-medium text-text-2 hover:bg-bg-surface-2 disabled:opacity-60"
+                          onClick={() => {
+                            void togglePolicyEnabled(policy);
+                          }}
+                          disabled={isMutatingPolicyId() === policy.id}
+                        >
+                          {isMutatingPolicyId() === policy.id
+                            ? 'Updating...'
+                            : policy.enabled
+                              ? 'Disable'
+                              : 'Enable'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </For>
+            </div>
+          </Show>
         </div>
       </Show>
     </div>
@@ -1142,6 +1600,14 @@ export default function Admin() {
 
           <Show when={activeSectionId() === 'security'}>
             <AdminSecuritySection />
+          </Show>
+
+          <Show when={activeSectionId() === 'email'}>
+            <AdminEmailSection />
+          </Show>
+
+          <Show when={activeSectionId() === 'membership-policies'}>
+            <AdminMembershipPoliciesSection />
           </Show>
 
           <Show when={activeSectionId() === 'compliance'}>

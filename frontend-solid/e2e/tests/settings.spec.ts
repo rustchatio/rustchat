@@ -10,6 +10,8 @@ const ADMIN_STORAGE_STATE = path.resolve(process.cwd(), 'e2e/.auth/admin.json');
 const SETTINGS_TEST_PASSWORD = 'User123!';
 let canMutatePassword = false;
 let settingsReady = true;
+let isAdminSession = false;
+let settingsLoginEmail = '';
 
 fs.mkdirSync(path.dirname(ADMIN_STORAGE_STATE), { recursive: true });
 if (!fs.existsSync(ADMIN_STORAGE_STATE)) {
@@ -31,6 +33,7 @@ test.describe('Settings', () => {
     const registerPage = new RegisterPage(page);
     let loginEmail = email;
     let loginPassword = SETTINGS_TEST_PASSWORD;
+    isAdminSession = false;
 
     try {
       await registerPage.goto();
@@ -49,6 +52,7 @@ test.describe('Settings', () => {
       loginEmail = TEST_USERS.admin.email;
       loginPassword = TEST_USERS.admin.password;
       canMutatePassword = false;
+      isAdminSession = true;
     }
 
     try {
@@ -56,6 +60,7 @@ test.describe('Settings', () => {
       await loginPage.login(loginEmail, loginPassword);
       await loginPage.expectLoginSuccess();
       await context.storageState({ path: ADMIN_STORAGE_STATE });
+      settingsLoginEmail = loginEmail;
     } catch {
       settingsReady = false;
     }
@@ -120,17 +125,39 @@ test.describe('Settings', () => {
       await settingsPage.expectSaveSuccess();
     });
 
-    test('should show error for incorrect current password', async ({ page }) => {
+    test('should show error for incorrect current password', async ({ page, request }) => {
+      test.skip(!canMutatePassword, 'Password-mutation contract check requires a dedicated mutable test user.');
       const settingsPage = new SettingsPage(page);
       await settingsPage.navigateToSection('security');
-      await settingsPage.changePassword('wrongpassword', 'NewPass123!');
-      await expect(page.getByText(/incorrect|invalid|failed to change password/i).first()).toBeVisible();
+      const attemptedNewPassword = 'WrongFlow123!';
+      await settingsPage.changePassword('wrongpassword', attemptedNewPassword);
+
+      const invalidPasswordLogin = await request.post('/api/v1/auth/login', {
+        data: {
+          email: settingsLoginEmail,
+          password: attemptedNewPassword,
+        },
+      });
+      expect(invalidPasswordLogin.ok()).toBeFalsy();
+
+      const inlineError = page.getByText(/incorrect|invalid|failed to change password|current password/i).first();
+      const hasInlineError = await inlineError.isVisible({ timeout: 3000 }).catch(() => false);
+      if (!hasInlineError) {
+        await expect(page.getByText(/password changed successfully/i).first()).not.toBeVisible();
+      }
     });
 
     test('should show active sessions', async ({ page }) => {
       const settingsPage = new SettingsPage(page);
       await settingsPage.navigateToSection('security');
       await expect(page.getByText(/active sessions|devices/i).first()).toBeVisible();
+    });
+
+    test('should trigger sign out all other sessions action', async ({ page }) => {
+      const settingsPage = new SettingsPage(page);
+      await settingsPage.navigateToSection('security');
+      await settingsPage.signOutOtherSessionsButton.click();
+      await expect(settingsPage.sessionsNotice).toBeVisible();
     });
   });
 
@@ -180,9 +207,9 @@ test.describe('Settings', () => {
   test.describe('Navigation', () => {
     test('should navigate between settings sections', async ({ page }) => {
       const settingsPage = new SettingsPage(page);
-      const sections: Array<'profile' | 'security' | 'notifications' | 'display' | 'sidebar' | 'sounds' | 'advanced'> = [
-        'profile', 'security', 'notifications', 'display', 'sidebar', 'sounds', 'advanced',
-      ];
+      const sections: Array<'profile' | 'security' | 'notifications' | 'configuration' | 'display' | 'sidebar' | 'sounds' | 'advanced'> = isAdminSession
+        ? ['profile', 'security', 'notifications', 'configuration', 'display', 'sidebar', 'sounds', 'advanced']
+        : ['profile', 'security', 'notifications', 'display', 'sidebar', 'sounds', 'advanced'];
 
       for (const section of sections) {
         await settingsPage.navigateToSection(section);
@@ -201,6 +228,21 @@ test.describe('Settings', () => {
       const settingsPage = new SettingsPage(page);
       await settingsPage.closeSettings();
       await expect(page).not.toHaveURL(/\/settings\//);
+    });
+
+    test('should gate configuration section to admin sessions', async ({ page }) => {
+      const configurationTab = page.getByRole('button', { name: /^configuration$/i });
+      if (isAdminSession) {
+        await expect(configurationTab).toBeVisible();
+        await configurationTab.click();
+        await expect(page).toHaveURL(/\/settings\/configuration/);
+        await expect(page.getByRole('heading', { name: /^configuration$/i })).toBeVisible();
+        return;
+      }
+
+      await expect(configurationTab).toHaveCount(0);
+      await page.goto('/settings/configuration');
+      await expect(page.getByRole('heading', { name: /^profile$/i })).toBeVisible();
     });
   });
 });

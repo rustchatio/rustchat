@@ -4,19 +4,28 @@ import * as path from 'node:path';
 import { LoginPage } from '../pages/LoginPage';
 import { TEST_USERS, generateTestId } from '../fixtures/test-data';
 
-const ADMIN_STORAGE_STATE = path.resolve(process.cwd(), 'e2e/.auth/admin.json');
-let threadSuiteReady = true;
-
-fs.mkdirSync(path.dirname(ADMIN_STORAGE_STATE), { recursive: true });
-if (!fs.existsSync(ADMIN_STORAGE_STATE)) {
-  fs.writeFileSync(ADMIN_STORAGE_STATE, '{}', 'utf8');
+interface TestCredentials {
+  email: string;
+  password: string;
 }
 
-async function loginForApi(request: APIRequestContext): Promise<{ token: string; userId: string } | null> {
+const THREAD_STORAGE_STATE = path.resolve(process.cwd(), 'e2e/.auth/thread.json');
+let threadSuiteReady = true;
+let threadCredentials: TestCredentials | null = null;
+
+fs.mkdirSync(path.dirname(THREAD_STORAGE_STATE), { recursive: true });
+if (!fs.existsSync(THREAD_STORAGE_STATE)) {
+  fs.writeFileSync(THREAD_STORAGE_STATE, '{}', 'utf8');
+}
+
+async function loginForApi(
+  request: APIRequestContext,
+  credentials: TestCredentials
+): Promise<{ token: string; userId: string } | null> {
   const response = await request.post('/api/v1/auth/login', {
     data: {
-      email: TEST_USERS.admin.email,
-      password: TEST_USERS.admin.password,
+      email: credentials.email,
+      password: credentials.password,
     },
   });
   if (!response.ok()) return null;
@@ -114,20 +123,66 @@ async function fetchThreadFollowState(
   return null;
 }
 
+async function bootstrapThreadCredentials(request: APIRequestContext): Promise<TestCredentials | null> {
+  const uniqueId = generateTestId();
+  const candidate = {
+    email: `thread-${uniqueId}@example.com`,
+    username: `thread-${uniqueId}`,
+    password: 'ThreadPass123!',
+  };
+
+  const registerResponse = await request.post('/api/v1/auth/register', {
+    data: {
+      email: candidate.email,
+      username: candidate.username,
+      password: candidate.password,
+      confirm_password: candidate.password,
+      first_name: 'Thread',
+      last_name: 'E2E',
+    },
+  });
+
+  if (registerResponse.ok()) {
+    return {
+      email: candidate.email,
+      password: candidate.password,
+    };
+  }
+
+  const adminLoginResponse = await request.post('/api/v1/auth/login', {
+    data: {
+      email: TEST_USERS.admin.email,
+      password: TEST_USERS.admin.password,
+    },
+  });
+
+  if (!adminLoginResponse.ok()) return null;
+  return {
+    email: TEST_USERS.admin.email,
+    password: TEST_USERS.admin.password,
+  };
+}
+
 test.describe('Thread', () => {
   test.describe.configure({ mode: 'serial' });
-  test.use({ storageState: ADMIN_STORAGE_STATE });
+  test.use({ storageState: THREAD_STORAGE_STATE });
 
-  test.beforeAll(async ({ browser }) => {
+  test.beforeAll(async ({ browser, request }) => {
+    threadCredentials = await bootstrapThreadCredentials(request);
     const context = await browser.newContext({ storageState: undefined });
     const page = await context.newPage();
     const loginPage = new LoginPage(page);
 
     try {
+      if (!threadCredentials) {
+        threadSuiteReady = false;
+        await context.close();
+        return;
+      }
       await loginPage.goto();
-      await loginPage.login(TEST_USERS.admin.email, TEST_USERS.admin.password);
+      await loginPage.login(threadCredentials.email, threadCredentials.password);
       await loginPage.expectLoginSuccess();
-      await context.storageState({ path: ADMIN_STORAGE_STATE });
+      await context.storageState({ path: THREAD_STORAGE_STATE });
       threadSuiteReady = true;
     } catch {
       threadSuiteReady = false;
@@ -138,8 +193,11 @@ test.describe('Thread', () => {
 
   test('should follow and unfollow a thread and persist across refresh', async ({ page, request }) => {
     test.skip(!threadSuiteReady, 'Thread suite bootstrap login is unavailable in this environment.');
+    const creds = threadCredentials;
+    test.skip(!creds, 'No credentials are available in this environment.');
+    if (!creds) return;
 
-    const auth = await loginForApi(request);
+    const auth = await loginForApi(request, creds);
     test.skip(!auth, 'API login is unavailable in this environment.');
     if (!auth) return;
 

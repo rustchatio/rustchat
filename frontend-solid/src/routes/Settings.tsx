@@ -31,6 +31,24 @@ interface SettingsSection {
   adminOnly?: boolean;
 }
 
+interface CallsPluginSettings {
+  enabled: boolean;
+  turn_server_enabled: boolean;
+  turn_server_url: string;
+  turn_server_username: string;
+  turn_server_credential?: string | null;
+  udp_port: number;
+  tcp_port: number;
+  ice_host_override?: string | null;
+  stun_servers: string[];
+}
+
+interface CallsPluginConfigResponse {
+  plugin_id: string;
+  plugin_name: string;
+  settings: CallsPluginSettings;
+}
+
 const sections: SettingsSection[] = [
   { id: 'profile', label: 'Profile', icon: '👤' },
   { id: 'security', label: 'Security', icon: '🔒' },
@@ -526,6 +544,9 @@ function SecuritySettings() {
   const [passwordError, setPasswordError] = createSignal('');
   const [passwordSuccess, setPasswordSuccess] = createSignal(false);
   const [isSubmitting, setIsSubmitting] = createSignal(false);
+  const [isRevokingSessions, setIsRevokingSessions] = createSignal(false);
+  const [sessionsNotice, setSessionsNotice] = createSignal('');
+  const [sessionsNoticeType, setSessionsNoticeType] = createSignal<'success' | 'error'>('success');
 
   const handleChangePassword = async () => {
     setPasswordError('');
@@ -557,6 +578,42 @@ function SecuritySettings() {
       setPasswordError(error instanceof Error ? error.message : 'Failed to change password');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleRevokeOtherSessions = async () => {
+    const token = authStore.token;
+    if (!token) return;
+
+    setSessionsNotice('');
+    setIsRevokingSessions(true);
+    try {
+      const response = await fetch('/api/v4/users/sessions/revoke/all', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as
+          | { message?: string; error?: string; detailed_error?: string }
+          | null;
+        throw new Error(
+          payload?.message ||
+          payload?.error ||
+          payload?.detailed_error ||
+          'Failed to revoke other sessions'
+        );
+      }
+
+      setSessionsNotice('All other sessions have been revoked.');
+      setSessionsNoticeType('success');
+    } catch (error) {
+      setSessionsNotice(error instanceof Error ? error.message : 'Failed to revoke other sessions');
+      setSessionsNoticeType('error');
+    } finally {
+      setIsRevokingSessions(false);
     }
   };
 
@@ -627,6 +684,17 @@ function SecuritySettings() {
       <div class="p-6 bg-bg-surface-1 rounded-xl border border-border-1 space-y-4">
         <h3 class="font-semibold text-text-1">Active Sessions</h3>
         <p class="text-sm text-text-3">You're currently signed in on this device</p>
+        <Show when={sessionsNotice()}>
+          <div
+            class={`p-3 rounded-lg text-sm ${
+              sessionsNoticeType() === 'success'
+                ? 'bg-success/10 border border-success/20 text-success'
+                : 'bg-danger/10 border border-danger/20 text-danger'
+            }`}
+          >
+            {sessionsNotice()}
+          </div>
+        </Show>
 
         <div class="flex items-center justify-between p-3 bg-bg-app rounded-lg border border-border-1">
           <div class="flex items-center gap-3">
@@ -639,8 +707,8 @@ function SecuritySettings() {
           <span class="text-xs px-2 py-1 bg-success/10 text-success rounded-full">Active</span>
         </div>
 
-        <Button variant="danger" size="sm">
-          Sign Out All Other Sessions
+        <Button variant="danger" size="sm" onClick={handleRevokeOtherSessions} disabled={isRevokingSessions()}>
+          {isRevokingSessions() ? 'Revoking...' : 'Sign Out All Other Sessions'}
         </Button>
       </div>
 
@@ -773,6 +841,17 @@ function ConfigurationSettings() {
   const [allowRegistration, setAllowRegistration] = createSignal(false);
   const [siteConfig, setSiteConfig] = createSignal<Record<string, unknown> | null>(null);
   const [authConfig, setAuthConfig] = createSignal<Record<string, unknown> | null>(null);
+  const [callsPluginName, setCallsPluginName] = createSignal('RustChat Calls Plugin');
+  const [hasCallsPlugin, setHasCallsPlugin] = createSignal(false);
+  const [callsEnabled, setCallsEnabled] = createSignal(false);
+  const [turnEnabled, setTurnEnabled] = createSignal(false);
+  const [turnServerUrl, setTurnServerUrl] = createSignal('');
+  const [turnServerUsername, setTurnServerUsername] = createSignal('');
+  const [turnServerCredential, setTurnServerCredential] = createSignal('');
+  const [udpPort, setUdpPort] = createSignal(3478);
+  const [tcpPort, setTcpPort] = createSignal(3478);
+  const [iceHostOverride, setIceHostOverride] = createSignal('');
+  const [stunServersText, setStunServersText] = createSignal('');
 
   const parseErrorMessage = async (response: Response) => {
     try {
@@ -796,14 +875,19 @@ function ConfigurationSettings() {
     setNotice(null);
 
     try {
-      const response = await fetch('/api/v1/admin/config', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!response.ok) {
-        throw new Error(await parseErrorMessage(response));
+      const [configResponse, callsPluginResponse] = await Promise.all([
+        fetch('/api/v1/admin/config', {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+        fetch('/api/v1/admin/plugins/calls', {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
+      ]);
+      if (!configResponse.ok) {
+        throw new Error(await parseErrorMessage(configResponse));
       }
 
-      const payload = (await response.json()) as {
+      const payload = (await configResponse.json()) as {
         site?: Record<string, unknown>;
         authentication?: Record<string, unknown>;
       };
@@ -813,6 +897,23 @@ function ConfigurationSettings() {
       setAuthConfig(nextAuth);
       setSiteName(String(nextSite.site_name || ''));
       setAllowRegistration(Boolean(nextAuth.allow_registration));
+
+      if (callsPluginResponse.ok) {
+        const pluginPayload = (await callsPluginResponse.json()) as CallsPluginConfigResponse;
+        setHasCallsPlugin(true);
+        setCallsPluginName(pluginPayload.plugin_name || 'RustChat Calls Plugin');
+        setCallsEnabled(Boolean(pluginPayload.settings.enabled));
+        setTurnEnabled(Boolean(pluginPayload.settings.turn_server_enabled));
+        setTurnServerUrl(pluginPayload.settings.turn_server_url || '');
+        setTurnServerUsername(pluginPayload.settings.turn_server_username || '');
+        setTurnServerCredential('');
+        setUdpPort(Number(pluginPayload.settings.udp_port || 3478));
+        setTcpPort(Number(pluginPayload.settings.tcp_port || 3478));
+        setIceHostOverride(pluginPayload.settings.ice_host_override || '');
+        setStunServersText((pluginPayload.settings.stun_servers || []).join('\n'));
+      } else {
+        setHasCallsPlugin(false);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load configuration');
     } finally {
@@ -869,6 +970,38 @@ function ConfigurationSettings() {
         throw new Error(await parseErrorMessage(authResponse));
       }
 
+      if (hasCallsPlugin()) {
+        const normalizedStunServers = stunServersText()
+          .split(/[\n,]+/)
+          .map((entry) => entry.trim())
+          .filter((entry) => entry.length > 0);
+        const pluginPayload: Record<string, unknown> = {
+          enabled: callsEnabled(),
+          turn_server_enabled: turnEnabled(),
+          turn_server_url: turnServerUrl().trim(),
+          turn_server_username: turnServerUsername().trim(),
+          udp_port: Math.max(1, Math.floor(udpPort())),
+          tcp_port: Math.max(1, Math.floor(tcpPort())),
+          ice_host_override: iceHostOverride().trim() || null,
+          stun_servers: normalizedStunServers,
+        };
+        const normalizedCredential = turnServerCredential().trim();
+        if (normalizedCredential) {
+          pluginPayload.turn_server_credential = normalizedCredential;
+        }
+        const pluginResponse = await fetch('/api/v1/admin/plugins/calls', {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(pluginPayload),
+        });
+        if (!pluginResponse.ok) {
+          throw new Error(await parseErrorMessage(pluginResponse));
+        }
+      }
+
       setSiteConfig(nextSite);
       setAuthConfig(nextAuth);
       setNotice('Configuration saved.');
@@ -916,6 +1049,101 @@ function ConfigurationSettings() {
             checked={allowRegistration()}
             onChange={setAllowRegistration}
           />
+
+          <Show when={hasCallsPlugin()}>
+            <div class="space-y-4 border-t border-border-1 pt-4">
+              <div>
+                <h3 class="text-base font-semibold text-text-1">{callsPluginName()}</h3>
+                <p class="text-sm text-text-3 mt-0.5">Manage calls plugin and TURN/STUN settings</p>
+              </div>
+
+              <ToggleSetting
+                label="Enable Calls Plugin"
+                description="Controls whether the calls plugin is enabled"
+                checked={callsEnabled()}
+                onChange={setCallsEnabled}
+              />
+
+              <ToggleSetting
+                label="Enable TURN Server"
+                description="Use TURN relay for calls when direct media paths fail"
+                checked={turnEnabled()}
+                onChange={setTurnEnabled}
+              />
+
+              <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <label class="block">
+                  <span class="block text-sm font-medium text-text-2 mb-1.5">TURN Server URL</span>
+                  <input
+                    type="text"
+                    value={turnServerUrl()}
+                    onInput={(event) => setTurnServerUrl(event.currentTarget.value)}
+                    class="w-full px-3 py-2 bg-bg-app border border-border-1 rounded-lg text-text-1"
+                  />
+                </label>
+                <label class="block">
+                  <span class="block text-sm font-medium text-text-2 mb-1.5">TURN Username</span>
+                  <input
+                    type="text"
+                    value={turnServerUsername()}
+                    onInput={(event) => setTurnServerUsername(event.currentTarget.value)}
+                    class="w-full px-3 py-2 bg-bg-app border border-border-1 rounded-lg text-text-1"
+                  />
+                </label>
+                <label class="block">
+                  <span class="block text-sm font-medium text-text-2 mb-1.5">TURN Credential</span>
+                  <input
+                    type="password"
+                    value={turnServerCredential()}
+                    onInput={(event) => setTurnServerCredential(event.currentTarget.value)}
+                    placeholder="Leave blank to keep existing value"
+                    class="w-full px-3 py-2 bg-bg-app border border-border-1 rounded-lg text-text-1"
+                  />
+                </label>
+                <label class="block">
+                  <span class="block text-sm font-medium text-text-2 mb-1.5">ICE Host Override</span>
+                  <input
+                    type="text"
+                    value={iceHostOverride()}
+                    onInput={(event) => setIceHostOverride(event.currentTarget.value)}
+                    placeholder="Optional public host"
+                    class="w-full px-3 py-2 bg-bg-app border border-border-1 rounded-lg text-text-1"
+                  />
+                </label>
+                <label class="block">
+                  <span class="block text-sm font-medium text-text-2 mb-1.5">UDP Port</span>
+                  <input
+                    type="number"
+                    min="1"
+                    value={udpPort()}
+                    onInput={(event) => setUdpPort(Number(event.currentTarget.value))}
+                    class="w-full px-3 py-2 bg-bg-app border border-border-1 rounded-lg text-text-1"
+                  />
+                </label>
+                <label class="block">
+                  <span class="block text-sm font-medium text-text-2 mb-1.5">TCP Port</span>
+                  <input
+                    type="number"
+                    min="1"
+                    value={tcpPort()}
+                    onInput={(event) => setTcpPort(Number(event.currentTarget.value))}
+                    class="w-full px-3 py-2 bg-bg-app border border-border-1 rounded-lg text-text-1"
+                  />
+                </label>
+              </div>
+
+              <label class="block">
+                <span class="block text-sm font-medium text-text-2 mb-1.5">STUN Servers</span>
+                <textarea
+                  rows={3}
+                  value={stunServersText()}
+                  onInput={(event) => setStunServersText(event.currentTarget.value)}
+                  placeholder="One server per line (or comma-separated)"
+                  class="w-full px-3 py-2 bg-bg-app border border-border-1 rounded-lg text-text-1"
+                />
+              </label>
+            </div>
+          </Show>
 
           <div class="flex flex-wrap items-center gap-3">
             <Button

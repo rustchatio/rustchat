@@ -120,6 +120,18 @@ Implemented in this pass:
    - username-specific backend validation conflicts now surface inline on the username field while preserving unsaved local edits.
 10. Thread follow regression coverage:
    - added dedicated Playwright thread follow/unfollow persistence scenario (`frontend-solid/e2e/tests/thread.spec.ts`) with environment-aware skip behavior.
+11. Admin workflow depth extension:
+   - added membership policy admin surface with real API wiring (policy list, enable/disable, and audit summary).
+12. Settings security parity extension:
+   - wired “Sign Out All Other Sessions” to real API endpoint (`POST /api/v4/users/sessions/revoke/all`) with inline result feedback.
+13. E2E resilience extension:
+   - reduced hard admin-credential dependency in auth/thread E2E bootstrap by preferring transient registered users where available.
+14. Admin email parity extension:
+   - added outbox action controls in Admin Email section (retry failed entries, cancel queued entries) with inline feedback and refresh.
+15. Settings plugin parity extension:
+   - added calls-plugin configuration controls in settings overlay (`/settings/configuration`) using `GET/PUT /api/v1/admin/plugins/calls`.
+16. Backend route safety correction:
+   - removed duplicate v1 router mounts for membership-policy and admin-audit routers that caused overlapping-route panics in integration environments.
 
 ---
 

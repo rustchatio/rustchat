@@ -21,6 +21,8 @@ export class SettingsPage {
   readonly newPasswordInput: Locator;
   readonly confirmPasswordInput: Locator;
   readonly changePasswordButton: Locator;
+  readonly signOutOtherSessionsButton: Locator;
+  readonly sessionsNotice: Locator;
 
   // Display section
   readonly themeButtons: Locator;
@@ -46,6 +48,8 @@ export class SettingsPage {
     this.newPasswordInput = page.getByPlaceholder(/enter new password/i);
     this.confirmPasswordInput = page.getByPlaceholder(/confirm new password/i);
     this.changePasswordButton = page.getByRole('button', { name: /change password|update password/i });
+    this.signOutOtherSessionsButton = page.getByRole('button', { name: /sign out all other sessions|revoking/i });
+    this.sessionsNotice = page.getByText(/all other sessions have been revoked|failed to revoke other sessions/i).first();
 
     this.themeButtons = page.getByRole('button', { name: /light|dark|system/i });
     this.densitySelect = page.getByLabel(/density|compact/i);
@@ -67,7 +71,7 @@ export class SettingsPage {
     await expect(this.page.getByRole('heading', { name: /settings/i })).toBeVisible();
   }
 
-  async navigateToSection(section: 'profile' | 'security' | 'notifications' | 'display' | 'sidebar' | 'sounds' | 'advanced') {
+  async navigateToSection(section: 'profile' | 'security' | 'notifications' | 'configuration' | 'display' | 'sidebar' | 'sounds' | 'advanced') {
     const trigger = this.page.getByRole('button', { name: new RegExp(`\\b${section}\\b`, 'i') }).first();
     await trigger.click();
     await expect(this.page).toHaveURL(new RegExp(`/settings/${section}`));
