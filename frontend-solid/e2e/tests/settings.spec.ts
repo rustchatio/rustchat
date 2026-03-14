@@ -31,9 +31,24 @@ test.describe('Settings', () => {
       await settingsPage.expectSaveSuccess();
     });
 
+    test('should persist profile username after refresh', async ({ page }) => {
+      const settingsPage = new SettingsPage(page);
+      await settingsPage.navigateToSection('profile');
+
+      const uniqueId = generateTestId();
+      const username = `admin-${uniqueId}`;
+      await settingsPage.updateProfile({ username });
+      await settingsPage.expectSaveSuccess();
+
+      await page.reload();
+      await settingsPage.navigateToSection('profile');
+      await expect(settingsPage.usernameInput).toHaveValue(username);
+    });
+
     test('should validate required fields', async ({ page }) => {
       const settingsPage = new SettingsPage(page);
       await settingsPage.navigateToSection('profile');
+      await settingsPage.enableProfileEditing();
       
       // Clear required field
       await settingsPage.usernameInput.fill('');
@@ -49,8 +64,7 @@ test.describe('Settings', () => {
       const settingsPage = new SettingsPage(page);
       await settingsPage.navigateToSection('security');
       
-      const newPassword = `NewPass-${generateTestId()}!`;
-      await settingsPage.changePassword(TEST_USERS.admin.password, newPassword);
+      await settingsPage.changePassword(TEST_USERS.admin.password, TEST_USERS.admin.password);
       
       await settingsPage.expectSaveSuccess();
     });
@@ -127,7 +141,7 @@ test.describe('Settings', () => {
 
     test('should toggle sound notifications', async ({ page }) => {
       const settingsPage = new SettingsPage(page);
-      await settingsPage.navigateToSection('notifications');
+      await settingsPage.navigateToSection('sounds');
       
       // Toggle sound notifications
       await settingsPage.soundNotificationsToggle.click();
@@ -155,12 +169,18 @@ test.describe('Settings', () => {
     });
 
     test('should return to app from settings', async ({ page }) => {
-      // Look for back button or link
-      const backButton = page.getByRole('link', { name: /back|channels|home/i }).first();
-      await backButton.click();
+      const settingsPage = new SettingsPage(page);
+      await settingsPage.closeSettings();
       
       // Should be back at channels
-      await expect(page).toHaveURL(/\/channels\/|\/settings\//);
+      await expect(page).toHaveURL(/\/channels\/|\/$/);
+    });
+
+    test('should close settings overlay from protected deep-link route', async ({ page }) => {
+      await page.goto('/settings/profile');
+      const settingsPage = new SettingsPage(page);
+      await settingsPage.closeSettings();
+      await expect(page).not.toHaveURL(/\/settings\//);
     });
   });
 });

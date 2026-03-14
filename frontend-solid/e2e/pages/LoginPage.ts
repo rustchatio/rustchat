@@ -13,8 +13,8 @@ export class LoginPage {
 
   constructor(page: Page) {
     this.page = page;
-    this.emailInput = page.getByLabel(/^Email$/i);
-    this.passwordInput = page.getByLabel(/^Password$/i);
+    this.emailInput = page.getByLabel(/email/i);
+    this.passwordInput = page.getByLabel(/password/i);
     this.loginButton = page.getByRole('button', { name: /sign in|login/i });
     this.errorMessage = page.locator('div[role="alert"]').filter({ hasText: /.+/ }).first();
     this.registerLink = page.getByRole('link', { name: /register|sign up|create account/i });

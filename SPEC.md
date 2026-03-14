@@ -92,6 +92,27 @@ Manual:
 3. Settings appears as overlay with functional deep linking and history behavior.
 4. Gap register for remaining parity issues is explicit and prioritized.
 
+## Phase B Final Implementation Addendum (2026-03-14)
+
+Implemented in this pass:
+
+1. Admin role-gating hardening:
+   - `isAdminRole` now supports multi-role strings (space/comma separated) instead of exact single-value matching.
+2. Settings close-loop determinism:
+   - close fallback order is now deterministic and avoids auth-history bounce loops:
+     - stored non-settings return target
+     - current/default channel
+     - `/`
+3. Profile persistence hardening:
+   - settings profile form now rehydrates from latest auth user when not editing, preventing stale post-save values.
+4. Security settings completion:
+   - wired real password change API call in frontend.
+   - upgraded v1 backend password-change contract to require `current_password` and validate it before update.
+5. Thread parity completion:
+   - removed hardcoded `isFollowing={false}`; thread follow state now loads and updates via API.
+6. Regression baseline alignment:
+   - updated Playwright auth/register/settings page objects and settings tests to match current UI semantics.
+
 ---
 
 # SPEC: WebSocket Auth Expiry Enforcement (2026-03-13)

@@ -185,6 +185,7 @@ pub struct UpdateUser {
 /// DTO for changing password
 #[derive(Debug, Clone, Deserialize)]
 pub struct ChangePassword {
+    pub current_password: String,
     pub new_password: String,
 }
 
@@ -201,4 +202,29 @@ pub struct AuthResponse {
     pub token_type: String,
     pub expires_in: u64,
     pub user: UserResponse,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ChangePassword;
+
+    #[test]
+    fn change_password_requires_current_password() {
+        let payload = serde_json::json!({
+            "new_password": "Password123!"
+        });
+        let parsed = serde_json::from_value::<ChangePassword>(payload);
+        assert!(parsed.is_err());
+    }
+
+    #[test]
+    fn change_password_parses_with_required_fields() {
+        let payload = serde_json::json!({
+            "current_password": "OldPassword123!",
+            "new_password": "Password123!"
+        });
+        let parsed = serde_json::from_value::<ChangePassword>(payload).unwrap();
+        assert_eq!(parsed.current_password, "OldPassword123!");
+        assert_eq!(parsed.new_password, "Password123!");
+    }
 }

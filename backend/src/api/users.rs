@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use super::AppState;
 use crate::auth::policy::permissions;
-use crate::auth::{hash_password, AuthUser};
+use crate::auth::{hash_password, verify_password, AuthUser};
 use crate::error::{ApiResult, AppError};
 use crate::models::{ChangePassword, UpdateUser, User, UserResponse};
 
@@ -260,11 +260,25 @@ async fn change_password(
         ));
     }
 
-    // Fetch user with current password hash (still needed to ensure user exists and for other potential logic)
-    let _user: User = sqlx::query_as("SELECT * FROM users WHERE id = $1")
+    if input.current_password.trim().is_empty() {
+        return Err(AppError::BadRequest(
+            "Current password is required".to_string(),
+        ));
+    }
+
+    // Fetch user with current password hash
+    let user: User = sqlx::query_as("SELECT * FROM users WHERE id = $1")
         .bind(id)
         .fetch_one(&state.db)
         .await?;
+
+    let password_hash = user
+        .password_hash
+        .as_deref()
+        .ok_or_else(|| AppError::BadRequest("No existing password to change".to_string()))?;
+    if !verify_password(&input.current_password, password_hash)? {
+        return Err(AppError::BadRequest("Invalid current password".to_string()));
+    }
 
     // Validate new password complexity
     let config = crate::services::auth_config::get_password_rules(&state.db).await?;

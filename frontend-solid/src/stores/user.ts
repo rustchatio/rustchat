@@ -183,7 +183,7 @@ export async function updateProfile(updates: Partial<UserProfile>): Promise<void
   }
 }
 
-export async function changePassword(newPassword: string): Promise<void> {
+export async function changePassword(currentPassword: string, newPassword: string): Promise<void> {
   const userId = authStore.user()?.id;
   if (!userId) throw new Error('Not authenticated');
 
@@ -198,7 +198,10 @@ export async function changePassword(newPassword: string): Promise<void> {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ new_password: newPassword }),
+      body: JSON.stringify({
+        current_password: currentPassword,
+        new_password: newPassword,
+      }),
     });
 
     if (!response.ok) {

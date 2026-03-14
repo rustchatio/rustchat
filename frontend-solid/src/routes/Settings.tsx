@@ -2,10 +2,16 @@
 // Settings Route - User Settings Framework
 // ============================================
 
-import { Show, For, createSignal, createMemo, onMount, onCleanup } from 'solid-js';
+import { Show, For, createSignal, createMemo, createEffect, onMount, onCleanup } from 'solid-js';
 import { useNavigate, useLocation } from '@solidjs/router';
 import { logout, authStore } from '../stores/auth';
-import { userStore, updatePreferences, resetPreferences, updateProfile } from '../stores/user';
+import {
+  userStore,
+  updatePreferences,
+  resetPreferences,
+  updateProfile,
+  changePassword,
+} from '../stores/user';
 import { useTheme, AVAILABLE_THEMES } from '../stores/theme';
 import { resolveDefaultChannelPath, channelStore } from '../stores/channels';
 import { isAdminRole } from '../utils/roles';
@@ -37,6 +43,23 @@ const sections: SettingsSection[] = [
 ];
 const SETTINGS_RETURN_KEY = 'rustchat_settings_return_to';
 
+function normalizeReturnPath(path: string | null | undefined): string | null {
+  if (!path || !path.startsWith('/') || path.startsWith('//')) {
+    return null;
+  }
+
+  try {
+    const parsed = new URL(path, window.location.origin);
+    const normalized = `${parsed.pathname}${parsed.search}${parsed.hash}`;
+    if (parsed.pathname.startsWith('/settings') || parsed.pathname.startsWith('/login')) {
+      return null;
+    }
+    return normalized;
+  } catch {
+    return null;
+  }
+}
+
 // ============================================
 // Main Settings Component
 // ============================================
@@ -60,35 +83,27 @@ export default function Settings() {
   };
 
   const closeSettings = async () => {
-    let fallbackPath: string | null = null;
+    let explicitReturnPath: string | null = null;
     try {
-      const stored = sessionStorage.getItem(SETTINGS_RETURN_KEY);
-      if (stored && stored.startsWith('/') && !stored.startsWith('/settings')) {
-        fallbackPath = stored;
-      } else {
-        const selectedChannelId = channelStore.currentChannelId();
-        if (selectedChannelId) {
-          fallbackPath = `/channels/${selectedChannelId}`;
-        } else {
-          fallbackPath = await resolveDefaultChannelPath();
-        }
-      }
+      explicitReturnPath = normalizeReturnPath(sessionStorage.getItem(SETTINGS_RETURN_KEY));
       sessionStorage.removeItem(SETTINGS_RETURN_KEY);
     } catch {
-      fallbackPath = await resolveDefaultChannelPath();
+      explicitReturnPath = null;
     }
 
-    if (fallbackPath && fallbackPath !== location.pathname) {
-      navigate(fallbackPath, { replace: true });
+    if (explicitReturnPath && explicitReturnPath !== location.pathname) {
+      navigate(explicitReturnPath, { replace: true });
       return;
     }
 
-    if (window.history.length > 1) {
-      navigate(-1);
+    const selectedChannelId = channelStore.currentChannelId();
+    if (selectedChannelId) {
+      navigate(`/channels/${selectedChannelId}`, { replace: true });
       return;
     }
 
-    navigate(isAdmin() ? '/admin' : '/', { replace: true });
+    const defaultPath = await resolveDefaultChannelPath();
+    navigate(defaultPath || '/', { replace: true });
   };
 
   onMount(() => {
@@ -249,6 +264,22 @@ function ProfileSettings() {
   const [isSaving, setIsSaving] = createSignal(false);
   const [saveError, setSaveError] = createSignal('');
   const [saveSuccess, setSaveSuccess] = createSignal(false);
+  const syncFromUser = () => {
+    const current = user();
+    if (!current) return;
+    setUsername(current.username || '');
+    setDisplayName(current.display_name || '');
+    setFirstName(current.first_name || '');
+    setLastName(current.last_name || '');
+    setPosition(current.position || '');
+  };
+
+  createEffect(() => {
+    user();
+    if (!isEditing()) {
+      syncFromUser();
+    }
+  });
 
   const initials = createMemo(() => {
     const u = user();
@@ -278,6 +309,7 @@ function ProfileSettings() {
         last_name: lastName().trim(),
         position: position().trim(),
       });
+      syncFromUser();
       setSaveSuccess(true);
       setIsEditing(false);
     } catch (error) {
@@ -338,11 +370,7 @@ function ProfileSettings() {
             onClick={() => {
               if (isEditing()) {
                 setIsEditing(false);
-                setUsername(user()?.username || '');
-                setDisplayName(user()?.display_name || '');
-                setFirstName(user()?.first_name || '');
-                setLastName(user()?.last_name || '');
-                setPosition(user()?.position || '');
+                syncFromUser();
                 setSaveError('');
                 setSaveSuccess(false);
                 return;
@@ -450,11 +478,7 @@ function ProfileSettings() {
               variant="ghost"
               onClick={() => {
                 setIsEditing(false);
-                setUsername(user()?.username || '');
-                setDisplayName(user()?.display_name || '');
-                setFirstName(user()?.first_name || '');
-                setLastName(user()?.last_name || '');
-                setPosition(user()?.position || '');
+                syncFromUser();
                 setSaveError('');
                 setSaveSuccess(false);
               }}
@@ -478,6 +502,7 @@ function SecuritySettings() {
   const [confirmPassword, setConfirmPassword] = createSignal('');
   const [passwordError, setPasswordError] = createSignal('');
   const [passwordSuccess, setPasswordSuccess] = createSignal(false);
+  const [isSubmitting, setIsSubmitting] = createSignal(false);
 
   const handleChangePassword = async () => {
     setPasswordError('');
@@ -498,12 +523,18 @@ function SecuritySettings() {
       return;
     }
 
-    // TODO: Implement API call
-    console.log('Changing password...');
-    setPasswordSuccess(true);
-    setCurrentPassword('');
-    setNewPassword('');
-    setConfirmPassword('');
+    setIsSubmitting(true);
+    try {
+      await changePassword(currentPassword(), newPassword());
+      setPasswordSuccess(true);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (error) {
+      setPasswordError(error instanceof Error ? error.message : 'Failed to change password');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -563,8 +594,8 @@ function SecuritySettings() {
         </div>
 
         <div class="pt-2">
-          <Button variant="primary" onClick={handleChangePassword}>
-            Change Password
+          <Button variant="primary" onClick={handleChangePassword} disabled={isSubmitting()}>
+            {isSubmitting() ? 'Changing...' : 'Change Password'}
           </Button>
         </div>
       </div>

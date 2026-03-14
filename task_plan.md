@@ -29,6 +29,12 @@
 - [x] Phase B.3 slice: replaced admin `security/compliance/audit` placeholders with endpoint-backed sections (`frontend-solid/src/routes/Admin.tsx`).
 - [x] Phase B.4 slice: fixed settings close-loop fallback by resolving non-settings destinations before closing overlay (`frontend-solid/src/routes/Settings.tsx`, `frontend-solid/src/App.tsx`).
 - [x] Phase B.4 slice: implemented real profile save flow (username/display name + backend support for first/last/nickname/position) (`frontend-solid/src/routes/Settings.tsx`, `frontend-solid/src/stores/user.ts`, `backend/src/models/user.rs`, `backend/src/api/users.rs`).
+- [x] Phase B Final slice: hardened admin role gating for multi-role strings (`frontend-solid/src/utils/roles.ts`, `frontend-solid/tests/auth/authRedirect.test.ts`).
+- [x] Phase B Final slice: made settings close behavior deterministic and auth-loop safe (`frontend-solid/src/routes/Settings.tsx`).
+- [x] Phase B Final slice: added profile form rehydrate sync with latest auth profile (`frontend-solid/src/routes/Settings.tsx`).
+- [x] Phase B Final slice: implemented security password change API flow and v1 current-password validation contract (`frontend-solid/src/routes/Settings.tsx`, `frontend-solid/src/stores/user.ts`, `backend/src/models/user.rs`, `backend/src/api/users.rs`).
+- [x] Phase B Final slice: implemented API-backed thread follow/unfollow state (`frontend-solid/src/routes/Thread.tsx`).
+- [x] Phase B Final slice: aligned auth/register/settings Playwright selectors and settings parity scenarios (`frontend-solid/e2e/pages/LoginPage.ts`, `frontend-solid/e2e/pages/RegisterPage.ts`, `frontend-solid/e2e/pages/SettingsPage.ts`, `frontend-solid/e2e/tests/auth.spec.ts`, `frontend-solid/e2e/tests/settings.spec.ts`).
 
 ### Verification Status
 1. `cd frontend-solid && npm run test -- tests/auth/authRedirect.test.ts`
@@ -73,6 +79,21 @@
 14. `cd frontend-solid && PLAYWRIGHT_WEB_SERVER=1 npm run test:e2e -- e2e/tests/auth.spec.ts --project=chromium --grep "redirect to login when accessing (protected route|settings) unauthenticated"`
 - Result: PASS (2/2) after Phase B.4 changes.
 
+15. `cd frontend-solid && npm run build`
+- Result: PASS after Phase B Final parity fixes.
+
+16. `cd backend && cargo check`
+- Result: PASS after password contract update (warnings only in unrelated files).
+
+17. `cd backend && cargo test --lib change_password_ -- --nocapture`
+- Result: PASS (2/2) for password contract unit tests.
+
+18. `cd frontend-solid && npm run test -- tests/auth/authRedirect.test.ts`
+- Result: PASS (includes multi-role admin helper coverage).
+
+19. `cd frontend-solid && PLAYWRIGHT_WEB_SERVER=1 npm run test:e2e -- e2e/tests/auth.spec.ts e2e/tests/settings.spec.ts --project=chromium`
+- Result: FAIL/PARTIAL in local-only mode. Selectors now match current UI, but login-dependent tests still fail without live auth backend data/fixtures.
+
 ### Manual Verification Commands
 1. `cd frontend-solid && npm run dev`
 2. Login redirect parity:
@@ -85,6 +106,11 @@
    - From a channel page, open Settings from user menu and verify modal/overlay presentation.
    - Verify `Esc`, backdrop click, and close button close settings and return to prior location.
    - Open `/settings/notifications` directly and verify the notifications section opens in the overlay.
+5. Profile + security parity:
+   - In `/settings/profile`, click `Edit`, change username, click `Save Changes`, refresh page, and verify username remains updated.
+   - In `/settings/security`, submit wrong current password and verify error; submit correct current password and verify success.
+6. Thread follow parity:
+   - Open a thread, toggle follow/unfollow in thread header, refresh thread route, verify state persists.
 
 ## 2026-03-13 WebSocket Token Expiry Enforcement
 

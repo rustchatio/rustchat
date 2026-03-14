@@ -2,7 +2,7 @@
 // Thread Route - Thread View
 // ============================================
 
-import { createEffect, createMemo, Show } from 'solid-js';
+import { createEffect, createMemo, createSignal, Show } from 'solid-js';
 import { useParams, useNavigate } from '@solidjs/router';
 
 import {
@@ -16,6 +16,7 @@ import {
   deleteMessage,
 } from '../stores/messages';
 import { authStore } from '../stores/auth';
+import { channelStore, fetchChannel } from '../stores/channels';
 
 // Components
 import { ThreadView } from '../components/messages';
@@ -29,6 +30,8 @@ export default function Thread() {
   const navigate = useNavigate();
   const channelId = () => params.channelId;
   const threadId = () => params.threadId;
+  const [teamId, setTeamId] = createSignal<string | null>(null);
+  const [isFollowing, setIsFollowing] = createSignal(false);
 
   // Get replies and root message
   const replies = createMemo(() => {
@@ -61,6 +64,67 @@ export default function Thread() {
     }
   });
 
+  createEffect(() => {
+    const cid = channelId();
+    if (!cid) {
+      setTeamId(null);
+      return;
+    }
+
+    const existing = channelStore.getChannel(cid);
+    if (existing?.team_id) {
+      setTeamId(existing.team_id);
+      return;
+    }
+
+    void fetchChannel(cid)
+      .then((channel) => {
+        setTeamId(channel.team_id);
+      })
+      .catch(() => {
+        setTeamId(null);
+      });
+  });
+
+  const loadFollowing = async () => {
+    const userId = authStore.user()?.id;
+    const token = authStore.token;
+    const tid = threadId();
+    const currentTeamId = teamId();
+    if (!userId || !token || !tid || !currentTeamId) {
+      setIsFollowing(false);
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `/api/v4/users/${encodeURIComponent(userId)}/teams/${encodeURIComponent(currentTeamId)}/threads/${encodeURIComponent(tid)}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      if (!response.ok) {
+        setIsFollowing(false);
+        return;
+      }
+      const payload = (await response.json()) as {
+        is_following?: boolean;
+        isFollowing?: boolean;
+      };
+      setIsFollowing(Boolean(payload.is_following ?? payload.isFollowing));
+    } catch {
+      setIsFollowing(false);
+    }
+  };
+
+  createEffect(() => {
+    threadId();
+    teamId();
+    authStore.user()?.id;
+    authStore.token;
+    void loadFollowing();
+  });
+
   // Handle sending a reply
   const handleSendReply = async (content: string) => {
     const cid = channelId();
@@ -73,6 +137,45 @@ export default function Thread() {
   // Handle close
   const handleClose = () => {
     navigate(`/channels/${channelId()}`, { replace: true });
+  };
+
+  const setFollowingState = async (follow: boolean) => {
+    const userId = authStore.user()?.id;
+    const token = authStore.token;
+    const tid = threadId();
+    const currentTeamId = teamId();
+    if (!userId || !token || !tid || !currentTeamId) return;
+
+    const method = follow ? 'PUT' : 'DELETE';
+    const response = await fetch(
+      `/api/v4/users/${encodeURIComponent(userId)}/teams/${encodeURIComponent(currentTeamId)}/threads/${encodeURIComponent(tid)}/following`,
+      {
+        method,
+        headers: { Authorization: `Bearer ${token}` },
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error('Failed to update thread follow state');
+    }
+
+    const payload = (await response.json()) as {
+      is_following?: boolean;
+      isFollowing?: boolean;
+    };
+    if (typeof payload.is_following === 'boolean' || typeof payload.isFollowing === 'boolean') {
+      setIsFollowing(Boolean(payload.is_following ?? payload.isFollowing));
+    } else {
+      setIsFollowing(follow);
+    }
+  };
+
+  const handleFollowThread = async () => {
+    await setFollowingState(true);
+  };
+
+  const handleUnfollowThread = async () => {
+    await setFollowingState(false);
   };
 
   // Handle add reaction
@@ -113,11 +216,13 @@ export default function Thread() {
           replies={replies().filter((r) => r.id !== threadId())}
           isLoading={messageStore.isLoading()}
           currentUserId={authStore.user()?.id}
-          isFollowing={false} // TODO: Add thread following to store
+          isFollowing={isFollowing()}
           onClose={handleClose}
           onSendReply={handleSendReply}
           onAddReaction={handleAddReaction}
           onRemoveReaction={handleRemoveReaction}
+          onFollowThread={handleFollowThread}
+          onUnfollowThread={handleUnfollowThread}
           onEdit={handleEdit}
           onDelete={handleDelete}
         />

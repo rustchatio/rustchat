@@ -13,6 +13,8 @@ export class SettingsPage {
   readonly usernameInput: Locator;
   readonly emailInput: Locator;
   readonly saveProfileButton: Locator;
+  readonly editProfileButton: Locator;
+  readonly closeButton: Locator;
 
   // Security section
   readonly currentPasswordInput: Locator;
@@ -32,11 +34,13 @@ export class SettingsPage {
     this.page = page;
     this.sidebar = page.locator('[data-testid="settings-sidebar"]').first();
     
-    this.firstNameInput = page.getByLabel(/first name/i);
-    this.lastNameInput = page.getByLabel(/last name/i);
-    this.usernameInput = page.getByLabel(/username/i);
-    this.emailInput = page.getByLabel(/email/i).first();
-    this.saveProfileButton = page.getByRole('button', { name: /save|update profile/i });
+    this.firstNameInput = page.locator('label:has-text("First Name") + input');
+    this.lastNameInput = page.locator('label:has-text("Last Name") + input');
+    this.usernameInput = page.locator('label:has-text("Username") + input');
+    this.emailInput = page.locator('label:has-text("Email") + input').first();
+    this.editProfileButton = page.getByRole('button', { name: /^Edit$/i }).first();
+    this.saveProfileButton = page.getByRole('button', { name: /save changes|save/i }).first();
+    this.closeButton = page.getByRole('button', { name: /close settings/i }).first();
 
     this.currentPasswordInput = page.getByLabel(/current password/i);
     this.newPasswordInput = page.getByLabel(/new password/i);
@@ -46,8 +50,16 @@ export class SettingsPage {
     this.themeButtons = page.getByRole('button', { name: /light|dark|system/i });
     this.densitySelect = page.getByLabel(/density|compact/i);
 
-    this.desktopNotificationsToggle = page.getByLabel(/desktop notifications/i);
-    this.soundNotificationsToggle = page.getByLabel(/sound|play sounds/i);
+    this.desktopNotificationsToggle = page
+      .locator('h3:has-text("Desktop Notifications")')
+      .locator('..')
+      .locator('input[type="checkbox"]')
+      .first();
+    this.soundNotificationsToggle = page
+      .locator('h3:has-text("Enable Sounds")')
+      .locator('..')
+      .locator('input[type="checkbox"]')
+      .first();
   }
 
   async goto() {
@@ -61,7 +73,14 @@ export class SettingsPage {
     await expect(this.page).toHaveURL(new RegExp(`/settings/${section}`));
   }
 
+  async enableProfileEditing() {
+    if (await this.editProfileButton.isVisible()) {
+      await this.editProfileButton.click();
+    }
+  }
+
   async updateProfile(data: { firstName?: string; lastName?: string; username?: string }) {
+    await this.enableProfileEditing();
     if (data.firstName) await this.firstNameInput.fill(data.firstName);
     if (data.lastName) await this.lastNameInput.fill(data.lastName);
     if (data.username) await this.usernameInput.fill(data.username);
@@ -80,8 +99,11 @@ export class SettingsPage {
     await themeButton.click();
   }
 
+  async closeSettings() {
+    await this.closeButton.click();
+  }
+
   async expectSaveSuccess() {
-    const toast = this.page.getByRole('status').filter({ hasText: /saved|success|updated/i });
-    await expect(toast).toBeVisible();
+    await expect(this.page.getByText(/saved|success|updated/i).first()).toBeVisible();
   }
 }

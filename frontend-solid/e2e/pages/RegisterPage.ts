@@ -17,8 +17,8 @@ export class RegisterPage {
 
   constructor(page: Page) {
     this.page = page;
-    this.emailInput = page.getByLabel(/^Email$/i);
-    this.usernameInput = page.getByLabel(/^Username$/i);
+    this.emailInput = page.getByLabel(/email/i);
+    this.usernameInput = page.getByLabel(/username/i);
     this.passwordInput = page.locator('input#password');
     this.confirmPasswordInput = page.locator('input#confirmPassword');
     this.firstNameInput = page.getByLabel(/first name/i);

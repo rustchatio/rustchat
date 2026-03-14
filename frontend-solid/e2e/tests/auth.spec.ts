@@ -32,6 +32,16 @@ test.describe('Authentication', () => {
       await loginPage.goto();
       await loginPage.gotoRegister();
     });
+
+    test('should expose admin console entry for admin users', async ({ page }) => {
+      const loginPage = new LoginPage(page);
+      await loginPage.goto();
+      await loginPage.login(TEST_USERS.admin.email, TEST_USERS.admin.password);
+      await loginPage.expectLoginSuccess();
+
+      await page.getByRole('button', { name: /user menu/i }).click();
+      await expect(page.getByRole('button', { name: /admin console/i })).toBeVisible();
+    });
   });
 
   test.describe('Registration', () => {

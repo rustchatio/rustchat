@@ -29,11 +29,14 @@ describe('admin role checks', () => {
     expect(isAdminRole('org_admin')).toBe(true);
     expect(isAdminRole('admin')).toBe(true);
     expect(isAdminRole('administrator')).toBe(true);
+    expect(isAdminRole('member system_admin')).toBe(true);
+    expect(isAdminRole('member,org_admin')).toBe(true);
   });
 
   it('rejects non-admin roles', () => {
     expect(isAdminRole('team_admin')).toBe(false);
     expect(isAdminRole('member')).toBe(false);
+    expect(isAdminRole('guest,member')).toBe(false);
     expect(isAdminRole(undefined)).toBe(false);
   });
 });
