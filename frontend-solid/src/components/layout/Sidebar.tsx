@@ -57,6 +57,9 @@ interface DirectMessageCandidate {
   avatar_url?: string | null;
 }
 
+const DEFAULT_TEAM_NAME = 'rustchat';
+const DEFAULT_TEAM_DISPLAY_NAME = 'RustChat';
+
 function normalizeTeams(payload: unknown): TeamOption[] {
   if (!Array.isArray(payload)) return [];
   return payload.filter((team): team is TeamOption => {
@@ -80,6 +83,52 @@ async function fetchTeamsWithBootstrap(): Promise<TeamOption[]> {
   }
 
   await client.get('/auth/me');
+  teams = await requestTeams();
+  if (teams.length > 0) {
+    return teams;
+  }
+
+  // Recovery path: user has no current team memberships.
+  // 1) Join an open public team if one exists (prefer "rustchat").
+  try {
+    const publicResponse = await client.get<TeamOption[]>('/teams/public');
+    const publicTeams = normalizeTeams(publicResponse.data);
+    const joinTarget =
+      publicTeams.find((team) => team.name.toLowerCase() === DEFAULT_TEAM_NAME) ||
+      publicTeams[0];
+
+    if (joinTarget) {
+      await client.post(`/teams/${joinTarget.id}/join`);
+      teams = await requestTeams();
+      if (teams.length > 0) {
+        return teams;
+      }
+    }
+  } catch (error) {
+    console.warn('Failed to auto-join public team during bootstrap', error);
+  }
+
+  // 2) If still empty, create a default workspace team for this user.
+  try {
+    await client.post('/teams', {
+      name: DEFAULT_TEAM_NAME,
+      display_name: DEFAULT_TEAM_DISPLAY_NAME,
+      description: 'Default RustChat workspace',
+    });
+  } catch (error) {
+    const conflictName = `${DEFAULT_TEAM_NAME}-${Date.now().toString(36)}`;
+    try {
+      await client.post('/teams', {
+        name: conflictName,
+        display_name: DEFAULT_TEAM_DISPLAY_NAME,
+        description: 'Default RustChat workspace',
+      });
+    } catch (fallbackError) {
+      // Ignore create conflicts/races and continue with a final refresh.
+      console.warn('Failed to auto-create default team during bootstrap', error, fallbackError);
+    }
+  }
+
   teams = await requestTeams();
   return teams;
 }

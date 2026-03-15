@@ -121,6 +121,12 @@
 - [x] Phase B Final closure: added settings overlay calls-plugin configuration controls (TURN/STUN) backed by `/api/v1/admin/plugins/calls` (`frontend-solid/src/routes/Settings.tsx`).
 - [x] Phase B Final closure: added settings admin-configuration gating regression checks and stronger security negative-path contract assertion in E2E (`frontend-solid/e2e/tests/settings.spec.ts`, `frontend-solid/e2e/pages/SettingsPage.ts`).
 - [x] Backend router safety fix: removed duplicate v1 admin-membership/admin-audit mounts that caused overlapping-route panics during integration tests (`backend/src/api/mod.rs`).
+- [x] Phase C runtime closure: implemented Solid calls media/session store + API wiring (`frontend-solid/src/stores/calls.ts`, `frontend-solid/src/api/calls.ts`).
+- [x] Phase C runtime closure: wired channel header voice/video actions to calls store and added persistent active-call overlay UI (`frontend-solid/src/components/channel/ChannelHeader.tsx`, `frontend-solid/src/components/layout/AppShell.tsx`, `frontend-solid/src/components/calls/ActiveCallOverlay.tsx`).
+- [x] Phase C runtime closure: forwarded websocket `custom_com.mattermost.calls_*` events into calls handling (`frontend-solid/src/hooks/useWebSocket.ts`).
+- [x] Phase C runtime closure: hardened empty-team bootstrap recovery by auto-joining/opening or creating default workspace team when `/teams` is empty (`frontend-solid/src/components/layout/Sidebar.tsx`).
+- [x] Phase C runtime closure: added one-time reload recovery for dynamic-import failures emitted via unhandled promise rejection (`frontend-solid/src/index.tsx`).
+- [x] Phase C runtime closure: added stable message composer selector for regression automation (`frontend-solid/src/components/messages/MessageInput.tsx`).
 
 ### Verification Status
 1. `cd frontend-solid && npm run test -- tests/auth/authRedirect.test.ts`
@@ -210,6 +216,21 @@
   - `--test opensearch_integration` (punctuation normalization assertion)
   - `--test security_integration` (rate-limit assertion mismatch in local run)
 
+28. `cd frontend-solid && npm run build`
+- Result: PASS after calls-store/media overlay wiring and team bootstrap recovery updates.
+
+29. `cd frontend-solid && npm run test -- tests/auth/authRedirect.test.ts`
+- Result: PASS (5/5).
+
+30. `cd frontend-solid && npm run test -- tests/layout/uiStore.test.ts`
+- Result: PASS (19/19, existing non-blocking reactive warning output retained).
+
+31. `cd frontend-solid && PLAYWRIGHT_WEB_SERVER=1 npm run test:e2e -- e2e/tests/messaging.spec.ts --project=chromium`
+- Result: FAIL due environment auth fixture (`admin@rustchat.local`) remaining on `/login`; failures are pre-test auth bootstrap, not compile/runtime regressions from these code changes.
+
+32. `cd backend && cargo check`
+- Result: PASS (warnings only in unrelated existing backend files).
+
 ### Manual Verification Commands
 1. `cd frontend-solid && npm run dev`
 2. Login redirect parity:
@@ -227,6 +248,12 @@
    - In `/settings/security`, submit wrong current password and verify error; submit correct current password and verify success.
 6. Thread follow parity:
    - Open a thread, toggle follow/unfollow in thread header, refresh thread route, verify state persists.
+7. Calls parity:
+   - In a channel, click voice or video call from header.
+   - Verify active-call overlay appears, local media initializes, and mute/hand/leave controls operate.
+8. Empty-team recovery parity:
+   - Login with a user that has no team memberships.
+   - Verify sidebar/team bootstrap recovers by joining or creating a workspace and channel list appears.
 
 ## 2026-03-13 WebSocket Token Expiry Enforcement
 

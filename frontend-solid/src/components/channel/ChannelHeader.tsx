@@ -5,6 +5,7 @@
 import { Show, createMemo, createSignal } from 'solid-js';
 import { channelStore, currentChannel, fetchChannelMembers } from '@/stores/channels';
 import { authStore } from '@/stores/auth';
+import { callsStore } from '@/stores/calls';
 import { uiStore, setActivePanel } from '@/stores/ui';
 import { cn } from '@/utils/cn';
 import { toast } from '@/hooks/useToast';
@@ -80,6 +81,20 @@ export function ChannelHeader(props: ChannelHeaderProps) {
     uiStore.setRightPanelOpen(true);
   };
 
+  const openSavedPanel = () => {
+    setActivePanel('saved');
+    uiStore.setRightPanelOpen(true);
+  };
+
+  const openSearchPanel = () => {
+    if (typeof window !== 'undefined' && window.innerWidth >= 1024) {
+      setActivePanel('search');
+      uiStore.setRightPanelOpen(true);
+      return;
+    }
+    props.onSearchClick?.();
+  };
+
   // Open channel info
   const openInfoPanel = () => {
     setActivePanel('info');
@@ -92,58 +107,16 @@ export function ChannelHeader(props: ChannelHeaderProps) {
     uiStore.setRightPanelOpen(true);
   };
 
-  const parseErrorMessage = async (response: Response): Promise<string> => {
-    const fallback = 'Failed to start call.';
-    try {
-      const payload = (await response.json()) as { message?: string; error?: string; detailed_error?: string };
-      return payload.message || payload.detailed_error || payload.error || fallback;
-    } catch {
-      return fallback;
-    }
-  };
-
   // Start call
   const startCall = async (mode: 'voice' | 'video') => {
     const channelId = channel()?.id;
-    const token = authStore.token;
-    if (!channelId || !token || startingCallMode()) {
+    if (!channelId || startingCallMode()) {
       return;
     }
 
     setStartingCallMode(mode);
     try {
-      const startResponse = await fetch(
-        `/api/v4/plugins/com.mattermost.calls/calls/${encodeURIComponent(channelId)}/start`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      if (!startResponse.ok) {
-        throw new Error(await parseErrorMessage(startResponse));
-      }
-
-      const joinResponse = await fetch(
-        `/api/v4/plugins/com.mattermost.calls/calls/${encodeURIComponent(channelId)}/join`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      if (!joinResponse.ok && joinResponse.status !== 404) {
-        throw new Error(await parseErrorMessage(joinResponse));
-      }
-
-      toast.success(
-        mode === 'video' ? 'Video call started' : 'Voice call started',
-        `Call session is now active in ${channel()?.display_name || 'this channel'}.`
-      );
+      await callsStore.startOrJoinCall(channelId, mode);
     } catch (error) {
       toast.error(
         'Unable to start call',
@@ -187,7 +160,7 @@ export function ChannelHeader(props: ChannelHeaderProps) {
             'p-2 rounded-lg transition-colors',
             'text-text-2 hover:text-text-1 hover:bg-bg-surface-2'
           )}
-          onClick={props.onSearchClick}
+          onClick={openSearchPanel}
           title="Search in channel (Ctrl+F)"
         >
           <HiOutlineMagnifyingGlass size={20} />
@@ -337,6 +310,18 @@ export function ChannelHeader(props: ChannelHeaderProps) {
                 <HiOutlineUsers size={18} class="text-text-2" />
                 <span class="text-sm text-text-1">View members</span>
                 <span class="ml-auto text-xs text-text-3">{memberCount()}</span>
+              </button>
+
+              <button
+                type="button"
+                class="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-bg-surface-2 transition-colors text-left"
+                onClick={() => {
+                  openSavedPanel();
+                  setShowInfoMenu(false);
+                }}
+              >
+                <HiOutlineBookmark size={18} class="text-text-2" />
+                <span class="text-sm text-text-1">Saved messages</span>
               </button>
 
               <button

@@ -22,7 +22,7 @@ export interface UIPreferences {
   rightPanelWidth: number;
 }
 
-export type PanelTab = 'members' | 'pinned' | 'files' | 'info';
+export type PanelTab = 'members' | 'pinned' | 'files' | 'info' | 'search' | 'saved';
 
 // ============================================
 // Constants

@@ -172,10 +172,21 @@ Implemented in this pass:
    - input component now honors explicit `autocomplete` hints (e.g., `current-password`, `new-password`) instead of overriding with generic defaults.
 9. Audio warning reduction:
    - sound playback no longer attempts `AudioContext.resume()` from non-gesture contexts.
+10. Real call media session wiring:
+   - added Solid calls client/store with real Mattermost-calls-plugin API integration (`config`, `turn-credentials`, `start/join/leave/end`, `offer`, `ice`) and WebRTC peer setup.
+   - channel header voice/video buttons now route through this store and establish media negotiation instead of server-only call start.
+   - added global active-call overlay with live participant/media state and call controls (mute, hand raise, leave/end).
+11. Calls websocket signaling parity:
+   - websocket hook now forwards `custom_com.mattermost.calls_*` events into calls store handling for ICE signal processing and call-state refresh.
+12. Zero-team recovery hardening:
+   - sidebar team bootstrap now recovers users with empty `/teams` by: auth refresh -> public-team auto-join (prefers `rustchat`) -> fallback default-team create.
+   - this unblocks channel list, add-channel, direct-message, and message-composer journeys for fresh/empty accounts.
+13. Dynamic import failure resilience:
+   - startup now also handles `unhandledrejection` chunk-load errors and performs one-time safe reload, reducing stale-hash `Settings-*.js` runtime failures.
 
 Remaining explicit gap:
 
-1. Full in-browser WebRTC call media UI (mic/camera session controls and rendering) is still not implemented in Solid; this pass enables real call session start/join server-side rather than a complete media client.
+1. Advanced calls controls parity remains partial (screen-share toggle UI, host moderation controls, incoming-ring modal parity).
 
 ---
 

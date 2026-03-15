@@ -16,6 +16,7 @@ import { ConnectionToastNotifier } from './components/ConnectionStatus';
 import { LiveRegion } from './components/LiveRegion';
 import { SkipLinks } from './components/SkipLink';
 import { ErrorBoundary, OfflineIndicator } from './components/ErrorBoundary';
+import CommandPalette from './components/ui/CommandPalette';
 import { isAdminRole } from './utils/roles';
 
 // Eagerly load public routes
@@ -201,6 +202,7 @@ function RouterLayout(props: RouteSectionProps) {
         <OfflineIndicator />
         {props.children}
         <SessionTimeoutModal />
+        <CommandPalette />
         <ToastContainer />
         <ConnectionToastNotifier />
         <LiveRegion />

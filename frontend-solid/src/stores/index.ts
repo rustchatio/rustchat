@@ -35,6 +35,9 @@ export type { Presence, PresenceUser, TypingUser } from './presence';
 export { unreadStore } from './unreads';
 export type { ChannelUnread, TeamUnread, UnreadOverview, ChannelUnreadAt } from './unreads';
 
+export { callsStore } from './calls';
+export type { CallMode, ActiveCallSession, RemoteMediaStream } from './calls';
+
 export { useTheme, ThemeProvider, AVAILABLE_THEMES } from './theme';
 export type { Theme } from '../types';
 
@@ -49,6 +52,7 @@ import { messageStore } from './messages';
 import { channelStore } from './channels';
 import { unreadStore } from './unreads';
 import { presenceStore } from './presence';
+import { callsStore } from './calls';
 
 // Listen for logout events and reset stores
 if (typeof window !== 'undefined') {
@@ -57,5 +61,6 @@ if (typeof window !== 'undefined') {
     channelStore.clearChannels?.();
     unreadStore.clearAllState?.();
     presenceStore.clear?.();
+    void callsStore.leaveCurrentCall?.();
   });
 }

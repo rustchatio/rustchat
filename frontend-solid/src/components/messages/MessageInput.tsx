@@ -3,6 +3,7 @@ import { authStore } from '@/stores/auth';
 import { channelStore } from '@/stores/channels';
 import { sendMessage } from '@/stores/messages';
 import { generateUUID } from '@/utils/uuid';
+import { API_BASE_URL } from '@/api/client';
 // API calls use fetch directly
 import { Button } from '@/components/ui/Button';
 import { formatFileSize } from '@/utils/file';
@@ -32,6 +33,12 @@ interface MessageInputProps {
 
 const MAX_MESSAGE_LENGTH = 4000;
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+const API_V1_BASE = API_BASE_URL.replace(/\/+$/, '');
+
+function apiV1Url(path: string): string {
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  return `${API_V1_BASE}${normalizedPath}`;
+}
 
 export function MessageInput(props: MessageInputProps) {
   const [message, setMessage] = createSignal('');
@@ -145,7 +152,7 @@ export function MessageInput(props: MessageInputProps) {
           const formData = new FormData();
           formData.append('file', attachment.file);
           
-          const response = await fetch(`/api/v1/files?channel_id=${encodeURIComponent(props.channelId)}`, {
+          const response = await fetch(apiV1Url(`/files?channel_id=${encodeURIComponent(props.channelId)}`), {
             method: 'POST',
             headers: token ? { Authorization: `Bearer ${token}` } : {},
             body: formData,
@@ -339,6 +346,7 @@ export function MessageInput(props: MessageInputProps) {
 
   return (
     <div
+      data-testid="message-input"
       class="relative p-3 sm:p-4"
       classList={{ 'bg-brand/5 ring-2 ring-brand/40': isDragging() }}
       onDragOver={handleDragOver}

@@ -290,14 +290,19 @@ interface MembershipPolicyTargetDraft {
 
 const sections: AdminSection[] = [
   { id: '', label: 'Overview', description: 'System summary and quick links' },
+  { id: 'audit-dashboard', label: 'Audit Dashboard', description: 'Operational audit metrics and summaries' },
   { id: 'users', label: 'Users', description: 'Manage users and account lifecycle' },
   { id: 'teams', label: 'Teams', description: 'Manage teams and channels' },
   { id: 'settings', label: 'Server Settings', description: 'Server and platform configuration' },
   { id: 'security', label: 'Security', description: 'Authentication and access controls' },
+  { id: 'permissions', label: 'Permissions', description: 'Role-based permission assignments and inventory' },
+  { id: 'sso', label: 'SSO', description: 'Single sign-on provider configuration and status' },
+  { id: 'integrations', label: 'Integrations', description: 'Integration-related platform configuration' },
   { id: 'email', label: 'Email', description: 'Email providers and recent outbox activity' },
   { id: 'membership-policies', label: 'Membership Policies', description: 'Auto-membership policy controls and audit health' },
   { id: 'compliance', label: 'Compliance', description: 'Retention, exports, and compliance controls' },
   { id: 'audit', label: 'Audit Logs', description: 'Administrative events and audit trail' },
+  { id: 'health', label: 'System Health', description: 'Service health and infrastructure status' },
 ];
 
 function formatDateTime(dateValue?: string | null): string {
@@ -4057,6 +4062,10 @@ export default function Admin() {
                 <AdminOverviewSection />
               </Show>
 
+              <Show when={activeSectionId() === 'audit-dashboard'}>
+                <AdminOverviewSection />
+              </Show>
+
               <Show when={activeSectionId() === 'users'}>
                 <AdminUsersSection />
               </Show>
@@ -4073,6 +4082,18 @@ export default function Admin() {
                 <AdminSecuritySection />
               </Show>
 
+              <Show when={activeSectionId() === 'permissions'}>
+                <AdminSecuritySection />
+              </Show>
+
+              <Show when={activeSectionId() === 'sso'}>
+                <AdminSecuritySection />
+              </Show>
+
+              <Show when={activeSectionId() === 'integrations'}>
+                <AdminSettingsSection />
+              </Show>
+
               <Show when={activeSectionId() === 'email'}>
                 <AdminEmailSection />
               </Show>
@@ -4087,6 +4108,10 @@ export default function Admin() {
 
               <Show when={activeSectionId() === 'audit'}>
                 <AdminAuditSection />
+              </Show>
+
+              <Show when={activeSectionId() === 'health'}>
+                <AdminOverviewSection />
               </Show>
             </div>
 

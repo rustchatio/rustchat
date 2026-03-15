@@ -3,7 +3,7 @@
 // Provides offline support and caching
 // ============================================
 
-const CACHE_NAME = 'rustchat-v1';
+const CACHE_NAME = 'rustchat-v2';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -64,6 +64,11 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Only handle same-origin requests.
+  if (url.origin !== self.location.origin) {
+    return;
+  }
+
   // Skip API requests (don't cache dynamic data)
   if (url.pathname.startsWith('/api/')) {
     return;
@@ -74,9 +79,10 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Strategy: Cache First for static assets
-  if (isStaticAsset(request)) {
-    event.respondWith(cacheFirst(request));
+  // Hashed build assets must prefer network to avoid stale chunk errors
+  // after deployments (dynamic import 404/mismatch).
+  if (isBuildAsset(url)) {
+    event.respondWith(networkFirst(request));
     return;
   }
 
@@ -86,8 +92,14 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Default: Stale While Revalidate
-  event.respondWith(staleWhileRevalidate(request));
+  // Other static files can stay cache-friendly.
+  if (isStaticAsset(url)) {
+    event.respondWith(staleWhileRevalidate(request));
+    return;
+  }
+
+  // Default fallback.
+  event.respondWith(networkFirst(request));
 });
 
 // ============================================
@@ -166,12 +178,16 @@ async function staleWhileRevalidate(request) {
 // Helpers
 // ============================================
 
-function isStaticAsset(request) {
+function isBuildAsset(url) {
+  return url.pathname.startsWith('/assets/');
+}
+
+function isStaticAsset(url) {
   const staticExtensions = [
-    '.js', '.css', '.png', '.jpg', '.jpeg', '.gif',
-    '.svg', '.ico', '.woff', '.woff2', '.ttf', '.eot'
+    '.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.woff', '.woff2', '.ttf', '.eot',
+    '.json', '.webmanifest'
   ];
-  return staticExtensions.some((ext) => request.url.endsWith(ext));
+  return staticExtensions.some((ext) => url.pathname.endsWith(ext));
 }
 
 function isPage(request) {

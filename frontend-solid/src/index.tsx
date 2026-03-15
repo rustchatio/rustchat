@@ -32,6 +32,20 @@ if (typeof window !== 'undefined') {
       reloadForChunkError();
     }
   });
+
+  window.addEventListener('unhandledrejection', (event) => {
+    const reason = event.reason;
+    const message =
+      typeof reason === 'string'
+        ? reason
+        : reason instanceof Error
+          ? reason.message
+          : String(reason || '');
+    if (message.includes('Failed to fetch dynamically imported module')) {
+      event.preventDefault();
+      reloadForChunkError();
+    }
+  });
 }
 
 render(() => <App />, root);

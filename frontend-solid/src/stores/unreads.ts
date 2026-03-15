@@ -1,6 +1,7 @@
 import { createStore, produce } from 'solid-js/store';
 import { createSignal, batch, createMemo } from 'solid-js';
 import { authStore } from './auth';
+import { API_BASE_URL } from '@/api/client';
 
 // ============================================
 // Types
@@ -50,6 +51,15 @@ const [channelMentions, setChannelMentions] = createStore<Record<string, number>
 const [channelReadStates, setChannelReadStates] = createStore<Record<string, ReadState>>({});
 const [isLoading, setIsLoading] = createSignal(false);
 const [error, setError] = createSignal<string | null>(null);
+const API_V1_BASE = API_BASE_URL.replace(/\/+$/, '');
+const API_V4_BASE = API_V1_BASE.includes('/api/v1')
+  ? API_V1_BASE.replace('/api/v1', '/api/v4')
+  : '/api/v4';
+
+function apiUrl(base: string, path: string): string {
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  return `${base}${normalizedPath}`;
+}
 
 // ============================================
 // Computed
@@ -96,7 +106,7 @@ export async function fetchOverview(): Promise<void> {
 
   try {
     const token = authStore.token;
-    const response = await fetch('/api/v1/unreads/overview', {
+    const response = await fetch(apiUrl(API_V1_BASE, '/unreads/overview'), {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
 
@@ -135,7 +145,7 @@ export async function markAsRead(channelId: string, userId: string = 'me'): Prom
   try {
     const token = authStore.token;
     const response = await fetch(
-      `/api/v1/channels/${encodeURIComponent(channelId)}/members/${encodeURIComponent(userId)}/read`,
+      apiUrl(API_V4_BASE, `/channels/${encodeURIComponent(channelId)}/members/${encodeURIComponent(userId)}/read`),
       {
         method: 'POST',
         headers: {
@@ -174,7 +184,7 @@ export async function markAsUnread(channelId: string, userId: string = 'me'): Pr
   try {
     const token = authStore.token;
     const response = await fetch(
-      `/api/v1/channels/${encodeURIComponent(channelId)}/members/${encodeURIComponent(userId)}/set_unread`,
+      apiUrl(API_V4_BASE, `/channels/${encodeURIComponent(channelId)}/members/${encodeURIComponent(userId)}/set_unread`),
       {
         method: 'POST',
         headers: {
@@ -201,7 +211,7 @@ export async function markAsUnreadFromPost(postId: string, userId: string = 'me'
   try {
     const token = authStore.token;
     const response = await fetch(
-      `/api/v1/users/${encodeURIComponent(userId)}/posts/${encodeURIComponent(postId)}/set_unread`,
+      apiUrl(API_V4_BASE, `/users/${encodeURIComponent(userId)}/posts/${encodeURIComponent(postId)}/set_unread`),
       {
         method: 'POST',
         headers: {
@@ -225,7 +235,7 @@ export async function markAsUnreadFromPost(postId: string, userId: string = 'me'
 export async function markAllAsRead(): Promise<void> {
   try {
     const token = authStore.token;
-    const response = await fetch('/api/v1/unreads/mark_all_read', {
+    const response = await fetch(apiUrl(API_V1_BASE, '/unreads/mark_all_read'), {
       method: 'POST',
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });

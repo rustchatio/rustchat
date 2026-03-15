@@ -2,6 +2,7 @@ import { createStore, produce } from 'solid-js/store';
 import { createSignal, batch, createMemo } from 'solid-js';
 import { authStore } from './auth';
 import { generateUUID } from '../utils/uuid';
+import { API_BASE_URL } from '@/api/client';
 
 // ============================================
 // Types
@@ -95,6 +96,12 @@ const [readStatesByChannel, setReadStatesByChannel] = createStore<Record<string,
 const [isLoading, setIsLoading] = createSignal(false);
 const [isLoadingOlder, setIsLoadingOlder] = createSignal(false);
 const [error, setError] = createSignal<string | null>(null);
+const API_V1_BASE = API_BASE_URL.replace(/\/+$/, '');
+
+function apiV1Url(path: string): string {
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  return `${API_V1_BASE}${normalizedPath}`;
+}
 
 // ============================================
 // Helpers
@@ -173,7 +180,7 @@ export async function fetchMessages(channelId: string): Promise<void> {
   try {
     const token = authStore.token;
     const response = await fetch(
-      `/api/v1/channels/${encodeURIComponent(channelId)}/posts?limit=50`,
+      apiV1Url(`/channels/${encodeURIComponent(channelId)}/posts?limit=50`),
       {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       }
@@ -230,7 +237,7 @@ export async function fetchOlderMessages(channelId: string): Promise<void> {
   try {
     const token = authStore.token;
     const response = await fetch(
-      `/api/v1/channels/${encodeURIComponent(channelId)}/posts?before=${encodeURIComponent(before)}&limit=50`,
+      apiV1Url(`/channels/${encodeURIComponent(channelId)}/posts?before=${encodeURIComponent(before)}&limit=50`),
       {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       }
@@ -272,7 +279,7 @@ export async function fetchThread(rootId: string): Promise<void> {
 
   try {
     const token = authStore.token;
-    const response = await fetch(`/api/v1/posts/${encodeURIComponent(rootId)}/thread`, {
+    const response = await fetch(apiV1Url(`/posts/${encodeURIComponent(rootId)}/thread`), {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
 
@@ -336,7 +343,7 @@ export async function sendMessage(
 
   try {
     const token = authStore.token;
-    const response = await fetch(`/api/v1/channels/${encodeURIComponent(channelId)}/posts`, {
+    const response = await fetch(apiV1Url(`/channels/${encodeURIComponent(channelId)}/posts`), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -623,7 +630,7 @@ export function handleReactionRemoved(data: { post_id: string; user_id: string; 
 
 export async function pinMessage(messageId: string): Promise<void> {
   const token = authStore.token;
-  const response = await fetch(`/api/v1/posts/${encodeURIComponent(messageId)}/pin`, {
+  const response = await fetch(apiV1Url(`/posts/${encodeURIComponent(messageId)}/pin`), {
     method: 'POST',
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
@@ -636,7 +643,7 @@ export async function pinMessage(messageId: string): Promise<void> {
 
 export async function unpinMessage(messageId: string): Promise<void> {
   const token = authStore.token;
-  const response = await fetch(`/api/v1/posts/${encodeURIComponent(messageId)}/pin`, {
+  const response = await fetch(apiV1Url(`/posts/${encodeURIComponent(messageId)}/pin`), {
     method: 'DELETE',
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
@@ -649,7 +656,7 @@ export async function unpinMessage(messageId: string): Promise<void> {
 
 export async function saveMessage(messageId: string): Promise<void> {
   const token = authStore.token;
-  const response = await fetch(`/api/v1/posts/${encodeURIComponent(messageId)}/save`, {
+  const response = await fetch(apiV1Url(`/posts/${encodeURIComponent(messageId)}/save`), {
     method: 'POST',
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
@@ -659,7 +666,7 @@ export async function saveMessage(messageId: string): Promise<void> {
 
 export async function unsaveMessage(messageId: string): Promise<void> {
   const token = authStore.token;
-  const response = await fetch(`/api/v1/posts/${encodeURIComponent(messageId)}/save`, {
+  const response = await fetch(apiV1Url(`/posts/${encodeURIComponent(messageId)}/save`), {
     method: 'DELETE',
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
@@ -669,7 +676,7 @@ export async function unsaveMessage(messageId: string): Promise<void> {
 
 export async function editMessage(messageId: string, newContent: string): Promise<void> {
   const token = authStore.token;
-  const response = await fetch(`/api/v1/posts/${encodeURIComponent(messageId)}`, {
+  const response = await fetch(apiV1Url(`/posts/${encodeURIComponent(messageId)}`), {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
@@ -686,7 +693,7 @@ export async function editMessage(messageId: string, newContent: string): Promis
 
 export async function deleteMessage(messageId: string): Promise<void> {
   const token = authStore.token;
-  const response = await fetch(`/api/v1/posts/${encodeURIComponent(messageId)}`, {
+  const response = await fetch(apiV1Url(`/posts/${encodeURIComponent(messageId)}`), {
     method: 'DELETE',
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
@@ -699,7 +706,7 @@ export async function deleteMessage(messageId: string): Promise<void> {
 export async function addReaction(messageId: string, emoji: string): Promise<void> {
   const token = authStore.token;
   const userId = authStore.user()?.id;
-  const response = await fetch(`/api/v1/posts/${encodeURIComponent(messageId)}/reactions`, {
+  const response = await fetch(apiV1Url(`/posts/${encodeURIComponent(messageId)}/reactions`), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -720,7 +727,7 @@ export async function removeReaction(messageId: string, emoji: string): Promise<
   const token = authStore.token;
   const userId = authStore.user()?.id;
   const response = await fetch(
-    `/api/v1/posts/${encodeURIComponent(messageId)}/reactions/${encodeURIComponent(emoji)}`,
+    apiV1Url(`/posts/${encodeURIComponent(messageId)}/reactions/${encodeURIComponent(emoji)}`),
     {
       method: 'DELETE',
       headers: token ? { Authorization: `Bearer ${token}` } : {},

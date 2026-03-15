@@ -5,6 +5,7 @@
 import { Show, For, createSignal, createMemo, createEffect } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
 import { uiStore, type PanelTab } from '@/stores/ui';
+import { authStore } from '@/stores/auth';
 import { channelStore, fetchChannelMembers, leaveChannel, resolveDefaultChannelPath } from '@/stores/channels';
 import { presenceStore, type Presence } from '@/stores/presence';
 import { postsApi } from '@/api/messages';
@@ -81,6 +82,12 @@ interface SwitchTabProps {
 function SwitchTab(props: SwitchTabProps) {
   return (
     <>
+      <Show when={props.activeTab === 'search'}>
+        <SearchPanel />
+      </Show>
+      <Show when={props.activeTab === 'saved'}>
+        <SavedMessagesPanel />
+      </Show>
       <Show when={props.activeTab === 'members'}>
         <MembersPanel />
       </Show>
@@ -93,6 +100,249 @@ function SwitchTab(props: SwitchTabProps) {
       <Show when={props.activeTab === 'info'}>
         <ChannelInfoPanel />
       </Show>
+    </>
+  );
+}
+
+// ============================================
+// Search Panel
+// ============================================
+
+interface SearchResult {
+  id: string;
+  channelId: string;
+  rootPostId?: string;
+  author: string;
+  content: string;
+  createdAt: string;
+}
+
+function toPostTimestamp(value: string | number | undefined): string {
+  if (typeof value === 'number') {
+    return new Date(value).toISOString();
+  }
+  if (typeof value === 'string') {
+    return value;
+  }
+  return new Date().toISOString();
+}
+
+function SearchPanel() {
+  const navigate = useNavigate();
+  const [query, setQuery] = createSignal('');
+  const [isLoading, setIsLoading] = createSignal(false);
+  const [error, setError] = createSignal<string | null>(null);
+  const [results, setResults] = createSignal<SearchResult[]>([]);
+
+  createEffect(() => {
+    const channelId = channelStore.currentChannelId();
+    const terms = query().trim();
+
+    if (!channelId || terms.length < 2) {
+      setResults([]);
+      setError(null);
+      return;
+    }
+
+    let cancelled = false;
+    setIsLoading(true);
+    setError(null);
+
+    const timer = window.setTimeout(() => {
+      void postsApi
+        .list(channelId, { q: terms, limit: 50 })
+        .then((response) => {
+          if (cancelled) return;
+          const posts = Array.isArray(response.messages) ? response.messages : [];
+          const mapped = posts.map((post) => ({
+            id: post.id,
+            channelId: post.channel_id,
+            rootPostId: post.root_post_id,
+            author: post.username || post.user_id || 'Unknown',
+            content: post.message || '',
+            createdAt: toPostTimestamp(post.created_at),
+          }));
+          setResults(mapped);
+        })
+        .catch((err) => {
+          if (cancelled) return;
+          setResults([]);
+          setError(getErrorMessage(err) || 'Search failed.');
+        })
+        .finally(() => {
+          if (!cancelled) {
+            setIsLoading(false);
+          }
+        });
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  });
+
+  const openResult = (result: SearchResult) => {
+    uiStore.setRightPanelOpen(false);
+    if (result.rootPostId) {
+      navigate(`/channels/${result.channelId}/threads/${result.rootPostId}`);
+      return;
+    }
+    navigate(`/channels/${result.channelId}`);
+  };
+
+  return (
+    <>
+      <div class="p-3 border-b border-border-1 space-y-3">
+        <div class="flex items-center gap-2">
+          <HiOutlineMagnifyingGlass size={18} class="text-text-2" />
+          <h2 class="font-semibold text-text-1">Search</h2>
+        </div>
+        <input
+          type="text"
+          value={query()}
+          onInput={(event) => setQuery(event.currentTarget.value)}
+          placeholder="Search messages in this channel"
+          class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-sm text-text-1 placeholder:text-text-3 focus:outline-none focus:border-brand"
+        />
+      </div>
+      <div class="flex-1 overflow-y-auto custom-scrollbar p-3">
+        <Show when={isLoading()}>
+          <p class="text-sm text-text-3">Searching...</p>
+        </Show>
+        <Show when={error()}>
+          <p class="text-sm text-danger">{error()}</p>
+        </Show>
+        <Show
+          when={!isLoading() && !error() && results().length > 0}
+          fallback={
+            <Show when={!isLoading() && !error()}>
+              <p class="text-sm text-text-3">
+                {query().trim().length < 2 ? 'Type at least 2 characters.' : 'No matches found.'}
+              </p>
+            </Show>
+          }
+        >
+          <div class="space-y-2">
+            <For each={results()}>
+              {(result) => (
+                <button
+                  type="button"
+                  class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-left hover:border-border-2 hover:bg-bg-surface-2 transition-colors"
+                  onClick={() => openResult(result)}
+                >
+                  <p class="text-xs text-text-3">{result.author}</p>
+                  <p class="text-sm text-text-1 line-clamp-3 whitespace-pre-wrap break-words">{result.content}</p>
+                  <p class="mt-1 text-xs text-text-3">{formatTimestamp(result.createdAt)}</p>
+                </button>
+              )}
+            </For>
+          </div>
+        </Show>
+      </div>
+    </>
+  );
+}
+
+// ============================================
+// Saved Messages Panel
+// ============================================
+
+function SavedMessagesPanel() {
+  const navigate = useNavigate();
+  const [isLoading, setIsLoading] = createSignal(false);
+  const [error, setError] = createSignal<string | null>(null);
+  const [results, setResults] = createSignal<SearchResult[]>([]);
+
+  createEffect(() => {
+    if (!authStore.isAuthenticated) {
+      setResults([]);
+      return;
+    }
+
+    let cancelled = false;
+    setIsLoading(true);
+    setError(null);
+
+    void postsApi
+      .getSaved()
+      .then((posts) => {
+        if (cancelled) return;
+        const mapped = posts.map((post) => ({
+          id: post.id,
+          channelId: post.channel_id,
+          rootPostId: post.root_post_id,
+          author: post.username || post.user_id || 'Unknown',
+          content: post.message || '',
+          createdAt: toPostTimestamp(post.created_at),
+        }));
+        setResults(mapped);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setResults([]);
+        setError(getErrorMessage(err) || 'Failed to load saved messages.');
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  });
+
+  const openResult = (result: SearchResult) => {
+    uiStore.setRightPanelOpen(false);
+    if (result.rootPostId) {
+      navigate(`/channels/${result.channelId}/threads/${result.rootPostId}`);
+      return;
+    }
+    navigate(`/channels/${result.channelId}`);
+  };
+
+  return (
+    <>
+      <div class="p-3 border-b border-border-1">
+        <div class="flex items-center gap-2">
+          <HiOutlineBookmark size={18} class="text-text-2" />
+          <h2 class="font-semibold text-text-1">Saved Messages</h2>
+        </div>
+      </div>
+      <div class="flex-1 overflow-y-auto custom-scrollbar p-3">
+        <Show when={isLoading()}>
+          <p class="text-sm text-text-3">Loading saved messages...</p>
+        </Show>
+        <Show when={error()}>
+          <p class="text-sm text-danger">{error()}</p>
+        </Show>
+        <Show
+          when={!isLoading() && !error() && results().length > 0}
+          fallback={
+            <Show when={!isLoading() && !error()}>
+              <p class="text-sm text-text-3">No saved messages.</p>
+            </Show>
+          }
+        >
+          <div class="space-y-2">
+            <For each={results()}>
+              {(result) => (
+                <button
+                  type="button"
+                  class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-left hover:border-border-2 hover:bg-bg-surface-2 transition-colors"
+                  onClick={() => openResult(result)}
+                >
+                  <p class="text-xs text-text-3">{result.author}</p>
+                  <p class="text-sm text-text-1 line-clamp-3 whitespace-pre-wrap break-words">{result.content}</p>
+                  <p class="mt-1 text-xs text-text-3">{formatTimestamp(result.createdAt)}</p>
+                </button>
+              )}
+            </For>
+          </div>
+        </Show>
+      </div>
     </>
   );
 }
