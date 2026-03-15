@@ -31,6 +31,9 @@ import Settings from './routes/Settings';
 const Channel = lazy(() => import('./routes/Channel'));
 const Thread = lazy(() => import('./routes/Thread'));
 const Admin = lazy(() => import('./routes/Admin'));
+const Playbooks = lazy(() => import('./routes/Playbooks'));
+const PlaybookEditor = lazy(() => import('./routes/PlaybookEditor'));
+const PlaybookRun = lazy(() => import('./routes/PlaybookRun'));
 const NotFound = lazy(() => import('./routes/NotFound'));
 
 // ============================================
@@ -154,6 +157,54 @@ function AppRoutes() {
             <AppShell>
               <Suspense fallback={<LoadingFallback />}>
                 <Thread />
+              </Suspense>
+            </AppShell>
+          </ProtectedRoute>
+        )}
+      />
+      <Route
+        path="/playbooks"
+        component={() => (
+          <ProtectedRoute>
+            <AppShell>
+              <Suspense fallback={<LoadingFallback />}>
+                <Playbooks />
+              </Suspense>
+            </AppShell>
+          </ProtectedRoute>
+        )}
+      />
+      <Route
+        path="/playbooks/new"
+        component={() => (
+          <ProtectedRoute>
+            <AppShell>
+              <Suspense fallback={<LoadingFallback />}>
+                <PlaybookEditor />
+              </Suspense>
+            </AppShell>
+          </ProtectedRoute>
+        )}
+      />
+      <Route
+        path="/playbooks/:id/edit"
+        component={() => (
+          <ProtectedRoute>
+            <AppShell>
+              <Suspense fallback={<LoadingFallback />}>
+                <PlaybookEditor />
+              </Suspense>
+            </AppShell>
+          </ProtectedRoute>
+        )}
+      />
+      <Route
+        path="/runs/:id"
+        component={() => (
+          <ProtectedRoute>
+            <AppShell>
+              <Suspense fallback={<LoadingFallback />}>
+                <PlaybookRun />
               </Suspense>
             </AppShell>
           </ProtectedRoute>

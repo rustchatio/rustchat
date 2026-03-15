@@ -42,6 +42,12 @@ export default function CommandPalette() {
 
     const items: CommandItem[] = [
       {
+        id: 'playbooks',
+        label: 'Playbooks',
+        subtitle: '/playbooks',
+        execute: () => navigate('/playbooks'),
+      },
+      {
         id: 'settings-profile',
         label: 'Profile Settings',
         subtitle: '/settings/profile',

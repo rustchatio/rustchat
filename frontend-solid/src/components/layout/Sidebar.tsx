@@ -32,6 +32,7 @@ import {
   HiOutlineUser,
   HiOutlineStar,
   HiOutlineCog6Tooth,
+  HiOutlineBookOpen,
   HiOutlineBars3,
   HiOutlineXMark,
 } from 'solid-icons/hi';
@@ -558,6 +559,13 @@ export function Sidebar(props: SidebarProps) {
               <span class="text-sm">Admin Console</span>
             </A>
           </Show>
+          <A
+            href="/playbooks"
+            class="w-full mb-2 flex items-center gap-2 px-3 py-2 rounded-lg bg-bg-app border border-border-1 hover:border-border-2 transition-colors text-left text-text-2 hover:text-text-1"
+          >
+            <HiOutlineBookOpen size={18} class="text-text-3" />
+            <span class="text-sm">Playbooks</span>
+          </A>
           <button
             type="button"
             class="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-bg-app border border-border-1 hover:border-border-2 transition-colors text-left"

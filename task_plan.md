@@ -1,5 +1,23 @@
 # Task Plan
 
+## 2026-03-15 Playbooks Route Parity Closure (Solid)
+
+### Implementation Status
+- [x] Added real Solid Playbooks API module (`/api/v1/playbooks`, `/runs`, checklists/tasks, status-updates) with payload-shape normalization for run responses (`frontend-solid/src/api/playbooks.ts`).
+- [x] Added active-team resolver utility for non-channel routes that still require team-scoped API calls (`frontend-solid/src/utils/teamContext.ts`).
+- [x] Implemented Playbooks library + runs route with real list/start-run wiring (`frontend-solid/src/routes/Playbooks.tsx`).
+- [x] Implemented Playbook create/edit route with persisted checklist/task create/update/delete sync (`frontend-solid/src/routes/PlaybookEditor.tsx`).
+- [x] Implemented run-detail route with task toggle, status updates, and finish-run actions (`frontend-solid/src/routes/PlaybookRun.tsx`).
+- [x] Registered protected routes for `/playbooks`, `/playbooks/new`, `/playbooks/:id/edit`, `/runs/:id` in app router (`frontend-solid/src/App.tsx`).
+- [x] Added Playbooks discoverability in sidebar and command palette (`frontend-solid/src/components/layout/Sidebar.tsx`, `frontend-solid/src/components/ui/CommandPalette.tsx`).
+
+### Verification Status
+1. `cd frontend-solid && npm run build`
+- Result: PASS
+
+2. `cd frontend-solid && npm run test -- tests/auth/authRedirect.test.ts`
+- Result: PASS
+
 ## 2026-03-15 Vue Backup Gap Register Refresh (Post-Analysis)
 
 ### Newly Closed In This Pass
@@ -15,7 +33,7 @@
 - [x] Added real screen-share toggle control in active call overlay wired to calls-plugin `screen-share` endpoint and state refresh (`frontend-solid/src/stores/calls.ts`, `frontend-solid/src/components/calls/ActiveCallOverlay.tsx`).
 
 ### Remaining Open Gaps Discovered From `/archive/frontend-vue-backup`
-- [ ] Playbooks route surface is missing in Solid (`/playbooks`, `/playbooks/new`, `/playbooks/:id/edit`, `/runs/:id`) and needs real API-backed implementation parity.
+- [x] Playbooks route surface is now implemented in Solid (`/playbooks`, `/playbooks/new`, `/playbooks/:id/edit`, `/runs/:id`) with real API wiring (`frontend-solid/src/routes/Playbooks.tsx`, `frontend-solid/src/routes/PlaybookEditor.tsx`, `frontend-solid/src/routes/PlaybookRun.tsx`).
 - [ ] Incoming call notification modal parity is still missing (Vue had dedicated incoming/ringing UX; Solid currently shows only active-call overlay after join/start).
 - [ ] Calls host controls and screen-share UX parity are partial compared to Vue (`host mute/remove`, `screen share toggle` UI paths).
 - [ ] Channel/team settings modal depth is still reduced versus Vue (`ChannelSettingsModal`, `TeamSettingsModal` parity scope still incomplete).

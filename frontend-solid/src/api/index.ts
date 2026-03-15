@@ -14,6 +14,7 @@ export { authApi } from './auth';
 export { usersApi } from './users';
 export { channelsApi } from './channels';
 export { postsApi } from './messages';
+export { playbooksApi } from './playbooks';
 
 // Interceptors
 export { interceptors, setupInterceptors, triggerTokenRefresh, clearRequestQueue } from './interceptors';
