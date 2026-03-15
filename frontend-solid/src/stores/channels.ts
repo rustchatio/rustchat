@@ -66,6 +66,18 @@ interface TeamSummary {
   display_name?: string | null;
 }
 
+interface V4ChannelPayload {
+  id?: string;
+  team_id?: string;
+  name?: string;
+  display_name?: string | null;
+  type?: string;
+  purpose?: string | null;
+  header?: string | null;
+  creator_id?: string;
+  create_at?: number;
+}
+
 // ============================================
 // Store State
 // ============================================
@@ -136,7 +148,16 @@ export async function fetchChannels(teamId: string): Promise<void> {
   });
 
   try {
-    const data = await channelsApi.list(teamId);
+    let data: Channel[];
+    try {
+      data = await channelsApi.list(teamId);
+    } catch {
+      const response = await client.get<unknown>(
+        `/api/v4/users/me/teams/${encodeURIComponent(teamId)}/channels`
+      );
+      data = normalizeChannelRecords(response.data, teamId);
+    }
+
     setChannels(data);
 
     // Try to restore last selected channel for this team
@@ -173,9 +194,48 @@ function normalizeTeamSummaries(payload: unknown): TeamSummary[] {
   });
 }
 
-async function fetchUserTeams(): Promise<TeamSummary[]> {
-  if (!authStore.token) return [];
+function normalizeChannelType(raw: unknown): ChannelType {
+  if (raw === 'private' || raw === 'P') return 'private';
+  if (raw === 'direct' || raw === 'D') return 'direct';
+  if (raw === 'group' || raw === 'G') return 'group';
+  return 'public';
+}
 
+function normalizeChannelRecord(payload: unknown, fallbackTeamId?: string): Channel | null {
+  if (!payload || typeof payload !== 'object') return null;
+  const record = payload as V4ChannelPayload;
+  if (typeof record.id !== 'string') return null;
+  if (typeof record.name !== 'string') return null;
+
+  const teamId =
+    typeof record.team_id === 'string' && record.team_id.length > 0
+      ? record.team_id
+      : fallbackTeamId || '';
+
+  return {
+    id: record.id,
+    team_id: teamId,
+    name: record.name,
+    display_name: record.display_name || record.name,
+    channel_type: normalizeChannelType(record.type),
+    purpose: record.purpose || undefined,
+    header: record.header || undefined,
+    creator_id: typeof record.creator_id === 'string' ? record.creator_id : '',
+    created_at:
+      typeof record.create_at === 'number'
+        ? new Date(record.create_at).toISOString()
+        : new Date().toISOString(),
+  };
+}
+
+function normalizeChannelRecords(payload: unknown, fallbackTeamId?: string): Channel[] {
+  if (!Array.isArray(payload)) return [];
+  return payload
+    .map((item) => normalizeChannelRecord(item, fallbackTeamId))
+    .filter((item): item is Channel => item !== null);
+}
+
+async function fetchUserTeams(): Promise<TeamSummary[]> {
   const requestTeams = async () => {
     const response = await client.get<TeamSummary[]>('/teams');
     return normalizeTeamSummaries(response.data);
@@ -284,7 +344,15 @@ export async function fetchJoinableChannels(teamId: string): Promise<void> {
   });
 
   try {
-    const data = await channelsApi.list(teamId, true);
+    let data: Channel[];
+    try {
+      data = await channelsApi.list(teamId, true);
+    } catch {
+      const response = await client.get<unknown>(
+        `/api/v4/users/me/teams/${encodeURIComponent(teamId)}/channels/not_members`
+      );
+      data = normalizeChannelRecords(response.data, teamId);
+    }
     setJoinableChannels(data);
   } catch (err) {
     const message = getErrorMessage(err) || 'Failed to fetch joinable channels';
@@ -312,6 +380,34 @@ export async function fetchChannel(channelId: string): Promise<Channel> {
   return data;
 }
 
+async function createChannelViaV4(data: CreateChannelRequest): Promise<Channel> {
+  if (data.channel_type === 'direct' && data.target_user_id) {
+    const currentUserId = await requireAuthenticatedUserId();
+    const response = await client.post<unknown>('/api/v4/channels/direct', {
+      user_ids: [currentUserId, data.target_user_id],
+    });
+    const channel = normalizeChannelRecord(response.data, data.team_id);
+    if (!channel) {
+      throw new Error('Invalid direct message channel response');
+    }
+    return channel;
+  }
+
+  const response = await client.post<unknown>('/api/v4/channels', {
+    team_id: data.team_id,
+    name: data.name,
+    display_name: data.display_name,
+    type: data.channel_type === 'private' ? 'P' : 'O',
+    purpose: data.purpose || '',
+    header: data.header || '',
+  });
+  const channel = normalizeChannelRecord(response.data, data.team_id);
+  if (!channel) {
+    throw new Error('Invalid channel response');
+  }
+  return channel;
+}
+
 export async function createChannel(data: CreateChannelRequest): Promise<Channel> {
   batch(() => {
     setIsLoading(true);
@@ -319,7 +415,12 @@ export async function createChannel(data: CreateChannelRequest): Promise<Channel
   });
 
   try {
-    const channel = await channelsApi.create(data);
+    let channel: Channel;
+    try {
+      channel = await channelsApi.create(data);
+    } catch {
+      channel = await createChannelViaV4(data);
+    }
 
     setChannels((prev) => [...prev, channel]);
     setCurrentChannelId(channel.id);
@@ -341,9 +442,21 @@ async function requireAuthenticatedUserId(): Promise<string> {
     return userId;
   }
 
-  if (authStore.token) {
-    await authStore.fetchMe();
-    userId = authStore.user()?.id;
+  try {
+    if (authStore.token) {
+      await authStore.fetchMe();
+      userId = authStore.user()?.id;
+      if (userId) {
+        return userId;
+      }
+    }
+
+    const response = await client.get<{ id?: unknown }>('/auth/me');
+    if (typeof response.data?.id === 'string' && response.data.id.length > 0) {
+      return response.data.id;
+    }
+  } catch {
+    // Fall through and raise a uniform error below.
   }
 
   if (!userId) {
@@ -355,12 +468,24 @@ async function requireAuthenticatedUserId(): Promise<string> {
 
 export async function joinChannel(channelId: string): Promise<void> {
   const userId = await requireAuthenticatedUserId();
-  await channelsApi.join(channelId, userId);
+  try {
+    await channelsApi.join(channelId, userId);
+  } catch {
+    await client.post(`/api/v4/channels/${encodeURIComponent(channelId)}/members`, {
+      user_id: userId,
+    });
+  }
 }
 
 export async function leaveChannel(channelId: string): Promise<void> {
   const userId = await requireAuthenticatedUserId();
-  await channelsApi.leave(channelId, userId);
+  try {
+    await channelsApi.leave(channelId, userId);
+  } catch {
+    await client.delete(
+      `/api/v4/channels/${encodeURIComponent(channelId)}/members/${encodeURIComponent(userId)}`
+    );
+  }
 
   setChannels((prev) => prev.filter((c) => c.id !== channelId));
 

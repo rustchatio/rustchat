@@ -593,9 +593,9 @@ async fn login(
     State(state): State<AppState>,
     Json(input): Json<LoginRequest>,
 ) -> ApiResult<Json<AuthResponse>> {
-    // Find user by email
+    // Allow login by either email or username for parity with legacy clients.
     let user: User = sqlx::query_as(
-        "SELECT * FROM users WHERE email = $1 AND is_active = true AND deleted_at IS NULL",
+        "SELECT * FROM users WHERE (LOWER(email) = LOWER($1) OR LOWER(username) = LOWER($1)) AND is_active = true AND deleted_at IS NULL",
     )
     .bind(&input.email)
     .fetch_optional(&state.db)

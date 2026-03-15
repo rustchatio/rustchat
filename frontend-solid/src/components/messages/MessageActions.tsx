@@ -181,6 +181,7 @@ export default function MessageActions(props: MessageActionsProps) {
   const [showDeleteConfirm, setShowDeleteConfirm] = createSignal(false);
   const [copied, setCopied] = createSignal(false);
   const [showEmojiPicker, setShowEmojiPicker] = createSignal(false);
+  let quickReactionRef: HTMLDivElement | undefined;
 
   const currentUserId = () => authStore.user()?.id;
   const isOwnMessage = () => props.message.userId === currentUserId();
@@ -221,6 +222,20 @@ export default function MessageActions(props: MessageActionsProps) {
     setShowDeleteConfirm(false);
     props.onDelete?.();
   };
+
+  onMount(() => {
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!showEmojiPicker()) return;
+      if (!quickReactionRef) return;
+      if (quickReactionRef.contains(event.target as Node)) return;
+      setShowEmojiPicker(false);
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    onCleanup(() => {
+      document.removeEventListener('mousedown', handlePointerDown);
+    });
+  });
 
   // More actions menu items
   const moreActions: ActionItem[] = [
@@ -284,7 +299,7 @@ export default function MessageActions(props: MessageActionsProps) {
       {/* Actions Bar */}
       <div class="flex items-center gap-0.5 bg-bg-surface-1 rounded-lg shadow-sm border border-border-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
         {/* Quick Reactions */}
-        <div class="relative">
+        <div class="relative" ref={quickReactionRef}>
           <Show when={showEmojiPicker()}>
             <div class="absolute bottom-full left-0 mb-1 p-2 bg-bg-surface-1 rounded-lg shadow-lg border border-border-1 z-[10000]">
               <div class="flex gap-1">
@@ -293,7 +308,11 @@ export default function MessageActions(props: MessageActionsProps) {
                     <button
                       type="button"
                       onClick={() => handleQuickReaction(emoji)}
-                      class="w-8 h-8 flex items-center justify-center text-lg hover:bg-bg-surface-2 rounded transition-colors"
+                      class="relative inline-flex h-8 w-8 items-center justify-center rounded text-xl leading-none hover:bg-bg-surface-2 transition-colors"
+                      style={{
+                        'font-family': '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif',
+                        'line-height': '1',
+                      }}
                     >
                       {emoji}
                     </button>

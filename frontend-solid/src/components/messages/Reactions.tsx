@@ -3,7 +3,7 @@
 // Display and toggle message reactions
 // ============================================
 
-import { createSignal, Show, For, createMemo } from 'solid-js';
+import { createSignal, Show, For, createMemo, onMount, onCleanup } from 'solid-js';
 import { authStore } from '../../stores/auth';
 import type { Reaction } from '../../types/messages';
 import { cn } from '../../utils/cn';
@@ -96,7 +96,11 @@ function EmojiPicker(props: EmojiPickerProps) {
             <button
               type="button"
               onClick={() => props.onSelect(emoji)}
-              class="w-8 h-8 flex items-center justify-center text-lg hover:bg-bg-surface-2 rounded transition-colors"
+              class="relative inline-flex h-8 w-8 items-center justify-center rounded text-xl leading-none hover:bg-bg-surface-2 transition-colors"
+              style={{
+                'font-family': '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif',
+                'line-height': '1',
+              }}
               title={`React with ${emoji}`}
             >
               {emoji}
@@ -114,7 +118,22 @@ function EmojiPicker(props: EmojiPickerProps) {
 
 export default function Reactions(props: ReactionsProps) {
   const [showPicker, setShowPicker] = createSignal(false);
+  let pickerRootRef: HTMLDivElement | undefined;
   const currentUserId = () => authStore.user()?.id;
+
+  onMount(() => {
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!showPicker()) return;
+      if (!pickerRootRef) return;
+      if (pickerRootRef.contains(event.target as Node)) return;
+      setShowPicker(false);
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    onCleanup(() => {
+      document.removeEventListener('mousedown', handlePointerDown);
+    });
+  });
 
   // Check if current user has reacted with this emoji
   const hasReacted = (reaction: Reaction) => {
@@ -176,7 +195,7 @@ export default function Reactions(props: ReactionsProps) {
       </For>
 
       {/* Add Reaction Button */}
-      <div class="relative">
+      <div class="relative" ref={pickerRootRef}>
         <Show when={showPicker()}>
           <EmojiPicker
             onSelect={handleAddNewReaction}

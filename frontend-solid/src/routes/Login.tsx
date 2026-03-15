@@ -5,6 +5,7 @@
 import { createSignal, Show, onMount, createEffect, For } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
 import { authStore, login, loginWithToken, getAuthPolicy } from '../stores/auth';
+import { resolveDefaultChannelPath } from '../stores/channels';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import { normalizeAuthRedirectPath, getDefaultAuthRedirectPath } from '../utils/authRedirect';
@@ -41,18 +42,11 @@ const AUTH_REDIRECT_STORAGE_KEY = 'rustchat_auth_redirect_to';
 // Validation Helpers
 // ============================================
 
-function validateEmail(email: string): boolean {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email);
-}
-
 function validateForm(email: string, password: string): FormErrors {
   const errors: FormErrors = {};
 
   if (!email.trim()) {
-    errors.email = 'Email is required';
-  } else if (!validateEmail(email)) {
-    errors.email = 'Please enter a valid email address';
+    errors.email = 'Email or username is required';
   }
 
   if (!password) {
@@ -99,14 +93,40 @@ export default function Login() {
   const [remember, setRemember] = createSignal(false);
   const [isLoading, setIsLoading] = createSignal(false);
   const [isProcessingCallback, setIsProcessingCallback] = createSignal(false);
+  const [isRedirectingAuthenticatedUser, setIsRedirectingAuthenticatedUser] = createSignal(false);
   const [errors, setErrors] = createSignal<FormErrors>({});
   const [authConfig, setAuthConfig] = createSignal<AuthConfig | null>(null);
   const [ssoProviders, setSsoProviders] = createSignal<OAuthProvider[]>([]);
 
+  const resolveAuthenticatedDestination = async (): Promise<string> => {
+    if (postAuthRedirectPath && postAuthRedirectPath !== '/') {
+      return postAuthRedirectPath;
+    }
+
+    const workspacePath = await resolveDefaultChannelPath();
+    if (workspacePath) {
+      return workspacePath;
+    }
+
+    return '/settings/profile';
+  };
+
+  const redirectAuthenticatedUser = async () => {
+    if (isRedirectingAuthenticatedUser()) return;
+    setIsRedirectingAuthenticatedUser(true);
+
+    try {
+      const destination = await resolveAuthenticatedDestination();
+      navigate(destination, { replace: true });
+    } finally {
+      setIsRedirectingAuthenticatedUser(false);
+    }
+  };
+
   // Redirect if already authenticated - use createEffect for reactivity
   createEffect(() => {
     if (authStore.isAuthenticated) {
-      navigate(postAuthRedirectPath, { replace: true });
+      void redirectAuthenticatedUser();
     }
   });
 
@@ -178,7 +198,7 @@ export default function Login() {
         } catch {
           // noop
         }
-        navigate(postAuthRedirectPath, { replace: true });
+        await redirectAuthenticatedUser();
       } catch (error) {
         setErrors({
           general: error instanceof Error ? error.message : 'Single Sign-On login failed',
@@ -214,7 +234,7 @@ export default function Login() {
       } catch {
         // noop
       }
-      navigate(postAuthRedirectPath, { replace: true });
+      await redirectAuthenticatedUser();
     } catch (err) {
       setErrors({
         general: err instanceof Error ? err.message : 'Login failed. Please check your credentials.',
@@ -297,9 +317,9 @@ export default function Login() {
                   <Input
                     id="email"
                     name="email"
-                    type="email"
+                    type="text"
                     autocomplete="username"
-                    label="Email"
+                    label="Email or Username"
                     value={email()}
                     onInput={(e) => {
                       setEmail(e.currentTarget.value);
@@ -307,7 +327,7 @@ export default function Login() {
                         setErrors((prev) => ({ ...prev, email: undefined }));
                       }
                     }}
-                    placeholder="Enter your email"
+                    placeholder="Enter your email or username"
                     required
                     disabled={isLoading()}
                     error={errors().email}

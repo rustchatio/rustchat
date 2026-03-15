@@ -893,8 +893,6 @@ function TeamSelector() {
   const [newTeamDescription, setNewTeamDescription] = createSignal('');
 
   const loadTeams = async () => {
-    if (!authStore.token) return;
-
     setIsLoadingTeams(true);
     setTeamError(null);
 
@@ -915,8 +913,6 @@ function TeamSelector() {
   });
 
   const loadPublicTeams = async () => {
-    if (!authStore.token) return;
-
     const response =
       await client.get<Array<{ id?: unknown; name?: unknown; display_name?: unknown }>>(
         '/teams/public'
@@ -942,8 +938,6 @@ function TeamSelector() {
   };
 
   const createNewTeam = async () => {
-    if (!authStore.token) return;
-
     const displayName = (newTeamDisplayName() || newTeamName()).trim();
     if (!displayName) {
       setTeamModalError('Team name is required.');
@@ -970,8 +964,6 @@ function TeamSelector() {
   };
 
   const joinTeam = async (teamId: string) => {
-    if (!authStore.token) return;
-
     setIsTeamActionLoading(true);
     setTeamModalError(null);
     try {
@@ -981,7 +973,14 @@ function TeamSelector() {
       await switchTeam(teamId);
       setIsTeamModalOpen(false);
     } catch (error) {
-      setTeamModalError(getErrorMessage(error) || 'Failed to join team.');
+      const message = getErrorMessage(error) || 'Failed to join team.';
+      if (message.toLowerCase().includes('already a member')) {
+        await loadTeams();
+        await switchTeam(teamId);
+        setIsTeamModalOpen(false);
+        return;
+      }
+      setTeamModalError(message);
     } finally {
       setIsTeamActionLoading(false);
     }
