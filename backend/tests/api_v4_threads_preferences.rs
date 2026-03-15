@@ -244,7 +244,15 @@ async fn mm_preferences_endpoints_smoke() {
         .await
         .unwrap();
     let prefs: serde_json::Value = pref_get.json().await.unwrap();
-    assert_eq!(prefs.as_array().unwrap().len(), 2);
+    let prefs_array = prefs.as_array().unwrap();
+    let has_theme = prefs_array.iter().any(|entry| {
+        entry["category"] == "display" && entry["name"] == "theme" && entry["value"] == "dark"
+    });
+    let has_tutorial = prefs_array.iter().any(|entry| {
+        entry["category"] == "tutorial" && entry["name"] == "step" && entry["value"] == "1"
+    });
+    assert!(has_theme, "theme preference not found in response");
+    assert!(has_tutorial, "tutorial preference not found in response");
 
     let pref_cat = app
         .api_client
@@ -257,8 +265,13 @@ async fn mm_preferences_endpoints_smoke() {
         .await
         .unwrap();
     let cat_body: serde_json::Value = pref_cat.json().await.unwrap();
-    assert_eq!(cat_body.as_array().unwrap().len(), 1);
-    assert_eq!(cat_body[0]["name"], "theme");
+    let cat_array = cat_body.as_array().unwrap();
+    assert!(
+        cat_array
+            .iter()
+            .any(|entry| entry["name"] == "theme" && entry["value"] == "dark"),
+        "display/theme preference missing from category response"
+    );
 
     let pref_name = app
         .api_client
@@ -299,5 +312,17 @@ async fn mm_preferences_endpoints_smoke() {
         .await
         .unwrap();
     let prefs_after: serde_json::Value = pref_get_after.json().await.unwrap();
-    assert_eq!(prefs_after.as_array().unwrap().len(), 1);
+    let prefs_after_array = prefs_after.as_array().unwrap();
+    assert!(
+        prefs_after_array
+            .iter()
+            .all(|entry| !(entry["category"] == "display" && entry["name"] == "theme")),
+        "deleted display/theme preference is still present"
+    );
+    assert!(
+        prefs_after_array
+            .iter()
+            .any(|entry| entry["category"] == "tutorial" && entry["name"] == "step"),
+        "tutorial/step preference should remain after delete"
+    );
 }

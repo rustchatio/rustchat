@@ -17,7 +17,113 @@ use crate::services::membership_policies::apply_auto_membership_for_new_user;
 use crate::services::password_reset::{
     request_password_reset, reset_password, validate_token, PasswordResetError,
 };
+use crate::services::team_membership::{
+    apply_default_channel_membership_for_team_join, ensure_default_channels_for_team,
+};
 use crate::services::turnstile;
+use uuid::Uuid;
+
+const DEFAULT_WORKSPACE_NAME: &str = "rustchat";
+const DEFAULT_WORKSPACE_DISPLAY_NAME: &str = "RustChat";
+
+#[derive(sqlx::FromRow)]
+struct DefaultTeamRow {
+    id: Uuid,
+    org_id: Uuid,
+}
+
+async fn ensure_default_workspace_membership(state: &AppState, user: &User) -> ApiResult<User> {
+    let mut user_org_id = user.org_id;
+    let default_team = sqlx::query_as::<_, DefaultTeamRow>(
+        "SELECT id, org_id FROM teams WHERE lower(name) = $1 ORDER BY created_at ASC LIMIT 1",
+    )
+    .bind(DEFAULT_WORKSPACE_NAME)
+    .fetch_optional(&state.db)
+    .await?;
+
+    let team = if let Some(team) = default_team {
+        team
+    } else {
+        let org_id = if let Some(existing_org_id) = user_org_id {
+            existing_org_id
+        } else {
+            let new_org_id = Uuid::new_v4();
+            sqlx::query(
+                "INSERT INTO organizations (id, name, display_name, description) VALUES ($1, $2, $3, $4)",
+            )
+            .bind(new_org_id)
+            .bind(DEFAULT_WORKSPACE_NAME)
+            .bind(DEFAULT_WORKSPACE_DISPLAY_NAME)
+            .bind("Default RustChat organization")
+            .execute(&state.db)
+            .await?;
+
+            sqlx::query("UPDATE users SET org_id = $1 WHERE id = $2")
+                .bind(new_org_id)
+                .bind(user.id)
+                .execute(&state.db)
+                .await?;
+            user_org_id = Some(new_org_id);
+            new_org_id
+        };
+
+        sqlx::query_as::<_, DefaultTeamRow>(
+            r#"
+            INSERT INTO teams (id, org_id, name, display_name, description, is_public, allow_open_invite)
+            VALUES ($1, $2, $3, $4, $5, true, true)
+            ON CONFLICT (org_id, name) DO UPDATE
+                SET display_name = EXCLUDED.display_name
+            RETURNING id, org_id
+            "#,
+        )
+        .bind(Uuid::new_v4())
+        .bind(org_id)
+        .bind(DEFAULT_WORKSPACE_NAME)
+        .bind(DEFAULT_WORKSPACE_DISPLAY_NAME)
+        .bind("Default RustChat team")
+        .fetch_one(&state.db)
+        .await?
+    };
+
+    if user_org_id.is_none() {
+        sqlx::query("UPDATE users SET org_id = $1 WHERE id = $2")
+            .bind(team.org_id)
+            .bind(user.id)
+            .execute(&state.db)
+            .await?;
+    }
+
+    ensure_default_channels_for_team(state, team.id, user.id).await?;
+
+    let membership_role = if user.role == "system_admin" || user.role == "org_admin" {
+        "admin"
+    } else {
+        "member"
+    };
+    sqlx::query(
+        "INSERT INTO team_members (team_id, user_id, role) VALUES ($1, $2, $3) ON CONFLICT (team_id, user_id) DO NOTHING",
+    )
+    .bind(team.id)
+    .bind(user.id)
+    .bind(membership_role)
+    .execute(&state.db)
+    .await?;
+
+    if let Err(err) = apply_default_channel_membership_for_team_join(state, team.id, user.id).await {
+        tracing::warn!(
+            team_id = %team.id,
+            user_id = %user.id,
+            error = %err,
+            "Default channel auto-join failed during auth workspace bootstrap"
+        );
+    }
+
+    let refreshed_user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE id = $1")
+        .bind(user.id)
+        .fetch_one(&state.db)
+        .await?;
+    Ok(refreshed_user)
+}
 
 /// Build auth routes
 pub fn router(state: AppState) -> Router<AppState> {
@@ -217,6 +323,8 @@ async fn register(
         }
     }
 
+    let user = ensure_default_workspace_membership(&state, &user).await?;
+
     // Fetch site_url from server_config
     let site_url: Option<String> =
         sqlx::query_scalar("SELECT site->>'site_url' FROM server_config WHERE id = 'default'")
@@ -383,6 +491,8 @@ async fn login(
         .execute(&state.db)
         .await?;
 
+    let user = ensure_default_workspace_membership(&state, &user).await?;
+
     // Generate token
     let token = create_token_with_policy(
         user.id,
@@ -523,6 +633,7 @@ async fn me(State(state): State<AppState>, auth: AuthUser) -> ApiResult<Json<Use
         .bind(auth.user_id)
         .fetch_one(&state.db)
         .await?;
+    let user = ensure_default_workspace_membership(&state, &user).await?;
 
     Ok(Json(UserResponse::from(user)))
 }

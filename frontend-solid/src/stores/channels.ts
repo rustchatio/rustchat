@@ -162,15 +162,35 @@ async function fetchUserTeams(): Promise<TeamSummary[]> {
   const token = authStore.token;
   if (!token) return [];
 
-  const response = await fetch('/api/v1/teams', {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  const requestTeams = async () =>
+    fetch('/api/v1/teams', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
 
+  let response = await requestTeams();
   if (!response.ok) {
     throw new Error('Failed to fetch teams');
   }
 
-  const payload = await response.json();
+  let payload = await response.json();
+  if (Array.isArray(payload) && payload.length > 0) {
+    return payload.filter(
+      (team): team is TeamSummary =>
+        typeof team === 'object' && team !== null && typeof (team as TeamSummary).id === 'string'
+    );
+  }
+
+  // Trigger auth workspace bootstrap for older sessions/users, then retry.
+  await fetch('/api/v1/auth/me', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  response = await requestTeams();
+  if (!response.ok) {
+    throw new Error('Failed to fetch teams');
+  }
+
+  payload = await response.json();
   if (!Array.isArray(payload)) return [];
 
   return payload.filter(

@@ -99,6 +99,24 @@ interface AdminConfig {
   experimental: Record<string, unknown>;
 }
 
+interface AdminCallsPluginSettings {
+  enabled: boolean;
+  turn_server_enabled: boolean;
+  turn_server_url: string;
+  turn_server_username: string;
+  turn_server_credential?: string | null;
+  udp_port: number;
+  tcp_port: number;
+  ice_host_override?: string | null;
+  stun_servers: string[];
+}
+
+interface AdminCallsPluginConfig {
+  plugin_id: string;
+  plugin_name: string;
+  settings: AdminCallsPluginSettings;
+}
+
 interface AdminSsoConfig {
   id: string;
   provider_key: string;
@@ -670,6 +688,17 @@ function AdminSettingsSection() {
   const [siteUrl, setSiteUrl] = createSignal('');
   const [supportEmail, setSupportEmail] = createSignal('');
   const [allowRegistration, setAllowRegistration] = createSignal(false);
+  const [hasCallsPlugin, setHasCallsPlugin] = createSignal(false);
+  const [callsPluginName, setCallsPluginName] = createSignal('RustChat Calls Plugin');
+  const [callsEnabled, setCallsEnabled] = createSignal(false);
+  const [turnEnabled, setTurnEnabled] = createSignal(false);
+  const [turnServerUrl, setTurnServerUrl] = createSignal('');
+  const [turnServerUsername, setTurnServerUsername] = createSignal('');
+  const [turnServerCredential, setTurnServerCredential] = createSignal('');
+  const [udpPort, setUdpPort] = createSignal(3478);
+  const [tcpPort, setTcpPort] = createSignal(3478);
+  const [iceHostOverride, setIceHostOverride] = createSignal('');
+  const [stunServersText, setStunServersText] = createSignal('');
   const [isLoading, setIsLoading] = createSignal(true);
   const [isSaving, setIsSaving] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
@@ -684,12 +713,30 @@ function AdminSettingsSection() {
     setNotice(null);
 
     try {
-      const data = await fetchAdminJson<AdminConfig>(token, '/admin/config');
+      const [data, callsPlugin] = await Promise.all([
+        fetchAdminJson<AdminConfig>(token, '/admin/config'),
+        fetchAdminJson<AdminCallsPluginConfig>(token, '/admin/plugins/calls').catch(() => null),
+      ]);
       setConfig(data);
       setSiteName(String(data.site?.site_name || ''));
       setSiteUrl(String(data.site?.site_url || ''));
       setSupportEmail(String(data.site?.support_email || ''));
       setAllowRegistration(Boolean(data.authentication?.allow_registration));
+      if (callsPlugin) {
+        setHasCallsPlugin(true);
+        setCallsPluginName(callsPlugin.plugin_name || 'RustChat Calls Plugin');
+        setCallsEnabled(Boolean(callsPlugin.settings.enabled));
+        setTurnEnabled(Boolean(callsPlugin.settings.turn_server_enabled));
+        setTurnServerUrl(callsPlugin.settings.turn_server_url || '');
+        setTurnServerUsername(callsPlugin.settings.turn_server_username || '');
+        setTurnServerCredential('');
+        setUdpPort(Number(callsPlugin.settings.udp_port || 3478));
+        setTcpPort(Number(callsPlugin.settings.tcp_port || 3478));
+        setIceHostOverride(callsPlugin.settings.ice_host_override || '');
+        setStunServersText((callsPlugin.settings.stun_servers || []).join('\n'));
+      } else {
+        setHasCallsPlugin(false);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load server config');
     } finally {
@@ -733,6 +780,31 @@ function AdminSettingsSection() {
         method: 'PATCH',
         body: JSON.stringify(nextAuth),
       });
+
+      if (hasCallsPlugin()) {
+        const normalizedStunServers = stunServersText()
+          .split(/[\n,]+/)
+          .map((entry) => entry.trim())
+          .filter((entry) => entry.length > 0);
+        const pluginPayload: Record<string, unknown> = {
+          enabled: callsEnabled(),
+          turn_server_enabled: turnEnabled(),
+          turn_server_url: turnServerUrl().trim(),
+          turn_server_username: turnServerUsername().trim(),
+          udp_port: Math.max(1, Math.floor(udpPort())),
+          tcp_port: Math.max(1, Math.floor(tcpPort())),
+          ice_host_override: iceHostOverride().trim() || null,
+          stun_servers: normalizedStunServers,
+        };
+        const normalizedCredential = turnServerCredential().trim();
+        if (normalizedCredential) {
+          pluginPayload.turn_server_credential = normalizedCredential;
+        }
+        await fetchAdminJson<Record<string, unknown>>(token, '/admin/plugins/calls', {
+          method: 'PUT',
+          body: JSON.stringify(pluginPayload),
+        });
+      }
 
       setConfig({
         ...current,
@@ -803,6 +875,111 @@ function AdminSettingsSection() {
             <span class="text-sm text-text-2">Allow user self-registration</span>
           </label>
         </div>
+
+        <Show when={hasCallsPlugin()}>
+          <div class="rounded-lg border border-border-1 bg-bg-app p-4 space-y-4">
+            <div>
+              <h4 class="text-sm font-semibold text-text-1">{callsPluginName()}</h4>
+              <p class="text-xs text-text-3 mt-1">Calls plugin and TURN/STUN configuration</p>
+            </div>
+
+            <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <label class="inline-flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={callsEnabled()}
+                  onChange={(event) => setCallsEnabled(event.currentTarget.checked)}
+                  class="h-4 w-4 rounded border-border-1"
+                />
+                <span class="text-sm text-text-2">Enable calls plugin</span>
+              </label>
+
+              <label class="inline-flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={turnEnabled()}
+                  onChange={(event) => setTurnEnabled(event.currentTarget.checked)}
+                  class="h-4 w-4 rounded border-border-1"
+                />
+                <span class="text-sm text-text-2">Enable TURN server</span>
+              </label>
+
+              <label class="space-y-1">
+                <span class="text-sm font-medium text-text-2">TURN Server URL</span>
+                <input
+                  type="text"
+                  value={turnServerUrl()}
+                  onInput={(event) => setTurnServerUrl(event.currentTarget.value)}
+                  class="w-full rounded-lg border border-border-1 bg-bg-surface-1 px-3 py-2 text-sm text-text-1"
+                />
+              </label>
+
+              <label class="space-y-1">
+                <span class="text-sm font-medium text-text-2">TURN Username</span>
+                <input
+                  type="text"
+                  value={turnServerUsername()}
+                  onInput={(event) => setTurnServerUsername(event.currentTarget.value)}
+                  class="w-full rounded-lg border border-border-1 bg-bg-surface-1 px-3 py-2 text-sm text-text-1"
+                />
+              </label>
+
+              <label class="space-y-1">
+                <span class="text-sm font-medium text-text-2">TURN Credential</span>
+                <input
+                  type="password"
+                  value={turnServerCredential()}
+                  onInput={(event) => setTurnServerCredential(event.currentTarget.value)}
+                  placeholder="Leave blank to keep existing value"
+                  class="w-full rounded-lg border border-border-1 bg-bg-surface-1 px-3 py-2 text-sm text-text-1"
+                />
+              </label>
+
+              <label class="space-y-1">
+                <span class="text-sm font-medium text-text-2">ICE Host Override</span>
+                <input
+                  type="text"
+                  value={iceHostOverride()}
+                  onInput={(event) => setIceHostOverride(event.currentTarget.value)}
+                  class="w-full rounded-lg border border-border-1 bg-bg-surface-1 px-3 py-2 text-sm text-text-1"
+                />
+              </label>
+
+              <label class="space-y-1">
+                <span class="text-sm font-medium text-text-2">UDP Port</span>
+                <input
+                  type="number"
+                  min="1"
+                  value={udpPort()}
+                  onInput={(event) => setUdpPort(Number(event.currentTarget.value))}
+                  class="w-full rounded-lg border border-border-1 bg-bg-surface-1 px-3 py-2 text-sm text-text-1"
+                />
+              </label>
+
+              <label class="space-y-1">
+                <span class="text-sm font-medium text-text-2">TCP Port</span>
+                <input
+                  type="number"
+                  min="1"
+                  value={tcpPort()}
+                  onInput={(event) => setTcpPort(Number(event.currentTarget.value))}
+                  class="w-full rounded-lg border border-border-1 bg-bg-surface-1 px-3 py-2 text-sm text-text-1"
+                />
+              </label>
+
+              <label class="space-y-1 md:col-span-2">
+                <span class="text-sm font-medium text-text-2">STUN Servers</span>
+                <textarea
+                  rows={3}
+                  value={stunServersText()}
+                  onInput={(event) => setStunServersText(event.currentTarget.value)}
+                  placeholder="One server per line (or comma-separated)"
+                  class="w-full rounded-lg border border-border-1 bg-bg-surface-1 px-3 py-2 text-sm text-text-1"
+                />
+              </label>
+            </div>
+          </div>
+        </Show>
 
         <div class="flex items-center gap-3">
           <button

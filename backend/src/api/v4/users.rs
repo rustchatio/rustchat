@@ -10,6 +10,7 @@ use axum::{
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use std::collections::HashMap;
+use std::io::Cursor;
 use uuid::Uuid;
 
 use super::extractors::MmAuthUser;
@@ -41,6 +42,59 @@ pub(crate) use sidebar_categories::{
     resolve_user_id, update_categories_internal, update_category_order_internal,
     CreateCategoryRequest, UpdateCategoriesPayload,
 };
+
+const AVATAR_VARIANTS: [u32; 4] = [32, 64, 128, 256];
+const AVATAR_DEFAULT_SIZE: u32 = 128;
+const AVATAR_MAX_DIMENSION: u32 = 512;
+
+#[derive(Debug, Default, Deserialize)]
+struct UserImageQuery {
+    size: Option<String>,
+}
+
+fn avatar_variant_key(user_id: Uuid, size: u32) -> String {
+    format!("avatars/{}/{}.png", user_id, size)
+}
+
+fn avatar_original_key(user_id: Uuid) -> String {
+    format!("avatars/{}/original.png", user_id)
+}
+
+fn parse_avatar_size(size: &str) -> Option<u32> {
+    let normalized = size.trim().to_ascii_lowercase();
+    match normalized.as_str() {
+        "sm" => Some(32),
+        "md" => Some(64),
+        "lg" => Some(128),
+        "xl" => Some(256),
+        _ => normalized
+            .parse::<u32>()
+            .ok()
+            .map(|value| value.clamp(16, AVATAR_MAX_DIMENSION)),
+    }
+}
+
+fn detect_image_content_type(bytes: &[u8]) -> &'static str {
+    if bytes.starts_with(&[0x89, 0x50, 0x4E, 0x47]) {
+        "image/png"
+    } else if bytes.starts_with(&[0xFF, 0xD8, 0xFF]) {
+        "image/jpeg"
+    } else if bytes.starts_with(b"GIF") {
+        "image/gif"
+    } else if bytes.len() > 12 && bytes.starts_with(b"RIFF") && &bytes[8..12] == b"WEBP" {
+        "image/webp"
+    } else {
+        "image/png"
+    }
+}
+
+fn encode_png_image(image: &image::DynamicImage) -> ApiResult<Vec<u8>> {
+    let mut cursor = Cursor::new(Vec::new());
+    image
+        .write_to(&mut cursor, image::ImageFormat::Png)
+        .map_err(|e| AppError::Validation(format!("Failed to encode avatar image: {}", e)))?;
+    Ok(cursor.into_inner())
+}
 
 pub fn router(state: AppState) -> Router<AppState> {
     let login_routes =
@@ -2087,57 +2141,53 @@ async fn list_users(
 async fn get_user_image(
     State(state): State<AppState>,
     _auth: MmAuthUser, // Require authentication - images are only accessible to logged-in users
+    Query(query): Query<UserImageQuery>,
     Path(user_id): Path<String>,
 ) -> ApiResult<impl IntoResponse> {
     let user_uuid = parse_mm_or_uuid(&user_id)
         .ok_or_else(|| AppError::BadRequest("Invalid user ID".to_string()))?;
 
-    // Try to fetch from S3
-    let key = format!("avatars/{}.png", user_uuid);
-    let data = state.s3_client.download_optional(&key).await?;
+    let requested_size = query
+        .size
+        .as_deref()
+        .and_then(parse_avatar_size)
+        .unwrap_or(AVATAR_DEFAULT_SIZE);
 
-    match data {
-        Some(bytes) => {
-            // Detect content type from magic bytes
-            let content_type = if bytes.starts_with(&[0x89, 0x50, 0x4E, 0x47]) {
-                "image/png"
-            } else if bytes.starts_with(&[0xFF, 0xD8, 0xFF]) {
-                "image/jpeg"
-            } else if bytes.starts_with(b"GIF") {
-                "image/gif"
-            } else if bytes.len() > 12 && bytes.starts_with(b"RIFF") && &bytes[8..12] == b"WEBP" {
-                "image/webp"
-            } else {
-                "image/png"
-            };
+    let candidate_keys = [
+        avatar_variant_key(user_uuid, requested_size),
+        avatar_original_key(user_uuid),
+        format!("avatars/{}.png", user_uuid),
+    ];
 
-            Ok((
+    for key in candidate_keys {
+        if let Some(bytes) = state.s3_client.download_optional(&key).await? {
+            let content_type = detect_image_content_type(&bytes);
+            return Ok((
                 [
                     (axum::http::header::CONTENT_TYPE, content_type),
                     (axum::http::header::CACHE_CONTROL, "private, max-age=86400"),
                 ],
                 bytes,
             )
-                .into_response())
-        }
-        None => {
-            // Return default 1x1 transparent PNG if no image uploaded
-            const PNG_1X1: &[u8] = &[
-                137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0,
-                1, 8, 6, 0, 0, 0, 31, 21, 196, 137, 0, 0, 0, 10, 73, 68, 65, 84, 120, 156, 99, 0,
-                1, 0, 0, 5, 0, 1, 13, 10, 45, 180, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130,
-            ];
-
-            Ok((
-                [
-                    (axum::http::header::CONTENT_TYPE, "image/png"),
-                    (axum::http::header::CACHE_CONTROL, "private, max-age=86400"),
-                ],
-                PNG_1X1.to_vec(),
-            )
-                .into_response())
+                .into_response());
         }
     }
+
+    // Return default 1x1 transparent PNG if no image uploaded
+    const PNG_1X1: &[u8] = &[
+        137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1, 8,
+        6, 0, 0, 0, 31, 21, 196, 137, 0, 0, 0, 10, 73, 68, 65, 84, 120, 156, 99, 0, 1, 0, 0, 5,
+        0, 1, 13, 10, 45, 180, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130,
+    ];
+
+    Ok((
+        [
+            (axum::http::header::CONTENT_TYPE, "image/png"),
+            (axum::http::header::CACHE_CONTROL, "private, max-age=86400"),
+        ],
+        PNG_1X1.to_vec(),
+    )
+        .into_response())
 }
 
 /// POST /users/{user_id}/image - Upload user profile image
@@ -2191,30 +2241,53 @@ async fn upload_user_image(
                 continue;
             }
 
-            // Determine content type from data if not provided
             let final_content_type = if is_image_type {
                 content_type.clone()
             } else {
-                // Try to detect from magic bytes
-                if data.starts_with(&[0x89, 0x50, 0x4E, 0x47]) {
-                    "image/png".to_string()
-                } else if data.starts_with(&[0xFF, 0xD8, 0xFF]) {
-                    "image/jpeg".to_string()
-                } else if data.starts_with(b"GIF") {
-                    "image/gif".to_string()
-                } else if data.starts_with(b"RIFF") && data.len() > 12 && &data[8..12] == b"WEBP" {
-                    "image/webp".to_string()
-                } else {
-                    "image/png".to_string() // default to PNG
-                }
+                detect_image_content_type(&data).to_string()
             };
 
-            // Upload to S3
-            let key = format!("avatars/{}.png", user_uuid);
+            if !final_content_type.starts_with("image/") {
+                return Err(AppError::Validation(
+                    "Unsupported profile image format".to_string(),
+                ));
+            }
+
+            let decoded = image::load_from_memory(&data)
+                .map_err(|e| AppError::Validation(format!("Invalid image upload: {}", e)))?;
+            let prepared = if decoded.width() > AVATAR_MAX_DIMENSION
+                || decoded.height() > AVATAR_MAX_DIMENSION
+            {
+                decoded.thumbnail(AVATAR_MAX_DIMENSION, AVATAR_MAX_DIMENSION)
+            } else {
+                decoded
+            };
+
+            let original_png = encode_png_image(&prepared)?;
             state
                 .s3_client
-                .upload(&key, data, &final_content_type)
+                .upload(&avatar_original_key(user_uuid), original_png, "image/png")
                 .await?;
+
+            let mut legacy_avatar: Option<Vec<u8>> = None;
+            for size in AVATAR_VARIANTS {
+                let resized = prepared.thumbnail(size, size);
+                let encoded = encode_png_image(&resized)?;
+                if size == AVATAR_DEFAULT_SIZE {
+                    legacy_avatar = Some(encoded.clone());
+                }
+                state
+                    .s3_client
+                    .upload(&avatar_variant_key(user_uuid, size), encoded, "image/png")
+                    .await?;
+            }
+
+            if let Some(legacy_avatar_bytes) = legacy_avatar {
+                state
+                    .s3_client
+                    .upload(&format!("avatars/{}.png", user_uuid), legacy_avatar_bytes, "image/png")
+                    .await?;
+            }
 
             // Update user avatar_url
             let avatar_url = format!("/api/v4/users/{}/image", encode_mm_id(user_uuid));
@@ -2566,7 +2639,7 @@ async fn get_user_image_default(
     auth: MmAuthUser,
     Path(user_id): Path<String>,
 ) -> ApiResult<impl IntoResponse> {
-    get_user_image(State(state), auth, Path(user_id)).await
+    get_user_image(State(state), auth, Query(UserImageQuery::default()), Path(user_id)).await
 }
 
 async fn reset_password(headers: HeaderMap, body: Bytes) -> ApiResult<Json<serde_json::Value>> {

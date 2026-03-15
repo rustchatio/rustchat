@@ -11,6 +11,7 @@ import {
 } from 'solid-js';
 import { cn } from '../../utils/cn';
 import { formatMessageTime, formatFullDateTime, getInitials } from '../../utils/date';
+import { avatarSizedUrl } from '../../utils/avatar';
 import type { Message } from '../../types/messages';
 
 // Components
@@ -133,7 +134,7 @@ function ParentMessage(props: ParentMessageProps) {
             }
           >
             <img
-              src={props.message.avatarUrl}
+              src={avatarSizedUrl(props.message.avatarUrl, 'md')}
               alt={props.message.username}
               class="w-10 h-10 rounded-full object-cover"
             />
@@ -223,7 +224,7 @@ function ThreadReply(props: ThreadReplyProps) {
           }
         >
           <img
-            src={props.message.avatarUrl}
+            src={avatarSizedUrl(props.message.avatarUrl, 'sm')}
             alt={props.message.username}
             class="w-8 h-8 rounded-full object-cover"
           />

@@ -13,6 +13,7 @@ export interface FileAttachment {
   id: string;
   name: string;
   url: string;
+  thumbnail_url?: string;
   size: number;
   mime_type: string;
   width?: number;
@@ -98,6 +99,8 @@ export interface FileInfo {
   post_id?: string;
   name: string;
   extension: string;
+  url?: string;
+  thumbnail_url?: string;
   size: number;
   mime_type: string;
   width?: number;

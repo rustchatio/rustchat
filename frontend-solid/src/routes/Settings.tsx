@@ -11,10 +11,13 @@ import {
   resetPreferences,
   updateProfile,
   changePassword,
+  uploadAvatar,
+  removeAvatar,
 } from '../stores/user';
 import { useTheme, AVAILABLE_THEMES } from '../stores/theme';
 import { resolveDefaultChannelPath, channelStore } from '../stores/channels';
 import { isAdminRole } from '../utils/roles';
+import { avatarSizedUrl } from '../utils/avatar';
 
 import { requestPermission } from '../hooks/useDesktopNotifications';
 import { SoundSettings } from '../utils/sounds';
@@ -31,29 +34,10 @@ interface SettingsSection {
   adminOnly?: boolean;
 }
 
-interface CallsPluginSettings {
-  enabled: boolean;
-  turn_server_enabled: boolean;
-  turn_server_url: string;
-  turn_server_username: string;
-  turn_server_credential?: string | null;
-  udp_port: number;
-  tcp_port: number;
-  ice_host_override?: string | null;
-  stun_servers: string[];
-}
-
-interface CallsPluginConfigResponse {
-  plugin_id: string;
-  plugin_name: string;
-  settings: CallsPluginSettings;
-}
-
 const sections: SettingsSection[] = [
   { id: 'profile', label: 'Profile', icon: '👤' },
   { id: 'security', label: 'Security', icon: '🔒' },
   { id: 'notifications', label: 'Notifications', icon: '🔔' },
-  { id: 'configuration', label: 'Configuration', icon: '🧩', adminOnly: true },
   { id: 'display', label: 'Display', icon: '🎨' },
   { id: 'sidebar', label: 'Sidebar', icon: '📑' },
   { id: 'sounds', label: 'Sounds', icon: '🔊' },
@@ -247,10 +231,6 @@ export default function Settings() {
                 <NotificationSettings />
               </Show>
 
-              <Show when={currentSection() === 'configuration'}>
-                <ConfigurationSettings />
-              </Show>
-
               <Show when={currentSection() === 'display'}>
                 <DisplaySettings />
               </Show>
@@ -290,6 +270,9 @@ function ProfileSettings() {
   const [saveError, setSaveError] = createSignal('');
   const [usernameError, setUsernameError] = createSignal('');
   const [saveSuccess, setSaveSuccess] = createSignal(false);
+  const [avatarError, setAvatarError] = createSignal('');
+  const [isUploadingAvatar, setIsUploadingAvatar] = createSignal(false);
+  let avatarInputRef: HTMLInputElement | undefined;
   const syncFromUser = () => {
     const current = user();
     if (!current) return;
@@ -353,6 +336,51 @@ function ProfileSettings() {
     }
   };
 
+  const handleAvatarInput = async (event: Event) => {
+    const input = event.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setAvatarError('Please select a valid image file.');
+      input.value = '';
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setAvatarError('Image size must be less than 5MB.');
+      input.value = '';
+      return;
+    }
+
+    setAvatarError('');
+    setSaveSuccess(false);
+    setIsUploadingAvatar(true);
+    try {
+      await uploadAvatar(file);
+      setSaveSuccess(true);
+    } catch (error) {
+      setAvatarError(error instanceof Error ? error.message : 'Failed to upload profile picture.');
+    } finally {
+      setIsUploadingAvatar(false);
+      input.value = '';
+    }
+  };
+
+  const handleAvatarRemove = async () => {
+    setAvatarError('');
+    setSaveSuccess(false);
+    setIsUploadingAvatar(true);
+    try {
+      await removeAvatar();
+      setSaveSuccess(true);
+    } catch (error) {
+      setAvatarError(error instanceof Error ? error.message : 'Failed to remove profile picture.');
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  };
+
   return (
     <div class="space-y-6">
       <div>
@@ -372,7 +400,7 @@ function ProfileSettings() {
             }
           >
             <img
-              src={user()?.avatar_url}
+              src={avatarSizedUrl(user()?.avatar_url, 'xl')}
               alt={user()?.username}
               class="w-24 h-24 rounded-full object-cover"
             />
@@ -380,16 +408,43 @@ function ProfileSettings() {
           <div>
             <h3 class="font-semibold text-text-1 mb-1">Profile Picture</h3>
             <p class="text-sm text-text-3 mb-3">Supported: JPG, PNG, GIF (max 5MB)</p>
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept="image/*"
+              class="hidden"
+              onChange={(event) => {
+                void handleAvatarInput(event);
+              }}
+            />
             <div class="flex gap-2">
-              <Button variant="secondary" size="sm" disabled={!isEditing()}>
-                Upload New
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={!isEditing() || isUploadingAvatar()}
+                onClick={() => avatarInputRef?.click()}
+              >
+                {isUploadingAvatar() ? 'Uploading...' : 'Upload New'}
               </Button>
               <Show when={user()?.avatar_url}>
-                <Button variant="ghost" size="sm" disabled={!isEditing()}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={!isEditing() || isUploadingAvatar()}
+                  onClick={() => {
+                    void handleAvatarRemove();
+                  }}
+                >
                   Remove
                 </Button>
               </Show>
             </div>
+            <Show when={avatarError()}>
+              <p class="text-xs text-danger mt-2">{avatarError()}</p>
+            </Show>
+            <Show when={!isEditing()}>
+              <p class="text-xs text-text-3 mt-2">Click Edit to change your profile picture.</p>
+            </Show>
           </div>
         </div>
       </div>
@@ -827,356 +882,6 @@ function NotificationSettings() {
           />
         </div>
       </div>
-    </div>
-  );
-}
-
-function ConfigurationSettings() {
-  const navigate = useNavigate();
-  const [isLoading, setIsLoading] = createSignal(true);
-  const [isSaving, setIsSaving] = createSignal(false);
-  const [error, setError] = createSignal<string | null>(null);
-  const [notice, setNotice] = createSignal<string | null>(null);
-  const [siteName, setSiteName] = createSignal('');
-  const [allowRegistration, setAllowRegistration] = createSignal(false);
-  const [siteConfig, setSiteConfig] = createSignal<Record<string, unknown> | null>(null);
-  const [authConfig, setAuthConfig] = createSignal<Record<string, unknown> | null>(null);
-  const [callsPluginName, setCallsPluginName] = createSignal('RustChat Calls Plugin');
-  const [hasCallsPlugin, setHasCallsPlugin] = createSignal(false);
-  const [callsEnabled, setCallsEnabled] = createSignal(false);
-  const [turnEnabled, setTurnEnabled] = createSignal(false);
-  const [turnServerUrl, setTurnServerUrl] = createSignal('');
-  const [turnServerUsername, setTurnServerUsername] = createSignal('');
-  const [turnServerCredential, setTurnServerCredential] = createSignal('');
-  const [udpPort, setUdpPort] = createSignal(3478);
-  const [tcpPort, setTcpPort] = createSignal(3478);
-  const [iceHostOverride, setIceHostOverride] = createSignal('');
-  const [stunServersText, setStunServersText] = createSignal('');
-
-  const parseErrorMessage = async (response: Response) => {
-    try {
-      const payload = (await response.json()) as {
-        message?: string;
-        error?: string;
-        detailed_error?: string;
-      };
-      return payload.message || payload.error || payload.detailed_error || 'Request failed';
-    } catch {
-      return `Request failed (${response.status})`;
-    }
-  };
-
-  const loadConfig = async () => {
-    const token = authStore.token;
-    if (!token) return;
-
-    setIsLoading(true);
-    setError(null);
-    setNotice(null);
-
-    try {
-      const [configResponse, callsPluginResponse] = await Promise.all([
-        fetch('/api/v1/admin/config', {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-        fetch('/api/v1/admin/plugins/calls', {
-          headers: { Authorization: `Bearer ${token}` },
-        }),
-      ]);
-      if (!configResponse.ok) {
-        throw new Error(await parseErrorMessage(configResponse));
-      }
-
-      const payload = (await configResponse.json()) as {
-        site?: Record<string, unknown>;
-        authentication?: Record<string, unknown>;
-      };
-      const nextSite = payload.site || {};
-      const nextAuth = payload.authentication || {};
-      setSiteConfig(nextSite);
-      setAuthConfig(nextAuth);
-      setSiteName(String(nextSite.site_name || ''));
-      setAllowRegistration(Boolean(nextAuth.allow_registration));
-
-      if (callsPluginResponse.ok) {
-        const pluginPayload = (await callsPluginResponse.json()) as CallsPluginConfigResponse;
-        setHasCallsPlugin(true);
-        setCallsPluginName(pluginPayload.plugin_name || 'RustChat Calls Plugin');
-        setCallsEnabled(Boolean(pluginPayload.settings.enabled));
-        setTurnEnabled(Boolean(pluginPayload.settings.turn_server_enabled));
-        setTurnServerUrl(pluginPayload.settings.turn_server_url || '');
-        setTurnServerUsername(pluginPayload.settings.turn_server_username || '');
-        setTurnServerCredential('');
-        setUdpPort(Number(pluginPayload.settings.udp_port || 3478));
-        setTcpPort(Number(pluginPayload.settings.tcp_port || 3478));
-        setIceHostOverride(pluginPayload.settings.ice_host_override || '');
-        setStunServersText((pluginPayload.settings.stun_servers || []).join('\n'));
-      } else {
-        setHasCallsPlugin(false);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load configuration');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  onMount(() => {
-    void loadConfig();
-  });
-
-  const saveConfig = async () => {
-    const token = authStore.token;
-    const currentSite = siteConfig();
-    const currentAuth = authConfig();
-    if (!token || !currentSite || !currentAuth) return;
-
-    setIsSaving(true);
-    setError(null);
-    setNotice(null);
-
-    try {
-      const nextSite = {
-        ...currentSite,
-        site_name: siteName(),
-      };
-
-      const siteResponse = await fetch('/api/v1/admin/config/site', {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(nextSite),
-      });
-      if (!siteResponse.ok) {
-        throw new Error(await parseErrorMessage(siteResponse));
-      }
-
-      const nextAuth = {
-        ...currentAuth,
-        allow_registration: allowRegistration(),
-      };
-
-      const authResponse = await fetch('/api/v1/admin/config/authentication', {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(nextAuth),
-      });
-      if (!authResponse.ok) {
-        throw new Error(await parseErrorMessage(authResponse));
-      }
-
-      if (hasCallsPlugin()) {
-        const normalizedStunServers = stunServersText()
-          .split(/[\n,]+/)
-          .map((entry) => entry.trim())
-          .filter((entry) => entry.length > 0);
-        const pluginPayload: Record<string, unknown> = {
-          enabled: callsEnabled(),
-          turn_server_enabled: turnEnabled(),
-          turn_server_url: turnServerUrl().trim(),
-          turn_server_username: turnServerUsername().trim(),
-          udp_port: Math.max(1, Math.floor(udpPort())),
-          tcp_port: Math.max(1, Math.floor(tcpPort())),
-          ice_host_override: iceHostOverride().trim() || null,
-          stun_servers: normalizedStunServers,
-        };
-        const normalizedCredential = turnServerCredential().trim();
-        if (normalizedCredential) {
-          pluginPayload.turn_server_credential = normalizedCredential;
-        }
-        const pluginResponse = await fetch('/api/v1/admin/plugins/calls', {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(pluginPayload),
-        });
-        if (!pluginResponse.ok) {
-          throw new Error(await parseErrorMessage(pluginResponse));
-        }
-      }
-
-      setSiteConfig(nextSite);
-      setAuthConfig(nextAuth);
-      setNotice('Configuration saved.');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save configuration');
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  return (
-    <div class="space-y-6">
-      <div>
-        <h2 class="text-2xl font-bold text-text-1">Configuration</h2>
-        <p class="text-text-3 mt-1">Quick server configuration controls in settings overlay</p>
-      </div>
-
-      <Show when={error()}>
-        <div class="p-3 rounded-lg border border-danger/30 bg-danger/10 text-danger text-sm">
-          {error()}
-        </div>
-      </Show>
-
-      <Show when={notice()}>
-        <div class="p-3 rounded-lg border border-success/30 bg-success/10 text-success text-sm">
-          {notice()}
-        </div>
-      </Show>
-
-      <Show when={!isLoading()} fallback={<p class="text-sm text-text-3">Loading configuration...</p>}>
-        <div class="p-6 bg-bg-surface-1 rounded-xl border border-border-1 space-y-4">
-          <label class="block">
-            <span class="block text-sm font-medium text-text-2 mb-1.5">Site Name</span>
-            <input
-              type="text"
-              value={siteName()}
-              onInput={(event) => setSiteName(event.currentTarget.value)}
-              class="w-full px-3 py-2 bg-bg-app border border-border-1 rounded-lg text-text-1"
-            />
-          </label>
-
-          <ToggleSetting
-            label="Allow Registration"
-            description="Allow new users to register without admin invitation"
-            checked={allowRegistration()}
-            onChange={setAllowRegistration}
-          />
-
-          <Show when={hasCallsPlugin()}>
-            <div class="space-y-4 border-t border-border-1 pt-4">
-              <div>
-                <h3 class="text-base font-semibold text-text-1">{callsPluginName()}</h3>
-                <p class="text-sm text-text-3 mt-0.5">Manage calls plugin and TURN/STUN settings</p>
-              </div>
-
-              <ToggleSetting
-                label="Enable Calls Plugin"
-                description="Controls whether the calls plugin is enabled"
-                checked={callsEnabled()}
-                onChange={setCallsEnabled}
-              />
-
-              <ToggleSetting
-                label="Enable TURN Server"
-                description="Use TURN relay for calls when direct media paths fail"
-                checked={turnEnabled()}
-                onChange={setTurnEnabled}
-              />
-
-              <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
-                <label class="block">
-                  <span class="block text-sm font-medium text-text-2 mb-1.5">TURN Server URL</span>
-                  <input
-                    type="text"
-                    value={turnServerUrl()}
-                    onInput={(event) => setTurnServerUrl(event.currentTarget.value)}
-                    class="w-full px-3 py-2 bg-bg-app border border-border-1 rounded-lg text-text-1"
-                  />
-                </label>
-                <label class="block">
-                  <span class="block text-sm font-medium text-text-2 mb-1.5">TURN Username</span>
-                  <input
-                    type="text"
-                    value={turnServerUsername()}
-                    onInput={(event) => setTurnServerUsername(event.currentTarget.value)}
-                    class="w-full px-3 py-2 bg-bg-app border border-border-1 rounded-lg text-text-1"
-                  />
-                </label>
-                <label class="block">
-                  <span class="block text-sm font-medium text-text-2 mb-1.5">TURN Credential</span>
-                  <input
-                    type="password"
-                    value={turnServerCredential()}
-                    onInput={(event) => setTurnServerCredential(event.currentTarget.value)}
-                    placeholder="Leave blank to keep existing value"
-                    class="w-full px-3 py-2 bg-bg-app border border-border-1 rounded-lg text-text-1"
-                  />
-                </label>
-                <label class="block">
-                  <span class="block text-sm font-medium text-text-2 mb-1.5">ICE Host Override</span>
-                  <input
-                    type="text"
-                    value={iceHostOverride()}
-                    onInput={(event) => setIceHostOverride(event.currentTarget.value)}
-                    placeholder="Optional public host"
-                    class="w-full px-3 py-2 bg-bg-app border border-border-1 rounded-lg text-text-1"
-                  />
-                </label>
-                <label class="block">
-                  <span class="block text-sm font-medium text-text-2 mb-1.5">UDP Port</span>
-                  <input
-                    type="number"
-                    min="1"
-                    value={udpPort()}
-                    onInput={(event) => setUdpPort(Number(event.currentTarget.value))}
-                    class="w-full px-3 py-2 bg-bg-app border border-border-1 rounded-lg text-text-1"
-                  />
-                </label>
-                <label class="block">
-                  <span class="block text-sm font-medium text-text-2 mb-1.5">TCP Port</span>
-                  <input
-                    type="number"
-                    min="1"
-                    value={tcpPort()}
-                    onInput={(event) => setTcpPort(Number(event.currentTarget.value))}
-                    class="w-full px-3 py-2 bg-bg-app border border-border-1 rounded-lg text-text-1"
-                  />
-                </label>
-              </div>
-
-              <label class="block">
-                <span class="block text-sm font-medium text-text-2 mb-1.5">STUN Servers</span>
-                <textarea
-                  rows={3}
-                  value={stunServersText()}
-                  onInput={(event) => setStunServersText(event.currentTarget.value)}
-                  placeholder="One server per line (or comma-separated)"
-                  class="w-full px-3 py-2 bg-bg-app border border-border-1 rounded-lg text-text-1"
-                />
-              </label>
-            </div>
-          </Show>
-
-          <div class="flex flex-wrap items-center gap-3">
-            <Button
-              size="sm"
-              onClick={() => {
-                void saveConfig();
-              }}
-              disabled={isSaving()}
-            >
-              {isSaving() ? 'Saving...' : 'Save'}
-            </Button>
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => {
-                void loadConfig();
-              }}
-              disabled={isSaving()}
-            >
-              Reload
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => {
-                navigate('/admin/settings');
-              }}
-            >
-              Open Full Admin Console
-            </Button>
-          </div>
-        </div>
-      </Show>
     </div>
   );
 }

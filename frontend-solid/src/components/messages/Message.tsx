@@ -7,6 +7,7 @@ import { createSignal, Show } from 'solid-js';
 import { authStore } from '../../stores/auth';
 import { cn } from '../../utils/cn';
 import { formatMessageTime, formatFullDateTime, getInitials } from '../../utils/date';
+import { avatarSizedUrl } from '../../utils/avatar';
 import type { Message as MessageType } from '../../types/messages';
 
 
@@ -60,10 +61,15 @@ function Avatar(props: AvatarProps) {
   };
 
   const initials = () => getInitials(props.username, 2);
+  const resolvedUrl = () =>
+    avatarSizedUrl(
+      props.url,
+      props.size === 'sm' ? 'sm' : props.size === 'lg' ? 'lg' : 'md'
+    );
 
   return (
     <Show
-      when={props.url}
+      when={resolvedUrl()}
       fallback={
         <div
           class={cn(
@@ -76,7 +82,7 @@ function Avatar(props: AvatarProps) {
       }
     >
       <img
-        src={props.url}
+        src={resolvedUrl()}
         alt={props.username}
         class={cn(
           'rounded-full object-cover flex-shrink-0',

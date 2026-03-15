@@ -216,6 +216,49 @@ export async function changePassword(currentPassword: string, newPassword: strin
   }
 }
 
+export async function uploadAvatar(file: File): Promise<void> {
+  const userId = authStore.user()?.id;
+  if (!userId) throw new Error('Not authenticated');
+
+  setIsLoading(true);
+  setError(null);
+
+  try {
+    const token = authStore.token;
+    const formData = new FormData();
+    formData.append('image', file);
+
+    const response = await fetch(`/api/v4/users/${userId}/image`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => null)) as
+        | { message?: string; detailed_error?: string; error?: string }
+        | null;
+      throw new Error(
+        payload?.message ||
+        payload?.detailed_error ||
+        payload?.error ||
+        'Failed to upload avatar'
+      );
+    }
+
+    await authStore.fetchMe();
+  } catch (err) {
+    setError(err instanceof Error ? err.message : 'Failed to upload avatar');
+    throw err;
+  } finally {
+    setIsLoading(false);
+  }
+}
+
+export async function removeAvatar(): Promise<void> {
+  await updateProfile({ avatar_url: '' });
+}
+
 // ============================================
 // Computed
 // ============================================
@@ -274,6 +317,8 @@ export const userStore = {
   fetchUserProfile,
   updateProfile,
   changePassword,
+  uploadAvatar,
+  removeAvatar,
 
   // Helpers
   getDisplayName,

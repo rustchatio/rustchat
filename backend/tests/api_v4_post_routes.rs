@@ -135,6 +135,51 @@ async fn create_post(ctx: &TestContext, channel_id: Uuid, message: &str) -> Stri
     post_body["id"].as_str().unwrap().to_string()
 }
 
+async fn seed_file_for_channel(
+    ctx: &TestContext,
+    channel_id: Uuid,
+    name: &str,
+    mime_type: &str,
+    size: i64,
+    width: Option<i32>,
+    height: Option<i32>,
+    has_thumbnail: bool,
+) -> (Uuid, String) {
+    let file_uuid = Uuid::new_v4();
+    let key = format!("tests/{}/{}", ctx.user_uuid, file_uuid);
+    let thumbnail_key = if has_thumbnail {
+        Some(format!("tests/{}/{}_thumb", ctx.user_uuid, file_uuid))
+    } else {
+        None
+    };
+
+    sqlx::query(
+        r#"
+        INSERT INTO files (
+            id, uploader_id, channel_id, name, key, mime_type, size,
+            backend, width, height, has_thumbnail, thumbnail_key, sha256
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, 's3', $8, $9, $10, $11, NULL)
+        "#,
+    )
+    .bind(file_uuid)
+    .bind(ctx.user_uuid)
+    .bind(channel_id)
+    .bind(name)
+    .bind(key)
+    .bind(mime_type)
+    .bind(size)
+    .bind(width)
+    .bind(height)
+    .bind(has_thumbnail)
+    .bind(thumbnail_key)
+    .execute(&ctx.app.db_pool)
+    .await
+    .unwrap();
+
+    (file_uuid, encode_mm_id(file_uuid))
+}
+
 #[tokio::test]
 async fn mm_update_post_route_put_updates_post_message() {
     let ctx = setup_mm_user().await;
@@ -338,35 +383,17 @@ async fn mm_burn_on_read_routes_support_mattermost_verbs_with_legacy_post_shim()
 async fn mm_post_files_info_returns_files() {
     let ctx = setup_mm_user().await;
     let (_team_id, channel_id) = setup_team_channel(&ctx).await;
-
-    let part = reqwest::multipart::Part::bytes(b"hello world".to_vec())
-        .file_name("test.txt")
-        .mime_str("text/plain")
-        .unwrap();
-    let form = reqwest::multipart::Form::new()
-        .part("files", part)
-        .text("channel_id", channel_id.to_string());
-
-    let upload_res = ctx
-        .app
-        .api_client
-        .post(format!("{}/api/v4/files", &ctx.app.address))
-        .header("Authorization", format!("Bearer {}", ctx.token))
-        .multipart(form)
-        .send()
-        .await
-        .unwrap();
-    let upload_status = upload_res.status().as_u16();
-    assert!(
-        upload_status == 200 || upload_status == 201,
-        "unexpected upload status: {}",
-        upload_status
-    );
-    let upload_body: serde_json::Value = upload_res.json().await.unwrap();
-    let file_id = upload_body["file_infos"][0]["id"]
-        .as_str()
-        .unwrap()
-        .to_string();
+    let (_file_uuid, file_id) = seed_file_for_channel(
+        &ctx,
+        channel_id,
+        "test.txt",
+        "text/plain",
+        11,
+        None,
+        None,
+        false,
+    )
+    .await;
 
     let post_res = ctx
         .app
@@ -399,6 +426,7 @@ async fn mm_post_files_info_returns_files() {
     assert_eq!(200, info_res.status().as_u16());
     let info_body: serde_json::Value = info_res.json().await.unwrap();
     assert_eq!(info_body.as_array().unwrap().len(), 1);
+    assert_eq!(info_body[0]["id"], file_id);
 }
 
 #[tokio::test]
@@ -631,35 +659,17 @@ async fn mm_set_unread_reply_when_crt_disabled_zeros_root_unread_and_updates_thr
 async fn mm_channel_posts_include_file_metadata_for_mobile_history() {
     let ctx = setup_mm_user().await;
     let (_team_id, channel_id) = setup_team_channel(&ctx).await;
-
-    let png_1x1: Vec<u8> = vec![
-        137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1, 8, 6,
-        0, 0, 0, 31, 21, 196, 137, 0, 0, 0, 13, 73, 68, 65, 84, 120, 156, 99, 248, 255, 255, 63, 0,
-        5, 254, 2, 254, 167, 100, 129, 165, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130,
-    ];
-    let part = reqwest::multipart::Part::bytes(png_1x1)
-        .file_name("photo.png")
-        .mime_str("image/png")
-        .unwrap();
-    let form = reqwest::multipart::Form::new()
-        .part("files", part)
-        .text("channel_id", channel_id.to_string());
-
-    let upload_res = ctx
-        .app
-        .api_client
-        .post(format!("{}/api/v4/files", &ctx.app.address))
-        .header("Authorization", format!("Bearer {}", ctx.token))
-        .multipart(form)
-        .send()
-        .await
-        .unwrap();
-    assert!(upload_res.status().is_success());
-    let upload_body: serde_json::Value = upload_res.json().await.unwrap();
-    let file_id = upload_body["file_infos"][0]["id"]
-        .as_str()
-        .unwrap()
-        .to_string();
+    let (_file_uuid, file_id) = seed_file_for_channel(
+        &ctx,
+        channel_id,
+        "photo.png",
+        "image/png",
+        68,
+        Some(1),
+        Some(1),
+        true,
+    )
+    .await;
 
     let post_res = ctx
         .app
@@ -714,7 +724,7 @@ async fn mm_channel_posts_include_file_metadata_for_mobile_history() {
     let post_entry = &posts_body["posts"][post_id.as_str()];
     let files = post_entry["metadata"]["files"].as_array().unwrap();
     assert_eq!(files.len(), 1);
-    assert_eq!(files[0]["id"], upload_body["file_infos"][0]["id"]);
+    assert_eq!(files[0]["id"], file_id);
 
     let reactions = post_entry["metadata"]["reactions"].as_array().unwrap();
     assert_eq!(reactions.len(), 1);

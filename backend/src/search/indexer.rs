@@ -82,24 +82,37 @@ impl PostDocument {
 
 /// Extract hashtags from message text
 fn extract_hashtags(message: &str) -> Vec<String> {
-    let mut hashtags = Vec::new();
-    for word in message.split_whitespace() {
-        if word.starts_with('#') && word.len() > 1 {
-            hashtags.push(word[1..].to_lowercase());
-        }
-    }
-    hashtags
+    extract_prefixed_tokens(message, '#')
 }
 
 /// Extract mentions from message text
 fn extract_mentions(message: &str) -> Vec<String> {
-    let mut mentions = Vec::new();
-    for word in message.split_whitespace() {
-        if word.starts_with('@') && word.len() > 1 {
-            mentions.push(word[1..].to_lowercase());
+    extract_prefixed_tokens(message, '@')
+}
+
+fn extract_prefixed_tokens(message: &str, prefix: char) -> Vec<String> {
+    message
+        .split_whitespace()
+        .filter_map(|word| word.strip_prefix(prefix))
+        .filter_map(normalize_token)
+        .collect()
+}
+
+fn normalize_token(raw: &str) -> Option<String> {
+    let mut normalized = String::new();
+    for ch in raw.chars() {
+        if ch.is_alphanumeric() || ch == '_' || ch == '-' || ch == '.' {
+            normalized.extend(ch.to_lowercase());
+        } else {
+            break;
         }
     }
-    mentions
+
+    if normalized.is_empty() {
+        None
+    } else {
+        Some(normalized)
+    }
 }
 
 /// Index operation result

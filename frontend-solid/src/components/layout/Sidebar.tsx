@@ -4,12 +4,14 @@
 
 import { Show, createSignal, For, createMemo, createEffect } from 'solid-js';
 import { A, useNavigate } from '@solidjs/router';
-import { channelStore, fetchChannels, selectChannel, type Channel } from '@/stores/channels';
+import { channelStore, fetchChannels, selectChannel, createChannel, type Channel } from '@/stores/channels';
 import { authStore } from '@/stores/auth';
 import { uiStore } from '@/stores/ui';
 import { unreadStore } from '@/stores/unreads';
 import { cn } from '@/utils/cn';
 import { isAdminRole } from '@/utils/roles';
+import Modal from '@/components/ui/Modal';
+import Button from '@/components/ui/Button';
 
 // Icons
 import {
@@ -33,11 +35,42 @@ export interface SidebarProps {
   isMobile?: boolean;
 }
 
+interface TeamOption {
+  id: string;
+  name: string;
+  display_name?: string | null;
+}
+
+function toChannelName(displayName: string): string {
+  const normalized = displayName
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\-_ ]+/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+
+  return normalized || 'new-channel';
+}
+
+function toTeamName(displayName: string): string {
+  const normalized = displayName
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\-_ ]+/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+
+  return normalized || 'rustchat-team';
+}
+
 // ============================================
 // Sidebar Component
 // ============================================
 
 export function Sidebar(props: SidebarProps) {
+  const navigate = useNavigate();
   const isCollapsed = () => uiStore.preferences.sidebarCollapsed && !props.isMobile;
   const canAccessAdmin = () => isAdminRole(authStore.user()?.role);
 
@@ -53,6 +86,90 @@ export function Sidebar(props: SidebarProps) {
   const publicChannels = () => channelStore.publicChannels();
   const privateChannels = () => channelStore.privateChannels();
   const directMessages = () => channelStore.directMessages();
+
+  const [isCreateChannelOpen, setIsCreateChannelOpen] = createSignal(false);
+  const [isCreatingChannel, setIsCreatingChannel] = createSignal(false);
+  const [createChannelError, setCreateChannelError] = createSignal<string | null>(null);
+  const [channelDisplayName, setChannelDisplayName] = createSignal('');
+  const [channelPurpose, setChannelPurpose] = createSignal('');
+  const [channelType, setChannelType] = createSignal<'public' | 'private'>('public');
+  const [channelTeams, setChannelTeams] = createSignal<TeamOption[]>([]);
+  const [selectedTeamId, setSelectedTeamId] = createSignal('');
+
+  const loadChannelTeams = async () => {
+    const token = authStore.token;
+    if (!token) return;
+
+    const response = await fetch('/api/v1/teams', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to fetch teams (${response.status})`);
+    }
+
+    const payload = (await response.json()) as TeamOption[];
+    const safeTeams = Array.isArray(payload)
+      ? payload.filter(
+          (team): team is TeamOption =>
+            typeof team?.id === 'string' && typeof team?.name === 'string'
+        )
+      : [];
+    setChannelTeams(safeTeams);
+    if (!selectedTeamId() && safeTeams.length > 0) {
+      const activeTeamId = channelStore.currentChannel()?.team_id;
+      setSelectedTeamId(activeTeamId && safeTeams.some((team) => team.id === activeTeamId) ? activeTeamId : safeTeams[0]!.id);
+    }
+  };
+
+  const openCreateChannelModal = async () => {
+    setCreateChannelError(null);
+    setChannelDisplayName('');
+    setChannelPurpose('');
+    setChannelType('public');
+    setSelectedTeamId(channelStore.currentChannel()?.team_id || '');
+    try {
+      await loadChannelTeams();
+      setIsCreateChannelOpen(true);
+    } catch (error) {
+      setCreateChannelError(error instanceof Error ? error.message : 'Failed to load teams');
+      setIsCreateChannelOpen(true);
+    }
+  };
+
+  const submitCreateChannel = async () => {
+    const displayName = channelDisplayName().trim();
+    if (!displayName) {
+      setCreateChannelError('Channel name is required.');
+      return;
+    }
+
+    if (!selectedTeamId()) {
+      setCreateChannelError('Select a team first.');
+      return;
+    }
+
+    setIsCreatingChannel(true);
+    setCreateChannelError(null);
+    try {
+      const channel = await createChannel({
+        team_id: selectedTeamId(),
+        name: toChannelName(displayName),
+        display_name: displayName,
+        channel_type: channelType(),
+        purpose: channelPurpose().trim() || undefined,
+      });
+
+      await fetchChannels(channel.team_id);
+      selectChannel(channel.id);
+      navigate(`/channels/${channel.id}`);
+      setIsCreateChannelOpen(false);
+      uiStore.setMobileSidebarOpen(false);
+    } catch (error) {
+      setCreateChannelError(error instanceof Error ? error.message : 'Failed to create channel.');
+    } finally {
+      setIsCreatingChannel(false);
+    }
+  };
 
   return (
     <aside
@@ -131,6 +248,9 @@ export function Sidebar(props: SidebarProps) {
                 class="p-1 rounded text-text-3 hover:bg-bg-surface-2 hover:text-text-1 opacity-0 group-hover:opacity-100 transition-opacity"
                 aria-label="Create channel"
                 title="Create channel"
+                onClick={() => {
+                  void openCreateChannelModal();
+                }}
               >
                 <HiOutlinePlus size={14} />
               </button>
@@ -228,12 +348,89 @@ export function Sidebar(props: SidebarProps) {
           <button
             type="button"
             class="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-bg-app border border-border-1 hover:border-border-2 transition-colors text-left"
+            onClick={() => {
+              void openCreateChannelModal();
+            }}
           >
             <HiOutlinePlus size={18} class="text-text-3" />
             <span class="text-sm text-text-2">Add Channel</span>
           </button>
         </div>
       </Show>
+
+      <Modal
+        isOpen={isCreateChannelOpen()}
+        onClose={() => setIsCreateChannelOpen(false)}
+        title="Create Channel"
+        description="Create a new public or private channel"
+        size="md"
+      >
+        <div class="space-y-4">
+          <Show when={createChannelError()}>
+            <div class="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+              {createChannelError()}
+            </div>
+          </Show>
+
+          <label class="block space-y-1">
+            <span class="text-sm font-medium text-text-2">Team</span>
+            <select
+              value={selectedTeamId()}
+              onChange={(event) => setSelectedTeamId(event.currentTarget.value)}
+              class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-sm text-text-1"
+            >
+              <For each={channelTeams()}>
+                {(team) => (
+                  <option value={team.id}>{team.display_name || team.name}</option>
+                )}
+              </For>
+            </select>
+          </label>
+
+          <label class="block space-y-1">
+            <span class="text-sm font-medium text-text-2">Display Name</span>
+            <input
+              type="text"
+              value={channelDisplayName()}
+              onInput={(event) => setChannelDisplayName(event.currentTarget.value)}
+              placeholder="e.g. Engineering"
+              class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-sm text-text-1"
+            />
+          </label>
+
+          <label class="block space-y-1">
+            <span class="text-sm font-medium text-text-2">Purpose (optional)</span>
+            <input
+              type="text"
+              value={channelPurpose()}
+              onInput={(event) => setChannelPurpose(event.currentTarget.value)}
+              placeholder="What is this channel for?"
+              class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-sm text-text-1"
+            />
+          </label>
+
+          <label class="block space-y-1">
+            <span class="text-sm font-medium text-text-2">Visibility</span>
+            <select
+              value={channelType()}
+              onChange={(event) => setChannelType(event.currentTarget.value as 'public' | 'private')}
+              class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-sm text-text-1"
+            >
+              <option value="public">Public</option>
+              <option value="private">Private</option>
+            </select>
+          </label>
+
+          <div class="flex justify-end gap-2 pt-2">
+            <Button variant="ghost" onClick={() => setIsCreateChannelOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="primary" loading={isCreatingChannel()} onClick={() => void submitCreateChannel()}>
+              Create Channel
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </aside>
   );
 }
@@ -245,9 +442,17 @@ export function Sidebar(props: SidebarProps) {
 function TeamSelector() {
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = createSignal(false);
-  const [teams, setTeams] = createSignal<Array<{ id: string; name: string; display_name?: string | null }>>([]);
+  const [teams, setTeams] = createSignal<TeamOption[]>([]);
   const [isLoadingTeams, setIsLoadingTeams] = createSignal(false);
   const [teamError, setTeamError] = createSignal<string | null>(null);
+  const [isTeamModalOpen, setIsTeamModalOpen] = createSignal(false);
+  const [teamModalMode, setTeamModalMode] = createSignal<'join' | 'create'>('join');
+  const [publicTeams, setPublicTeams] = createSignal<TeamOption[]>([]);
+  const [teamModalError, setTeamModalError] = createSignal<string | null>(null);
+  const [isTeamActionLoading, setIsTeamActionLoading] = createSignal(false);
+  const [newTeamName, setNewTeamName] = createSignal('');
+  const [newTeamDisplayName, setNewTeamDisplayName] = createSignal('');
+  const [newTeamDescription, setNewTeamDescription] = createSignal('');
 
   const loadTeams = async () => {
     const token = authStore.token;
@@ -264,15 +469,11 @@ function TeamSelector() {
         throw new Error(`Failed to fetch teams (${response.status})`);
       }
 
-      const payload = (await response.json()) as Array<{
-        id?: unknown;
-        name?: unknown;
-        display_name?: unknown;
-      }>;
+      const payload = (await response.json()) as Array<{ id?: unknown; name?: unknown; display_name?: unknown }>;
 
       const safeTeams = Array.isArray(payload)
         ? payload.filter(
-            (team): team is { id: string; name: string; display_name?: string | null } =>
+            (team): team is TeamOption =>
               typeof team.id === 'string' && typeof team.name === 'string'
           )
         : [];
@@ -291,6 +492,113 @@ function TeamSelector() {
       void loadTeams();
     }
   });
+
+  const loadPublicTeams = async () => {
+    const token = authStore.token;
+    if (!token) return;
+
+    const response = await fetch('/api/v1/teams/public', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to fetch public teams (${response.status})`);
+    }
+
+    const payload = (await response.json()) as Array<{ id?: unknown; name?: unknown; display_name?: unknown }>;
+    const safeTeams = Array.isArray(payload)
+      ? payload.filter(
+          (team): team is TeamOption =>
+            typeof team.id === 'string' && typeof team.name === 'string'
+        )
+      : [];
+    setPublicTeams(safeTeams);
+  };
+
+  const openTeamModal = async (mode: 'join' | 'create') => {
+    setTeamModalMode(mode);
+    setTeamModalError(null);
+    setNewTeamName('');
+    setNewTeamDisplayName('');
+    setNewTeamDescription('');
+    setIsOpen(false);
+    setIsTeamModalOpen(true);
+    if (mode === 'join') {
+      try {
+        await Promise.all([loadTeams(), loadPublicTeams()]);
+      } catch (error) {
+        setTeamModalError(error instanceof Error ? error.message : 'Failed to load teams.');
+      }
+    }
+  };
+
+  const createNewTeam = async () => {
+    const token = authStore.token;
+    if (!token) return;
+
+    const displayName = (newTeamDisplayName() || newTeamName()).trim();
+    if (!displayName) {
+      setTeamModalError('Team name is required.');
+      return;
+    }
+
+    setIsTeamActionLoading(true);
+    setTeamModalError(null);
+    try {
+      const response = await fetch('/api/v1/teams', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          name: toTeamName(newTeamName().trim() || displayName),
+          display_name: displayName,
+          description: newTeamDescription().trim() || undefined,
+        }),
+      });
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as { message?: string; error?: string } | null;
+        throw new Error(payload?.message || payload?.error || `Failed to create team (${response.status})`);
+      }
+
+      const createdTeam = (await response.json()) as TeamOption;
+      await loadTeams();
+      await switchTeam(createdTeam.id);
+      setIsTeamModalOpen(false);
+    } catch (error) {
+      setTeamModalError(error instanceof Error ? error.message : 'Failed to create team.');
+    } finally {
+      setIsTeamActionLoading(false);
+    }
+  };
+
+  const joinTeam = async (teamId: string) => {
+    const token = authStore.token;
+    if (!token) return;
+
+    setIsTeamActionLoading(true);
+    setTeamModalError(null);
+    try {
+      const response = await fetch(`/api/v1/teams/${teamId}/join`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => null)) as { message?: string; error?: string } | null;
+        throw new Error(payload?.message || payload?.error || `Failed to join team (${response.status})`);
+      }
+
+      await loadTeams();
+      await switchTeam(teamId);
+      setIsTeamModalOpen(false);
+    } catch (error) {
+      setTeamModalError(error instanceof Error ? error.message : 'Failed to join team.');
+    } finally {
+      setIsTeamActionLoading(false);
+    }
+  };
 
   const currentTeam = createMemo(() => {
     const currentTeamId = channelStore.currentChannel()?.team_id;
@@ -386,18 +694,137 @@ function TeamSelector() {
               )}
             </For>
             <div class="border-t border-border-1 mt-1 pt-1">
-              <button
-                type="button"
-                class="w-full px-3 py-2 text-left text-sm text-text-2 hover:bg-bg-surface-2 hover:text-text-1 flex items-center gap-2"
-                onClick={() => setIsOpen(false)}
-              >
-                <HiOutlinePlus size={16} />
-                Create or Join Team
-              </button>
-            </div>
+                  <button
+                    type="button"
+                    class="w-full px-3 py-2 text-left text-sm text-text-2 hover:bg-bg-surface-2 hover:text-text-1 flex items-center gap-2"
+                    onClick={() => {
+                      void openTeamModal('join');
+                    }}
+                  >
+                    <HiOutlinePlus size={16} />
+                    Create or Join Team
+                  </button>
+                </div>
+              </div>
+            </>
+          </Show>
+      <Modal
+        isOpen={isTeamModalOpen()}
+        onClose={() => setIsTeamModalOpen(false)}
+        title={teamModalMode() === 'create' ? 'Create Team' : 'Create or Join Team'}
+        description={
+          teamModalMode() === 'create'
+            ? 'Create a new workspace team'
+            : 'Join a public team or create your own'
+        }
+        size="md"
+      >
+        <div class="space-y-4">
+          <div class="flex gap-2">
+            <Button
+              variant={teamModalMode() === 'join' ? 'primary' : 'secondary'}
+              onClick={() => {
+                void openTeamModal('join');
+              }}
+            >
+              Join Team
+            </Button>
+            <Button
+              variant={teamModalMode() === 'create' ? 'primary' : 'secondary'}
+              onClick={() => {
+                setTeamModalMode('create');
+                setTeamModalError(null);
+              }}
+            >
+              Create Team
+            </Button>
           </div>
-        </>
-      </Show>
+
+          <Show when={teamModalError()}>
+            <div class="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+              {teamModalError()}
+            </div>
+          </Show>
+
+          <Show when={teamModalMode() === 'create'}>
+            <div class="space-y-3">
+              <label class="block space-y-1">
+                <span class="text-sm font-medium text-text-2">Team Name</span>
+                <input
+                  type="text"
+                  value={newTeamName()}
+                  onInput={(event) => setNewTeamName(event.currentTarget.value)}
+                  placeholder="engineering"
+                  class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-sm text-text-1"
+                />
+              </label>
+              <label class="block space-y-1">
+                <span class="text-sm font-medium text-text-2">Display Name</span>
+                <input
+                  type="text"
+                  value={newTeamDisplayName()}
+                  onInput={(event) => setNewTeamDisplayName(event.currentTarget.value)}
+                  placeholder="Engineering Team"
+                  class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-sm text-text-1"
+                />
+              </label>
+              <label class="block space-y-1">
+                <span class="text-sm font-medium text-text-2">Description (optional)</span>
+                <textarea
+                  value={newTeamDescription()}
+                  onInput={(event) => setNewTeamDescription(event.currentTarget.value)}
+                  rows={3}
+                  class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-sm text-text-1 resize-none"
+                />
+              </label>
+              <div class="flex justify-end gap-2 pt-1">
+                <Button variant="ghost" onClick={() => setIsTeamModalOpen(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  variant="primary"
+                  loading={isTeamActionLoading()}
+                  onClick={() => {
+                    void createNewTeam();
+                  }}
+                >
+                  Create Team
+                </Button>
+              </div>
+            </div>
+          </Show>
+
+          <Show when={teamModalMode() === 'join'}>
+            <div class="space-y-3">
+              <Show when={!isLoadingTeams()} fallback={<p class="text-sm text-text-3">Loading public teams...</p>}>
+                <For each={publicTeams().filter((team) => !teams().some((joined) => joined.id === team.id))}>
+                  {(team) => (
+                    <div class="flex items-center justify-between rounded-lg border border-border-1 bg-bg-app px-3 py-2">
+                      <div class="min-w-0">
+                        <p class="text-sm font-medium text-text-1 truncate">{team.display_name || team.name}</p>
+                        <p class="text-xs text-text-3 truncate">{team.name}</p>
+                      </div>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        loading={isTeamActionLoading()}
+                        onClick={() => {
+                          void joinTeam(team.id);
+                        }}
+                      >
+                        Join
+                      </Button>
+                    </div>
+                  )}
+                </For>
+              </Show>
+              <Show when={publicTeams().filter((team) => !teams().some((joined) => joined.id === team.id)).length === 0 && !isLoadingTeams()}>
+                <p class="text-sm text-text-3">No additional public teams available. You can create a new one.</p>
+              </Show>
+            </div>
+          </Show>
+        </div>
+      </Modal>
     </div>
   );
 }

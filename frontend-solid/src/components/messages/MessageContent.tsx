@@ -81,6 +81,7 @@ function FilePreview(props: FilePreviewProps) {
       a.click();
     }
   };
+  const imagePreviewUrl = () => props.file.thumbnail_url || props.file.url;
 
   return (
     <div class="group/file relative">
@@ -88,7 +89,7 @@ function FilePreview(props: FilePreviewProps) {
       <Show when={isImage()}>
         <div class="relative inline-block max-w-sm rounded-lg overflow-hidden border border-border-1 hover:border-brand transition-colors">
           <img
-            src={props.file.url}
+            src={imagePreviewUrl()}
             alt={props.file.name}
             class="max-w-full h-auto max-h-64 object-contain bg-bg-surface-2"
             loading="lazy"

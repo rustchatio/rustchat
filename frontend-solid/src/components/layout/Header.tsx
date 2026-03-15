@@ -11,6 +11,7 @@ import { channelStore } from '@/stores/channels';
 import { useIsMobile } from '@/hooks/useMediaQuery';
 import { ConnectionIndicator } from '@/components/ConnectionStatus';
 import { isAdminRole } from '@/utils/roles';
+import { avatarSizedUrl } from '@/utils/avatar';
 
 // Icons
 import {
@@ -277,7 +278,7 @@ export function Header() {
               }
             >
               <img
-                src={user()?.avatar_url}
+                src={avatarSizedUrl(user()?.avatar_url, 'md')}
                 alt={displayName()}
                 class="w-8 h-8 rounded-full object-cover"
               />
