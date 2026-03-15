@@ -44,7 +44,7 @@ pub fn router() -> Router<AppState> {
             post(set_default_provider),
         )
         // Workflows
-        .route("/admin/email/workflows", get(list_workflows))
+        .route("/admin/email/workflows", get(list_workflows).post(create_workflow))
         .route(
             "/admin/email/workflows/{id}",
             get(get_workflow).patch(update_workflow),
@@ -458,6 +458,120 @@ async fn list_workflows(
 
     let responses: Vec<WorkflowResponse> = workflows.into_iter().map(Into::into).collect();
     Ok(Json(responses))
+}
+
+async fn create_workflow(
+    State(state): State<AppState>,
+    auth: crate::auth::AuthUser,
+    Json(body): Json<CreateWorkflowRequest>,
+) -> ApiResult<Json<WorkflowResponse>> {
+    require_admin(&auth)?;
+
+    let workflow_key = body.workflow_key.trim().to_string();
+    let workflow_key_enum = WorkflowKey::from_str(&workflow_key).ok_or_else(|| {
+        AppError::Validation(format!(
+            "Invalid workflow key: {}",
+            body.workflow_key
+        ))
+    })?;
+
+    let name = body.name.trim().to_string();
+    if name.is_empty() {
+        return Err(AppError::Validation(
+            "Workflow name is required".to_string(),
+        ));
+    }
+
+    let category = body
+        .category
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+        .unwrap_or_else(|| workflow_key_enum.category().to_string());
+
+    if !matches!(category.as_str(), "system" | "notification" | "marketing") {
+        return Err(AppError::Validation(
+            "Category must be one of: system, notification, marketing".to_string(),
+        ));
+    }
+
+    let existing: Option<(Uuid,)> = sqlx::query_as(
+        r#"
+        SELECT id FROM notification_workflows
+        WHERE tenant_id IS NOT DISTINCT FROM $1 AND workflow_key = $2
+        LIMIT 1
+        "#,
+    )
+    .bind(auth.org_id)
+    .bind(&workflow_key)
+    .fetch_optional(&state.db)
+    .await?;
+
+    if existing.is_some() {
+        return Err(AppError::Conflict(format!(
+            "Workflow '{}' already exists for this tenant",
+            workflow_key
+        )));
+    }
+
+    if let Some(template_family_id) = body.selected_template_family_id {
+        let template_exists: bool = sqlx::query_scalar(
+            r#"
+            SELECT EXISTS(
+                SELECT 1 FROM email_template_families
+                WHERE id = $1
+                  AND (tenant_id IS NULL OR tenant_id = $2)
+            )
+            "#,
+        )
+        .bind(template_family_id)
+        .bind(auth.org_id)
+        .fetch_one(&state.db)
+        .await?;
+
+        if !template_exists {
+            return Err(AppError::Validation(format!(
+                "Template family {} not found",
+                template_family_id
+            )));
+        }
+    }
+
+    let workflow: NotificationWorkflow = sqlx::query_as(
+        r#"
+        INSERT INTO notification_workflows (
+            tenant_id,
+            workflow_key,
+            name,
+            description,
+            category,
+            enabled,
+            system_required,
+            default_locale,
+            selected_template_family_id,
+            policy_json,
+            created_by
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        RETURNING *
+        "#,
+    )
+    .bind(auth.org_id)
+    .bind(workflow_key)
+    .bind(name)
+    .bind(body.description.map(|value| value.trim().to_string()))
+    .bind(category)
+    .bind(body.enabled.unwrap_or(true))
+    .bind(body.system_required.unwrap_or(false))
+    .bind(body.default_locale.unwrap_or_else(|| "en".to_string()))
+    .bind(body.selected_template_family_id)
+    .bind(sqlx::types::Json(body.policy.unwrap_or_default()))
+    .bind(auth.user_id)
+    .fetch_one(&state.db)
+    .await?;
+
+    Ok(Json(workflow.into()))
 }
 
 async fn get_workflow(

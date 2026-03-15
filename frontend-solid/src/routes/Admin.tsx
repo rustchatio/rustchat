@@ -157,6 +157,7 @@ interface AdminMembershipPolicy {
   scope_type: 'global' | 'team';
   team_id?: string | null;
   source_type: 'all_users' | 'auth_service' | 'group' | 'role' | 'org';
+  source_config?: unknown;
   enabled: boolean;
   priority: number;
   created_at: string;
@@ -175,12 +176,19 @@ interface AdminMembershipAuditSummary {
 
 interface AdminEmailProvider {
   id: string;
+  tenant_id?: string | null;
   provider_type: string;
   host: string;
   port: number;
   username: string;
+  has_password?: boolean;
+  tls_mode?: string;
+  skip_cert_verify?: boolean;
   from_address: string;
   from_name: string;
+  reply_to?: string | null;
+  max_emails_per_minute?: number;
+  max_emails_per_hour?: number;
   enabled: boolean;
   is_default: boolean;
   updated_at: string;
@@ -209,6 +217,8 @@ interface AdminEmailWorkflow {
   system_required: boolean;
   can_disable: boolean;
   default_locale: string;
+  selected_template_family_id?: string | null;
+  policy?: Record<string, unknown>;
 }
 
 interface AdminEmailEvent {
@@ -221,6 +231,40 @@ interface AdminEmailEvent {
   error_category?: string | null;
   error_message?: string | null;
   created_at: string;
+}
+
+interface AdminEmailTemplateVariable {
+  name: string;
+  required: boolean;
+  default_value?: string | null;
+  description?: string | null;
+}
+
+interface AdminEmailTemplateFamily {
+  id: string;
+  tenant_id?: string | null;
+  key: string;
+  name: string;
+  description?: string | null;
+  workflow_key?: string | null;
+  is_system: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+interface AdminEmailTemplateVersion {
+  id: string;
+  family_id: string;
+  version: number;
+  status: 'draft' | 'published' | 'archived' | string;
+  locale: string;
+  subject: string;
+  body_text?: string | null;
+  body_html?: string | null;
+  variables: AdminEmailTemplateVariable[];
+  is_compiled_from_mjml: boolean;
+  created_at: string;
+  published_at?: string | null;
 }
 
 interface AdminEmailTestResult {
@@ -298,14 +342,6 @@ async function fetchAdminJson<T>(
   init: RequestInit = {}
 ): Promise<T> {
   return fetchAdminScopedJson<T>(token, '/api/v1', path, init);
-}
-
-async function fetchAdminV4Json<T>(
-  token: string,
-  path: string,
-  init: RequestInit = {}
-): Promise<T> {
-  return fetchAdminScopedJson<T>(token, '/api/v4', path, init);
 }
 
 async function fetchAdminScopedJson<T>(
@@ -1513,16 +1549,72 @@ function AdminEmailSection() {
   const [outbox, setOutbox] = createSignal<AdminEmailOutboxEntry[]>([]);
   const [workflows, setWorkflows] = createSignal<AdminEmailWorkflow[]>([]);
   const [events, setEvents] = createSignal<AdminEmailEvent[]>([]);
+  const [templateFamilies, setTemplateFamilies] = createSignal<AdminEmailTemplateFamily[]>([]);
+  const [templateVersions, setTemplateVersions] = createSignal<AdminEmailTemplateVersion[]>([]);
+  const [workflowEdits, setWorkflowEdits] = createSignal<
+    Record<string, { default_locale: string; selected_template_family_id: string }>
+  >({});
   const [isLoading, setIsLoading] = createSignal(true);
   const [isSettingDefaultId, setIsSettingDefaultId] = createSignal<string | null>(null);
   const [isMutatingOutboxId, setIsMutatingOutboxId] = createSignal<string | null>(null);
   const [isSavingWorkflowId, setIsSavingWorkflowId] = createSignal<string | null>(null);
+  const [isCreatingProvider, setIsCreatingProvider] = createSignal(false);
+  const [isCreatingWorkflow, setIsCreatingWorkflow] = createSignal(false);
+  const [isCreatingTemplateFamily, setIsCreatingTemplateFamily] = createSignal(false);
+  const [isCreatingTemplateVersion, setIsCreatingTemplateVersion] = createSignal(false);
+  const [isPublishingTemplateVersionId, setIsPublishingTemplateVersionId] = createSignal<string | null>(null);
+  const [isSendingTemplatePreviewId, setIsSendingTemplatePreviewId] = createSignal<string | null>(null);
   const [isSendingWorkflowTest, setIsSendingWorkflowTest] = createSignal(false);
   const [isRunningSmtpTest, setIsRunningSmtpTest] = createSignal(false);
   const [testRecipient, setTestRecipient] = createSignal('');
+  const [selectedProviderId, setSelectedProviderId] = createSignal('');
   const [selectedWorkflowId, setSelectedWorkflowId] = createSignal('');
+  const [selectedTemplateFamilyId, setSelectedTemplateFamilyId] = createSignal('');
+
+  const [providerHost, setProviderHost] = createSignal('');
+  const [providerPort, setProviderPort] = createSignal('587');
+  const [providerUsername, setProviderUsername] = createSignal('');
+  const [providerPassword, setProviderPassword] = createSignal('');
+  const [providerTlsMode, setProviderTlsMode] = createSignal('starttls');
+  const [providerFromAddress, setProviderFromAddress] = createSignal('');
+  const [providerFromName, setProviderFromName] = createSignal('RustChat');
+  const [providerEnabled, setProviderEnabled] = createSignal(true);
+  const [providerIsDefault, setProviderIsDefault] = createSignal(false);
+
+  const [createWorkflowKey, setCreateWorkflowKey] = createSignal('weekly_digest');
+  const [createWorkflowName, setCreateWorkflowName] = createSignal('');
+  const [createWorkflowDescription, setCreateWorkflowDescription] = createSignal('');
+  const [createWorkflowCategory, setCreateWorkflowCategory] = createSignal('notification');
+  const [createWorkflowLocale, setCreateWorkflowLocale] = createSignal('en');
+  const [createWorkflowEnabled, setCreateWorkflowEnabled] = createSignal(true);
+  const [createWorkflowTemplateFamilyId, setCreateWorkflowTemplateFamilyId] = createSignal('');
+
+  const [templateFamilyKey, setTemplateFamilyKey] = createSignal('');
+  const [templateFamilyName, setTemplateFamilyName] = createSignal('');
+  const [templateFamilyDescription, setTemplateFamilyDescription] = createSignal('');
+  const [templateFamilyWorkflowKey, setTemplateFamilyWorkflowKey] = createSignal('');
+
+  const [templateVersionLocale, setTemplateVersionLocale] = createSignal('en');
+  const [templateVersionSubject, setTemplateVersionSubject] = createSignal('');
+  const [templateVersionBodyText, setTemplateVersionBodyText] = createSignal('');
+  const [templateVersionBodyHtml, setTemplateVersionBodyHtml] = createSignal('');
+  const [templateVersionVariablesJson, setTemplateVersionVariablesJson] = createSignal('[]');
+
   const [notice, setNotice] = createSignal<string | null>(null);
   const [error, setError] = createSignal<string | null>(null);
+
+  const workflowKeyOptions = [
+    'user_registration',
+    'email_verification',
+    'password_reset',
+    'password_changed',
+    'security_alert',
+    'announcements',
+    'offline_messages',
+    'mention_notifications',
+    'admin_invite',
+    'weekly_digest',
+  ];
 
   const outboxStatusCounts = createMemo(() => {
     const counts = new Map<string, number>();
@@ -1536,6 +1628,61 @@ function AdminEmailSection() {
     workflows().find((workflow) => workflow.id === selectedWorkflowId()) || null
   );
 
+  const loadTemplateVersions = async (familyId: string) => {
+    const token = authStore.token;
+    if (!token || !familyId) {
+      setTemplateVersions([]);
+      return;
+    }
+
+    try {
+      const data = await fetchAdminJson<AdminEmailTemplateVersion[]>(
+        token,
+        `/admin/email/template-families/${familyId}/versions`
+      );
+      setTemplateVersions(data || []);
+    } catch {
+      setTemplateVersions([]);
+    }
+  };
+
+  const resetProviderForm = () => {
+    setProviderHost('');
+    setProviderPort('587');
+    setProviderUsername('');
+    setProviderPassword('');
+    setProviderTlsMode('starttls');
+    setProviderFromAddress('');
+    setProviderFromName('RustChat');
+    setProviderEnabled(true);
+    setProviderIsDefault(false);
+  };
+
+  const resetWorkflowForm = () => {
+    setCreateWorkflowKey('weekly_digest');
+    setCreateWorkflowName('');
+    setCreateWorkflowDescription('');
+    setCreateWorkflowCategory('notification');
+    setCreateWorkflowLocale('en');
+    setCreateWorkflowEnabled(true);
+    setCreateWorkflowTemplateFamilyId('');
+  };
+
+  const resetTemplateFamilyForm = () => {
+    setTemplateFamilyKey('');
+    setTemplateFamilyName('');
+    setTemplateFamilyDescription('');
+    setTemplateFamilyWorkflowKey('');
+  };
+
+  const resetTemplateVersionForm = () => {
+    setTemplateVersionLocale('en');
+    setTemplateVersionSubject('');
+    setTemplateVersionBodyText('');
+    setTemplateVersionBodyHtml('');
+    setTemplateVersionVariablesJson('[]');
+  };
+
   const loadEmailData = async () => {
     const token = authStore.token;
     if (!token) return;
@@ -1544,11 +1691,14 @@ function AdminEmailSection() {
     setError(null);
     setNotice(null);
     try {
-      const [providerData, outboxData, workflowData, eventData] = await Promise.all([
-        fetchAdminV4Json<AdminEmailProvider[]>(token, '/admin/email/providers'),
-        fetchAdminV4Json<AdminEmailOutboxEntry[]>(token, '/admin/email/outbox?page=1&per_page=20'),
+      const [providerData, outboxData, workflowData, eventData, templateFamilyData] = await Promise.all([
+        fetchAdminJson<AdminEmailProvider[]>(token, '/admin/email/providers').catch(() => []),
+        fetchAdminJson<AdminEmailOutboxEntry[]>(token, '/admin/email/outbox?page=1&per_page=50').catch(
+          () => []
+        ),
         fetchAdminJson<AdminEmailWorkflow[]>(token, '/admin/email/workflows').catch(() => []),
-        fetchAdminJson<AdminEmailEvent[]>(token, '/admin/email/events?page=1&per_page=20').catch(
+        fetchAdminJson<AdminEmailEvent[]>(token, '/admin/email/events?page=1&per_page=50').catch(() => []),
+        fetchAdminJson<AdminEmailTemplateFamily[]>(token, '/admin/email/template-families').catch(
           () => []
         ),
       ]);
@@ -1556,12 +1706,41 @@ function AdminEmailSection() {
       setOutbox(outboxData || []);
       setWorkflows(workflowData || []);
       setEvents(eventData || []);
+      setTemplateFamilies(templateFamilyData || []);
+
+      setWorkflowEdits(
+        Object.fromEntries(
+          (workflowData || []).map((workflow) => [
+            workflow.id,
+            {
+              default_locale: workflow.default_locale,
+              selected_template_family_id: workflow.selected_template_family_id || '',
+            },
+          ])
+        )
+      );
+
       if (!testRecipient() && authStore.user()?.email) {
         setTestRecipient(authStore.user()?.email || '');
+      }
+      if (!selectedProviderId() && providerData.length > 0) {
+        const defaultProvider = providerData.find((provider) => provider.is_default) || providerData[0];
+        setSelectedProviderId(defaultProvider?.id || '');
       }
       if (!selectedWorkflowId() && workflowData.length > 0) {
         const firstEnabled = workflowData.find((workflow) => workflow.enabled) || workflowData[0];
         setSelectedWorkflowId(firstEnabled?.id || '');
+      }
+      const activeFamilyId =
+        selectedTemplateFamilyId() ||
+        createWorkflowTemplateFamilyId() ||
+        templateFamilyData[0]?.id ||
+        '';
+      setSelectedTemplateFamilyId(activeFamilyId);
+      if (activeFamilyId) {
+        await loadTemplateVersions(activeFamilyId);
+      } else {
+        setTemplateVersions([]);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load email admin data');
@@ -1576,6 +1755,13 @@ function AdminEmailSection() {
     }
   });
 
+  createEffect(() => {
+    const familyId = selectedTemplateFamilyId();
+    if (authStore.isAuthenticated && familyId) {
+      void loadTemplateVersions(familyId);
+    }
+  });
+
   const setDefaultProvider = async (providerId: string) => {
     const token = authStore.token;
     if (!token) return;
@@ -1583,14 +1769,255 @@ function AdminEmailSection() {
     setIsSettingDefaultId(providerId);
     setError(null);
     try {
-      await fetchAdminV4Json<{ success: boolean }>(token, `/admin/email/providers/${providerId}/default`, {
+      await fetchAdminJson<{ success: boolean }>(token, `/admin/email/providers/${providerId}/default`, {
         method: 'POST',
       });
+      setNotice('Default provider updated.');
       await loadEmailData();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to set default provider');
     } finally {
       setIsSettingDefaultId(null);
+    }
+  };
+
+  const createProvider = async () => {
+    const token = authStore.token;
+    if (!token) return;
+
+    const host = providerHost().trim();
+    const username = providerUsername().trim();
+    const password = providerPassword();
+    const fromAddress = providerFromAddress().trim();
+    const fromName = providerFromName().trim();
+    const port = Number(providerPort());
+
+    if (!host || !username || !password || !fromAddress || !fromName) {
+      setError('Host, username, password, from address, and from name are required.');
+      return;
+    }
+    if (!Number.isFinite(port) || port <= 0) {
+      setError('Port must be a valid positive number.');
+      return;
+    }
+    if (!isValidEmail(fromAddress)) {
+      setError('From address must be a valid email.');
+      return;
+    }
+
+    setIsCreatingProvider(true);
+    setError(null);
+    setNotice(null);
+    try {
+      await fetchAdminJson<AdminEmailProvider>(token, '/admin/email/providers', {
+        method: 'POST',
+        body: JSON.stringify({
+          provider_type: 'smtp',
+          host,
+          port,
+          username,
+          password,
+          tls_mode: providerTlsMode(),
+          skip_cert_verify: false,
+          from_address: fromAddress,
+          from_name: fromName,
+          enabled: providerEnabled(),
+          is_default: providerIsDefault(),
+        }),
+      });
+      resetProviderForm();
+      setNotice('SMTP provider created.');
+      await loadEmailData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create SMTP provider');
+    } finally {
+      setIsCreatingProvider(false);
+    }
+  };
+
+  const createWorkflow = async () => {
+    const token = authStore.token;
+    if (!token) return;
+
+    const workflowKey = createWorkflowKey().trim();
+    const name = createWorkflowName().trim();
+    if (!workflowKey || !name) {
+      setError('Workflow key and workflow name are required.');
+      return;
+    }
+
+    setIsCreatingWorkflow(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const created = await fetchAdminJson<AdminEmailWorkflow>(token, '/admin/email/workflows', {
+        method: 'POST',
+        body: JSON.stringify({
+          workflow_key: workflowKey,
+          name,
+          description: createWorkflowDescription().trim() || undefined,
+          category: createWorkflowCategory(),
+          enabled: createWorkflowEnabled(),
+          default_locale: createWorkflowLocale().trim() || 'en',
+          selected_template_family_id: createWorkflowTemplateFamilyId() || undefined,
+        }),
+      });
+      setSelectedWorkflowId(created.id);
+      resetWorkflowForm();
+      setNotice(`Workflow "${created.name}" created.`);
+      await loadEmailData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create workflow');
+    } finally {
+      setIsCreatingWorkflow(false);
+    }
+  };
+
+  const createTemplateFamily = async () => {
+    const token = authStore.token;
+    if (!token) return;
+
+    const key = templateFamilyKey().trim();
+    const name = templateFamilyName().trim();
+    if (!key || !name) {
+      setError('Template family key and name are required.');
+      return;
+    }
+
+    setIsCreatingTemplateFamily(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const created = await fetchAdminJson<AdminEmailTemplateFamily>(token, '/admin/email/template-families', {
+        method: 'POST',
+        body: JSON.stringify({
+          key,
+          name,
+          description: templateFamilyDescription().trim() || undefined,
+          workflow_key: templateFamilyWorkflowKey() || undefined,
+        }),
+      });
+      setSelectedTemplateFamilyId(created.id);
+      setCreateWorkflowTemplateFamilyId(created.id);
+      resetTemplateFamilyForm();
+      setNotice(`Template family "${created.name}" created.`);
+      await loadEmailData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create template family');
+    } finally {
+      setIsCreatingTemplateFamily(false);
+    }
+  };
+
+  const createTemplateVersion = async () => {
+    const token = authStore.token;
+    if (!token) return;
+    const familyId = selectedTemplateFamilyId();
+    if (!familyId) {
+      setError('Select a template family first.');
+      return;
+    }
+
+    const locale = templateVersionLocale().trim();
+    const subject = templateVersionSubject().trim();
+    const bodyText = templateVersionBodyText().trim();
+    const bodyHtml = templateVersionBodyHtml().trim();
+    if (!locale || !subject || !bodyText || !bodyHtml) {
+      setError('Locale, subject, body text, and body HTML are required.');
+      return;
+    }
+
+    let variables: AdminEmailTemplateVariable[] = [];
+    try {
+      const parsed = JSON.parse(templateVersionVariablesJson().trim() || '[]') as unknown;
+      if (!Array.isArray(parsed)) {
+        throw new Error('Variables must be an array.');
+      }
+      variables = parsed as AdminEmailTemplateVariable[];
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? `Variables JSON is invalid: ${err.message}`
+          : 'Variables JSON is invalid.'
+      );
+      return;
+    }
+
+    setIsCreatingTemplateVersion(true);
+    setError(null);
+    setNotice(null);
+    try {
+      await fetchAdminJson<AdminEmailTemplateVersion>(
+        token,
+        `/admin/email/template-families/${familyId}/versions`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            locale,
+            subject,
+            body_text: bodyText,
+            body_html: bodyHtml,
+            variables,
+          }),
+        }
+      );
+      resetTemplateVersionForm();
+      setNotice('Template version created as draft.');
+      await loadTemplateVersions(familyId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create template version');
+    } finally {
+      setIsCreatingTemplateVersion(false);
+    }
+  };
+
+  const publishTemplateVersion = async (versionId: string) => {
+    const token = authStore.token;
+    if (!token) return;
+    setIsPublishingTemplateVersionId(versionId);
+    setError(null);
+    setNotice(null);
+    try {
+      await fetchAdminJson<AdminEmailTemplateVersion>(
+        token,
+        `/admin/email/template-versions/${versionId}/publish`,
+        { method: 'POST' }
+      );
+      setNotice('Template version published.');
+      await loadTemplateVersions(selectedTemplateFamilyId());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to publish template version');
+    } finally {
+      setIsPublishingTemplateVersionId(null);
+    }
+  };
+
+  const sendTemplatePreview = async (versionId: string) => {
+    const token = authStore.token;
+    if (!token) return;
+    const recipient = testRecipient().trim();
+    if (!isValidEmail(recipient)) {
+      setError('Enter a valid recipient email to send template preview.');
+      return;
+    }
+    setIsSendingTemplatePreviewId(versionId);
+    setError(null);
+    setNotice(null);
+    try {
+      await fetchAdminJson<{ success?: boolean; message?: string }>(
+        token,
+        `/admin/email/template-versions/${versionId}/send-preview`,
+        {
+          method: 'POST',
+          body: JSON.stringify({ to_email: recipient }),
+        }
+      );
+      setNotice('Template preview email sent.');
+      await loadEmailData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to send template preview');
+    } finally {
+      setIsSendingTemplatePreviewId(null);
     }
   };
 
@@ -1619,6 +2046,41 @@ function AdminEmailSection() {
     }
   };
 
+  const saveWorkflowSettings = async (workflow: AdminEmailWorkflow) => {
+    const token = authStore.token;
+    if (!token) return;
+    const draft = workflowEdits()[workflow.id];
+    if (!draft) return;
+
+    setIsSavingWorkflowId(workflow.id);
+    setError(null);
+    setNotice(null);
+    try {
+      const updated = await fetchAdminJson<AdminEmailWorkflow>(token, `/admin/email/workflows/${workflow.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          default_locale: draft.default_locale.trim() || workflow.default_locale,
+          selected_template_family_id: draft.selected_template_family_id || undefined,
+        }),
+      });
+      setWorkflows((current) =>
+        current.map((item) => (item.id === updated.id ? updated : item))
+      );
+      setWorkflowEdits((current) => ({
+        ...current,
+        [workflow.id]: {
+          default_locale: updated.default_locale,
+          selected_template_family_id: updated.selected_template_family_id || '',
+        },
+      }));
+      setNotice(`Workflow "${updated.name}" settings saved.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save workflow settings');
+    } finally {
+      setIsSavingWorkflowId(null);
+    }
+  };
+
   const runSmtpTest = async () => {
     const token = authStore.token;
     if (!token) return;
@@ -1633,9 +2095,14 @@ function AdminEmailSection() {
     setNotice(null);
 
     try {
-      const result = await fetchAdminV4Json<AdminEmailTestResult>(token, '/admin/email/test', {
+      const result = await fetchAdminJson<AdminEmailTestResult>(token, '/admin/email/send-test', {
         method: 'POST',
-        body: JSON.stringify({ to: recipient }),
+        body: JSON.stringify({
+          provider_id: selectedProviderId() || undefined,
+          to_email: recipient,
+          subject: 'RustChat SMTP Test',
+          body_text: 'This is a test email from RustChat SMTP admin console.',
+        }),
       });
       if (result.status === 'error' || result.success === false) {
         throw new Error(result.error || 'SMTP test failed');
@@ -1700,7 +2167,7 @@ function AdminEmailSection() {
     setNotice(null);
     setIsMutatingOutboxId(outboxId);
     try {
-      await fetchAdminV4Json<{ status: string }>(
+      await fetchAdminJson<{ status: string }>(
         token,
         `/admin/email/outbox/${outboxId}/${action}`,
         { method: 'POST' }
@@ -1740,7 +2207,7 @@ function AdminEmailSection() {
         </div>
 
         <div class="rounded-xl border border-border-1 bg-bg-surface-1 p-4 space-y-3">
-          <h3 class="text-sm font-semibold text-text-1">SMTP & Workflow Tests</h3>
+          <h3 class="text-sm font-semibold text-text-1">SMTP & Mail Tests</h3>
           <label class="block">
             <span class="block text-xs font-medium text-text-3 mb-1.5">Recipient email</span>
             <input
@@ -1750,6 +2217,24 @@ function AdminEmailSection() {
               placeholder="admin@example.com"
               class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-sm text-text-1"
             />
+          </label>
+
+          <label class="block">
+            <span class="block text-xs font-medium text-text-3 mb-1.5">SMTP provider for direct test</span>
+            <select
+              value={selectedProviderId()}
+              onChange={(event) => setSelectedProviderId(event.currentTarget.value)}
+              class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-sm text-text-1"
+            >
+              <option value="">Use default provider</option>
+              <For each={providers()}>
+                {(provider) => (
+                  <option value={provider.id}>
+                    {provider.host}:{provider.port} ({provider.provider_type})
+                  </option>
+                )}
+              </For>
+            </select>
           </label>
 
           <div class="flex flex-wrap items-center gap-2">
@@ -1796,6 +2281,436 @@ function AdminEmailSection() {
           </div>
         </div>
 
+        <div class="rounded-xl border border-border-1 bg-bg-surface-1 p-4 space-y-4">
+          <h3 class="text-sm font-semibold text-text-1">Create SMTP Provider</h3>
+          <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <label class="block">
+              <span class="block text-xs text-text-3 mb-1">Host</span>
+              <input
+                type="text"
+                value={providerHost()}
+                onInput={(event) => setProviderHost(event.currentTarget.value)}
+                placeholder="smtp.example.com"
+                class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-sm text-text-1"
+              />
+            </label>
+            <label class="block">
+              <span class="block text-xs text-text-3 mb-1">Port</span>
+              <input
+                type="number"
+                min="1"
+                value={providerPort()}
+                onInput={(event) => setProviderPort(event.currentTarget.value)}
+                class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-sm text-text-1"
+              />
+            </label>
+            <label class="block">
+              <span class="block text-xs text-text-3 mb-1">Username</span>
+              <input
+                type="text"
+                value={providerUsername()}
+                onInput={(event) => setProviderUsername(event.currentTarget.value)}
+                class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-sm text-text-1"
+              />
+            </label>
+            <label class="block">
+              <span class="block text-xs text-text-3 mb-1">Password</span>
+              <input
+                type="password"
+                value={providerPassword()}
+                onInput={(event) => setProviderPassword(event.currentTarget.value)}
+                class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-sm text-text-1"
+              />
+            </label>
+            <label class="block">
+              <span class="block text-xs text-text-3 mb-1">TLS Mode</span>
+              <select
+                value={providerTlsMode()}
+                onChange={(event) => setProviderTlsMode(event.currentTarget.value)}
+                class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-sm text-text-1"
+              >
+                <option value="starttls">STARTTLS</option>
+                <option value="implicit_tls">Implicit TLS</option>
+                <option value="none">No TLS</option>
+              </select>
+            </label>
+            <label class="block">
+              <span class="block text-xs text-text-3 mb-1">From Name</span>
+              <input
+                type="text"
+                value={providerFromName()}
+                onInput={(event) => setProviderFromName(event.currentTarget.value)}
+                class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-sm text-text-1"
+              />
+            </label>
+            <label class="block md:col-span-2">
+              <span class="block text-xs text-text-3 mb-1">From Address</span>
+              <input
+                type="email"
+                value={providerFromAddress()}
+                onInput={(event) => setProviderFromAddress(event.currentTarget.value)}
+                placeholder="noreply@example.com"
+                class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-sm text-text-1"
+              />
+            </label>
+          </div>
+          <div class="flex flex-wrap items-center gap-4">
+            <label class="inline-flex items-center gap-2 text-sm text-text-2">
+              <input
+                type="checkbox"
+                checked={providerEnabled()}
+                onChange={(event) => setProviderEnabled(event.currentTarget.checked)}
+                class="h-4 w-4 rounded border-border-1 bg-bg-app"
+              />
+              Enabled
+            </label>
+            <label class="inline-flex items-center gap-2 text-sm text-text-2">
+              <input
+                type="checkbox"
+                checked={providerIsDefault()}
+                onChange={(event) => setProviderIsDefault(event.currentTarget.checked)}
+                class="h-4 w-4 rounded border-border-1 bg-bg-app"
+              />
+              Set as default
+            </label>
+          </div>
+          <div class="flex items-center gap-2">
+            <button
+              type="button"
+              class="rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
+              onClick={() => {
+                void createProvider();
+              }}
+              disabled={isCreatingProvider()}
+            >
+              {isCreatingProvider() ? 'Creating...' : 'Create SMTP Provider'}
+            </button>
+            <button
+              type="button"
+              class="rounded-lg border border-border-1 px-3 py-2 text-sm font-medium text-text-2 hover:bg-bg-surface-2"
+              onClick={resetProviderForm}
+              disabled={isCreatingProvider()}
+            >
+              Reset
+            </button>
+          </div>
+        </div>
+
+        <div class="rounded-xl border border-border-1 bg-bg-surface-1 p-4 space-y-4">
+          <h3 class="text-sm font-semibold text-text-1">Create Workflow</h3>
+          <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <label class="block">
+              <span class="block text-xs text-text-3 mb-1">Workflow Key</span>
+              <select
+                value={createWorkflowKey()}
+                onChange={(event) => setCreateWorkflowKey(event.currentTarget.value)}
+                class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-sm text-text-1"
+              >
+                <For each={workflowKeyOptions}>
+                  {(workflowKey) => (
+                    <option value={workflowKey}>{workflowKey}</option>
+                  )}
+                </For>
+              </select>
+            </label>
+            <label class="block">
+              <span class="block text-xs text-text-3 mb-1">Display Name</span>
+              <input
+                type="text"
+                value={createWorkflowName()}
+                onInput={(event) => setCreateWorkflowName(event.currentTarget.value)}
+                placeholder="Weekly Digest Custom"
+                class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-sm text-text-1"
+              />
+            </label>
+            <label class="block">
+              <span class="block text-xs text-text-3 mb-1">Category</span>
+              <select
+                value={createWorkflowCategory()}
+                onChange={(event) => setCreateWorkflowCategory(event.currentTarget.value)}
+                class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-sm text-text-1"
+              >
+                <option value="system">system</option>
+                <option value="notification">notification</option>
+                <option value="marketing">marketing</option>
+              </select>
+            </label>
+            <label class="block">
+              <span class="block text-xs text-text-3 mb-1">Default Locale</span>
+              <input
+                type="text"
+                value={createWorkflowLocale()}
+                onInput={(event) => setCreateWorkflowLocale(event.currentTarget.value)}
+                placeholder="en"
+                class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-sm text-text-1"
+              />
+            </label>
+            <label class="block md:col-span-2">
+              <span class="block text-xs text-text-3 mb-1">Template Family</span>
+              <select
+                value={createWorkflowTemplateFamilyId()}
+                onChange={(event) => setCreateWorkflowTemplateFamilyId(event.currentTarget.value)}
+                class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-sm text-text-1"
+              >
+                <option value="">No template family</option>
+                <For each={templateFamilies()}>
+                  {(family) => (
+                    <option value={family.id}>
+                      {family.name} ({family.key})
+                    </option>
+                  )}
+                </For>
+              </select>
+            </label>
+            <label class="block md:col-span-2">
+              <span class="block text-xs text-text-3 mb-1">Description</span>
+              <input
+                type="text"
+                value={createWorkflowDescription()}
+                onInput={(event) => setCreateWorkflowDescription(event.currentTarget.value)}
+                class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-sm text-text-1"
+              />
+            </label>
+          </div>
+          <label class="inline-flex items-center gap-2 text-sm text-text-2">
+            <input
+              type="checkbox"
+              checked={createWorkflowEnabled()}
+              onChange={(event) => setCreateWorkflowEnabled(event.currentTarget.checked)}
+              class="h-4 w-4 rounded border-border-1 bg-bg-app"
+            />
+            Enabled
+          </label>
+          <div class="flex items-center gap-2">
+            <button
+              type="button"
+              class="rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
+              onClick={() => {
+                void createWorkflow();
+              }}
+              disabled={isCreatingWorkflow()}
+            >
+              {isCreatingWorkflow() ? 'Creating...' : 'Create Workflow'}
+            </button>
+            <button
+              type="button"
+              class="rounded-lg border border-border-1 px-3 py-2 text-sm font-medium text-text-2 hover:bg-bg-surface-2"
+              onClick={resetWorkflowForm}
+              disabled={isCreatingWorkflow()}
+            >
+              Reset
+            </button>
+          </div>
+        </div>
+
+        <div class="rounded-xl border border-border-1 bg-bg-surface-1 p-4 space-y-4">
+          <h3 class="text-sm font-semibold text-text-1">Mail Templates</h3>
+          <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <div class="rounded-lg border border-border-1 p-3 space-y-3">
+              <p class="text-sm font-medium text-text-1">Create Template Family</p>
+              <label class="block">
+                <span class="block text-xs text-text-3 mb-1">Family Key</span>
+                <input
+                  type="text"
+                  value={templateFamilyKey()}
+                  onInput={(event) => setTemplateFamilyKey(event.currentTarget.value)}
+                  placeholder="weekly_digest_custom"
+                  class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-sm text-text-1"
+                />
+              </label>
+              <label class="block">
+                <span class="block text-xs text-text-3 mb-1">Family Name</span>
+                <input
+                  type="text"
+                  value={templateFamilyName()}
+                  onInput={(event) => setTemplateFamilyName(event.currentTarget.value)}
+                  placeholder="Weekly Digest Custom"
+                  class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-sm text-text-1"
+                />
+              </label>
+              <label class="block">
+                <span class="block text-xs text-text-3 mb-1">Workflow Key (optional)</span>
+                <select
+                  value={templateFamilyWorkflowKey()}
+                  onChange={(event) => setTemplateFamilyWorkflowKey(event.currentTarget.value)}
+                  class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-sm text-text-1"
+                >
+                  <option value="">None</option>
+                  <For each={workflowKeyOptions}>
+                    {(workflowKey) => (
+                      <option value={workflowKey}>{workflowKey}</option>
+                    )}
+                  </For>
+                </select>
+              </label>
+              <label class="block">
+                <span class="block text-xs text-text-3 mb-1">Description</span>
+                <input
+                  type="text"
+                  value={templateFamilyDescription()}
+                  onInput={(event) => setTemplateFamilyDescription(event.currentTarget.value)}
+                  class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-sm text-text-1"
+                />
+              </label>
+              <div class="flex items-center gap-2">
+                <button
+                  type="button"
+                  class="rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
+                  onClick={() => {
+                    void createTemplateFamily();
+                  }}
+                  disabled={isCreatingTemplateFamily()}
+                >
+                  {isCreatingTemplateFamily() ? 'Creating...' : 'Create Family'}
+                </button>
+                <button
+                  type="button"
+                  class="rounded-lg border border-border-1 px-3 py-2 text-sm font-medium text-text-2 hover:bg-bg-surface-2"
+                  onClick={resetTemplateFamilyForm}
+                  disabled={isCreatingTemplateFamily()}
+                >
+                  Reset
+                </button>
+              </div>
+            </div>
+
+            <div class="rounded-lg border border-border-1 p-3 space-y-3">
+              <p class="text-sm font-medium text-text-1">Create Template Version</p>
+              <label class="block">
+                <span class="block text-xs text-text-3 mb-1">Template Family</span>
+                <select
+                  value={selectedTemplateFamilyId()}
+                  onChange={(event) => setSelectedTemplateFamilyId(event.currentTarget.value)}
+                  class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-sm text-text-1"
+                >
+                  <option value="">Select family</option>
+                  <For each={templateFamilies()}>
+                    {(family) => (
+                      <option value={family.id}>
+                        {family.name} ({family.key})
+                      </option>
+                    )}
+                  </For>
+                </select>
+              </label>
+              <label class="block">
+                <span class="block text-xs text-text-3 mb-1">Locale</span>
+                <input
+                  type="text"
+                  value={templateVersionLocale()}
+                  onInput={(event) => setTemplateVersionLocale(event.currentTarget.value)}
+                  placeholder="en"
+                  class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-sm text-text-1"
+                />
+              </label>
+              <label class="block">
+                <span class="block text-xs text-text-3 mb-1">Subject</span>
+                <input
+                  type="text"
+                  value={templateVersionSubject()}
+                  onInput={(event) => setTemplateVersionSubject(event.currentTarget.value)}
+                  class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-sm text-text-1"
+                />
+              </label>
+              <label class="block">
+                <span class="block text-xs text-text-3 mb-1">Body Text</span>
+                <textarea
+                  value={templateVersionBodyText()}
+                  onInput={(event) => setTemplateVersionBodyText(event.currentTarget.value)}
+                  rows={3}
+                  class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-xs text-text-1"
+                />
+              </label>
+              <label class="block">
+                <span class="block text-xs text-text-3 mb-1">Body HTML</span>
+                <textarea
+                  value={templateVersionBodyHtml()}
+                  onInput={(event) => setTemplateVersionBodyHtml(event.currentTarget.value)}
+                  rows={3}
+                  class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-xs text-text-1"
+                />
+              </label>
+              <label class="block">
+                <span class="block text-xs text-text-3 mb-1">Variables JSON</span>
+                <textarea
+                  value={templateVersionVariablesJson()}
+                  onInput={(event) => setTemplateVersionVariablesJson(event.currentTarget.value)}
+                  rows={3}
+                  class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 font-mono text-xs text-text-1"
+                />
+              </label>
+              <div class="flex items-center gap-2">
+                <button
+                  type="button"
+                  class="rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
+                  onClick={() => {
+                    void createTemplateVersion();
+                  }}
+                  disabled={isCreatingTemplateVersion()}
+                >
+                  {isCreatingTemplateVersion() ? 'Creating...' : 'Create Version'}
+                </button>
+                <button
+                  type="button"
+                  class="rounded-lg border border-border-1 px-3 py-2 text-sm font-medium text-text-2 hover:bg-bg-surface-2"
+                  onClick={resetTemplateVersionForm}
+                  disabled={isCreatingTemplateVersion()}
+                >
+                  Reset
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="rounded-lg border border-border-1 p-3 space-y-2">
+            <p class="text-sm font-medium text-text-1">Template Versions</p>
+            <Show when={templateVersions().length > 0} fallback={<p class="text-sm text-text-3">No versions for selected family.</p>}>
+              <div class="space-y-2">
+                <For each={templateVersions()}>
+                  {(version) => (
+                    <div class="rounded-lg border border-border-1 px-3 py-3">
+                      <div class="flex flex-wrap items-center justify-between gap-2">
+                        <div class="space-y-1">
+                          <p class="text-sm font-medium text-text-1">
+                            v{version.version} · {version.locale}
+                          </p>
+                          <p class="text-xs text-text-3">
+                            {version.status} · {version.subject}
+                          </p>
+                        </div>
+                        <div class="flex items-center gap-2">
+                          <button
+                            type="button"
+                            class="rounded-lg border border-border-1 px-2.5 py-1 text-xs font-medium text-text-2 hover:bg-bg-surface-2 disabled:opacity-60"
+                            onClick={() => {
+                              void sendTemplatePreview(version.id);
+                            }}
+                            disabled={isSendingTemplatePreviewId() === version.id}
+                          >
+                            {isSendingTemplatePreviewId() === version.id ? 'Sending...' : 'Send Preview'}
+                          </button>
+                          <Show when={version.status === 'draft'}>
+                            <button
+                              type="button"
+                              class="rounded-lg border border-border-1 px-2.5 py-1 text-xs font-medium text-text-2 hover:bg-bg-surface-2 disabled:opacity-60"
+                              onClick={() => {
+                                void publishTemplateVersion(version.id);
+                              }}
+                              disabled={isPublishingTemplateVersionId() === version.id}
+                            >
+                              {isPublishingTemplateVersionId() === version.id ? 'Publishing...' : 'Publish'}
+                            </button>
+                          </Show>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </For>
+              </div>
+            </Show>
+          </div>
+        </div>
+
         <div class="rounded-xl border border-border-1 bg-bg-surface-1 p-4 space-y-3">
           <div class="flex items-center justify-between">
             <h3 class="text-sm font-semibold text-text-1">Notification Workflows</h3>
@@ -1822,7 +2737,7 @@ function AdminEmailSection() {
                           {workflow.workflow_key} · {workflow.category} · locale {workflow.default_locale}
                         </p>
                       </div>
-                      <div class="flex items-center gap-2">
+                      <div class="flex flex-wrap items-center gap-2">
                         <span
                           class={`rounded-full px-2 py-1 text-xs font-medium ${
                             workflow.enabled ? 'bg-success/15 text-success' : 'bg-warning/20 text-warning'
@@ -1849,7 +2764,69 @@ function AdminEmailSection() {
                                 : 'Required'
                               : 'Enable'}
                         </button>
+                        <button
+                          type="button"
+                          class="rounded-lg border border-border-1 px-3 py-1.5 text-xs font-medium text-text-2 hover:bg-bg-surface-2 disabled:opacity-60"
+                          onClick={() => {
+                            void saveWorkflowSettings(workflow);
+                          }}
+                          disabled={isSavingWorkflowId() === workflow.id}
+                        >
+                          {isSavingWorkflowId() === workflow.id ? 'Saving...' : 'Save Settings'}
+                        </button>
                       </div>
+                    </div>
+                    <div class="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
+                      <label class="block">
+                        <span class="block text-xs text-text-3 mb-1">Default Locale</span>
+                        <input
+                          type="text"
+                          value={workflowEdits()[workflow.id]?.default_locale || workflow.default_locale}
+                          onInput={(event) =>
+                            setWorkflowEdits((current) => ({
+                              ...current,
+                              [workflow.id]: {
+                                default_locale: event.currentTarget.value,
+                                selected_template_family_id:
+                                  current[workflow.id]?.selected_template_family_id ||
+                                  workflow.selected_template_family_id ||
+                                  '',
+                              },
+                            }))
+                          }
+                          class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-sm text-text-1"
+                        />
+                      </label>
+                      <label class="block">
+                        <span class="block text-xs text-text-3 mb-1">Template Family</span>
+                        <select
+                          value={
+                            workflowEdits()[workflow.id]?.selected_template_family_id ||
+                            workflow.selected_template_family_id ||
+                            ''
+                          }
+                          onChange={(event) =>
+                            setWorkflowEdits((current) => ({
+                              ...current,
+                              [workflow.id]: {
+                                default_locale:
+                                  current[workflow.id]?.default_locale || workflow.default_locale,
+                                selected_template_family_id: event.currentTarget.value,
+                              },
+                            }))
+                          }
+                          class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-sm text-text-1"
+                        >
+                          <option value="">Keep current</option>
+                          <For each={templateFamilies()}>
+                            {(family) => (
+                              <option value={family.id}>
+                                {family.name} ({family.key})
+                              </option>
+                            )}
+                          </For>
+                        </select>
+                      </label>
                     </div>
                   </div>
                 )}
@@ -1884,6 +2861,9 @@ function AdminEmailSection() {
                         </p>
                         <p class="text-xs text-text-3">
                           From {provider.from_name} &lt;{provider.from_address}&gt;
+                        </p>
+                        <p class="text-xs text-text-3">
+                          TLS {provider.tls_mode || 'starttls'} · User {provider.username}
                         </p>
                       </div>
 
@@ -1941,8 +2921,10 @@ function AdminEmailSection() {
                     <th class="px-3 py-2 font-medium">Recipient</th>
                     <th class="px-3 py-2 font-medium">Subject</th>
                     <th class="px-3 py-2 font-medium">Status</th>
+                    <th class="px-3 py-2 font-medium">Workflow</th>
                     <th class="px-3 py-2 font-medium">Attempts</th>
                     <th class="px-3 py-2 font-medium">Created</th>
+                    <th class="px-3 py-2 font-medium">Sent</th>
                     <th class="px-3 py-2 font-medium text-right">Action</th>
                   </tr>
                 </thead>
@@ -1953,8 +2935,10 @@ function AdminEmailSection() {
                         <td class="px-3 py-2 text-text-2">{entry.recipient_email}</td>
                         <td class="px-3 py-2 text-text-2">{entry.subject}</td>
                         <td class="px-3 py-2 text-text-2 capitalize">{entry.status}</td>
+                        <td class="px-3 py-2 text-text-2">{entry.workflow_key || '-'}</td>
                         <td class="px-3 py-2 text-text-2">{entry.attempt_count}/{entry.max_attempts}</td>
                         <td class="px-3 py-2 text-text-2">{formatDateTime(entry.created_at)}</td>
+                        <td class="px-3 py-2 text-text-2">{formatDateTime(entry.sent_at)}</td>
                         <td class="px-3 py-2 text-right">
                           <Show when={entry.status === 'failed'}>
                             <button
@@ -2168,6 +3152,7 @@ function AdminMembershipPoliciesSection() {
   const [isLoading, setIsLoading] = createSignal(true);
   const [isMutatingPolicyId, setIsMutatingPolicyId] = createSignal<string | null>(null);
   const [isCreating, setIsCreating] = createSignal(false);
+  const [editingPolicyId, setEditingPolicyId] = createSignal<string | null>(null);
   const [isResyncing, setIsResyncing] = createSignal(false);
   const [resyncUserId, setResyncUserId] = createSignal('');
   const [createName, setCreateName] = createSignal('');
@@ -2225,6 +3210,7 @@ function AdminMembershipPoliciesSection() {
   });
 
   const resetCreatePolicyForm = () => {
+    setEditingPolicyId(null);
     setCreateName('');
     setCreateDescription('');
     setCreateScopeType('global');
@@ -2352,6 +3338,35 @@ function AdminMembershipPoliciesSection() {
     });
   };
 
+  const startEditPolicy = (policy: AdminMembershipPolicy) => {
+    setEditingPolicyId(policy.id);
+    setCreateName(policy.name);
+    setCreateDescription(policy.description || '');
+    setCreateScopeType(policy.scope_type);
+    setCreateScopeTeamId(policy.team_id || '');
+    setCreateSourceType(policy.source_type);
+    setCreateSourceConfig(JSON.stringify(policy.source_config || {}, null, 2));
+    setCreateEnabled(policy.enabled);
+    setCreatePriority(String(policy.priority));
+    setCreateTargets(
+      policy.targets.length > 0
+        ? policy.targets.map((target) => ({
+            target_type: target.target_type,
+            target_id: target.target_id,
+            role_mode: target.role_mode,
+          }))
+        : [
+            {
+              target_type: 'team',
+              target_id: '',
+              role_mode: 'member',
+            },
+          ]
+    );
+    setError(null);
+    setNotice(null);
+  };
+
   const createPolicy = async () => {
     const token = authStore.token;
     if (!token) return;
@@ -2415,26 +3430,48 @@ function AdminMembershipPoliciesSection() {
     setNotice(null);
 
     try {
-      const created = await fetchAdminJson<AdminMembershipPolicy>(token, '/admin/membership-policies', {
-        method: 'POST',
-        body: JSON.stringify({
-          name,
-          description: createDescription().trim() || undefined,
-          scope_type: createScopeType(),
-          team_id: createScopeType() === 'team' ? createScopeTeamId() : undefined,
-          source_type: createSourceType(),
-          source_config: sourceConfig,
-          enabled: createEnabled(),
-          priority,
-          targets,
-        }),
-      });
+      const editingId = editingPolicyId();
+      if (editingId) {
+        const updated = await fetchAdminJson<AdminMembershipPolicy>(
+          token,
+          `/admin/membership-policies/${editingId}`,
+          {
+            method: 'PUT',
+            body: JSON.stringify({
+              name,
+              description: createDescription().trim() || undefined,
+              enabled: createEnabled(),
+              priority,
+              source_config: sourceConfig,
+              targets,
+            }),
+          }
+        );
+        resetCreatePolicyForm();
+        await loadMembershipData();
+        setNotice(`Policy "${updated.name}" updated successfully.`);
+      } else {
+        const created = await fetchAdminJson<AdminMembershipPolicy>(token, '/admin/membership-policies', {
+          method: 'POST',
+          body: JSON.stringify({
+            name,
+            description: createDescription().trim() || undefined,
+            scope_type: createScopeType(),
+            team_id: createScopeType() === 'team' ? createScopeTeamId() : undefined,
+            source_type: createSourceType(),
+            source_config: sourceConfig,
+            enabled: createEnabled(),
+            priority,
+            targets,
+          }),
+        });
 
-      resetCreatePolicyForm();
-      await loadMembershipData();
-      setNotice(`Policy "${created.name}" created successfully.`);
+        resetCreatePolicyForm();
+        await loadMembershipData();
+        setNotice(`Policy "${created.name}" created successfully.`);
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create policy');
+      setError(err instanceof Error ? err.message : 'Failed to save policy');
     } finally {
       setIsCreating(false);
     }
@@ -2526,16 +3563,23 @@ function AdminMembershipPoliciesSection() {
 
         <div class="rounded-xl border border-border-1 bg-bg-surface-1 p-4 space-y-4">
           <div class="flex items-center justify-between gap-3">
-            <h3 class="text-sm font-semibold text-text-1">Create Policy</h3>
+            <h3 class="text-sm font-semibold text-text-1">
+              {editingPolicyId() ? 'Edit Policy' : 'Create Policy'}
+            </h3>
             <button
               type="button"
               class="rounded-lg border border-border-1 px-3 py-1.5 text-xs font-medium text-text-2 hover:bg-bg-surface-2"
               onClick={resetCreatePolicyForm}
               disabled={isCreating()}
             >
-              Reset Form
+              {editingPolicyId() ? 'Cancel Edit' : 'Reset Form'}
             </button>
           </div>
+          <Show when={editingPolicyId()}>
+            <p class="text-xs text-text-3">
+              Scope and source type are locked for existing policies. Edit name, targets, priority, source config, and enabled state.
+            </p>
+          </Show>
 
           <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
             <label class="block">
@@ -2561,6 +3605,7 @@ function AdminMembershipPoliciesSection() {
                   }
                 }}
                 class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-sm text-text-1"
+                disabled={Boolean(editingPolicyId())}
               >
                 <option value="global">Global</option>
                 <option value="team">Team</option>
@@ -2600,6 +3645,7 @@ function AdminMembershipPoliciesSection() {
                   )
                 }
                 class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-sm text-text-1"
+                disabled={Boolean(editingPolicyId())}
               >
                 <For each={sourceTypeOptions()}>
                   {(sourceType) => (
@@ -2746,7 +3792,7 @@ function AdminMembershipPoliciesSection() {
               }}
               disabled={isCreating()}
             >
-              {isCreating() ? 'Creating...' : 'Create Policy'}
+              {isCreating() ? 'Saving...' : editingPolicyId() ? 'Save Policy' : 'Create Policy'}
             </button>
           </div>
         </div>
@@ -2823,6 +3869,15 @@ function AdminMembershipPoliciesSection() {
                         >
                           {policy.enabled ? 'Enabled' : 'Disabled'}
                         </span>
+                        <button
+                          type="button"
+                          class="rounded-lg border border-border-1 px-3 py-1.5 text-xs font-medium text-text-2 hover:bg-bg-surface-2"
+                          onClick={() => {
+                            startEditPolicy(policy);
+                          }}
+                        >
+                          Edit
+                        </button>
                         <button
                           type="button"
                           class="rounded-lg border border-border-1 px-3 py-1.5 text-xs font-medium text-text-2 hover:bg-bg-surface-2 disabled:opacity-60"
@@ -2958,81 +4013,90 @@ export default function Admin() {
       }
     >
       <div class="p-6 lg:p-8 space-y-6" data-testid="admin-page">
-        <div class="space-y-1">
-          <h1 class="text-2xl font-bold text-text-1">Admin Console</h1>
-          <p class="text-text-3">
-            Centralized administration for users, teams, security, and system configuration.
-          </p>
-        </div>
+        <div class="grid grid-cols-1 gap-6 xl:grid-cols-[260px_minmax(0,1fr)]">
+          <aside class="rounded-xl border border-border-1 bg-bg-surface-1 p-3 space-y-3 h-fit">
+            <A
+              href="/"
+              class="block rounded-lg border border-border-1 px-3 py-2 text-sm font-medium text-text-2 hover:bg-bg-surface-2 hover:text-text-1"
+            >
+              Back to Chat
+            </A>
+            <div class="space-y-1">
+              <h1 class="text-lg font-bold text-text-1">Admin Console</h1>
+              <p class="text-xs text-text-3">System administration sections</p>
+            </div>
+            <div class="space-y-1">
+              <For each={sections}>
+                {(section) => {
+                  const href = section.id ? `/admin/${section.id}` : '/admin';
+                  return (
+                    <A
+                      href={href}
+                      class={`block rounded-lg px-3 py-2 text-sm transition-colors ${
+                        activeSectionId() === section.id
+                          ? 'bg-brand/10 text-brand font-medium'
+                          : 'text-text-2 hover:bg-bg-surface-2 hover:text-text-1'
+                      }`}
+                    >
+                      {section.label}
+                    </A>
+                  );
+                }}
+              </For>
+            </div>
+          </aside>
 
-        <div class="rounded-xl border border-border-1 bg-bg-surface-1 p-2 flex flex-wrap gap-2">
-          <For each={sections}>
-            {(section) => {
-              const href = section.id ? `/admin/${section.id}` : '/admin';
-              return (
-                <A
-                  href={href}
-                  class={`px-3 py-2 rounded-lg text-sm transition-colors ${
-                    activeSectionId() === section.id
-                      ? 'bg-brand/10 text-brand font-medium'
-                      : 'text-text-2 hover:bg-bg-surface-2 hover:text-text-1'
-                  }`}
-                >
-                  {section.label}
-                </A>
-              );
-            }}
-          </For>
-        </div>
+          <div class="space-y-4">
+            <div class="space-y-1">
+              <h2 class="text-2xl font-bold text-text-1">{activeSection().label}</h2>
+              <p class="text-text-3">{activeSection().description}</p>
+            </div>
 
-        <div class="rounded-xl border border-border-1 bg-bg-surface-1 p-6 space-y-4">
-          <div>
-            <h2 class="text-lg font-semibold text-text-1">{activeSection().label}</h2>
-            <p class="text-sm text-text-3 mt-1">{activeSection().description}</p>
+            <div class="rounded-xl border border-border-1 bg-bg-surface-1 p-6 space-y-4">
+              <Show when={activeSectionId() === ''}>
+                <AdminOverviewSection />
+              </Show>
+
+              <Show when={activeSectionId() === 'users'}>
+                <AdminUsersSection />
+              </Show>
+
+              <Show when={activeSectionId() === 'teams'}>
+                <AdminTeamsSection />
+              </Show>
+
+              <Show when={activeSectionId() === 'settings'}>
+                <AdminSettingsSection />
+              </Show>
+
+              <Show when={activeSectionId() === 'security'}>
+                <AdminSecuritySection />
+              </Show>
+
+              <Show when={activeSectionId() === 'email'}>
+                <AdminEmailSection />
+              </Show>
+
+              <Show when={activeSectionId() === 'membership-policies'}>
+                <AdminMembershipPoliciesSection />
+              </Show>
+
+              <Show when={activeSectionId() === 'compliance'}>
+                <AdminComplianceSection />
+              </Show>
+
+              <Show when={activeSectionId() === 'audit'}>
+                <AdminAuditSection />
+              </Show>
+            </div>
+
+            <Show when={activeSectionId() !== ''}>
+              <div class="text-sm text-text-3">
+                Current route: <code class="text-text-2">{location.pathname}</code>
+              </div>
+            </Show>
           </div>
-
-          <Show when={activeSectionId() === ''}>
-            <AdminOverviewSection />
-          </Show>
-
-          <Show when={activeSectionId() === 'users'}>
-            <AdminUsersSection />
-          </Show>
-
-          <Show when={activeSectionId() === 'teams'}>
-            <AdminTeamsSection />
-          </Show>
-
-          <Show when={activeSectionId() === 'settings'}>
-            <AdminSettingsSection />
-          </Show>
-
-          <Show when={activeSectionId() === 'security'}>
-            <AdminSecuritySection />
-          </Show>
-
-          <Show when={activeSectionId() === 'email'}>
-            <AdminEmailSection />
-          </Show>
-
-          <Show when={activeSectionId() === 'membership-policies'}>
-            <AdminMembershipPoliciesSection />
-          </Show>
-
-          <Show when={activeSectionId() === 'compliance'}>
-            <AdminComplianceSection />
-          </Show>
-
-          <Show when={activeSectionId() === 'audit'}>
-            <AdminAuditSection />
-          </Show>
         </div>
-
-        <Show when={activeSectionId() !== ''}>
-          <div class="text-sm text-text-3">
-            Current route: <code class="text-text-2">{location.pathname}</code>
-          </div>
-        </Show>
       </div>
     </Show>
   );

@@ -337,6 +337,19 @@ pub struct NotificationWorkflow {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+pub struct CreateWorkflowRequest {
+    pub workflow_key: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub category: Option<String>,
+    pub enabled: Option<bool>,
+    pub system_required: Option<bool>,
+    pub default_locale: Option<String>,
+    pub selected_template_family_id: Option<Uuid>,
+    pub policy: Option<WorkflowPolicy>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct UpdateWorkflowRequest {
     pub enabled: Option<bool>,
     pub default_locale: Option<String>,
