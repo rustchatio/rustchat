@@ -182,6 +182,9 @@ export function Sidebar(props: SidebarProps) {
 
   const [isCreateChannelOpen, setIsCreateChannelOpen] = createSignal(false);
   const [isCreatingChannel, setIsCreatingChannel] = createSignal(false);
+  const [isJoiningChannel, setIsJoiningChannel] = createSignal(false);
+  const [isLoadingJoinableChannels, setIsLoadingJoinableChannels] = createSignal(false);
+  const [channelModalMode, setChannelModalMode] = createSignal<'create' | 'join'>('create');
   const [createChannelError, setCreateChannelError] = createSignal<string | null>(null);
   const [channelDisplayName, setChannelDisplayName] = createSignal('');
   const [channelPurpose, setChannelPurpose] = createSignal('');
@@ -237,8 +240,9 @@ export function Sidebar(props: SidebarProps) {
     setDmUsers(safeUsers.filter((user) => user.id !== currentUserId));
   };
 
-  const openCreateChannelModal = () => {
+  const openCreateChannelModal = (mode: 'create' | 'join' = 'create') => {
     setCreateChannelError(null);
+    setChannelModalMode(mode);
     setChannelDisplayName('');
     setChannelPurpose('');
     setChannelType('public');
@@ -253,6 +257,22 @@ export function Sidebar(props: SidebarProps) {
         setIsLoadingChannelTeams(false);
       });
   };
+
+  createEffect(() => {
+    if (!isCreateChannelOpen() || channelModalMode() !== 'join') return;
+    const teamId = selectedTeamId();
+    if (!teamId) return;
+
+    setIsLoadingJoinableChannels(true);
+    setCreateChannelError(null);
+    void fetchJoinableChannels(teamId)
+      .catch((error) => {
+        setCreateChannelError(getErrorMessage(error) || 'Failed to load joinable channels.');
+      })
+      .finally(() => {
+        setIsLoadingJoinableChannels(false);
+      });
+  });
 
   const submitCreateChannel = async () => {
     const displayName = channelDisplayName().trim();
@@ -382,6 +402,35 @@ export function Sidebar(props: SidebarProps) {
     }
   };
 
+  const joinableChannelsForSelectedTeam = createMemo(() => {
+    const teamId = selectedTeamId();
+    if (!teamId) return [];
+    return channelStore.joinableChannels.filter((channel) => channel.team_id === teamId);
+  });
+
+  const handleJoinChannel = async (channel: Channel) => {
+    setIsJoiningChannel(true);
+    setCreateChannelError(null);
+    try {
+      await joinChannel(channel.id);
+      await fetchChannels(channel.team_id);
+      selectChannel(channel.id);
+      navigate(`/channels/${channel.id}`);
+      setIsCreateChannelOpen(false);
+      uiStore.setMobileSidebarOpen(false);
+    } catch (error) {
+      setCreateChannelError(getErrorMessage(error) || 'Failed to join channel.');
+    } finally {
+      setIsJoiningChannel(false);
+    }
+  };
+
+  const handleChannelClick = (channelId: string) => {
+    selectChannel(channelId);
+    navigate(`/channels/${channelId}`);
+    uiStore.setMobileSidebarOpen(false);
+  };
+
   return (
     <aside
       class={cn(
@@ -460,7 +509,7 @@ export function Sidebar(props: SidebarProps) {
                 aria-label="Create channel"
                 title="Create channel"
                 onClick={() => {
-                  void openCreateChannelModal();
+                  openCreateChannelModal('create');
                 }}
               >
                 <HiOutlinePlus size={14} />
@@ -570,7 +619,7 @@ export function Sidebar(props: SidebarProps) {
             type="button"
             class="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-bg-app border border-border-1 hover:border-border-2 transition-colors text-left"
             onClick={() => {
-              void openCreateChannelModal();
+              openCreateChannelModal('create');
             }}
           >
             <HiOutlinePlus size={18} class="text-text-3" />
@@ -582,11 +631,30 @@ export function Sidebar(props: SidebarProps) {
       <Modal
         isOpen={isCreateChannelOpen()}
         onClose={() => setIsCreateChannelOpen(false)}
-        title="Create Channel"
-        description="Create a new public or private channel"
+        title={channelModalMode() === 'create' ? 'Create Channel' : 'Create or Join Channel'}
+        description={
+          channelModalMode() === 'create'
+            ? 'Create a new public or private channel'
+            : 'Join an existing public channel in your team'
+        }
         size="md"
       >
         <div class="space-y-4">
+          <div class="flex gap-2">
+            <Button
+              variant={channelModalMode() === 'create' ? 'primary' : 'secondary'}
+              onClick={() => setChannelModalMode('create')}
+            >
+              Create Channel
+            </Button>
+            <Button
+              variant={channelModalMode() === 'join' ? 'primary' : 'secondary'}
+              onClick={() => setChannelModalMode('join')}
+            >
+              Join Channel
+            </Button>
+          </div>
+
           <Show when={createChannelError()}>
             <div class="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
               {createChannelError()}
@@ -611,57 +679,104 @@ export function Sidebar(props: SidebarProps) {
               <p class="text-xs text-text-3">Loading teams...</p>
             </Show>
             <Show when={!isLoadingChannelTeams() && channelTeams().length === 0}>
-              <p class="text-xs text-warning">No teams available for channel creation.</p>
+              <p class="text-xs text-warning">No teams available.</p>
             </Show>
           </label>
 
-          <label class="block space-y-1">
-            <span class="text-sm font-medium text-text-2">Display Name</span>
-            <input
-              type="text"
-              value={channelDisplayName()}
-              onInput={(event) => setChannelDisplayName(event.currentTarget.value)}
-              placeholder="e.g. Engineering"
-              class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-sm text-text-1"
-            />
-          </label>
+          <Show when={channelModalMode() === 'create'}>
+            <>
+              <label class="block space-y-1">
+                <span class="text-sm font-medium text-text-2">Display Name</span>
+                <input
+                  type="text"
+                  value={channelDisplayName()}
+                  onInput={(event) => setChannelDisplayName(event.currentTarget.value)}
+                  placeholder="e.g. Engineering"
+                  class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-sm text-text-1"
+                />
+              </label>
 
-          <label class="block space-y-1">
-            <span class="text-sm font-medium text-text-2">Purpose (optional)</span>
-            <input
-              type="text"
-              value={channelPurpose()}
-              onInput={(event) => setChannelPurpose(event.currentTarget.value)}
-              placeholder="What is this channel for?"
-              class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-sm text-text-1"
-            />
-          </label>
+              <label class="block space-y-1">
+                <span class="text-sm font-medium text-text-2">Purpose (optional)</span>
+                <input
+                  type="text"
+                  value={channelPurpose()}
+                  onInput={(event) => setChannelPurpose(event.currentTarget.value)}
+                  placeholder="What is this channel for?"
+                  class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-sm text-text-1"
+                />
+              </label>
 
-          <label class="block space-y-1">
-            <span class="text-sm font-medium text-text-2">Visibility</span>
-            <select
-              value={channelType()}
-              onChange={(event) => setChannelType(event.currentTarget.value as 'public' | 'private')}
-              class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-sm text-text-1"
-            >
-              <option value="public">Public</option>
-              <option value="private">Private</option>
-            </select>
-          </label>
+              <label class="block space-y-1">
+                <span class="text-sm font-medium text-text-2">Visibility</span>
+                <select
+                  value={channelType()}
+                  onChange={(event) => setChannelType(event.currentTarget.value as 'public' | 'private')}
+                  class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-sm text-text-1"
+                >
+                  <option value="public">Public</option>
+                  <option value="private">Private</option>
+                </select>
+              </label>
 
-          <div class="flex justify-end gap-2 pt-2">
-            <Button variant="ghost" onClick={() => setIsCreateChannelOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              loading={isCreatingChannel()}
-              disabled={isLoadingChannelTeams() || channelTeams().length === 0}
-              onClick={() => void submitCreateChannel()}
-            >
-              Create Channel
-            </Button>
-          </div>
+              <div class="flex justify-end gap-2 pt-2">
+                <Button variant="ghost" onClick={() => setIsCreateChannelOpen(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  variant="primary"
+                  loading={isCreatingChannel()}
+                  disabled={isLoadingChannelTeams() || channelTeams().length === 0}
+                  onClick={() => void submitCreateChannel()}
+                >
+                  Create Channel
+                </Button>
+              </div>
+            </>
+          </Show>
+
+          <Show when={channelModalMode() === 'join'}>
+            <>
+              <div class="max-h-72 space-y-2 overflow-y-auto rounded-lg border border-border-1 bg-bg-app p-2">
+                <Show
+                  when={!isLoadingJoinableChannels()}
+                  fallback={<p class="px-2 py-2 text-sm text-text-3">Loading joinable channels...</p>}
+                >
+                  <Show
+                    when={joinableChannelsForSelectedTeam().length > 0}
+                    fallback={<p class="px-2 py-2 text-sm text-text-3">No channels to join in this team.</p>}
+                  >
+                    <For each={joinableChannelsForSelectedTeam()}>
+                      {(channel) => (
+                        <div class="flex items-center justify-between rounded-lg border border-border-1 bg-bg-surface-1 px-3 py-2">
+                          <div class="min-w-0">
+                            <p class="truncate text-sm font-medium text-text-1">{channel.display_name}</p>
+                            <p class="truncate text-xs text-text-3">#{channel.name}</p>
+                          </div>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            loading={isJoiningChannel()}
+                            onClick={() => {
+                              void handleJoinChannel(channel);
+                            }}
+                          >
+                            Join
+                          </Button>
+                        </div>
+                      )}
+                    </For>
+                  </Show>
+                </Show>
+              </div>
+
+              <div class="flex justify-end gap-2 pt-2">
+                <Button variant="ghost" onClick={() => setIsCreateChannelOpen(false)}>
+                  Close
+                </Button>
+              </div>
+            </>
+          </Show>
         </div>
       </Modal>
 
@@ -1230,10 +1345,5 @@ function ChannelItem(props: ChannelItemProps) {
 // ============================================
 // Handler Functions
 // ============================================
-
-function handleChannelClick(channelId: string) {
-  selectChannel(channelId);
-  uiStore.setMobileSidebarOpen(false);
-}
 
 export default Sidebar;

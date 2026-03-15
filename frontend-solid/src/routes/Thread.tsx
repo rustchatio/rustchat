@@ -36,7 +36,7 @@ export default function Thread() {
   // Get replies and root message
   const replies = createMemo(() => {
     const id = threadId();
-    return id ? getReplies(id)() : [];
+    return id ? getReplies(id) : [];
   });
 
   // Get root message from the store or replies
@@ -46,8 +46,8 @@ export default function Thread() {
     if (!tid || !cid) return undefined;
 
     // First check if the root message is in the replies
-    const threadReplies = getReplies(tid)();
-    const root = threadReplies.find((r) => r.id === tid);
+    const threadReplies = getReplies(tid);
+    const root = threadReplies.find((r: { id: string }) => r.id === tid);
     if (root) return root;
 
     // Otherwise check the channel messages
@@ -213,7 +213,7 @@ export default function Thread() {
       >
         <ThreadView
           rootMessage={rootMessage()!}
-          replies={replies().filter((r) => r.id !== threadId())}
+          replies={replies().filter((r: { id: string }) => r.id !== threadId())}
           isLoading={messageStore.isLoading()}
           currentUserId={authStore.user()?.id}
           isFollowing={isFollowing()}

@@ -1,5 +1,5 @@
 import { createStore, produce } from 'solid-js/store';
-import { createSignal, batch, createMemo } from 'solid-js';
+import { createSignal, batch } from 'solid-js';
 import { authStore } from './auth';
 import { generateUUID } from '../utils/uuid';
 import { API_BASE_URL } from '@/api/client';
@@ -159,16 +159,16 @@ export function postToMessage(post: Post): Message {
 // Actions
 // ============================================
 
-export function getMessages(channelId: string) {
-  return createMemo(() => messagesByChannel[channelId] || []);
+export function getMessages(channelId: string): Message[] {
+  return messagesByChannel[channelId] || [];
 }
 
-export function getReplies(threadId: string) {
-  return createMemo(() => repliesByThread[threadId] || []);
+export function getReplies(threadId: string): Message[] {
+  return repliesByThread[threadId] || [];
 }
 
-export function hasMoreOlder(channelId: string) {
-  return createMemo(() => hasMoreOlderByChannel[channelId] ?? true);
+export function hasMoreOlder(channelId: string): boolean {
+  return hasMoreOlderByChannel[channelId] ?? true;
 }
 
 export async function fetchMessages(channelId: string): Promise<void> {

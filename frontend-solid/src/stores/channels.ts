@@ -278,13 +278,18 @@ export async function resolveDefaultChannelPath(): Promise<string | null> {
 }
 
 export async function fetchJoinableChannels(teamId: string): Promise<void> {
-  setIsLoading(true);
+  batch(() => {
+    setIsLoading(true);
+    setError(null);
+  });
 
   try {
     const data = await channelsApi.list(teamId, true);
     setJoinableChannels(data);
   } catch (err) {
-    console.error('Failed to fetch joinable channels', err);
+    const message = getErrorMessage(err) || 'Failed to fetch joinable channels';
+    setError(message);
+    throw new Error(message);
   } finally {
     setIsLoading(false);
   }
@@ -330,17 +335,31 @@ export async function createChannel(data: CreateChannelRequest): Promise<Channel
   }
 }
 
-export async function joinChannel(channelId: string): Promise<void> {
-  const userId = authStore.user()?.id;
-  if (!userId) throw new Error('User not authenticated');
+async function requireAuthenticatedUserId(): Promise<string> {
+  let userId = authStore.user()?.id;
+  if (userId) {
+    return userId;
+  }
 
+  if (authStore.token) {
+    await authStore.fetchMe();
+    userId = authStore.user()?.id;
+  }
+
+  if (!userId) {
+    throw new Error('User not authenticated');
+  }
+
+  return userId;
+}
+
+export async function joinChannel(channelId: string): Promise<void> {
+  const userId = await requireAuthenticatedUserId();
   await channelsApi.join(channelId, userId);
 }
 
 export async function leaveChannel(channelId: string): Promise<void> {
-  const userId = authStore.user()?.id;
-  if (!userId) throw new Error('User not authenticated');
-
+  const userId = await requireAuthenticatedUserId();
   await channelsApi.leave(channelId, userId);
 
   setChannels((prev) => prev.filter((c) => c.id !== channelId));
