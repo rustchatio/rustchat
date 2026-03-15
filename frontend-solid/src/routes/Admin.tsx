@@ -238,6 +238,12 @@ interface MembershipPolicyMetadata {
   role_modes: Array<{ value: string; label: string }>;
 }
 
+interface MembershipPolicyTargetDraft {
+  target_type: 'team' | 'channel';
+  target_id: string;
+  role_mode: 'member' | 'admin';
+}
+
 const sections: AdminSection[] = [
   { id: '', label: 'Overview', description: 'System summary and quick links' },
   { id: 'users', label: 'Users', description: 'Manage users and account lifecycle' },
@@ -2157,12 +2163,84 @@ function AdminMembershipPoliciesSection() {
   const [policies, setPolicies] = createSignal<AdminMembershipPolicy[]>([]);
   const [summary, setSummary] = createSignal<AdminMembershipAuditSummary | null>(null);
   const [metadata, setMetadata] = createSignal<MembershipPolicyMetadata | null>(null);
+  const [availableTeams, setAvailableTeams] = createSignal<AdminTeam[]>([]);
+  const [availableChannels, setAvailableChannels] = createSignal<AdminChannel[]>([]);
   const [isLoading, setIsLoading] = createSignal(true);
   const [isMutatingPolicyId, setIsMutatingPolicyId] = createSignal<string | null>(null);
+  const [isCreating, setIsCreating] = createSignal(false);
   const [isResyncing, setIsResyncing] = createSignal(false);
   const [resyncUserId, setResyncUserId] = createSignal('');
+  const [createName, setCreateName] = createSignal('');
+  const [createDescription, setCreateDescription] = createSignal('');
+  const [createScopeType, setCreateScopeType] = createSignal<'global' | 'team'>('global');
+  const [createScopeTeamId, setCreateScopeTeamId] = createSignal('');
+  const [createSourceType, setCreateSourceType] = createSignal<
+    'all_users' | 'auth_service' | 'group' | 'role' | 'org'
+  >('all_users');
+  const [createSourceConfig, setCreateSourceConfig] = createSignal('{}');
+  const [createEnabled, setCreateEnabled] = createSignal(true);
+  const [createPriority, setCreatePriority] = createSignal('0');
+  const [createTargets, setCreateTargets] = createSignal<MembershipPolicyTargetDraft[]>([
+    {
+      target_type: 'team',
+      target_id: '',
+      role_mode: 'member',
+    },
+  ]);
   const [notice, setNotice] = createSignal<string | null>(null);
   const [error, setError] = createSignal<string | null>(null);
+
+  const sourceTypeOptions = createMemo(
+    () =>
+      metadata()?.source_types || [
+        { value: 'all_users', label: 'All Users' },
+        { value: 'auth_service', label: 'Authentication Service' },
+        { value: 'group', label: 'Group Membership' },
+        { value: 'role', label: 'User Role' },
+        { value: 'org', label: 'Organization' },
+      ]
+  );
+
+  const roleModeOptions = createMemo(
+    () =>
+      metadata()?.role_modes || [
+        { value: 'member', label: 'Member' },
+        { value: 'admin', label: 'Admin' },
+      ]
+  );
+
+  const createSourceConfigPlaceholder = createMemo(() => {
+    switch (createSourceType()) {
+      case 'auth_service':
+        return '{\n  "auth_provider": "oidc"\n}';
+      case 'group':
+        return '{\n  "group_names": ["engineering"]\n}';
+      case 'role':
+        return '{\n  "roles": ["member"]\n}';
+      case 'org':
+        return '{\n  "org_ids": ["00000000-0000-0000-0000-000000000000"]\n}';
+      default:
+        return '{}';
+    }
+  });
+
+  const resetCreatePolicyForm = () => {
+    setCreateName('');
+    setCreateDescription('');
+    setCreateScopeType('global');
+    setCreateScopeTeamId('');
+    setCreateSourceType('all_users');
+    setCreateSourceConfig('{}');
+    setCreateEnabled(true);
+    setCreatePriority('0');
+    setCreateTargets([
+      {
+        target_type: 'team',
+        target_id: '',
+        role_mode: 'member',
+      },
+    ]);
+  };
 
   const loadMembershipData = async () => {
     const token = authStore.token;
@@ -2173,16 +2251,28 @@ function AdminMembershipPoliciesSection() {
     setNotice(null);
 
     try {
-      const [policiesData, summaryData, metadataData] = await Promise.all([
+      const [policiesData, summaryData, metadataData, teamsData, channelsData] = await Promise.all([
         fetchAdminJson<AdminMembershipPolicy[]>(token, '/admin/membership-policies'),
         fetchAdminJson<AdminMembershipAuditSummary>(token, '/admin/audit/membership/summary'),
         fetchAdminJson<MembershipPolicyMetadata>(token, '/admin/membership-policies/metadata').catch(
           () => null
         ),
+        fetchAdminJson<AdminTeamsResponse>(token, '/admin/teams?page=1&per_page=100').catch(() => ({
+          teams: [],
+          total: 0,
+        })),
+        fetchAdminJson<AdminChannelsResponse>(token, '/admin/channels?page=1&per_page=100').catch(
+          () => ({
+            channels: [],
+            total: 0,
+          })
+        ),
       ]);
       setPolicies(policiesData || []);
       setSummary(summaryData || null);
       setMetadata(metadataData);
+      setAvailableTeams(teamsData.teams || []);
+      setAvailableChannels(channelsData.channels || []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load membership policy data');
     } finally {
@@ -2220,6 +2310,133 @@ function AdminMembershipPoliciesSection() {
       setError(err instanceof Error ? err.message : 'Failed to update policy');
     } finally {
       setIsMutatingPolicyId(null);
+    }
+  };
+
+  const updateCreateTarget = (
+    index: number,
+    updates: Partial<MembershipPolicyTargetDraft>
+  ) => {
+    setCreateTargets((current) =>
+      current.map((target, targetIndex) => {
+        if (targetIndex !== index) return target;
+        const nextTargetType = updates.target_type ?? target.target_type;
+        return {
+          ...target,
+          ...updates,
+          target_id:
+            updates.target_type && updates.target_type !== target.target_type
+              ? ''
+              : updates.target_id ?? target.target_id,
+          target_type: nextTargetType,
+        };
+      })
+    );
+  };
+
+  const addCreateTarget = () => {
+    setCreateTargets((current) => [
+      ...current,
+      {
+        target_type: 'team',
+        target_id: '',
+        role_mode: 'member',
+      },
+    ]);
+  };
+
+  const removeCreateTarget = (index: number) => {
+    setCreateTargets((current) => {
+      if (current.length <= 1) return current;
+      return current.filter((_, targetIndex) => targetIndex !== index);
+    });
+  };
+
+  const createPolicy = async () => {
+    const token = authStore.token;
+    if (!token) return;
+
+    const name = createName().trim();
+    if (!name) {
+      setError('Policy name is required.');
+      return;
+    }
+
+    if (createScopeType() === 'team' && !createScopeTeamId().trim()) {
+      setError('Select a scope team for team-scoped policies.');
+      return;
+    }
+
+    const priority = Number(createPriority());
+    if (!Number.isFinite(priority)) {
+      setError('Priority must be a valid number.');
+      return;
+    }
+
+    let sourceConfig: unknown = {};
+    const sourceConfigValue = createSourceConfig().trim();
+    if (sourceConfigValue.length > 0) {
+      try {
+        sourceConfig = JSON.parse(sourceConfigValue);
+      } catch {
+        setError('Source config must be valid JSON.');
+        return;
+      }
+    }
+
+    const targets = createTargets().map((target) => ({
+      target_type: target.target_type,
+      target_id: target.target_id.trim(),
+      role_mode: target.role_mode,
+    }));
+
+    if (targets.length === 0) {
+      setError('At least one target is required.');
+      return;
+    }
+
+    if (targets.some((target) => target.target_id.length === 0)) {
+      setError('Select a target for each target row.');
+      return;
+    }
+
+    const targetKeys = new Set<string>();
+    for (const target of targets) {
+      const key = `${target.target_type}:${target.target_id}`;
+      if (targetKeys.has(key)) {
+        setError(`Duplicate target selected (${key}).`);
+        return;
+      }
+      targetKeys.add(key);
+    }
+
+    setIsCreating(true);
+    setError(null);
+    setNotice(null);
+
+    try {
+      const created = await fetchAdminJson<AdminMembershipPolicy>(token, '/admin/membership-policies', {
+        method: 'POST',
+        body: JSON.stringify({
+          name,
+          description: createDescription().trim() || undefined,
+          scope_type: createScopeType(),
+          team_id: createScopeType() === 'team' ? createScopeTeamId() : undefined,
+          source_type: createSourceType(),
+          source_config: sourceConfig,
+          enabled: createEnabled(),
+          priority,
+          targets,
+        }),
+      });
+
+      resetCreatePolicyForm();
+      await loadMembershipData();
+      setNotice(`Policy "${created.name}" created successfully.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create policy');
+    } finally {
+      setIsCreating(false);
     }
   };
 
@@ -2306,6 +2523,233 @@ function AdminMembershipPoliciesSection() {
             </div>
           </div>
         </Show>
+
+        <div class="rounded-xl border border-border-1 bg-bg-surface-1 p-4 space-y-4">
+          <div class="flex items-center justify-between gap-3">
+            <h3 class="text-sm font-semibold text-text-1">Create Policy</h3>
+            <button
+              type="button"
+              class="rounded-lg border border-border-1 px-3 py-1.5 text-xs font-medium text-text-2 hover:bg-bg-surface-2"
+              onClick={resetCreatePolicyForm}
+              disabled={isCreating()}
+            >
+              Reset Form
+            </button>
+          </div>
+
+          <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <label class="block">
+              <span class="block text-xs uppercase tracking-wide text-text-3 mb-1">Policy Name</span>
+              <input
+                type="text"
+                value={createName()}
+                onInput={(event) => setCreateName(event.currentTarget.value)}
+                placeholder="e.g. Default RustChat Membership"
+                class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-sm text-text-1"
+              />
+            </label>
+
+            <label class="block">
+              <span class="block text-xs uppercase tracking-wide text-text-3 mb-1">Scope Type</span>
+              <select
+                value={createScopeType()}
+                onChange={(event) => {
+                  const next = event.currentTarget.value as 'global' | 'team';
+                  setCreateScopeType(next);
+                  if (next === 'global') {
+                    setCreateScopeTeamId('');
+                  }
+                }}
+                class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-sm text-text-1"
+              >
+                <option value="global">Global</option>
+                <option value="team">Team</option>
+              </select>
+            </label>
+
+            <Show when={createScopeType() === 'team'}>
+              <label class="block md:col-span-2">
+                <span class="block text-xs uppercase tracking-wide text-text-3 mb-1">Scope Team</span>
+                <select
+                  value={createScopeTeamId()}
+                  onChange={(event) => setCreateScopeTeamId(event.currentTarget.value)}
+                  class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-sm text-text-1"
+                >
+                  <option value="">Select team</option>
+                  <For each={availableTeams()}>
+                    {(team) => (
+                      <option value={team.id}>{team.display_name || team.name}</option>
+                    )}
+                  </For>
+                </select>
+              </label>
+            </Show>
+
+            <label class="block">
+              <span class="block text-xs uppercase tracking-wide text-text-3 mb-1">Source Type</span>
+              <select
+                value={createSourceType()}
+                onChange={(event) =>
+                  setCreateSourceType(
+                    event.currentTarget.value as
+                      | 'all_users'
+                      | 'auth_service'
+                      | 'group'
+                      | 'role'
+                      | 'org'
+                  )
+                }
+                class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-sm text-text-1"
+              >
+                <For each={sourceTypeOptions()}>
+                  {(sourceType) => (
+                    <option value={sourceType.value}>{sourceType.label}</option>
+                  )}
+                </For>
+              </select>
+            </label>
+
+            <label class="block">
+              <span class="block text-xs uppercase tracking-wide text-text-3 mb-1">Priority</span>
+              <input
+                type="number"
+                value={createPriority()}
+                onInput={(event) => setCreatePriority(event.currentTarget.value)}
+                class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-sm text-text-1"
+              />
+            </label>
+
+            <label class="block md:col-span-2">
+              <span class="block text-xs uppercase tracking-wide text-text-3 mb-1">Description (optional)</span>
+              <input
+                type="text"
+                value={createDescription()}
+                onInput={(event) => setCreateDescription(event.currentTarget.value)}
+                placeholder="What this policy does"
+                class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-sm text-text-1"
+              />
+            </label>
+
+            <label class="block md:col-span-2">
+              <span class="block text-xs uppercase tracking-wide text-text-3 mb-1">Source Config (JSON)</span>
+              <textarea
+                value={createSourceConfig()}
+                onInput={(event) => setCreateSourceConfig(event.currentTarget.value)}
+                placeholder={createSourceConfigPlaceholder()}
+                rows={5}
+                class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 font-mono text-xs text-text-1"
+              />
+            </label>
+          </div>
+
+          <label class="inline-flex items-center gap-2 text-sm text-text-2">
+            <input
+              type="checkbox"
+              checked={createEnabled()}
+              onChange={(event) => setCreateEnabled(event.currentTarget.checked)}
+              class="h-4 w-4 rounded border-border-1 bg-bg-app"
+            />
+            Policy enabled
+          </label>
+
+          <div class="rounded-lg border border-border-1 p-3 space-y-3">
+            <div class="flex items-center justify-between">
+              <p class="text-sm font-medium text-text-1">Targets</p>
+              <button
+                type="button"
+                class="rounded-lg border border-border-1 px-2.5 py-1 text-xs font-medium text-text-2 hover:bg-bg-surface-2"
+                onClick={addCreateTarget}
+                disabled={isCreating()}
+              >
+                Add Target
+              </button>
+            </div>
+
+            <For each={createTargets()}>
+              {(target, index) => (
+                <div class="grid grid-cols-1 gap-2 rounded-lg border border-border-1 p-3 md:grid-cols-[140px_minmax(0,1fr)_140px_auto]">
+                  <select
+                    value={target.target_type}
+                    onChange={(event) =>
+                      updateCreateTarget(index(), {
+                        target_type: event.currentTarget.value as 'team' | 'channel',
+                      })
+                    }
+                    class="rounded-lg border border-border-1 bg-bg-app px-2 py-2 text-sm text-text-1"
+                  >
+                    <option value="team">Team</option>
+                    <option value="channel">Channel</option>
+                  </select>
+
+                  <select
+                    value={target.target_id}
+                    onChange={(event) =>
+                      updateCreateTarget(index(), { target_id: event.currentTarget.value })
+                    }
+                    class="rounded-lg border border-border-1 bg-bg-app px-2 py-2 text-sm text-text-1"
+                  >
+                    <option value="">
+                      {target.target_type === 'team' ? 'Select team target' : 'Select channel target'}
+                    </option>
+                    <Show when={target.target_type === 'team'} fallback={
+                      <For each={availableChannels()}>
+                        {(channel) => (
+                          <option value={channel.id}>
+                            {(channel.display_name || channel.name) + ` (${channel.name})`}
+                          </option>
+                        )}
+                      </For>
+                    }>
+                      <For each={availableTeams()}>
+                        {(team) => (
+                          <option value={team.id}>{team.display_name || team.name}</option>
+                        )}
+                      </For>
+                    </Show>
+                  </select>
+
+                  <select
+                    value={target.role_mode}
+                    onChange={(event) =>
+                      updateCreateTarget(index(), {
+                        role_mode: event.currentTarget.value as 'member' | 'admin',
+                      })
+                    }
+                    class="rounded-lg border border-border-1 bg-bg-app px-2 py-2 text-sm text-text-1"
+                  >
+                    <For each={roleModeOptions()}>
+                      {(roleMode) => (
+                        <option value={roleMode.value}>{roleMode.label}</option>
+                      )}
+                    </For>
+                  </select>
+
+                  <button
+                    type="button"
+                    class="rounded-lg border border-border-1 px-2.5 py-2 text-xs font-medium text-text-2 hover:bg-bg-surface-2 disabled:opacity-60"
+                    onClick={() => removeCreateTarget(index())}
+                    disabled={isCreating() || createTargets().length <= 1}
+                  >
+                    Remove
+                  </button>
+                </div>
+              )}
+            </For>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <button
+              type="button"
+              class="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
+              onClick={() => {
+                void createPolicy();
+              }}
+              disabled={isCreating()}
+            >
+              {isCreating() ? 'Creating...' : 'Create Policy'}
+            </button>
+          </div>
+        </div>
 
         <div class="rounded-xl border border-border-1 bg-bg-surface-1 p-4 space-y-3">
           <h3 class="text-sm font-semibold text-text-1">Manual User Re-Sync</h3>

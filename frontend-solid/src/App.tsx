@@ -173,11 +173,9 @@ function AppRoutes() {
         path="/admin/*"
         component={() => (
           <ProtectedRoute>
-            <AppShell>
-              <Suspense fallback={<LoadingFallback />}>
-                <Admin />
-              </Suspense>
-            </AppShell>
+            <Suspense fallback={<LoadingFallback />}>
+              <Admin />
+            </Suspense>
           </ProtectedRoute>
         )}
       />
