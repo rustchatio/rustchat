@@ -583,6 +583,7 @@ export async function refreshToken(): Promise<boolean> {
   }
 
   if (!state.refreshToken) {
+    // No refresh token - just logout when token expires
     await logout('expired');
     return false;
   }
@@ -600,6 +601,12 @@ export async function refreshToken(): Promise<boolean> {
       });
 
       if (!response.ok) {
+        // If endpoint doesn't exist (404) or server error, just logout
+        if (response.status === 404) {
+          console.warn('Token refresh endpoint not available, logging out');
+          await logout('expired');
+          return false;
+        }
         throw new Error('Token refresh failed');
       }
 
@@ -630,7 +637,8 @@ export async function refreshToken(): Promise<boolean> {
       return true;
     } catch (err) {
       console.error('Token refresh failed:', err);
-      await logout('expired');
+      // Don't logout here - let the caller decide
+      // Just clear the refreshing state and return false
       return false;
     } finally {
       isRefreshing = false;

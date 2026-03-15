@@ -66,6 +66,7 @@ client.interceptors.request.use(
   (config) => {
     // Add auth token
     const token = authStore.token;
+    console.log('[API Client] Request:', config.method?.toUpperCase(), config.url, 'Token:', token ? 'present' : 'missing');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }

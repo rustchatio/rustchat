@@ -4,7 +4,7 @@
 
 import { client } from './client';
 import type { AxiosError, InternalAxiosRequestConfig } from 'axios';
-import { authStore, logout } from '../stores/auth';
+import { authStore } from '../stores/auth';
 import { generateUUID } from '../utils/uuid';
 
 // ============================================
@@ -114,6 +114,7 @@ export function setupResponseInterceptor() {
           const refreshed = await authStore.refreshToken();
 
           if (!refreshed) {
+            // Token refresh not available or failed - just logout
             throw new Error('Token refresh failed');
           }
 
@@ -129,7 +130,7 @@ export function setupResponseInterceptor() {
         } catch (refreshError) {
           // Token refresh failed, logout and redirect
           processQueue(refreshError as Error, null);
-          await logout('expired');
+          // Don't logout here - let the app handle it
           return Promise.reject(refreshError);
         } finally {
           isRefreshing = false;

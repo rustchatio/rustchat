@@ -55,16 +55,42 @@ function AuthenticatedRootRedirect() {
   const navigate = useNavigate();
   const [isResolving, setIsResolving] = createSignal(true);
   const [hasWorkspaceTarget, setHasWorkspaceTarget] = createSignal(true);
+  const [sessionError, setSessionError] = createSignal<string | null>(null);
   const canAccessAdmin = () => isAdminRole(authStore.user()?.role);
 
   onMount(async () => {
-    const targetPath = await resolveDefaultChannelPath();
-    if (targetPath) {
-      navigate(targetPath, { replace: true });
+    // First validate the session by fetching user
+    try {
+      const response = await fetch('/api/v1/auth/me', {
+        headers: authStore.token ? { Authorization: `Bearer ${authStore.token}` } : {},
+      });
+      
+      if (!response.ok) {
+        // Session invalid - redirect to login
+        console.error('[App] Session validation failed:', response.status);
+        navigate('/login', { replace: true });
+        return;
+      }
+    } catch (err) {
+      console.error('[App] Session validation error:', err);
+      navigate('/login', { replace: true });
       return;
     }
-    setHasWorkspaceTarget(false);
-    setIsResolving(false);
+
+    // Session valid - resolve default channel
+    try {
+      const targetPath = await resolveDefaultChannelPath();
+      if (targetPath) {
+        navigate(targetPath, { replace: true });
+        return;
+      }
+      setHasWorkspaceTarget(false);
+    } catch (err) {
+      console.error('[App] Failed to resolve default channel:', err);
+      setSessionError(err instanceof Error ? err.message : 'Failed to load workspace');
+    } finally {
+      setIsResolving(false);
+    }
   });
 
   return (
@@ -72,33 +98,47 @@ function AuthenticatedRootRedirect() {
       <Show
         when={isResolving()}
         fallback={
-          <Show when={!hasWorkspaceTarget()}>
+          <Show when={!hasWorkspaceTarget() || sessionError()}>
             <div class="w-full max-w-xl rounded-xl border border-border-1 bg-bg-surface-1 p-6 space-y-4">
-              <div>
-                <h1 class="text-xl font-semibold text-text-1">No Channel Available Yet</h1>
-                <p class="text-sm text-text-3 mt-1">
-                  There is currently no channel in your visible workspace. You can open settings, or
-                  use the admin console if you have access.
-                </p>
-              </div>
-              <div class="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  class="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover"
-                  onClick={() => navigate('/settings/profile')}
-                >
-                  Open Profile Settings
-                </button>
-                <Show when={canAccessAdmin()}>
+              <Show when={sessionError()}>
+                <div class="rounded-lg bg-danger/10 border border-danger/30 p-3">
+                  <p class="text-sm text-danger">{sessionError()}</p>
                   <button
                     type="button"
-                    class="rounded-lg border border-border-1 px-4 py-2 text-sm font-medium text-text-2 hover:bg-bg-surface-2"
-                    onClick={() => navigate('/admin')}
+                    class="mt-2 text-sm text-brand hover:underline"
+                    onClick={() => navigate('/login')}
                   >
-                    Open Admin Console
+                    Return to Login
                   </button>
-                </Show>
-              </div>
+                </div>
+              </Show>
+              <Show when={!sessionError()}>
+                <div>
+                  <h1 class="text-xl font-semibold text-text-1">No Channel Available Yet</h1>
+                  <p class="text-sm text-text-3 mt-1">
+                    There is currently no channel in your visible workspace. You can open settings, or
+                    use the admin console if you have access.
+                  </p>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    class="rounded-lg bg-brand px-4 py-2 text-sm font-medium text-white hover:bg-brand-hover"
+                    onClick={() => navigate('/settings/profile')}
+                  >
+                    Open Profile Settings
+                  </button>
+                  <Show when={canAccessAdmin()}>
+                    <button
+                      type="button"
+                      class="rounded-lg border border-border-1 px-4 py-2 text-sm font-medium text-text-2 hover:bg-bg-surface-2"
+                      onClick={() => navigate('/admin')}
+                    >
+                      Open Admin Console
+                    </button>
+                  </Show>
+                </div>
+              </Show>
             </div>
           </Show>
         }
