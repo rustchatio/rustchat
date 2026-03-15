@@ -49,7 +49,10 @@ export default function Channel() {
   // Get messages for current channel
   const messages = createMemo(() => {
     const id = channelId();
-    return id ? getMessages(id) : [];
+    if (!id) return [];
+    const msgs = getMessages(id);
+    // Return same array reference if empty to prevent unnecessary re-renders
+    return msgs.length > 0 ? msgs : [];
   });
 
   // Check if there are more older messages to load

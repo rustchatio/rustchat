@@ -157,7 +157,7 @@ export default function Reactions(props: ReactionsProps) {
   };
 
   return (
-    <div class="flex flex-wrap items-center gap-1 mt-1">
+    <div class="flex flex-wrap items-center gap-1 mt-1 w-full">
       {/* Existing Reactions */}
       <For each={props.reactions}>
         {(reaction) => {

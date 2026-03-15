@@ -123,27 +123,30 @@ function handleMessage(event: MessageEvent) {
     const rawEnvelope: WsEnvelope = JSON.parse(event.data);
     const envelope = normalizeEnvelope(rawEnvelope);
 
-    // Notify generic listeners first
-    genericListeners.forEach((handler) => {
-      try {
-        handler(envelope.data, envelope);
-      } catch (err) {
-        console.error('[WebSocket] Generic listener error:', err);
-      }
-    });
+    // Batch store updates from WebSocket events to prevent reactive cascades
+    batch(() => {
+      // Notify generic listeners first
+      genericListeners.forEach((handler) => {
+        try {
+          handler(envelope.data, envelope);
+        } catch (err) {
+          console.error('[WebSocket] Generic listener error:', err);
+        }
+      });
 
-    // Notify event-specific listeners
-    const listeners = getEventListeners(envelope.event as ServerEvent);
-    listeners.forEach((handler) => {
-      try {
-        handler(envelope.data, envelope);
-      } catch (err) {
-        console.error(`[WebSocket] Event listener error for ${envelope.event}:`, err);
-      }
-    });
+      // Notify event-specific listeners
+      const listeners = getEventListeners(envelope.event as ServerEvent);
+      listeners.forEach((handler) => {
+        try {
+          handler(envelope.data, envelope);
+        } catch (err) {
+          console.error(`[WebSocket] Event listener error for ${envelope.event}:`, err);
+        }
+      });
 
-    // Handle special events
-    handleSpecialEvents(envelope);
+      // Handle special events
+      handleSpecialEvents(envelope);
+    });
   } catch (err) {
     console.error('[WebSocket] Failed to parse message:', err);
   }

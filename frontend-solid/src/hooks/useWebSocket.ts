@@ -345,8 +345,9 @@ export function useWebSocket(): UseWebSocketReturn {
     // Subscribe to all handlers
     const unsubscribers = handlers.map(({ event, handler }) => on(event, handler));
     const unsubscribeCalls = onAny((data, envelope) => {
-      if (!envelope.event.startsWith('custom_com.mattermost.calls_')) return;
-      handleCallWebsocketEvent(envelope.event, data, envelope.channel_id);
+      const eventName = envelope?.event;
+      if (typeof eventName !== 'string' || !eventName.startsWith('custom_com.mattermost.calls_')) return;
+      handleCallWebsocketEvent(eventName, data, envelope.channel_id);
     });
 
     setIsReady(true);

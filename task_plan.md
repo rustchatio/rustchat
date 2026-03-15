@@ -1,5 +1,35 @@
 # Task Plan
 
+## 2026-03-15 WebSocket Reactivity Bug Fixes (Solid)
+
+### Critical Bugs Fixed
+
+**Issue**: Maximum call stack exceeded + `startsWith` undefined errors in Channel view
+
+**Root Cause**:
+1. WebSocket `onAny` handler didn't check for undefined `envelope.event` before calling `.startsWith()`
+2. WebSocket message handling wasn't wrapped in `batch()`, causing reactive cascades when multiple store updates fired rapidly
+3. Channel component's `messages` memo could trigger unnecessary re-computations
+
+**Fixes Applied**:
+- [x] Added null-safe check for `envelope?.event` in `useWebSocket.ts` (line 348)
+- [x] Wrapped all WebSocket event handlers in `batch()` in `websocket.ts` to prevent reactive cascades
+- [x] Hardened `messages` memo in `Channel.tsx` to return stable array references
+
+**Files Modified**:
+- `frontend-solid/src/hooks/useWebSocket.ts` - Null-safe event name check
+- `frontend-solid/src/realtime/websocket.ts` - Batch all store updates from WebSocket events
+- `frontend-solid/src/routes/Channel.tsx` - Stable memo references
+
+### Verification Status
+1. `cd frontend-solid && npm run build`
+   - Result: PASS
+
+2. `cd frontend-solid && npm run test`
+   - Result: PASS (111 tests)
+
+---
+
 ## 2026-03-15 Channel/Team Settings Modal Parity Closure (Solid)
 
 ### Implementation Status

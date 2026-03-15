@@ -241,6 +241,7 @@ export function Sidebar(props: SidebarProps) {
   };
 
   const openCreateChannelModal = (mode: 'create' | 'join' = 'create') => {
+    console.log('[Sidebar] Opening create channel modal, mode:', mode);
     setCreateChannelError(null);
     setChannelModalMode(mode);
     setChannelDisplayName('');
@@ -248,9 +249,11 @@ export function Sidebar(props: SidebarProps) {
     setChannelType('public');
     setSelectedTeamId(channelStore.currentChannel()?.team_id || '');
     setIsCreateChannelOpen(true);
+    console.log('[Sidebar] isCreateChannelOpen set to true');
     setIsLoadingChannelTeams(true);
     void loadChannelTeams()
       .catch((error) => {
+        console.error('[Sidebar] Failed to load teams:', error);
         setCreateChannelError(getErrorMessage(error) || 'Failed to load teams');
       })
       .finally(() => {
@@ -310,13 +313,14 @@ export function Sidebar(props: SidebarProps) {
   };
 
   const openCreateDirectMessageModal = () => {
+    console.log('[Sidebar] Opening create DM modal');
     setDmError(null);
     setDmSearchQuery('');
     setDmUsers([]);
     setDmSelectedUserId('');
     setDmTeamId(channelStore.currentChannel()?.team_id || selectedTeamId() || '');
     setIsCreateDmOpen(true);
-    setDmError(null);
+    console.log('[Sidebar] isCreateDmOpen set to true');
     void fetchTeamsWithBootstrap()
       .then((teams) => {
         setChannelTeams(teams);
@@ -324,6 +328,7 @@ export function Sidebar(props: SidebarProps) {
         setDmTeamId(preferredTeamId);
       })
       .catch((error) => {
+        console.error('[Sidebar] Failed to load teams for DM:', error);
         setDmError(getErrorMessage(error) || 'Failed to load teams for direct messages.');
       });
   };
@@ -505,10 +510,13 @@ export function Sidebar(props: SidebarProps) {
             action={
               <button
                 type="button"
-                class="p-1 rounded text-text-3 hover:bg-bg-surface-2 hover:text-text-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                class="p-1 rounded text-text-3 hover:bg-bg-surface-2 hover:text-text-1 opacity-100 transition-opacity"
                 aria-label="Create channel"
                 title="Create channel"
-                onClick={() => {
+                onClick={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  console.log('[Sidebar] Create channel button clicked');
                   openCreateChannelModal('create');
                 }}
               >
@@ -549,10 +557,13 @@ export function Sidebar(props: SidebarProps) {
             action={
               <button
                 type="button"
-                class="p-1 rounded text-text-3 hover:bg-bg-surface-2 hover:text-text-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                class="p-1 rounded text-text-3 hover:bg-bg-surface-2 hover:text-text-1 opacity-100 transition-opacity"
                 aria-label="Start direct message"
                 title="Start direct message"
-                onClick={() => {
+                onClick={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  console.log('[Sidebar] Create DM button clicked');
                   openCreateDirectMessageModal();
                 }}
               >
@@ -1091,17 +1102,20 @@ function TeamSelector() {
               )}
             </For>
             <div class="border-t border-border-1 mt-1 pt-1">
-                  <button
-                    type="button"
-                    class="w-full px-3 py-2 text-left text-sm text-text-2 hover:bg-bg-surface-2 hover:text-text-1 flex items-center gap-2"
-                    onClick={() => {
-                      void openTeamModal('join');
-                    }}
-                  >
-                    <HiOutlinePlus size={16} />
-                    Create or Join Team
-                  </button>
-                </div>
+              <button
+                type="button"
+                class="w-full px-3 py-2 text-left text-sm text-text-2 hover:bg-bg-surface-2 hover:text-text-1 flex items-center gap-2"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  console.log('[Sidebar] Create/Join team button clicked');
+                  void openTeamModal('join');
+                }}
+              >
+                <HiOutlinePlus size={16} />
+                Create or Join Team
+              </button>
+            </div>
               </div>
             </>
           </Show>

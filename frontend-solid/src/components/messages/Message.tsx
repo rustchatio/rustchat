@@ -261,12 +261,14 @@ export default function Message(props: MessageProps) {
 
         {/* Reactions */}
         <Show when={(props.onAddReaction || props.onRemoveReaction) || (props.message.reactions && props.message.reactions.length > 0)}>
-          <Reactions
-            reactions={props.message.reactions || []}
-            messageId={props.message.id}
-            onAddReaction={handleAddReaction}
-            onRemoveReaction={handleRemoveReaction}
-          />
+          <div class="w-full overflow-visible">
+            <Reactions
+              reactions={props.message.reactions || []}
+              messageId={props.message.id}
+              onAddReaction={handleAddReaction}
+              onRemoveReaction={handleRemoveReaction}
+            />
+          </div>
         </Show>
 
         {/* Thread Preview */}
