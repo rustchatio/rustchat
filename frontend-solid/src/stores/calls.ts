@@ -16,6 +16,7 @@ import {
   lowerHand,
   muteCall,
   raiseHand,
+  ringCall,
   sendIceCandidate,
   sendOffer,
   startCall,
@@ -47,6 +48,7 @@ export interface IncomingCallNotification {
   channelId: string;
   callId?: string;
   senderName?: string;
+  channelName?: string;
   receivedAt: number;
 }
 
@@ -105,6 +107,15 @@ function readEventSenderName(data: unknown): string | undefined {
     (typeof record.sender_id_raw === 'string' && record.sender_id_raw.trim()) ||
     (typeof record.sender_id === 'string' && record.sender_id.trim());
   return name || undefined;
+}
+
+function readEventChannelName(data: unknown): string | undefined {
+  const record = asRecord(data);
+  if (!record) return undefined;
+  const channelName =
+    (typeof record.channel_display_name === 'string' && record.channel_display_name.trim()) ||
+    (typeof record.channel_name === 'string' && record.channel_name.trim());
+  return channelName || undefined;
 }
 
 function readSignalPayload(data: unknown): CallsSignalPayload | null {
@@ -519,6 +530,13 @@ async function toggleScreenSharing(): Promise<void> {
   await refreshCurrentCallState(current.channelId);
 }
 
+async function ringCurrentCall(): Promise<void> {
+  const current = activeSession();
+  if (!current) return;
+
+  await ringCall(current.channelId);
+}
+
 async function hostMuteSession(sessionId: string): Promise<void> {
   const current = activeSession();
   if (!current) return;
@@ -609,13 +627,26 @@ export function handleCallWebsocketEvent(
   if (eventName === 'custom_com.mattermost.calls_ringing' && eventChannelId) {
     const inActiveChannel = current && current.channelId === eventChannelId;
     if (!inActiveChannel) {
-      setIncomingCall({
+      const existingIncoming = incomingCall();
+      const nextIncoming: IncomingCallNotification = {
         channelId: eventChannelId,
         callId: readEventCallId(data),
         senderName: readEventSenderName(data),
+        channelName: readEventChannelName(data),
         receivedAt: Date.now(),
-      });
-      toast.info('Incoming call', 'Someone is calling in this channel.');
+      };
+
+      if (existingIncoming?.channelId === eventChannelId) {
+        setIncomingCall({
+          ...existingIncoming,
+          callId: nextIncoming.callId || existingIncoming.callId,
+          senderName: nextIncoming.senderName || existingIncoming.senderName,
+          channelName: nextIncoming.channelName || existingIncoming.channelName,
+        });
+      } else {
+        setIncomingCall(nextIncoming);
+        toast.info('Incoming call', 'Someone is calling in this channel.');
+      }
     }
     return;
   }
@@ -700,6 +731,7 @@ export const callsStore = {
   toggleMute,
   toggleHandRaised,
   toggleScreenSharing,
+  ringCurrentCall,
   hostMuteSession,
   hostMuteAllOthers,
   hostRemoveSession,

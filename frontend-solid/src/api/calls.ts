@@ -327,6 +327,12 @@ export async function dismissCallNotification(channelId: string): Promise<void> 
   });
 }
 
+export async function ringCall(channelId: string): Promise<void> {
+  await requestJson<unknown>(`/calls/${encodeURIComponent(channelId)}/ring`, {
+    method: 'POST',
+  });
+}
+
 export async function sendOffer(channelId: string, sdp: string): Promise<OfferAnswer> {
   const response = await requestJson<{ sdp?: string; type_?: string }>(
     `/calls/${encodeURIComponent(channelId)}/offer`,

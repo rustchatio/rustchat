@@ -6,12 +6,19 @@ import { Show, For, createSignal, createMemo, createEffect } from 'solid-js';
 import { useNavigate } from '@solidjs/router';
 import { uiStore, type PanelTab } from '@/stores/ui';
 import { authStore } from '@/stores/auth';
-import { channelStore, fetchChannelMembers, leaveChannel, resolveDefaultChannelPath } from '@/stores/channels';
+import {
+  channelStore,
+  fetchChannel,
+  fetchChannelMembers,
+  leaveChannel,
+  resolveDefaultChannelPath,
+} from '@/stores/channels';
 import { presenceStore, type Presence } from '@/stores/presence';
 import { postsApi } from '@/api/messages';
 import { client, getErrorMessage } from '@/api/client';
 import { toast } from '@/hooks/useToast';
 import { cn } from '@/utils/cn';
+import { ChannelSettingsModal, TeamSettingsModal } from '@/components/channel/SettingsModals';
 
 // Icons
 import {
@@ -906,6 +913,24 @@ function ChannelInfoPanel() {
   const navigate = useNavigate();
   const channel = () => channelStore.currentChannel();
   const [isLeaving, setIsLeaving] = createSignal(false);
+  const [isChannelSettingsOpen, setIsChannelSettingsOpen] = createSignal(false);
+  const [isTeamSettingsOpen, setIsTeamSettingsOpen] = createSignal(false);
+
+  const handleWorkspaceReset = async () => {
+    const nextPath = await resolveDefaultChannelPath();
+    uiStore.setRightPanelOpen(false);
+    navigate(nextPath || '/');
+  };
+
+  const refreshCurrentChannel = async () => {
+    const current = channel();
+    if (!current) return;
+    try {
+      await fetchChannel(current.id);
+    } catch (err) {
+      console.warn('Failed to refresh channel after settings update', err);
+    }
+  };
 
   const handleLeaveChannel = async () => {
     const current = channel();
@@ -916,9 +941,7 @@ function ChannelInfoPanel() {
     setIsLeaving(true);
     try {
       await leaveChannel(current.id);
-      const nextPath = await resolveDefaultChannelPath();
-      uiStore.setRightPanelOpen(false);
-      navigate(nextPath || '/');
+      await handleWorkspaceReset();
       toast.success('Left channel', `${current.display_name || current.name} has been left.`);
     } catch (err) {
       toast.error('Unable to leave channel', getErrorMessage(err) || 'Please try again.');
@@ -983,6 +1006,20 @@ function ChannelInfoPanel() {
                 <button
                   type="button"
                   class="w-full px-4 py-2 bg-bg-app border border-border-1 rounded-lg text-sm text-text-1 hover:border-border-2 transition-colors"
+                  onClick={() => setIsChannelSettingsOpen(true)}
+                >
+                  Channel Settings
+                </button>
+                <button
+                  type="button"
+                  class="w-full px-4 py-2 bg-bg-app border border-border-1 rounded-lg text-sm text-text-1 hover:border-border-2 transition-colors"
+                  onClick={() => setIsTeamSettingsOpen(true)}
+                >
+                  Team Settings
+                </button>
+                <button
+                  type="button"
+                  class="w-full px-4 py-2 bg-bg-app border border-border-1 rounded-lg text-sm text-text-1 hover:border-border-2 transition-colors"
                   onClick={() => {
                     navigate('/settings/notifications');
                     uiStore.setRightPanelOpen(false);
@@ -1005,6 +1042,22 @@ function ChannelInfoPanel() {
           )}
         </Show>
       </div>
+
+      <ChannelSettingsModal
+        isOpen={isChannelSettingsOpen()}
+        channel={channel()}
+        onClose={() => setIsChannelSettingsOpen(false)}
+        onUpdated={refreshCurrentChannel}
+        onDeleted={handleWorkspaceReset}
+      />
+
+      <TeamSettingsModal
+        isOpen={isTeamSettingsOpen()}
+        teamId={channel()?.team_id || null}
+        onClose={() => setIsTeamSettingsOpen(false)}
+        onUpdated={refreshCurrentChannel}
+        onTeamRemoved={handleWorkspaceReset}
+      />
     </>
   );
 }

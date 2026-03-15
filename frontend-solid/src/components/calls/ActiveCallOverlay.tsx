@@ -1,4 +1,4 @@
-import { For, Show, createEffect, createMemo } from 'solid-js';
+import { For, Show, createEffect, createMemo, createSignal } from 'solid-js';
 import { HiOutlinePhone, HiOutlineUsers } from 'solid-icons/hi';
 import Button from '@/components/ui/Button';
 import { callsStore } from '@/stores/calls';
@@ -48,6 +48,7 @@ function RemoteStreamTile(props: { id: string; stream: MediaStream; hasVideo: bo
 
 export default function ActiveCallOverlay() {
   let localVideoRef: HTMLVideoElement | undefined;
+  const [isRinging, setIsRinging] = createSignal(false);
 
   const session = () => callsStore.activeSession();
   const localVideoStream = createMemo(() => {
@@ -84,6 +85,21 @@ export default function ActiveCallOverlay() {
         'Host action failed',
         error instanceof Error ? error.message : 'Unable to apply host control.'
       );
+    }
+  };
+
+  const ringParticipants = async () => {
+    setIsRinging(true);
+    try {
+      await callsStore.ringCurrentCall();
+      toast.success('Ring sent', 'Participants have been notified.');
+    } catch (error) {
+      toast.error(
+        'Unable to ring participants',
+        error instanceof Error ? error.message : 'Failed to notify participants.'
+      );
+    } finally {
+      setIsRinging(false);
     }
   };
 
@@ -169,6 +185,16 @@ export default function ActiveCallOverlay() {
                   {callsStore.isScreenSharing() ? 'Stop Share' : 'Share Screen'}
                 </Button>
               </Show>
+              <Button
+                size="sm"
+                variant="secondary"
+                loading={isRinging()}
+                onClick={() => {
+                  void ringParticipants();
+                }}
+              >
+                Ring
+              </Button>
               <Show when={callsStore.isHost()}>
                 <Button
                   size="sm"

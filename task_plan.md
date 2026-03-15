@@ -1,5 +1,34 @@
 # Task Plan
 
+## 2026-03-15 Channel/Team Settings Modal Parity Closure (Solid)
+
+### Implementation Status
+- [x] Added real Channel Settings modal (general settings + member add/remove + archive action) wired to existing `/api/v1/channels` and membership endpoints (`frontend-solid/src/components/channel/SettingsModals.tsx`).
+- [x] Added real Team Settings modal (general settings + invite link copy + member add/remove + leave/delete actions) wired to existing `/api/v1/teams` and `/api/v1/users` endpoints (`frontend-solid/src/components/channel/SettingsModals.tsx`).
+- [x] Wired Channel Info panel actions to open Channel Settings / Team Settings modals and refresh/navigate safely after destructive actions (`frontend-solid/src/components/layout/RightSidebar.tsx`).
+
+### Verification Status
+1. `cd frontend-solid && npm run build`
+- Result: PASS
+
+2. `cd frontend-solid && npm run test -- tests/auth/authRedirect.test.ts`
+- Result: PASS
+
+## 2026-03-15 Calls Incoming Modal + Ring Controls Parity Closure (Solid)
+
+### Implementation Status
+- [x] Upgraded incoming-call overlay to parity-level modal UX with channel-name resolution, ringing duration, and explicit voice/video accept paths (`frontend-solid/src/components/calls/IncomingCallOverlay.tsx`).
+- [x] Added incoming-ringing dedupe logic to prevent repeated toast/modal churn on duplicate `calls_ringing` websocket events (`frontend-solid/src/stores/calls.ts`).
+- [x] Extended incoming call state payload with event-derived channel display metadata (`frontend-solid/src/stores/calls.ts`).
+- [x] Added calls-plugin `ring` API wiring and active-call ring control to notify participants (`frontend-solid/src/api/calls.ts`, `frontend-solid/src/stores/calls.ts`, `frontend-solid/src/components/calls/ActiveCallOverlay.tsx`).
+
+### Verification Status
+1. `cd frontend-solid && npm run build`
+- Result: PASS
+
+2. `cd frontend-solid && npm run test -- tests/auth/authRedirect.test.ts`
+- Result: PASS
+
 ## 2026-03-15 Playbooks Route Parity Closure (Solid)
 
 ### Implementation Status
@@ -34,9 +63,9 @@
 
 ### Remaining Open Gaps Discovered From `/archive/frontend-vue-backup`
 - [x] Playbooks route surface is now implemented in Solid (`/playbooks`, `/playbooks/new`, `/playbooks/:id/edit`, `/runs/:id`) with real API wiring (`frontend-solid/src/routes/Playbooks.tsx`, `frontend-solid/src/routes/PlaybookEditor.tsx`, `frontend-solid/src/routes/PlaybookRun.tsx`).
-- [ ] Incoming call notification modal parity is still missing (Vue had dedicated incoming/ringing UX; Solid currently shows only active-call overlay after join/start).
-- [ ] Calls host controls and screen-share UX parity are partial compared to Vue (`host mute/remove`, `screen share toggle` UI paths).
-- [ ] Channel/team settings modal depth is still reduced versus Vue (`ChannelSettingsModal`, `TeamSettingsModal` parity scope still incomplete).
+- [x] Incoming call notification modal parity is implemented with dedicated incoming-ringing UX and real accept/decline API actions (`frontend-solid/src/components/calls/IncomingCallOverlay.tsx`, `frontend-solid/src/stores/calls.ts`).
+- [x] Calls host/screen-share control parity is closed for parity scope (mute/remove/lower-hand/screen-share plus ring controls are wired to real plugin APIs) (`frontend-solid/src/components/calls/ActiveCallOverlay.tsx`, `frontend-solid/src/stores/calls.ts`, `frontend-solid/src/api/calls.ts`).
+- [x] Channel/team settings modal depth is implemented with real settings/member-management workflows (`frontend-solid/src/components/channel/SettingsModals.tsx`, `frontend-solid/src/components/layout/RightSidebar.tsx`).
 
 ## 2026-03-15 Solid WebUI Runtime Functionality Closure (Calls/DM/Add Channel/No Mock UI)
 
