@@ -3,9 +3,14 @@ import { authStore } from '@/stores/auth';
 import {
   type CallState,
   type CallsConfig,
+  dismissCallNotification,
   fetchCallState,
   fetchCallsConfig,
   fetchTurnCredentials,
+  hostLowerHandParticipant,
+  hostMuteOthers,
+  hostMuteParticipant,
+  hostRemoveParticipant,
   joinCall,
   leaveCall,
   lowerHand,
@@ -14,6 +19,7 @@ import {
   sendIceCandidate,
   sendOffer,
   startCall,
+  toggleScreenShare,
   unmuteCall,
   endCall,
 } from '@/api/calls';
@@ -450,6 +456,19 @@ async function acceptIncomingCall(mode: CallMode = 'voice'): Promise<void> {
   await startOrJoinCall(current.channelId, mode);
 }
 
+async function dismissIncomingCallRemote(channelId?: string): Promise<void> {
+  const current = incomingCall();
+  if (!current) return;
+  if (channelId && current.channelId !== channelId) return;
+
+  setIncomingCall(null);
+  try {
+    await dismissCallNotification(current.channelId);
+  } catch (error) {
+    console.warn('Failed to dismiss incoming call notification on server', error);
+  }
+}
+
 async function endCurrentCall(): Promise<void> {
   const current = activeSession();
   if (!current) return;
@@ -490,6 +509,50 @@ async function toggleHandRaised(): Promise<void> {
     await raiseHand(current.channelId);
   }
   setIsHandRaised(!isHandRaised());
+}
+
+async function toggleScreenSharing(): Promise<void> {
+  const current = activeSession();
+  if (!current) return;
+
+  await toggleScreenShare(current.channelId);
+  await refreshCurrentCallState(current.channelId);
+}
+
+async function hostMuteSession(sessionId: string): Promise<void> {
+  const current = activeSession();
+  if (!current) return;
+  if (!isHost()) throw new Error('Only the host can mute participants.');
+
+  await hostMuteParticipant(current.channelId, sessionId);
+  await refreshCurrentCallState(current.channelId);
+}
+
+async function hostMuteAllOthers(): Promise<void> {
+  const current = activeSession();
+  if (!current) return;
+  if (!isHost()) throw new Error('Only the host can mute participants.');
+
+  await hostMuteOthers(current.channelId);
+  await refreshCurrentCallState(current.channelId);
+}
+
+async function hostRemoveSession(sessionId: string): Promise<void> {
+  const current = activeSession();
+  if (!current) return;
+  if (!isHost()) throw new Error('Only the host can remove participants.');
+
+  await hostRemoveParticipant(current.channelId, sessionId);
+  await refreshCurrentCallState(current.channelId);
+}
+
+async function hostLowerHandSession(sessionId: string): Promise<void> {
+  const current = activeSession();
+  if (!current) return;
+  if (!isHost()) throw new Error('Only the host can lower raised hands.');
+
+  await hostLowerHandParticipant(current.channelId, sessionId);
+  await refreshCurrentCallState(current.channelId);
 }
 
 function handleSignalEvent(data: unknown): void {
@@ -589,6 +652,13 @@ const isHost = createMemo(() => {
 });
 
 const isInCall = createMemo(() => Boolean(activeSession()));
+const isScreenSharing = createMemo(() => {
+  const current = activeSession();
+  const userId = authStore.user()?.id;
+  if (!current || !userId) return false;
+  return current.call.screenSharingUserId === userId;
+});
+const canScreenShare = createMemo(() => config()?.allowScreenSharing ?? true);
 
 if (typeof window !== 'undefined') {
   window.addEventListener('beforeunload', () => {
@@ -615,6 +685,8 @@ export const callsStore = {
   isExpanded,
   isInCall,
   isHost,
+  isScreenSharing,
+  canScreenShare,
   participants,
   durationSeconds,
   incomingCall,
@@ -622,10 +694,16 @@ export const callsStore = {
   startOrJoinCall,
   acceptIncomingCall,
   dismissIncomingCall,
+  dismissIncomingCallRemote,
   leaveCurrentCall,
   endCurrentCall,
   toggleMute,
   toggleHandRaised,
+  toggleScreenSharing,
+  hostMuteSession,
+  hostMuteAllOthers,
+  hostRemoveSession,
+  hostLowerHandSession,
   setExpanded: (next: boolean) => setIsExpanded(next),
 };
 

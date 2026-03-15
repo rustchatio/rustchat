@@ -294,6 +294,39 @@ export async function toggleScreenShare(channelId: string): Promise<void> {
   await requestJson<unknown>(`/calls/${encodeURIComponent(channelId)}/screen-share`, { method: 'POST' });
 }
 
+export async function hostMuteParticipant(channelId: string, sessionId: string): Promise<void> {
+  await requestJson<unknown>(`/calls/${encodeURIComponent(channelId)}/host/mute`, {
+    method: 'POST',
+    body: JSON.stringify({ session_id: sessionId }),
+  });
+}
+
+export async function hostMuteOthers(channelId: string): Promise<void> {
+  await requestJson<unknown>(`/calls/${encodeURIComponent(channelId)}/host/mute-others`, {
+    method: 'POST',
+  });
+}
+
+export async function hostRemoveParticipant(channelId: string, sessionId: string): Promise<void> {
+  await requestJson<unknown>(`/calls/${encodeURIComponent(channelId)}/host/remove`, {
+    method: 'POST',
+    body: JSON.stringify({ session_id: sessionId }),
+  });
+}
+
+export async function hostLowerHandParticipant(channelId: string, sessionId: string): Promise<void> {
+  await requestJson<unknown>(`/calls/${encodeURIComponent(channelId)}/host/lower-hand`, {
+    method: 'POST',
+    body: JSON.stringify({ session_id: sessionId }),
+  });
+}
+
+export async function dismissCallNotification(channelId: string): Promise<void> {
+  await requestJson<unknown>(`/calls/${encodeURIComponent(channelId)}/dismiss-notification`, {
+    method: 'POST',
+  });
+}
+
 export async function sendOffer(channelId: string, sdp: string): Promise<OfferAnswer> {
   const response = await requestJson<{ sdp?: string; type_?: string }>(
     `/calls/${encodeURIComponent(channelId)}/offer`,

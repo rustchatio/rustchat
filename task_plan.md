@@ -10,6 +10,9 @@
 - [x] Strengthened stale-hash chunk recovery with cache-busting query reload and bounded retry window (addresses dynamic import failures after deploys) (`frontend-solid/src/index.tsx`).
 - [x] Corrected login email field naming for autofill/autocomplete compatibility (`frontend-solid/src/routes/Login.tsx`).
 - [x] Added incoming-call overlay parity baseline wired to real `custom_com.mattermost.calls_ringing` websocket events with accept/dismiss actions (`frontend-solid/src/stores/calls.ts`, `frontend-solid/src/components/calls/IncomingCallOverlay.tsx`, `frontend-solid/src/components/layout/AppShell.tsx`).
+- [x] Wired incoming-call decline action to real calls-plugin dismiss-notification endpoint (`frontend-solid/src/api/calls.ts`, `frontend-solid/src/stores/calls.ts`, `frontend-solid/src/components/calls/IncomingCallOverlay.tsx`).
+- [x] Added real calls host-moderation controls in Solid (mute participant, mute others, lower hand, remove participant) wired to calls-plugin host endpoints (`frontend-solid/src/api/calls.ts`, `frontend-solid/src/stores/calls.ts`, `frontend-solid/src/components/calls/ActiveCallOverlay.tsx`).
+- [x] Added real screen-share toggle control in active call overlay wired to calls-plugin `screen-share` endpoint and state refresh (`frontend-solid/src/stores/calls.ts`, `frontend-solid/src/components/calls/ActiveCallOverlay.tsx`).
 
 ### Remaining Open Gaps Discovered From `/archive/frontend-vue-backup`
 - [ ] Playbooks route surface is missing in Solid (`/playbooks`, `/playbooks/new`, `/playbooks/:id/edit`, `/runs/:id`) and needs real API-backed implementation parity.

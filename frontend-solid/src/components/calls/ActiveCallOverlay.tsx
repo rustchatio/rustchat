@@ -1,7 +1,9 @@
 import { For, Show, createEffect, createMemo } from 'solid-js';
-import { HiOutlinePhone, HiOutlineUsers, HiOutlineVideoCamera } from 'solid-icons/hi';
+import { HiOutlinePhone, HiOutlineUsers } from 'solid-icons/hi';
 import Button from '@/components/ui/Button';
 import { callsStore } from '@/stores/calls';
+import { authStore } from '@/stores/auth';
+import { toast } from '@/hooks/useToast';
 
 function formatDuration(totalSeconds: number): string {
   const minutes = Math.floor(totalSeconds / 60);
@@ -61,6 +63,29 @@ export default function ActiveCallOverlay() {
   });
 
   const durationLabel = createMemo(() => formatDuration(callsStore.durationSeconds()));
+  const myUserId = () => authStore.user()?.id || '';
+  const participants = createMemo(() =>
+    [...callsStore.participants()].sort((left, right) => {
+      const leftIsHost = left.userId === session()?.call.hostId;
+      const rightIsHost = right.userId === session()?.call.hostId;
+      if (leftIsHost === rightIsHost) return left.displayName?.localeCompare(right.displayName || '') || 0;
+      return leftIsHost ? -1 : 1;
+    })
+  );
+
+  const participantLabel = (participant: { displayName?: string; username?: string; userId: string }) =>
+    participant.displayName || participant.username || participant.userId;
+
+  const runHostAction = async (action: () => Promise<void>) => {
+    try {
+      await action();
+    } catch (error) {
+      toast.error(
+        'Host action failed',
+        error instanceof Error ? error.message : 'Unable to apply host control.'
+      );
+    }
+  };
 
   return (
     <Show when={session()}>
@@ -133,10 +158,103 @@ export default function ActiveCallOverlay() {
               >
                 {callsStore.isHandRaised() ? 'Lower Hand' : 'Raise Hand'}
               </Button>
-              <div class="ml-auto text-text-3">
-                <HiOutlineVideoCamera size={18} />
-              </div>
+              <Show when={callsStore.canScreenShare()}>
+                <Button
+                  size="sm"
+                  variant={callsStore.isScreenSharing() ? 'primary' : 'secondary'}
+                  onClick={() => {
+                    void callsStore.toggleScreenSharing();
+                  }}
+                >
+                  {callsStore.isScreenSharing() ? 'Stop Share' : 'Share Screen'}
+                </Button>
+              </Show>
+              <Show when={callsStore.isHost()}>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => {
+                    void runHostAction(() => callsStore.hostMuteAllOthers());
+                  }}
+                >
+                  Mute Others
+                </Button>
+              </Show>
             </div>
+
+            <Show when={participants().length > 0}>
+              <div class="rounded-lg border border-border-1 bg-bg-surface-2 p-2">
+                <p class="mb-2 text-xs font-medium text-text-2">Participants</p>
+                <div class="max-h-40 space-y-1 overflow-y-auto pr-1">
+                  <For each={participants()}>
+                    {(participant) => {
+                      const isMe = () => participant.userId === myUserId();
+                      const isHost = () => participant.userId === active().call.hostId;
+                      return (
+                        <div class="rounded border border-border-1/70 bg-bg-surface-1 px-2 py-1.5">
+                          <div class="flex items-center gap-2">
+                            <p class="min-w-0 flex-1 truncate text-xs font-medium text-text-1">
+                              {participantLabel(participant)}
+                            </p>
+                            <Show when={isHost()}>
+                              <span class="rounded bg-brand/15 px-1.5 py-0.5 text-[10px] font-semibold text-brand">
+                                Host
+                              </span>
+                            </Show>
+                            <Show when={isMe()}>
+                              <span class="rounded bg-bg-app px-1.5 py-0.5 text-[10px] text-text-3">You</span>
+                            </Show>
+                            <Show when={participant.raisedHand > 0}>
+                              <span class="rounded bg-warning/20 px-1.5 py-0.5 text-[10px] text-warning">
+                                Hand
+                              </span>
+                            </Show>
+                            <Show when={!participant.unmuted}>
+                              <span class="rounded bg-danger/15 px-1.5 py-0.5 text-[10px] text-danger">
+                                Muted
+                              </span>
+                            </Show>
+                          </div>
+                          <Show when={callsStore.isHost() && !isMe()}>
+                            <div class="mt-1 flex items-center justify-end gap-1">
+                              <button
+                                type="button"
+                                class="rounded border border-border-1 px-1.5 py-0.5 text-[10px] text-text-2 hover:bg-bg-surface-2"
+                                onClick={() => {
+                                  void runHostAction(() => callsStore.hostMuteSession(participant.sessionId));
+                                }}
+                              >
+                                Mute
+                              </button>
+                              <Show when={participant.raisedHand > 0}>
+                                <button
+                                  type="button"
+                                  class="rounded border border-border-1 px-1.5 py-0.5 text-[10px] text-text-2 hover:bg-bg-surface-2"
+                                  onClick={() => {
+                                    void runHostAction(() => callsStore.hostLowerHandSession(participant.sessionId));
+                                  }}
+                                >
+                                  Lower Hand
+                                </button>
+                              </Show>
+                              <button
+                                type="button"
+                                class="rounded border border-danger/40 px-1.5 py-0.5 text-[10px] text-danger hover:bg-danger/10"
+                                onClick={() => {
+                                  void runHostAction(() => callsStore.hostRemoveSession(participant.sessionId));
+                                }}
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          </Show>
+                        </div>
+                      );
+                    }}
+                  </For>
+                </div>
+              </div>
+            </Show>
 
             <div class="flex items-center justify-end gap-2 border-t border-border-1 pt-2">
               <Show when={callsStore.isHost()}>

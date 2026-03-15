@@ -25,7 +25,7 @@ export default function IncomingCallOverlay() {
   };
 
   const decline = () => {
-    callsStore.dismissIncomingCall();
+    void callsStore.dismissIncomingCallRemote();
   };
 
   return (
@@ -58,4 +58,3 @@ export default function IncomingCallOverlay() {
     </Show>
   );
 }
-
