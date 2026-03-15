@@ -24,11 +24,11 @@ import Register from './routes/Register';
 import LoginCallback from './routes/LoginCallback';
 import ForgotPassword from './routes/ForgotPassword';
 import ResetPassword from './routes/ResetPassword';
+import Settings from './routes/Settings';
 
 // Lazy load protected routes
 const Channel = lazy(() => import('./routes/Channel'));
 const Thread = lazy(() => import('./routes/Thread'));
-const Settings = lazy(() => import('./routes/Settings'));
 const Admin = lazy(() => import('./routes/Admin'));
 const NotFound = lazy(() => import('./routes/NotFound'));
 

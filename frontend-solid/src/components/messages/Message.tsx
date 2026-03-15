@@ -260,9 +260,9 @@ export default function Message(props: MessageProps) {
         </Show>
 
         {/* Reactions */}
-        <Show when={props.message.reactions && props.message.reactions.length > 0}>
+        <Show when={(props.onAddReaction || props.onRemoveReaction) || (props.message.reactions && props.message.reactions.length > 0)}>
           <Reactions
-            reactions={props.message.reactions}
+            reactions={props.message.reactions || []}
             messageId={props.message.id}
             onAddReaction={handleAddReaction}
             onRemoveReaction={handleRemoveReaction}

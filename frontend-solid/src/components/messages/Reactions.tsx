@@ -71,7 +71,7 @@ function ReactionTooltip(props: ReactionTooltipProps) {
   });
 
   return (
-    <div class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 px-2 py-1 bg-bg-surface-1 text-text-1 text-xs rounded shadow-lg border border-border-1 whitespace-nowrap z-50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+    <div class="absolute bottom-full left-1/2 z-[9999] mb-1 -translate-x-1/2 whitespace-nowrap rounded border border-border-1 bg-bg-surface-1 px-2 py-1 text-xs text-text-1 opacity-0 shadow-lg transition-opacity pointer-events-none group-hover:opacity-100">
       {text()}
       <div class="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-bg-surface-1" />
     </div>
@@ -89,7 +89,7 @@ interface EmojiPickerProps {
 
 function EmojiPicker(props: EmojiPickerProps) {
   return (
-    <div class="absolute bottom-full left-0 mb-1 p-2 bg-bg-surface-1 rounded-lg shadow-lg border border-border-1 z-50">
+    <div class="absolute bottom-full left-0 z-[9999] mb-1 rounded-lg border border-border-1 bg-bg-surface-1 p-2 shadow-lg">
       <div class="grid grid-cols-8 gap-1">
         <For each={COMMON_EMOJIS}>
           {(emoji) => (

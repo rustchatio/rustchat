@@ -698,6 +698,7 @@ export async function deleteMessage(messageId: string): Promise<void> {
 
 export async function addReaction(messageId: string, emoji: string): Promise<void> {
   const token = authStore.token;
+  const userId = authStore.user()?.id;
   const response = await fetch(`/api/v1/posts/${encodeURIComponent(messageId)}/reactions`, {
     method: 'POST',
     headers: {
@@ -708,10 +709,16 @@ export async function addReaction(messageId: string, emoji: string): Promise<voi
   });
 
   if (!response.ok) throw new Error('Failed to add reaction');
+
+  // Keep UI responsive even if websocket event is delayed.
+  if (userId) {
+    handleReactionAdded({ post_id: messageId, user_id: userId, emoji_name: emoji });
+  }
 }
 
 export async function removeReaction(messageId: string, emoji: string): Promise<void> {
   const token = authStore.token;
+  const userId = authStore.user()?.id;
   const response = await fetch(
     `/api/v1/posts/${encodeURIComponent(messageId)}/reactions/${encodeURIComponent(emoji)}`,
     {
@@ -721,6 +728,10 @@ export async function removeReaction(messageId: string, emoji: string): Promise<
   );
 
   if (!response.ok) throw new Error('Failed to remove reaction');
+
+  if (userId) {
+    handleReactionRemoved({ post_id: messageId, user_id: userId, emoji_name: emoji });
+  }
 }
 
 // ============================================

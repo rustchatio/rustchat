@@ -166,9 +166,9 @@ function ParentMessage(props: ParentMessageProps) {
             editedAt={props.message.editedAt}
           />
 
-          <Show when={props.message.reactions && props.message.reactions.length > 0}>
+          <Show when={(props.onAddReaction || props.onRemoveReaction) || (props.message.reactions && props.message.reactions.length > 0)}>
             <Reactions
-              reactions={props.message.reactions}
+              reactions={props.message.reactions || []}
               messageId={props.message.id}
               onAddReaction={(emoji) => props.onAddReaction?.(props.message.id, emoji)}
               onRemoveReaction={(emoji) => props.onRemoveReaction?.(props.message.id, emoji)}
@@ -298,9 +298,9 @@ function ThreadReply(props: ThreadReplyProps) {
           />
         </Show>
 
-        <Show when={props.message.reactions && props.message.reactions.length > 0}>
+        <Show when={(props.onAddReaction || props.onRemoveReaction) || (props.message.reactions && props.message.reactions.length > 0)}>
           <Reactions
-            reactions={props.message.reactions}
+            reactions={props.message.reactions || []}
             messageId={props.message.id}
             onAddReaction={(emoji) => props.onAddReaction?.(props.message.id, emoji)}
             onRemoveReaction={(emoji) => props.onRemoveReaction?.(props.message.id, emoji)}

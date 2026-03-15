@@ -12,4 +12,26 @@ if (!root) {
 
 installCryptoPolyfills();
 
+// Recover from stale hashed chunks after deploy/cache mismatch.
+if (typeof window !== 'undefined') {
+  const chunkReloadKey = 'rustchat_chunk_reload_once';
+  const reloadForChunkError = () => {
+    if (sessionStorage.getItem(chunkReloadKey) === '1') return;
+    sessionStorage.setItem(chunkReloadKey, '1');
+    window.location.reload();
+  };
+
+  window.addEventListener('vite:preloadError', (event) => {
+    event.preventDefault();
+    reloadForChunkError();
+  });
+
+  window.addEventListener('error', (event) => {
+    const message = String((event as ErrorEvent).message || '');
+    if (message.includes('Failed to fetch dynamically imported module')) {
+      reloadForChunkError();
+    }
+  });
+}
+
 render(() => <App />, root);

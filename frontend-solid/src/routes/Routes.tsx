@@ -5,6 +5,7 @@
 import { lazy } from 'solid-js';
 import { Route, Navigate } from '@solidjs/router';
 import ProtectedRoute from '../components/ProtectedRoute';
+import Settings from './Settings';
 
 // Lazy load route components for code splitting
 const Login = lazy(() => import('./Login'));
@@ -14,7 +15,6 @@ const ForgotPassword = lazy(() => import('./ForgotPassword'));
 const ResetPassword = lazy(() => import('./ResetPassword'));
 const Channel = lazy(() => import('./Channel'));
 const Thread = lazy(() => import('./Thread'));
-const Settings = lazy(() => import('./Settings'));
 const NotFound = lazy(() => import('./NotFound'));
 
 // ============================================

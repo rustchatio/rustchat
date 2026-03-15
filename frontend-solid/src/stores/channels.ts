@@ -1,6 +1,8 @@
 import { createStore, produce } from 'solid-js/store';
 import { createSignal, createEffect, batch, createMemo } from 'solid-js';
 import { authStore } from './auth';
+import { channelsApi } from '@/api/channels';
+import { client, getErrorMessage } from '@/api/client';
 
 // ============================================
 // Types
@@ -37,10 +39,10 @@ export interface ChannelMember {
 }
 
 export interface ChannelNotifyProps {
-  desktop?: string;
-  mobile?: string;
-  mark_unread?: string;
-  ignore_channel_mentions?: string;
+  desktop?: 'default' | 'all' | 'mention' | 'none';
+  mobile?: 'default' | 'all' | 'mention' | 'none';
+  mark_unread?: 'all' | 'mention';
+  ignore_channel_mentions?: 'default' | 'on' | 'off';
 }
 
 export interface CreateChannelRequest {
@@ -125,14 +127,7 @@ export async function fetchChannels(teamId: string): Promise<void> {
   });
 
   try {
-    const token = authStore.token;
-    const response = await fetch(`/api/v1/channels?team_id=${encodeURIComponent(teamId)}`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
-
-    if (!response.ok) throw new Error('Failed to fetch channels');
-
-    const data: Channel[] = await response.json();
+    const data = await channelsApi.list(teamId);
     setChannels(data);
 
     // Try to restore last selected channel for this team
@@ -151,7 +146,7 @@ export async function fetchChannels(teamId: string): Promise<void> {
       }
     }
   } catch (err) {
-    setError(err instanceof Error ? err.message : 'Failed to fetch channels');
+    setError(getErrorMessage(err) || 'Failed to fetch channels');
     throw err;
   } finally {
     setIsLoading(false);
@@ -159,20 +154,14 @@ export async function fetchChannels(teamId: string): Promise<void> {
 }
 
 async function fetchUserTeams(): Promise<TeamSummary[]> {
-  const token = authStore.token;
-  if (!token) return [];
+  if (!authStore.token) return [];
 
-  const requestTeams = async () =>
-    fetch('/api/v1/teams', {
-      headers: { Authorization: `Bearer ${token}` },
-    });
+  const requestTeams = async () => {
+    const response = await client.get<TeamSummary[]>('/teams');
+    return response.data;
+  };
 
-  let response = await requestTeams();
-  if (!response.ok) {
-    throw new Error('Failed to fetch teams');
-  }
-
-  let payload = await response.json();
+  let payload = await requestTeams();
   if (Array.isArray(payload) && payload.length > 0) {
     return payload.filter(
       (team): team is TeamSummary =>
@@ -181,16 +170,8 @@ async function fetchUserTeams(): Promise<TeamSummary[]> {
   }
 
   // Trigger auth workspace bootstrap for older sessions/users, then retry.
-  await fetch('/api/v1/auth/me', {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-
-  response = await requestTeams();
-  if (!response.ok) {
-    throw new Error('Failed to fetch teams');
-  }
-
-  payload = await response.json();
+  await client.get('/auth/me');
+  payload = await requestTeams();
   if (!Array.isArray(payload)) return [];
 
   return payload.filter(
@@ -232,17 +213,7 @@ export async function fetchJoinableChannels(teamId: string): Promise<void> {
   setIsLoading(true);
 
   try {
-    const token = authStore.token;
-    const response = await fetch(
-      `/api/v1/channels?team_id=${encodeURIComponent(teamId)}&available_to_join=true`,
-      {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      }
-    );
-
-    if (!response.ok) throw new Error('Failed to fetch joinable channels');
-
-    const data: Channel[] = await response.json();
+    const data = await channelsApi.list(teamId, true);
     setJoinableChannels(data);
   } catch (err) {
     console.error('Failed to fetch joinable channels', err);
@@ -252,14 +223,7 @@ export async function fetchJoinableChannels(teamId: string): Promise<void> {
 }
 
 export async function fetchChannel(channelId: string): Promise<Channel> {
-  const token = authStore.token;
-  const response = await fetch(`/api/v1/channels/${encodeURIComponent(channelId)}`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  });
-
-  if (!response.ok) throw new Error('Failed to fetch channel');
-
-  const data: Channel = await response.json();
+  const data = await channelsApi.get(channelId);
 
   setChannels(
     produce((list) => {
@@ -282,22 +246,7 @@ export async function createChannel(data: CreateChannelRequest): Promise<Channel
   });
 
   try {
-    const token = authStore.token;
-    const response = await fetch('/api/v1/channels', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(data),
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to create channel');
-    }
-
-    const channel: Channel = await response.json();
+    const channel = await channelsApi.create(data);
 
     setChannels((prev) => [...prev, channel]);
     setCurrentChannelId(channel.id);
@@ -305,8 +254,9 @@ export async function createChannel(data: CreateChannelRequest): Promise<Channel
 
     return channel;
   } catch (err) {
-    setError(err instanceof Error ? err.message : 'Failed to create channel');
-    throw err;
+    const message = getErrorMessage(err) || 'Failed to create channel';
+    setError(message);
+    throw new Error(message);
   } finally {
     setIsLoading(false);
   }
@@ -316,39 +266,14 @@ export async function joinChannel(channelId: string): Promise<void> {
   const userId = authStore.user()?.id;
   if (!userId) throw new Error('User not authenticated');
 
-  const token = authStore.token;
-  const response = await fetch(`/api/v1/channels/${encodeURIComponent(channelId)}/members`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ user_id: userId }),
-  });
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message || 'Failed to join channel');
-  }
+  await channelsApi.join(channelId, userId);
 }
 
 export async function leaveChannel(channelId: string): Promise<void> {
   const userId = authStore.user()?.id;
   if (!userId) throw new Error('User not authenticated');
 
-  const token = authStore.token;
-  const response = await fetch(
-    `/api/v1/channels/${encodeURIComponent(channelId)}/members/${encodeURIComponent(userId)}`,
-    {
-      method: 'DELETE',
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    }
-  );
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message || 'Failed to leave channel');
-  }
+  await channelsApi.leave(channelId, userId);
 
   setChannels((prev) => prev.filter((c) => c.id !== channelId));
 
@@ -366,14 +291,7 @@ export function selectChannel(channelId: string) {
 }
 
 export async function fetchChannelMembers(channelId: string): Promise<ChannelMember[]> {
-  const token = authStore.token;
-  const response = await fetch(`/api/v1/channels/${encodeURIComponent(channelId)}/members`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  });
-
-  if (!response.ok) throw new Error('Failed to fetch channel members');
-
-  const data: ChannelMember[] = await response.json();
+  const data = await channelsApi.getMembers(channelId);
 
   setMembersByChannel(channelId, data);
   return data;
@@ -384,23 +302,7 @@ export async function updateNotifyProps(
   userId: string,
   props: ChannelNotifyProps
 ): Promise<void> {
-  const token = authStore.token;
-  const response = await fetch(
-    `/api/v1/channels/${encodeURIComponent(channelId)}/members/${encodeURIComponent(userId)}/notify_props`,
-    {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(props),
-    }
-  );
-
-  if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message || 'Failed to update notification settings');
-  }
+  await channelsApi.updateNotifyProps(channelId, userId, props);
 }
 
 // ============================================

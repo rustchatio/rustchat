@@ -4,7 +4,15 @@
 
 import { Show, createSignal, For, createMemo, createEffect } from 'solid-js';
 import { A, useNavigate } from '@solidjs/router';
-import { channelStore, fetchChannels, selectChannel, createChannel, type Channel } from '@/stores/channels';
+import {
+  channelStore,
+  fetchChannels,
+  fetchJoinableChannels,
+  joinChannel,
+  selectChannel,
+  createChannel,
+  type Channel,
+} from '@/stores/channels';
 import { authStore } from '@/stores/auth';
 import { uiStore } from '@/stores/ui';
 import { unreadStore } from '@/stores/unreads';
@@ -12,6 +20,7 @@ import { cn } from '@/utils/cn';
 import { isAdminRole } from '@/utils/roles';
 import Modal from '@/components/ui/Modal';
 import Button from '@/components/ui/Button';
+import { client, getErrorMessage } from '@/api/client';
 
 // Icons
 import {
@@ -94,20 +103,12 @@ export function Sidebar(props: SidebarProps) {
   const [channelPurpose, setChannelPurpose] = createSignal('');
   const [channelType, setChannelType] = createSignal<'public' | 'private'>('public');
   const [channelTeams, setChannelTeams] = createSignal<TeamOption[]>([]);
+  const [isLoadingChannelTeams, setIsLoadingChannelTeams] = createSignal(false);
   const [selectedTeamId, setSelectedTeamId] = createSignal('');
 
   const loadChannelTeams = async () => {
-    const token = authStore.token;
-    if (!token) return;
-
-    const response = await fetch('/api/v1/teams', {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to fetch teams (${response.status})`);
-    }
-
-    const payload = (await response.json()) as TeamOption[];
+    const response = await client.get<TeamOption[]>('/teams');
+    const payload = response.data;
     const safeTeams = Array.isArray(payload)
       ? payload.filter(
           (team): team is TeamOption =>
@@ -121,19 +122,21 @@ export function Sidebar(props: SidebarProps) {
     }
   };
 
-  const openCreateChannelModal = async () => {
+  const openCreateChannelModal = () => {
     setCreateChannelError(null);
     setChannelDisplayName('');
     setChannelPurpose('');
     setChannelType('public');
     setSelectedTeamId(channelStore.currentChannel()?.team_id || '');
-    try {
-      await loadChannelTeams();
-      setIsCreateChannelOpen(true);
-    } catch (error) {
-      setCreateChannelError(error instanceof Error ? error.message : 'Failed to load teams');
-      setIsCreateChannelOpen(true);
-    }
+    setIsCreateChannelOpen(true);
+    setIsLoadingChannelTeams(true);
+    void loadChannelTeams()
+      .catch((error) => {
+        setCreateChannelError(getErrorMessage(error) || 'Failed to load teams');
+      })
+      .finally(() => {
+        setIsLoadingChannelTeams(false);
+      });
   };
 
   const submitCreateChannel = async () => {
@@ -377,6 +380,7 @@ export function Sidebar(props: SidebarProps) {
             <select
               value={selectedTeamId()}
               onChange={(event) => setSelectedTeamId(event.currentTarget.value)}
+              disabled={isLoadingChannelTeams() || channelTeams().length === 0}
               class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-sm text-text-1"
             >
               <For each={channelTeams()}>
@@ -385,6 +389,12 @@ export function Sidebar(props: SidebarProps) {
                 )}
               </For>
             </select>
+            <Show when={isLoadingChannelTeams()}>
+              <p class="text-xs text-text-3">Loading teams...</p>
+            </Show>
+            <Show when={!isLoadingChannelTeams() && channelTeams().length === 0}>
+              <p class="text-xs text-warning">No teams available for channel creation.</p>
+            </Show>
           </label>
 
           <label class="block space-y-1">
@@ -425,7 +435,12 @@ export function Sidebar(props: SidebarProps) {
             <Button variant="ghost" onClick={() => setIsCreateChannelOpen(false)}>
               Cancel
             </Button>
-            <Button variant="primary" loading={isCreatingChannel()} onClick={() => void submitCreateChannel()}>
+            <Button
+              variant="primary"
+              loading={isCreatingChannel()}
+              disabled={isLoadingChannelTeams() || channelTeams().length === 0}
+              onClick={() => void submitCreateChannel()}
+            >
               Create Channel
             </Button>
           </div>
@@ -455,21 +470,14 @@ function TeamSelector() {
   const [newTeamDescription, setNewTeamDescription] = createSignal('');
 
   const loadTeams = async () => {
-    const token = authStore.token;
-    if (!token) return;
+    if (!authStore.token) return;
 
     setIsLoadingTeams(true);
     setTeamError(null);
 
     try {
-      const response = await fetch('/api/v1/teams', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!response.ok) {
-        throw new Error(`Failed to fetch teams (${response.status})`);
-      }
-
-      const payload = (await response.json()) as Array<{ id?: unknown; name?: unknown; display_name?: unknown }>;
+      const response = await client.get<Array<{ id?: unknown; name?: unknown; display_name?: unknown }>>('/teams');
+      const payload = response.data;
 
       const safeTeams = Array.isArray(payload)
         ? payload.filter(
@@ -481,7 +489,7 @@ function TeamSelector() {
       setTeams(safeTeams);
     } catch (error) {
       setTeams([]);
-      setTeamError(error instanceof Error ? error.message : 'Failed to fetch teams');
+      setTeamError(getErrorMessage(error) || 'Failed to fetch teams');
     } finally {
       setIsLoadingTeams(false);
     }
@@ -494,17 +502,13 @@ function TeamSelector() {
   });
 
   const loadPublicTeams = async () => {
-    const token = authStore.token;
-    if (!token) return;
+    if (!authStore.token) return;
 
-    const response = await fetch('/api/v1/teams/public', {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!response.ok) {
-      throw new Error(`Failed to fetch public teams (${response.status})`);
-    }
-
-    const payload = (await response.json()) as Array<{ id?: unknown; name?: unknown; display_name?: unknown }>;
+    const response =
+      await client.get<Array<{ id?: unknown; name?: unknown; display_name?: unknown }>>(
+        '/teams/public'
+      );
+    const payload = response.data;
     const safeTeams = Array.isArray(payload)
       ? payload.filter(
           (team): team is TeamOption =>
@@ -532,8 +536,7 @@ function TeamSelector() {
   };
 
   const createNewTeam = async () => {
-    const token = authStore.token;
-    if (!token) return;
+    if (!authStore.token) return;
 
     const displayName = (newTeamDisplayName() || newTeamName()).trim();
     if (!displayName) {
@@ -544,57 +547,35 @@ function TeamSelector() {
     setIsTeamActionLoading(true);
     setTeamModalError(null);
     try {
-      const response = await fetch('/api/v1/teams', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
+      const response = await client.post<TeamOption>('/teams', {
           name: toTeamName(newTeamName().trim() || displayName),
           display_name: displayName,
           description: newTeamDescription().trim() || undefined,
-        }),
       });
-
-      if (!response.ok) {
-        const payload = (await response.json().catch(() => null)) as { message?: string; error?: string } | null;
-        throw new Error(payload?.message || payload?.error || `Failed to create team (${response.status})`);
-      }
-
-      const createdTeam = (await response.json()) as TeamOption;
+      const createdTeam = response.data;
       await loadTeams();
       await switchTeam(createdTeam.id);
       setIsTeamModalOpen(false);
     } catch (error) {
-      setTeamModalError(error instanceof Error ? error.message : 'Failed to create team.');
+      setTeamModalError(getErrorMessage(error) || 'Failed to create team.');
     } finally {
       setIsTeamActionLoading(false);
     }
   };
 
   const joinTeam = async (teamId: string) => {
-    const token = authStore.token;
-    if (!token) return;
+    if (!authStore.token) return;
 
     setIsTeamActionLoading(true);
     setTeamModalError(null);
     try {
-      const response = await fetch(`/api/v1/teams/${teamId}/join`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!response.ok) {
-        const payload = (await response.json().catch(() => null)) as { message?: string; error?: string } | null;
-        throw new Error(payload?.message || payload?.error || `Failed to join team (${response.status})`);
-      }
+      await client.post(`/teams/${teamId}/join`);
 
       await loadTeams();
       await switchTeam(teamId);
       setIsTeamModalOpen(false);
     } catch (error) {
-      setTeamModalError(error instanceof Error ? error.message : 'Failed to join team.');
+      setTeamModalError(getErrorMessage(error) || 'Failed to join team.');
     } finally {
       setIsTeamActionLoading(false);
     }
@@ -617,7 +598,18 @@ function TeamSelector() {
 
     try {
       await fetchChannels(teamId);
-      const nextChannelId = channelStore.currentChannelId();
+
+      let nextChannelId = channelStore.currentChannelId();
+      if (!nextChannelId) {
+        await fetchJoinableChannels(teamId);
+        const firstJoinable = channelStore.joinableChannels[0];
+        if (firstJoinable) {
+          await joinChannel(firstJoinable.id);
+          await fetchChannels(teamId);
+          nextChannelId = channelStore.currentChannelId();
+        }
+      }
+
       if (nextChannelId) {
         navigate(`/channels/${nextChannelId}`);
       } else {
@@ -626,7 +618,7 @@ function TeamSelector() {
       setIsOpen(false);
       uiStore.setMobileSidebarOpen(false);
     } catch (error) {
-      setTeamError(error instanceof Error ? error.message : 'Failed to switch team');
+      setTeamError(getErrorMessage(error) || 'Failed to switch team');
     }
   };
 
@@ -845,25 +837,27 @@ interface ChannelSectionProps {
 function ChannelSection(props: ChannelSectionProps) {
   return (
     <div class="mb-1">
-      <button
-        type="button"
-        class="group w-full flex items-center gap-1 px-3 py-1.5 text-text-3 hover:text-text-2 transition-colors"
-        onClick={props.onToggle}
-        aria-expanded={props.isExpanded}
-      >
-        {props.isExpanded ? (
-          <HiOutlineChevronDown size={14} />
-        ) : (
-          <HiOutlineChevronRight size={14} />
-        )}
-        <span class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider">
-          {props.icon}
-          {props.title}
-        </span>
+      <div class="group flex items-center gap-1 px-3 py-1">
+        <button
+          type="button"
+          class="flex min-w-0 flex-1 items-center gap-1 text-text-3 hover:text-text-2 transition-colors"
+          onClick={props.onToggle}
+          aria-expanded={props.isExpanded}
+        >
+          {props.isExpanded ? (
+            <HiOutlineChevronDown size={14} />
+          ) : (
+            <HiOutlineChevronRight size={14} />
+          )}
+          <span class="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider">
+            {props.icon}
+            {props.title}
+          </span>
+        </button>
         <Show when={props.action}>
-          <span class="ml-auto">{props.action}</span>
+          <span>{props.action}</span>
         </Show>
-      </button>
+      </div>
       <Show when={props.isExpanded}>
         <div class="mt-0.5">{props.children}</div>
       </Show>
