@@ -2,9 +2,14 @@
 // RightSidebar - Collapsible Right Panel
 // ============================================
 
-import { Show, For, createSignal, createMemo } from 'solid-js';
+import { Show, For, createSignal, createMemo, createEffect } from 'solid-js';
+import { useNavigate } from '@solidjs/router';
 import { uiStore, type PanelTab } from '@/stores/ui';
-import { channelStore } from '@/stores/channels';
+import { channelStore, fetchChannelMembers, leaveChannel, resolveDefaultChannelPath } from '@/stores/channels';
+import { presenceStore, type Presence } from '@/stores/presence';
+import { postsApi } from '@/api/messages';
+import { client, getErrorMessage } from '@/api/client';
+import { toast } from '@/hooks/useToast';
 import { cn } from '@/utils/cn';
 
 // Icons
@@ -98,43 +103,79 @@ function SwitchTab(props: SwitchTabProps) {
 
 interface Member {
   user_id: string;
+  username?: string;
+  display_name?: string;
+  avatar_url?: string;
   roles?: string;
+  presence?: string;
+}
+
+type MemberPresence = Presence;
+
+function normalizePresence(raw: string | null | undefined): MemberPresence {
+  const value = String(raw || '').toLowerCase();
+  if (value === 'online') return 'online';
+  if (value === 'away') return 'away';
+  if (value === 'dnd') return 'dnd';
+  return 'offline';
+}
+
+function resolveMemberPresence(member: Member): MemberPresence {
+  const livePresence = presenceStore.getUserPresence(member.user_id)()?.presence;
+  return normalizePresence(livePresence || member.presence);
+}
+
+function displayMemberName(member: Member): string {
+  return member.display_name || member.username || member.user_id;
 }
 
 function MembersPanel() {
   const currentChannelId = () => channelStore.currentChannelId();
-  const members = createMemo(() => {
+  const members = createMemo<Member[]>(() => {
     const id = currentChannelId();
-    return id ? channelStore.membersByChannel[id] || [] : [];
+    return id ? (channelStore.membersByChannel[id] as unknown as Member[]) || [] : [];
+  });
+  createEffect(() => {
+    const channelId = currentChannelId();
+    if (!channelId) return;
+    if (members().length === 0) {
+      void fetchChannelMembers(channelId);
+    }
   });
 
   const [searchQuery, setSearchQuery] = createSignal('');
 
   const filteredMembers = createMemo(() => {
+    const query = searchQuery().trim().toLowerCase();
     const allMembers = members();
-    if (searchQuery()) {
-      const query = searchQuery().toLowerCase();
-      return allMembers.filter((m) => m.user_id.toLowerCase().includes(query));
-    }
-    return allMembers;
+    if (!query) return allMembers;
+
+    return allMembers.filter((member) => {
+      const username = (member.username || '').toLowerCase();
+      const displayName = (member.display_name || '').toLowerCase();
+      const userId = member.user_id.toLowerCase();
+      return (
+        username.includes(query) ||
+        displayName.includes(query) ||
+        userId.includes(query)
+      );
+    });
   });
 
-  // Group by role (mock for now)
   const groupedMembers = createMemo(() => {
-    const online: Member[] = [];
-    const offline: Member[] = [];
+    const groups: Record<MemberPresence, Member[]> = {
+      online: [],
+      away: [],
+      dnd: [],
+      offline: [],
+    };
 
     filteredMembers().forEach((member) => {
-      // Mock online status - in real app, check presence store
-      const isOnline = Math.random() > 0.3;
-      if (isOnline) {
-        online.push(member);
-      } else {
-        offline.push(member);
-      }
+      const presence = resolveMemberPresence(member);
+      groups[presence].push(member);
     });
 
-    return { Online: online, Offline: offline };
+    return groups;
   });
 
   return (
@@ -157,7 +198,7 @@ function MembersPanel() {
             type="text"
             placeholder="Find members"
             value={searchQuery()}
-            onInput={(e) => setSearchQuery(e.currentTarget.value)}
+            onInput={(event) => setSearchQuery(event.currentTarget.value)}
             class="w-full pl-9 pr-3 py-1.5 bg-bg-app border border-border-1 rounded-lg text-sm text-text-1 placeholder:text-text-3 focus:outline-none focus:border-brand"
           />
         </div>
@@ -165,15 +206,23 @@ function MembersPanel() {
 
       {/* Members List */}
       <div class="flex-1 overflow-y-auto custom-scrollbar p-2">
-        <For each={Object.entries(groupedMembers())}>
-          {([status, statusMembers]) => (
-            <Show when={statusMembers.length > 0}>
+        <For each={[
+          { key: 'online', label: 'Online' },
+          { key: 'away', label: 'Away' },
+          { key: 'dnd', label: 'Do Not Disturb' },
+          { key: 'offline', label: 'Offline' },
+        ] as Array<{ key: MemberPresence; label: string }>}
+        >
+          {(group) => (
+            <Show when={groupedMembers()[group.key].length > 0}>
               <div class="mb-3">
                 <h3 class="px-2 py-1 text-xs font-semibold text-text-3 uppercase tracking-wider">
-                  {status} — {statusMembers.length}
+                  {group.label} - {groupedMembers()[group.key].length}
                 </h3>
-                <For each={statusMembers}>
-                  {(member) => <MemberItem member={member} status={status.toLowerCase() as 'online' | 'offline'} />}
+                <For each={groupedMembers()[group.key]}>
+                  {(member) => (
+                    <MemberItem member={member} status={group.key} />
+                  )}
                 </For>
               </div>
             </Show>
@@ -190,11 +239,11 @@ function MembersPanel() {
 
 interface MemberItemProps {
   member: Member;
-  status: 'online' | 'offline';
+  status: MemberPresence;
 }
 
 function MemberItem(props: MemberItemProps) {
-  const initials = () => props.member.user_id.slice(0, 2).toUpperCase();
+  const initials = () => displayMemberName(props.member).slice(0, 2).toUpperCase();
 
   return (
     <button
@@ -202,20 +251,34 @@ function MemberItem(props: MemberItemProps) {
       class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-bg-surface-2 transition-colors text-left group"
     >
       <div class="relative">
-        <div class="w-8 h-8 rounded-full bg-brand/10 flex items-center justify-center text-brand text-xs font-medium">
-          {initials()}
-        </div>
+        <Show
+          when={props.member.avatar_url}
+          fallback={
+            <div class="w-8 h-8 rounded-full bg-brand/10 flex items-center justify-center text-brand text-xs font-medium">
+              {initials()}
+            </div>
+          }
+        >
+          <img
+            src={props.member.avatar_url!}
+            alt={displayMemberName(props.member)}
+            class="w-8 h-8 rounded-full object-cover"
+          />
+        </Show>
         <span
           class={cn(
             'absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-bg-surface-1',
-            props.status === 'online' ? 'bg-green-500' : 'bg-gray-400'
+            props.status === 'online' && 'bg-green-500',
+            props.status === 'away' && 'bg-yellow-500',
+            props.status === 'dnd' && 'bg-red-500',
+            props.status === 'offline' && 'bg-gray-400'
           )}
         />
       </div>
       <div class="flex-1 min-w-0">
-        <p class="text-sm text-text-1 truncate">{props.member.user_id}</p>
-        <Show when={props.member.roles}>
-          <p class="text-xs text-text-3 truncate">{props.member.roles}</p>
+        <p class="text-sm text-text-1 truncate">{displayMemberName(props.member)}</p>
+        <Show when={props.member.username && props.member.username !== props.member.display_name}>
+          <p class="text-xs text-text-3 truncate">@{props.member.username}</p>
         </Show>
       </div>
     </button>
@@ -230,15 +293,61 @@ interface PinnedMessage {
   id: string;
   author: string;
   content: string;
-  date: string;
+  createdAt: string;
+}
+
+function formatTimestamp(timestamp: string): string {
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleString();
 }
 
 function PinnedMessagesPanel() {
-  // Mock pinned messages
-  const pinnedMessages = (): PinnedMessage[] => [
-    { id: '1', author: 'Alice', content: 'Welcome to the channel everyone!', date: '2 days ago' },
-    { id: '2', author: 'Bob', content: 'Important announcement: Server maintenance tonight at 2 AM.', date: '1 week ago' },
-  ];
+  const [isLoading, setIsLoading] = createSignal(false);
+  const [error, setError] = createSignal<string | null>(null);
+  const [pinnedMessages, setPinnedMessages] = createSignal<PinnedMessage[]>([]);
+
+  createEffect(() => {
+    const channelId = channelStore.currentChannelId();
+    if (!channelId) {
+      setPinnedMessages([]);
+      return;
+    }
+
+    let cancelled = false;
+    setIsLoading(true);
+    setError(null);
+
+    void postsApi
+      .getPinned(channelId)
+      .then((posts) => {
+        if (cancelled) return;
+        const mapped = posts.map((post) => ({
+          id: post.id,
+          author: post.username || post.user_id || 'Unknown',
+          content: post.message || '',
+          createdAt:
+            typeof post.created_at === 'number'
+              ? new Date(post.created_at).toISOString()
+              : String(post.created_at || ''),
+        }));
+        setPinnedMessages(mapped);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setPinnedMessages([]);
+        setError(getErrorMessage(err) || 'Failed to load pinned messages.');
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  });
 
   return (
     <>
@@ -252,13 +361,21 @@ function PinnedMessagesPanel() {
 
       {/* Pinned Messages List */}
       <div class="flex-1 overflow-y-auto custom-scrollbar p-3">
+        <Show when={isLoading()}>
+          <p class="text-sm text-text-3">Loading pinned messages...</p>
+        </Show>
+        <Show when={error()}>
+          <p class="text-sm text-danger">{error()}</p>
+        </Show>
         <Show
-          when={pinnedMessages().length > 0}
+          when={!isLoading() && !error() && pinnedMessages().length > 0}
           fallback={
-            <div class="text-center py-8 text-text-3">
-              <HiOutlineBookmark size={32} class="mx-auto mb-2 opacity-50" />
-              <p class="text-sm">No pinned messages</p>
-            </div>
+            <Show when={!isLoading() && !error()}>
+              <div class="text-center py-8 text-text-3">
+                <HiOutlineBookmark size={32} class="mx-auto mb-2 opacity-50" />
+                <p class="text-sm">No pinned messages</p>
+              </div>
+            </Show>
           }
         >
           <div class="space-y-3">
@@ -267,12 +384,12 @@ function PinnedMessagesPanel() {
                 <div class="p-3 bg-bg-app rounded-lg border border-border-1">
                   <div class="flex items-center gap-2 mb-2">
                     <div class="w-6 h-6 rounded-full bg-brand/10 flex items-center justify-center text-brand text-xs font-medium">
-                      {message.author.charAt(0)}
+                      {message.author.charAt(0).toUpperCase()}
                     </div>
-                    <span class="text-sm font-medium text-text-1">{message.author}</span>
-                    <span class="text-xs text-text-3 ml-auto">{message.date}</span>
+                    <span class="text-sm font-medium text-text-1 truncate">{message.author}</span>
                   </div>
-                  <p class="text-sm text-text-2">{message.content}</p>
+                  <p class="text-sm text-text-2 whitespace-pre-wrap break-words">{message.content}</p>
+                  <p class="mt-2 text-xs text-text-3">{formatTimestamp(message.createdAt)}</p>
                 </div>
               )}
             </For>
@@ -287,20 +404,156 @@ function PinnedMessagesPanel() {
 // Files Panel
 // ============================================
 
+interface PostFile {
+  id: string;
+  name: string;
+  size: number;
+  mime_type?: string;
+  url?: string;
+}
+
+interface ChannelPost {
+  id: string;
+  user_id?: string;
+  username?: string;
+  created_at?: string | number;
+  files?: PostFile[];
+}
+
 interface FileItem {
   id: string;
   name: string;
-  size: string;
+  size: number;
   author: string;
-  date: string;
+  createdAt: string;
+  mimeType?: string;
+  url?: string;
+}
+
+function formatFileSize(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let size = bytes;
+  let unitIndex = 0;
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex += 1;
+  }
+  return `${size.toFixed(size >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
+}
+
+function normalizePostTimestamp(value: string | number | undefined): string {
+  if (typeof value === 'number') {
+    return new Date(value).toISOString();
+  }
+  if (typeof value === 'string') {
+    return value;
+  }
+  return new Date().toISOString();
 }
 
 function FilesPanel() {
-  // Mock files
-  const files = (): FileItem[] => [
-    { id: '1', name: 'document.pdf', size: '2.4 MB', author: 'Alice', date: 'Yesterday' },
-    { id: '2', name: 'image.png', size: '856 KB', author: 'Bob', date: '3 days ago' },
-  ];
+  const [isLoading, setIsLoading] = createSignal(false);
+  const [error, setError] = createSignal<string | null>(null);
+  const [files, setFiles] = createSignal<FileItem[]>([]);
+  const [openingFileId, setOpeningFileId] = createSignal<string | null>(null);
+
+  createEffect(() => {
+    const channelId = channelStore.currentChannelId();
+    if (!channelId) {
+      setFiles([]);
+      return;
+    }
+
+    let cancelled = false;
+    setIsLoading(true);
+    setError(null);
+
+    void client
+      .get<{ posts?: ChannelPost[]; messages?: ChannelPost[] }>(`/channels/${channelId}/posts`, {
+        params: { limit: 100 },
+      })
+      .then((response) => {
+        if (cancelled) return;
+
+        const payload = response.data;
+        const posts = Array.isArray(payload.messages)
+          ? payload.messages
+          : Array.isArray(payload.posts)
+            ? payload.posts
+            : [];
+
+        const collected: FileItem[] = [];
+        for (const post of posts) {
+          const postFiles = Array.isArray(post.files) ? post.files : [];
+          for (const file of postFiles) {
+            if (!file?.id || !file?.name) {
+              continue;
+            }
+            collected.push({
+              id: file.id,
+              name: file.name,
+              size: typeof file.size === 'number' ? file.size : 0,
+              author: post.username || post.user_id || 'Unknown',
+              createdAt: normalizePostTimestamp(post.created_at),
+              mimeType: file.mime_type,
+              url: file.url,
+            });
+          }
+        }
+
+        const deduped = new Map<string, FileItem>();
+        collected
+          .sort(
+            (left, right) =>
+              new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime()
+          )
+          .forEach((file) => {
+            if (!deduped.has(file.id)) {
+              deduped.set(file.id, file);
+            }
+          });
+
+        setFiles(Array.from(deduped.values()));
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setFiles([]);
+        setError(getErrorMessage(err) || 'Failed to load channel files.');
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  });
+
+  const openFile = async (file: FileItem) => {
+    if (openingFileId()) return;
+
+    setOpeningFileId(file.id);
+    try {
+      let resolvedUrl = file.url;
+      if (!resolvedUrl) {
+        const response = await client.get<{ url?: string }>(`/files/${file.id}/download`);
+        resolvedUrl = response.data?.url;
+      }
+
+      if (!resolvedUrl) {
+        throw new Error('File URL is not available');
+      }
+
+      window.open(resolvedUrl, '_blank', 'noopener,noreferrer');
+    } catch (err) {
+      toast.error('Unable to open file', getErrorMessage(err) || 'File could not be opened.');
+    } finally {
+      setOpeningFileId(null);
+    }
+  };
 
   return (
     <>
@@ -314,13 +567,21 @@ function FilesPanel() {
 
       {/* Files List */}
       <div class="flex-1 overflow-y-auto custom-scrollbar p-2">
+        <Show when={isLoading()}>
+          <p class="px-2 py-2 text-sm text-text-3">Loading files...</p>
+        </Show>
+        <Show when={error()}>
+          <p class="px-2 py-2 text-sm text-danger">{error()}</p>
+        </Show>
         <Show
-          when={files().length > 0}
+          when={!isLoading() && !error() && files().length > 0}
           fallback={
-            <div class="text-center py-8 text-text-3">
-              <HiOutlinePaperClip size={32} class="mx-auto mb-2 opacity-50" />
-              <p class="text-sm">No files shared yet</p>
-            </div>
+            <Show when={!isLoading() && !error()}>
+              <div class="text-center py-8 text-text-3">
+                <HiOutlinePaperClip size={32} class="mx-auto mb-2 opacity-50" />
+                <p class="text-sm">No files shared yet</p>
+              </div>
+            </Show>
           }
         >
           <div class="space-y-1">
@@ -328,7 +589,11 @@ function FilesPanel() {
               {(file) => (
                 <button
                   type="button"
+                  onClick={() => {
+                    void openFile(file);
+                  }}
                   class="w-full p-2 rounded-lg hover:bg-bg-surface-2 transition-colors text-left"
+                  disabled={openingFileId() === file.id}
                 >
                   <div class="flex items-center gap-2">
                     <div class="w-8 h-8 rounded-lg bg-brand/10 flex items-center justify-center text-brand">
@@ -336,9 +601,10 @@ function FilesPanel() {
                     </div>
                     <div class="flex-1 min-w-0">
                       <p class="text-sm text-text-1 truncate">{file.name}</p>
-                      <p class="text-xs text-text-3">
-                        {file.size} • {file.author}
+                      <p class="text-xs text-text-3 truncate">
+                        {formatFileSize(file.size)} - {file.author}
                       </p>
+                      <p class="text-xs text-text-3 truncate">{formatTimestamp(file.createdAt)}</p>
                     </div>
                   </div>
                 </button>
@@ -361,24 +627,25 @@ function FileIcon(props: { filename: string }) {
   const icon = () => {
     switch (ext()) {
       case 'pdf':
-        return '📄';
+        return 'PDF';
       case 'png':
       case 'jpg':
       case 'jpeg':
       case 'gif':
-        return '🖼️';
+      case 'webp':
+        return 'IMG';
       case 'doc':
       case 'docx':
-        return '📝';
+        return 'DOC';
       case 'xls':
       case 'xlsx':
-        return '📊';
+        return 'XLS';
       default:
-        return '📎';
+        return 'FILE';
     }
   };
 
-  return <span class="text-sm">{icon()}</span>;
+  return <span class="text-[10px] font-semibold">{icon()}</span>;
 }
 
 // ============================================
@@ -386,7 +653,29 @@ function FileIcon(props: { filename: string }) {
 // ============================================
 
 function ChannelInfoPanel() {
+  const navigate = useNavigate();
   const channel = () => channelStore.currentChannel();
+  const [isLeaving, setIsLeaving] = createSignal(false);
+
+  const handleLeaveChannel = async () => {
+    const current = channel();
+    if (!current || isLeaving()) {
+      return;
+    }
+
+    setIsLeaving(true);
+    try {
+      await leaveChannel(current.id);
+      const nextPath = await resolveDefaultChannelPath();
+      uiStore.setRightPanelOpen(false);
+      navigate(nextPath || '/');
+      toast.success('Left channel', `${current.display_name || current.name} has been left.`);
+    } catch (err) {
+      toast.error('Unable to leave channel', getErrorMessage(err) || 'Please try again.');
+    } finally {
+      setIsLeaving(false);
+    }
+  };
 
   return (
     <>
@@ -444,14 +733,22 @@ function ChannelInfoPanel() {
                 <button
                   type="button"
                   class="w-full px-4 py-2 bg-bg-app border border-border-1 rounded-lg text-sm text-text-1 hover:border-border-2 transition-colors"
+                  onClick={() => {
+                    navigate('/settings/notifications');
+                    uiStore.setRightPanelOpen(false);
+                  }}
                 >
                   Notification Preferences
                 </button>
                 <button
                   type="button"
-                  class="w-full px-4 py-2 text-danger hover:bg-danger/10 rounded-lg text-sm transition-colors"
+                  class="w-full px-4 py-2 text-danger hover:bg-danger/10 rounded-lg text-sm transition-colors disabled:opacity-60"
+                  disabled={isLeaving()}
+                  onClick={() => {
+                    void handleLeaveChannel();
+                  }}
                 >
-                  Leave Channel
+                  {isLeaving() ? 'Leaving...' : 'Leave Channel'}
                 </button>
               </div>
             </div>

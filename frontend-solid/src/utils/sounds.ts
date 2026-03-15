@@ -62,9 +62,9 @@ function playTone(frequency: number, duration: number, type: OscillatorType = 's
   const ctx = getAudioContext();
   if (!ctx) return;
 
-  // Resume context if suspended (browser policy)
+  // Do not attempt to resume from non-user-gesture contexts.
+  // Resume is handled by unlockAudioFromGesture after explicit user input.
   if (ctx.state === 'suspended') {
-    void ctx.resume().then(() => playTone(frequency, duration, type)).catch(() => {});
     return;
   }
 

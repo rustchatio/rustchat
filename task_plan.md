@@ -1,5 +1,48 @@
 # Task Plan
 
+## 2026-03-15 Solid WebUI Runtime Functionality Closure (Calls/DM/Add Channel/No Mock UI)
+
+### Task
+- Fix non-functional channel runtime items reported in production-like usage:
+  - channel voice/video call start actions
+  - direct message `+` action
+  - add channel / team-loading reliability
+  - right-sidebar mock surfaces and dead actions
+  - mention/reaction interaction gaps
+  - auth-form autocomplete warnings and audio-context warning noise
+
+### Implementation Status
+- [x] Removed obsolete shell-level duplicate channel header wrapper to avoid route/layout conflicts (`frontend-solid/src/components/layout/MainContent.tsx`).
+- [x] Replaced broken call-route navigation with real calls-plugin `start` + `join` API wiring from channel header voice/video buttons (`frontend-solid/src/components/channel/ChannelHeader.tsx`).
+- [x] Implemented functional direct-message creation modal on sidebar DM `+`, backed by real team-member API data (`frontend-solid/src/components/layout/Sidebar.tsx`).
+- [x] Hardened `/teams` loading with auth bootstrap retry to improve add-channel/team flows when sessions need workspace bootstrap (`frontend-solid/src/components/layout/Sidebar.tsx`).
+- [x] Replaced right-sidebar mock data with real runtime data:
+  - members from channel-members + presence
+  - pinned messages from pinned-post API
+  - recent files from channel posts/files
+  - channel-info actions wired to real settings navigation + leave-channel action (`frontend-solid/src/components/layout/RightSidebar.tsx`).
+- [x] Replaced mentions autocomplete mock users with real channel members (`frontend-solid/src/components/messages/MentionsAutocomplete.tsx`).
+- [x] Wired hover quick-reaction picker to real reaction add flow (`frontend-solid/src/components/messages/MessageActions.tsx`, `frontend-solid/src/components/messages/Message.tsx`).
+- [x] Fixed input autocomplete precedence so explicit form hints are preserved (`frontend-solid/src/components/ui/Input.tsx`).
+- [x] Reduced audio autoplay warning churn by avoiding non-gesture `AudioContext.resume()` attempts (`frontend-solid/src/utils/sounds.ts`).
+- [x] Extended frontend channel-member typings for real member/presence data usage (`frontend-solid/src/stores/channels.ts`).
+
+### Verification Status
+1. `cd frontend-solid && npm run build`
+- Result: PASS
+
+2. `cd backend && cargo check`
+- Result: PASS (warnings only in unrelated pre-existing files)
+
+3. `cd frontend-solid && npm run test -- tests/auth/authRedirect.test.ts`
+- Result: PASS
+
+4. `cd frontend-solid && npm run test -- tests/layout/uiStore.test.ts`
+- Result: PASS (with pre-existing test runtime warnings about computations outside root)
+
+5. `cd frontend-solid && PLAYWRIGHT_WEB_SERVER=1 npm run test:e2e -- e2e/tests/messaging.spec.ts --project=chromium`
+- Result: FAIL in local env due login bootstrap data/auth fixture mismatch (tests stayed on `/login`); no compile/runtime regressions were observed in build checks.
+
 ## 2026-03-15 Solid WebUI Admin Policy/SMTP/Cloudflare Registration Closure
 
 ### Task

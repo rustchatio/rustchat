@@ -284,7 +284,7 @@ export default function Message(props: MessageProps) {
         <div class="absolute top-2 right-4 opacity-0 group-hover:opacity-100 transition-opacity">
           <MessageActions
             message={props.message}
-            onReact={() => {/* Emoji picker opened by MessageActions */}}
+            onQuickReact={handleAddReaction}
             onReply={() => props.onReply?.(props.message.id)}
             onEdit={handleEditStart}
             onDelete={() => props.onDelete?.(props.message.id)}

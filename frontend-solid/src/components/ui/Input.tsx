@@ -64,7 +64,6 @@ export interface InputProps extends BaseProps, TestProps {
 const defaultProps: Partial<InputProps> = {
   type: 'text',
   size: 'md',
-  autoComplete: 'on',
 };
 
 // ============================================
@@ -103,7 +102,7 @@ export function Input(props: InputProps): JSX.Element {
   const helperId = () => `${inputId()}-helper`;
   const errorId = () => `${inputId()}-error`;
   const hasError = () => !!local.error;
-  const resolvedAutoComplete = () => local.autoComplete ?? local.autocomplete ?? 'on';
+  const resolvedAutoComplete = () => local.autocomplete ?? local.autoComplete ?? 'on';
 
   const ariaDescribedBy = () => {
     const ids: string[] = [];

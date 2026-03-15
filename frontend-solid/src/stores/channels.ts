@@ -27,7 +27,12 @@ export interface Channel {
 export interface ChannelMember {
   channel_id: string;
   user_id: string;
-  roles: string;
+  role?: string;
+  roles?: string;
+  username?: string;
+  display_name?: string;
+  avatar_url?: string;
+  presence?: string;
   last_viewed_at: number;
   msg_count: number;
   mention_count: number;

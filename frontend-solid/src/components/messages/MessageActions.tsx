@@ -31,6 +31,7 @@ import {
 interface MessageActionsProps {
   message: Message;
   onReact?: () => void;
+  onQuickReact?: (emoji: string) => void;
   onReply?: () => void;
   onEdit?: () => void;
   onDelete?: () => void;
@@ -186,9 +187,11 @@ export default function MessageActions(props: MessageActionsProps) {
 
 
   // Handle quick reaction
-  const handleQuickReaction = (_emoji: string) => {
-    props.onReact?.();
-    // The actual emoji selection would be handled by parent
+  const handleQuickReaction = (emoji: string) => {
+    props.onQuickReact?.(emoji);
+    if (!props.onQuickReact) {
+      props.onReact?.();
+    }
     setShowEmojiPicker(false);
   };
 
@@ -283,7 +286,7 @@ export default function MessageActions(props: MessageActionsProps) {
         {/* Quick Reactions */}
         <div class="relative">
           <Show when={showEmojiPicker()}>
-            <div class="absolute bottom-full left-0 mb-1 p-2 bg-bg-surface-1 rounded-lg shadow-lg border border-border-1 z-50">
+            <div class="absolute bottom-full left-0 mb-1 p-2 bg-bg-surface-1 rounded-lg shadow-lg border border-border-1 z-[10000]">
               <div class="flex gap-1">
                 <For each={QUICK_REACTIONS}>
                   {(emoji) => (
@@ -302,8 +305,11 @@ export default function MessageActions(props: MessageActionsProps) {
           <button
             type="button"
             onClick={() => {
-              setShowEmojiPicker(!showEmojiPicker());
-              props.onReact?.();
+              if (props.onQuickReact) {
+                setShowEmojiPicker(!showEmojiPicker());
+              } else {
+                props.onReact?.();
+              }
             }}
             class="p-1.5 text-text-3 hover:text-text-1 hover:bg-bg-surface-2 rounded-md transition-colors"
             title="Add reaction"

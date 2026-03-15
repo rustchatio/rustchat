@@ -3,11 +3,11 @@
 // ============================================
 
 import { Show, createMemo, createSignal } from 'solid-js';
-import { useNavigate } from '@solidjs/router';
 import { channelStore, currentChannel, fetchChannelMembers } from '@/stores/channels';
 import { authStore } from '@/stores/auth';
 import { uiStore, setActivePanel } from '@/stores/ui';
 import { cn } from '@/utils/cn';
+import { toast } from '@/hooks/useToast';
 
 // Icons
 import {
@@ -37,9 +37,9 @@ interface ChannelHeaderProps {
 // ============================================
 
 export function ChannelHeader(props: ChannelHeaderProps) {
-  const navigate = useNavigate();
   const channel = currentChannel;
   const [showInfoMenu, setShowInfoMenu] = createSignal(false);
+  const [startingCallMode, setStartingCallMode] = createSignal<'voice' | 'video' | null>(null);
 
   // Get member count
   const memberCount = createMemo(() => {
@@ -92,11 +92,65 @@ export function ChannelHeader(props: ChannelHeaderProps) {
     uiStore.setRightPanelOpen(true);
   };
 
+  const parseErrorMessage = async (response: Response): Promise<string> => {
+    const fallback = 'Failed to start call.';
+    try {
+      const payload = (await response.json()) as { message?: string; error?: string; detailed_error?: string };
+      return payload.message || payload.detailed_error || payload.error || fallback;
+    } catch {
+      return fallback;
+    }
+  };
+
   // Start call
-  const startCall = () => {
+  const startCall = async (mode: 'voice' | 'video') => {
     const channelId = channel()?.id;
-    if (channelId) {
-      navigate(`/channels/${channelId}/calls`);
+    const token = authStore.token;
+    if (!channelId || !token || startingCallMode()) {
+      return;
+    }
+
+    setStartingCallMode(mode);
+    try {
+      const startResponse = await fetch(
+        `/api/v4/plugins/com.mattermost.calls/calls/${encodeURIComponent(channelId)}/start`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!startResponse.ok) {
+        throw new Error(await parseErrorMessage(startResponse));
+      }
+
+      const joinResponse = await fetch(
+        `/api/v4/plugins/com.mattermost.calls/calls/${encodeURIComponent(channelId)}/join`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!joinResponse.ok && joinResponse.status !== 404) {
+        throw new Error(await parseErrorMessage(joinResponse));
+      }
+
+      toast.success(
+        mode === 'video' ? 'Video call started' : 'Voice call started',
+        `Call session is now active in ${channel()?.display_name || 'this channel'}.`
+      );
+    } catch (error) {
+      toast.error(
+        'Unable to start call',
+        error instanceof Error ? error.message : 'Unexpected error while starting call.'
+      );
+    } finally {
+      setStartingCallMode(null);
     }
   };
 
@@ -173,10 +227,14 @@ export function ChannelHeader(props: ChannelHeaderProps) {
           type="button"
           class={cn(
             'p-2 rounded-lg transition-colors hidden md:flex',
-            'text-text-2 hover:text-brand hover:bg-brand/10'
+            'text-text-2 hover:text-brand hover:bg-brand/10',
+            startingCallMode() === 'voice' && 'opacity-60 cursor-not-allowed'
           )}
-          onClick={startCall}
+          onClick={() => {
+            void startCall('voice');
+          }}
           title="Start voice call"
+          disabled={Boolean(startingCallMode())}
         >
           <HiOutlinePhone size={20} />
         </button>
@@ -185,10 +243,14 @@ export function ChannelHeader(props: ChannelHeaderProps) {
           type="button"
           class={cn(
             'p-2 rounded-lg transition-colors hidden md:flex',
-            'text-text-2 hover:text-brand hover:bg-brand/10'
+            'text-text-2 hover:text-brand hover:bg-brand/10',
+            startingCallMode() === 'video' && 'opacity-60 cursor-not-allowed'
           )}
-          onClick={startCall}
+          onClick={() => {
+            void startCall('video');
+          }}
           title="Start video call"
+          disabled={Boolean(startingCallMode())}
         >
           <HiOutlineVideoCamera size={20} />
         </button>

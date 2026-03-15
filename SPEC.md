@@ -147,6 +147,36 @@ Implemented in this pass:
 23. Default registration policy bootstrap:
    - auth workspace bootstrap now ensures an initial global auto-membership policy exists for new registrations into `rustchat` + `town-square` + `off-topic`, while preserving manual disable state.
 
+## Phase C Runtime Functionality Closure Addendum (2026-03-15)
+
+Implemented in this pass:
+
+1. Channel runtime layout correctness:
+   - removed obsolete shell-level channel header wrapper that conflicted with route-level channel UI and contributed to broken message-area behavior.
+2. Calls entrypoint wiring:
+   - replaced broken `/channels/:id/calls` navigation with real `POST /api/v4/plugins/com.mattermost.calls/calls/{channel_id}/start` + `/join` flow from channel header voice/video actions.
+3. Direct message creation parity:
+   - implemented functional DM `+` flow in sidebar with real team-member selection and direct-channel creation via existing channel API contract.
+4. Team/channel creation resilience:
+   - hardened team-loading path to trigger auth bootstrap retry (`/auth/me`) when initial `/teams` response is empty, improving add-channel and team flows.
+5. Removed right-sidebar mock surfaces:
+   - members panel now uses real channel members + live presence.
+   - pinned panel now loads real pinned posts.
+   - files panel now loads recent shared files from channel posts and opens files via real URLs/download endpoint.
+   - channel-info actions now perform real navigation and channel leave action.
+6. Mentions parity:
+   - mention autocomplete now uses real channel members instead of hardcoded mock users.
+7. Reaction parity:
+   - hover quick-reaction picker now commits selected emoji to real reaction APIs.
+8. Form autocomplete contract fix:
+   - input component now honors explicit `autocomplete` hints (e.g., `current-password`, `new-password`) instead of overriding with generic defaults.
+9. Audio warning reduction:
+   - sound playback no longer attempts `AudioContext.resume()` from non-gesture contexts.
+
+Remaining explicit gap:
+
+1. Full in-browser WebRTC call media UI (mic/camera session controls and rendering) is still not implemented in Solid; this pass enables real call session start/join server-side rather than a complete media client.
+
 ---
 
 # SPEC: WebSocket Auth Expiry Enforcement (2026-03-13)

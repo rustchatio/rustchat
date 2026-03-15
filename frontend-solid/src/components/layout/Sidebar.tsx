@@ -50,6 +50,40 @@ interface TeamOption {
   display_name?: string | null;
 }
 
+interface DirectMessageCandidate {
+  id: string;
+  username: string;
+  display_name?: string | null;
+  avatar_url?: string | null;
+}
+
+function normalizeTeams(payload: unknown): TeamOption[] {
+  if (!Array.isArray(payload)) return [];
+  return payload.filter((team): team is TeamOption => {
+    const candidate = team as Partial<TeamOption> | null;
+    return (
+      typeof candidate?.id === 'string' &&
+      typeof candidate?.name === 'string'
+    );
+  });
+}
+
+async function fetchTeamsWithBootstrap(): Promise<TeamOption[]> {
+  const requestTeams = async () => {
+    const response = await client.get<TeamOption[]>('/teams');
+    return normalizeTeams(response.data);
+  };
+
+  let teams = await requestTeams();
+  if (teams.length > 0) {
+    return teams;
+  }
+
+  await client.get('/auth/me');
+  teams = await requestTeams();
+  return teams;
+}
+
 function toChannelName(displayName: string): string {
   const normalized = displayName
     .trim()
@@ -105,21 +139,52 @@ export function Sidebar(props: SidebarProps) {
   const [channelTeams, setChannelTeams] = createSignal<TeamOption[]>([]);
   const [isLoadingChannelTeams, setIsLoadingChannelTeams] = createSignal(false);
   const [selectedTeamId, setSelectedTeamId] = createSignal('');
+  const [isCreateDmOpen, setIsCreateDmOpen] = createSignal(false);
+  const [isLoadingDmUsers, setIsLoadingDmUsers] = createSignal(false);
+  const [isCreatingDm, setIsCreatingDm] = createSignal(false);
+  const [dmUsers, setDmUsers] = createSignal<DirectMessageCandidate[]>([]);
+  const [dmSearchQuery, setDmSearchQuery] = createSignal('');
+  const [dmSelectedUserId, setDmSelectedUserId] = createSignal('');
+  const [dmTeamId, setDmTeamId] = createSignal('');
+  const [dmError, setDmError] = createSignal<string | null>(null);
 
   const loadChannelTeams = async () => {
-    const response = await client.get<TeamOption[]>('/teams');
-    const payload = response.data;
-    const safeTeams = Array.isArray(payload)
-      ? payload.filter(
-          (team): team is TeamOption =>
-            typeof team?.id === 'string' && typeof team?.name === 'string'
-        )
-      : [];
+    const safeTeams = await fetchTeamsWithBootstrap();
     setChannelTeams(safeTeams);
     if (!selectedTeamId() && safeTeams.length > 0) {
       const activeTeamId = channelStore.currentChannel()?.team_id;
       setSelectedTeamId(activeTeamId && safeTeams.some((team) => team.id === activeTeamId) ? activeTeamId : safeTeams[0]!.id);
     }
+  };
+
+  const loadDirectMessageUsers = async (teamId: string) => {
+    if (!teamId) {
+      setDmUsers([]);
+      return;
+    }
+
+    const response = await client.get<Array<{ user_id?: unknown; username?: unknown; display_name?: unknown; avatar_url?: unknown }>>(
+      `/teams/${teamId}/members`
+    );
+    const payload = response.data;
+    const safeUsers = Array.isArray(payload)
+      ? payload
+        .filter(
+          (
+            user
+          ): user is { user_id: string; username: string; display_name?: string | null; avatar_url?: string | null } =>
+            typeof user?.user_id === 'string' && typeof user?.username === 'string'
+        )
+        .map((user) => ({
+          id: user.user_id,
+          username: user.username,
+          display_name: user.display_name || null,
+          avatar_url: user.avatar_url || null,
+        }))
+      : [];
+
+    const currentUserId = authStore.user()?.id;
+    setDmUsers(safeUsers.filter((user) => user.id !== currentUserId));
   };
 
   const openCreateChannelModal = () => {
@@ -171,6 +236,99 @@ export function Sidebar(props: SidebarProps) {
       setCreateChannelError(error instanceof Error ? error.message : 'Failed to create channel.');
     } finally {
       setIsCreatingChannel(false);
+    }
+  };
+
+  const openCreateDirectMessageModal = () => {
+    setDmError(null);
+    setDmSearchQuery('');
+    setDmUsers([]);
+    setDmSelectedUserId('');
+    setDmTeamId(channelStore.currentChannel()?.team_id || selectedTeamId() || '');
+    setIsCreateDmOpen(true);
+    setDmError(null);
+    void fetchTeamsWithBootstrap()
+      .then((teams) => {
+        setChannelTeams(teams);
+        const preferredTeamId = dmTeamId() || teams[0]?.id || '';
+        setDmTeamId(preferredTeamId);
+      })
+      .catch((error) => {
+        setDmError(getErrorMessage(error) || 'Failed to load teams for direct messages.');
+      });
+  };
+
+  createEffect(() => {
+    if (!isCreateDmOpen()) return;
+    const teamId = dmTeamId();
+    if (!teamId) {
+      setDmUsers([]);
+      return;
+    }
+
+    setIsLoadingDmUsers(true);
+    setDmError(null);
+    void loadDirectMessageUsers(teamId)
+      .catch((error) => {
+        setDmError(getErrorMessage(error) || 'Failed to load team members.');
+      })
+      .finally(() => {
+        setIsLoadingDmUsers(false);
+      });
+  });
+
+  const filteredDmUsers = createMemo(() => {
+    const query = dmSearchQuery().trim().toLowerCase();
+    if (!query) return dmUsers();
+    return dmUsers().filter((user) => {
+      const username = user.username.toLowerCase();
+      const displayName = (user.display_name || '').toLowerCase();
+      return username.includes(query) || displayName.includes(query);
+    });
+  });
+
+  createEffect(() => {
+    const options = filteredDmUsers();
+    if (options.length === 0) {
+      return;
+    }
+    if (!options.some((user) => user.id === dmSelectedUserId())) {
+      setDmSelectedUserId(options[0]!.id);
+    }
+  });
+
+  const submitCreateDirectMessage = async () => {
+    const selectedUserId = dmSelectedUserId();
+    if (!selectedUserId) {
+      setDmError('Select a teammate to start a direct message.');
+      return;
+    }
+    if (!dmTeamId()) {
+      setDmError('Select a team first.');
+      return;
+    }
+
+    setIsCreatingDm(true);
+    setDmError(null);
+    try {
+      const selectedUser = dmUsers().find((user) => user.id === selectedUserId);
+      const channel = await createChannel({
+        team_id: dmTeamId(),
+        name: '',
+        display_name: selectedUser?.display_name || selectedUser?.username || 'Direct Message',
+        channel_type: 'direct',
+        target_user_id: selectedUserId,
+      });
+
+      await fetchChannels(channel.team_id);
+      selectChannel(channel.id);
+      navigate(`/channels/${channel.id}`);
+      setIsCreateDmOpen(false);
+      uiStore.setMobileSidebarOpen(false);
+    } catch (error) {
+      setDmError(getErrorMessage(error) || 'Failed to start direct message.');
+    } finally {
+      setIsCreatingDm(false);
     }
   };
 
@@ -295,6 +453,9 @@ export function Sidebar(props: SidebarProps) {
                 class="p-1 rounded text-text-3 hover:bg-bg-surface-2 hover:text-text-1 opacity-0 group-hover:opacity-100 transition-opacity"
                 aria-label="Start direct message"
                 title="Start direct message"
+                onClick={() => {
+                  openCreateDirectMessageModal();
+                }}
               >
                 <HiOutlinePlus size={14} />
               </button>
@@ -446,6 +607,96 @@ export function Sidebar(props: SidebarProps) {
           </div>
         </div>
       </Modal>
+
+      <Modal
+        isOpen={isCreateDmOpen()}
+        onClose={() => setIsCreateDmOpen(false)}
+        title="Start Direct Message"
+        description="Select a teammate to open a direct message channel"
+        size="md"
+      >
+        <div class="space-y-4">
+          <Show when={dmError()}>
+            <div class="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+              {dmError()}
+            </div>
+          </Show>
+
+          <label class="block space-y-1">
+            <span class="text-sm font-medium text-text-2">Team</span>
+            <select
+              value={dmTeamId()}
+              onChange={(event) => setDmTeamId(event.currentTarget.value)}
+              disabled={isLoadingDmUsers() || channelTeams().length === 0}
+              class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-sm text-text-1"
+            >
+              <For each={channelTeams()}>
+                {(team) => (
+                  <option value={team.id}>{team.display_name || team.name}</option>
+                )}
+              </For>
+            </select>
+          </label>
+
+          <label class="block space-y-1">
+            <span class="text-sm font-medium text-text-2">Search</span>
+            <input
+              type="text"
+              value={dmSearchQuery()}
+              onInput={(event) => setDmSearchQuery(event.currentTarget.value)}
+              placeholder="Find by username or display name"
+              class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-sm text-text-1"
+            />
+          </label>
+
+          <div class="max-h-72 space-y-2 overflow-y-auto rounded-lg border border-border-1 bg-bg-app p-2">
+            <Show when={!isLoadingDmUsers()} fallback={<p class="px-2 py-2 text-sm text-text-3">Loading users...</p>}>
+              <Show when={filteredDmUsers().length > 0} fallback={<p class="px-2 py-2 text-sm text-text-3">No users found.</p>}>
+                <For each={filteredDmUsers()}>
+                  {(user) => (
+                    <button
+                      type="button"
+                      onClick={() => setDmSelectedUserId(user.id)}
+                      class={cn(
+                        'flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left transition-colors',
+                        dmSelectedUserId() === user.id
+                          ? 'border-brand bg-brand/10'
+                          : 'border-border-1 hover:bg-bg-surface-2'
+                      )}
+                    >
+                      <div class="min-w-0">
+                        <p class="truncate text-sm font-medium text-text-1">
+                          {user.display_name || user.username}
+                        </p>
+                        <p class="truncate text-xs text-text-3">@{user.username}</p>
+                      </div>
+                      <Show when={dmSelectedUserId() === user.id}>
+                        <span class="text-xs font-semibold text-brand">Selected</span>
+                      </Show>
+                    </button>
+                  )}
+                </For>
+              </Show>
+            </Show>
+          </div>
+
+          <div class="flex justify-end gap-2 pt-2">
+            <Button variant="ghost" onClick={() => setIsCreateDmOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              loading={isCreatingDm()}
+              disabled={isLoadingDmUsers() || !dmSelectedUserId() || !dmTeamId()}
+              onClick={() => {
+                void submitCreateDirectMessage();
+              }}
+            >
+              Start Message
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </aside>
   );
 }
@@ -476,17 +727,7 @@ function TeamSelector() {
     setTeamError(null);
 
     try {
-      const response = await client.get<Array<{ id?: unknown; name?: unknown; display_name?: unknown }>>('/teams');
-      const payload = response.data;
-
-      const safeTeams = Array.isArray(payload)
-        ? payload.filter(
-            (team): team is TeamOption =>
-              typeof team.id === 'string' && typeof team.name === 'string'
-          )
-        : [];
-
-      setTeams(safeTeams);
+      setTeams(await fetchTeamsWithBootstrap());
     } catch (error) {
       setTeams([]);
       setTeamError(getErrorMessage(error) || 'Failed to fetch teams');
@@ -508,14 +749,7 @@ function TeamSelector() {
       await client.get<Array<{ id?: unknown; name?: unknown; display_name?: unknown }>>(
         '/teams/public'
       );
-    const payload = response.data;
-    const safeTeams = Array.isArray(payload)
-      ? payload.filter(
-          (team): team is TeamOption =>
-            typeof team.id === 'string' && typeof team.name === 'string'
-        )
-      : [];
-    setPublicTeams(safeTeams);
+    setPublicTeams(normalizeTeams(response.data));
   };
 
   const openTeamModal = async (mode: 'join' | 'create') => {
