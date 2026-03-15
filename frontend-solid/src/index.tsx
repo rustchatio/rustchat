@@ -15,11 +15,25 @@ installCryptoPolyfills();
 // Recover from stale hashed chunks after deploy/cache mismatch.
 if (typeof window !== 'undefined') {
   const chunkReloadKey = 'rustchat_chunk_reload_once';
+  const chunkReloadWindowMs = 30000;
   const reloadForChunkError = () => {
-    if (sessionStorage.getItem(chunkReloadKey) === '1') return;
-    sessionStorage.setItem(chunkReloadKey, '1');
-    window.location.reload();
+    const now = Date.now();
+    const lastReload = Number(sessionStorage.getItem(chunkReloadKey) || 0);
+    if (Number.isFinite(lastReload) && now - lastReload < chunkReloadWindowMs) return;
+
+    sessionStorage.setItem(chunkReloadKey, String(now));
+    const url = new URL(window.location.href);
+    url.searchParams.set('__chunk_reload', String(now));
+    window.location.replace(url.toString());
   };
+
+  // Allow future recoveries after the current page has remained stable.
+  window.setTimeout(() => {
+    const lastReload = Number(sessionStorage.getItem(chunkReloadKey) || 0);
+    if (Number.isFinite(lastReload) && Date.now() - lastReload >= chunkReloadWindowMs) {
+      sessionStorage.removeItem(chunkReloadKey);
+    }
+  }, chunkReloadWindowMs + 1000);
 
   window.addEventListener('vite:preloadError', (event) => {
     event.preventDefault();

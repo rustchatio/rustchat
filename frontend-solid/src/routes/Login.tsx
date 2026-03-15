@@ -296,7 +296,7 @@ export default function Login() {
                 <div>
                   <Input
                     id="email"
-                    name="username"
+                    name="email"
                     type="email"
                     autocomplete="username"
                     label="Email"

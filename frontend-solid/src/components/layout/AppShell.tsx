@@ -11,6 +11,7 @@ import MainContent from './MainContent';
 import RightSidebar from './RightSidebar';
 import MobileNav from './MobileNav';
 import ActiveCallOverlay from '@/components/calls/ActiveCallOverlay';
+import IncomingCallOverlay from '@/components/calls/IncomingCallOverlay';
 
 // ============================================
 // Props Interface
@@ -99,6 +100,7 @@ export function AppShell(props: AppShellProps) {
       </div>
 
       <ActiveCallOverlay />
+      <IncomingCallOverlay />
 
       {/* Mobile Bottom Navigation */}
       <Show when={isMobile()}>

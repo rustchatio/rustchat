@@ -122,6 +122,7 @@ function AppRoutes() {
       <Route path="/login/callback" component={LoginCallback} />
       <Route path="/forgot-password" component={ForgotPassword} />
       <Route path="/reset-password" component={ResetPassword} />
+      <Route path="/set-password" component={ResetPassword} />
       <Route path="/saml/callback" component={LoginCallback} />
       <Route path="/auth/saml/callback" component={LoginCallback} />
 

@@ -1,5 +1,22 @@
 # Task Plan
 
+## 2026-03-15 Vue Backup Gap Register Refresh (Post-Analysis)
+
+### Newly Closed In This Pass
+- [x] Added legacy auth route parity for `/set-password` by aliasing to reset-password flow (`frontend-solid/src/App.tsx`, `frontend-solid/src/routes/Routes.tsx`).
+- [x] Hardened post-login workspace bootstrap in shared channels store so users without teams are auto-recovered by join/create fallback from root redirect path (`frontend-solid/src/stores/channels.ts`).
+- [x] Aligned default channel selection preference with RustChat defaults (`town-square`, `off-topic`) before generic fallback (`frontend-solid/src/stores/channels.ts`).
+- [x] Added joinable-channel recovery in root default-channel resolution when team exists but membership/channel selection is empty (`frontend-solid/src/stores/channels.ts`).
+- [x] Strengthened stale-hash chunk recovery with cache-busting query reload and bounded retry window (addresses dynamic import failures after deploys) (`frontend-solid/src/index.tsx`).
+- [x] Corrected login email field naming for autofill/autocomplete compatibility (`frontend-solid/src/routes/Login.tsx`).
+- [x] Added incoming-call overlay parity baseline wired to real `custom_com.mattermost.calls_ringing` websocket events with accept/dismiss actions (`frontend-solid/src/stores/calls.ts`, `frontend-solid/src/components/calls/IncomingCallOverlay.tsx`, `frontend-solid/src/components/layout/AppShell.tsx`).
+
+### Remaining Open Gaps Discovered From `/archive/frontend-vue-backup`
+- [ ] Playbooks route surface is missing in Solid (`/playbooks`, `/playbooks/new`, `/playbooks/:id/edit`, `/runs/:id`) and needs real API-backed implementation parity.
+- [ ] Incoming call notification modal parity is still missing (Vue had dedicated incoming/ringing UX; Solid currently shows only active-call overlay after join/start).
+- [ ] Calls host controls and screen-share UX parity are partial compared to Vue (`host mute/remove`, `screen share toggle` UI paths).
+- [ ] Channel/team settings modal depth is still reduced versus Vue (`ChannelSettingsModal`, `TeamSettingsModal` parity scope still incomplete).
+
 ## 2026-03-15 Solid WebUI Runtime Functionality Closure (Calls/DM/Add Channel/No Mock UI)
 
 ### Task

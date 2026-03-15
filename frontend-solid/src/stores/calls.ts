@@ -37,6 +37,13 @@ export interface ActiveCallSession {
   remoteStreams: RemoteMediaStream[];
 }
 
+export interface IncomingCallNotification {
+  channelId: string;
+  callId?: string;
+  senderName?: string;
+  receivedAt: number;
+}
+
 interface CallsSignalPayload {
   type?: string;
   candidate?: string;
@@ -54,6 +61,7 @@ const [error, setError] = createSignal<string | null>(null);
 const [isMuted, setIsMuted] = createSignal(true);
 const [isHandRaised, setIsHandRaised] = createSignal(false);
 const [isExpanded, setIsExpanded] = createSignal(false);
+const [incomingCall, setIncomingCall] = createSignal<IncomingCallNotification | null>(null);
 
 let callStateRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -71,6 +79,26 @@ function readEventChannelId(data: unknown, fallback?: string): string | null {
     (typeof record.channelID === 'string' && record.channelID);
 
   return rawChannel || fallback || null;
+}
+
+function readEventCallId(data: unknown): string | undefined {
+  const record = asRecord(data);
+  if (!record) return undefined;
+  const rawCallId =
+    (typeof record.call_id_raw === 'string' && record.call_id_raw) ||
+    (typeof record.call_id === 'string' && record.call_id);
+  return rawCallId || undefined;
+}
+
+function readEventSenderName(data: unknown): string | undefined {
+  const record = asRecord(data);
+  if (!record) return undefined;
+  const name =
+    (typeof record.display_name === 'string' && record.display_name.trim()) ||
+    (typeof record.username === 'string' && record.username.trim()) ||
+    (typeof record.sender_id_raw === 'string' && record.sender_id_raw.trim()) ||
+    (typeof record.sender_id === 'string' && record.sender_id.trim());
+  return name || undefined;
 }
 
 function readSignalPayload(data: unknown): CallsSignalPayload | null {
@@ -329,6 +357,7 @@ async function startOrJoinCall(channelId: string, requestedMode: CallMode): Prom
 
   setIsStarting(true);
   setError(null);
+  setIncomingCall(null);
 
   try {
     const resolvedConfig = config() || (await loadConfig());
@@ -405,6 +434,20 @@ async function leaveCurrentCall(): Promise<void> {
   } catch (err) {
     console.warn('Failed to leave call cleanly', err);
   }
+}
+
+function dismissIncomingCall(channelId?: string): void {
+  const current = incomingCall();
+  if (!current) return;
+  if (channelId && current.channelId !== channelId) return;
+  setIncomingCall(null);
+}
+
+async function acceptIncomingCall(mode: CallMode = 'voice'): Promise<void> {
+  const current = incomingCall();
+  if (!current) return;
+  setIncomingCall(null);
+  await startOrJoinCall(current.channelId, mode);
 }
 
 async function endCurrentCall(): Promise<void> {
@@ -498,12 +541,27 @@ export function handleCallWebsocketEvent(
   }
 
   const current = activeSession();
-  if (!current) return;
-
   const eventChannelId = readEventChannelId(data, fallbackChannelId);
+
+  if (eventName === 'custom_com.mattermost.calls_ringing' && eventChannelId) {
+    const inActiveChannel = current && current.channelId === eventChannelId;
+    if (!inActiveChannel) {
+      setIncomingCall({
+        channelId: eventChannelId,
+        callId: readEventCallId(data),
+        senderName: readEventSenderName(data),
+        receivedAt: Date.now(),
+      });
+      toast.info('Incoming call', 'Someone is calling in this channel.');
+    }
+    return;
+  }
+
+  if (!current) return;
   if (!eventChannelId || eventChannelId !== current.channelId) return;
 
   if (eventName === 'custom_com.mattermost.calls_call_end') {
+    dismissIncomingCall(eventChannelId);
     cleanupCallSession(true);
     toast.info('Call ended', 'The active call has ended.');
     return;
@@ -559,8 +617,11 @@ export const callsStore = {
   isHost,
   participants,
   durationSeconds,
+  incomingCall,
   loadConfig,
   startOrJoinCall,
+  acceptIncomingCall,
+  dismissIncomingCall,
   leaveCurrentCall,
   endCurrentCall,
   toggleMute,

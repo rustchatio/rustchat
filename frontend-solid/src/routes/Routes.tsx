@@ -30,6 +30,7 @@ export function AppRoutes() {
       <Route path="/login/callback" component={LoginCallback} />
       <Route path="/forgot-password" component={ForgotPassword} />
       <Route path="/reset-password" component={ResetPassword} />
+      <Route path="/set-password" component={ResetPassword} />
 
       {/* SAML callback can be at different paths */}
       <Route path="/saml/callback" component={LoginCallback} />

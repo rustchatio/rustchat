@@ -62,6 +62,8 @@ export interface CreateChannelRequest {
 
 interface TeamSummary {
   id: string;
+  name?: string;
+  display_name?: string | null;
 }
 
 // ============================================
@@ -69,6 +71,8 @@ interface TeamSummary {
 // ============================================
 
 const STORAGE_KEY = 'rustchat_last_channels';
+const DEFAULT_TEAM_NAME = 'rustchat';
+const DEFAULT_TEAM_DISPLAY_NAME = 'RustChat';
 
 const [channels, setChannels] = createStore<Channel[]>([]);
 const [joinableChannels, setJoinableChannels] = createStore<Channel[]>([]);
@@ -140,9 +144,12 @@ export async function fetchChannels(teamId: string): Promise<void> {
     if (lastId && data.some((c) => c.id === lastId)) {
       setCurrentChannelId(lastId);
     } else {
-      // Auto-select general channel if none selected or last not found
-      const general = data.find((c) => c.name === 'general');
-      const defaultId = general?.id || data[0]?.id || null;
+      // Prefer Mattermost-style defaults before generic fallbacks.
+      const preferred =
+        data.find((c) => c.name === 'town-square') ||
+        data.find((c) => c.name === 'off-topic') ||
+        data.find((c) => c.name === 'general');
+      const defaultId = preferred?.id || data[0]?.id || null;
       setCurrentChannelId(defaultId);
 
       // Save this default selection
@@ -158,31 +165,73 @@ export async function fetchChannels(teamId: string): Promise<void> {
   }
 }
 
+function normalizeTeamSummaries(payload: unknown): TeamSummary[] {
+  if (!Array.isArray(payload)) return [];
+  return payload.filter((team): team is TeamSummary => {
+    const candidate = team as Partial<TeamSummary> | null;
+    return typeof candidate?.id === 'string';
+  });
+}
+
 async function fetchUserTeams(): Promise<TeamSummary[]> {
   if (!authStore.token) return [];
 
   const requestTeams = async () => {
     const response = await client.get<TeamSummary[]>('/teams');
-    return response.data;
+    return normalizeTeamSummaries(response.data);
   };
 
   let payload = await requestTeams();
-  if (Array.isArray(payload) && payload.length > 0) {
-    return payload.filter(
-      (team): team is TeamSummary =>
-        typeof team === 'object' && team !== null && typeof (team as TeamSummary).id === 'string'
-    );
+  if (payload.length > 0) {
+    return payload;
   }
 
   // Trigger auth workspace bootstrap for older sessions/users, then retry.
   await client.get('/auth/me');
   payload = await requestTeams();
-  if (!Array.isArray(payload)) return [];
+  if (payload.length > 0) {
+    return payload;
+  }
 
-  return payload.filter(
-    (team): team is TeamSummary =>
-      typeof team === 'object' && team !== null && typeof (team as TeamSummary).id === 'string'
-  );
+  // Recovery path: auto-join an open public team first (prefer rustchat).
+  try {
+    const publicResponse = await client.get<TeamSummary[]>('/teams/public');
+    const publicTeams = normalizeTeamSummaries(publicResponse.data);
+    const joinTarget =
+      publicTeams.find((team) => team.name?.toLowerCase() === DEFAULT_TEAM_NAME) || publicTeams[0];
+
+    if (joinTarget) {
+      await client.post(`/teams/${joinTarget.id}/join`);
+      payload = await requestTeams();
+      if (payload.length > 0) {
+        return payload;
+      }
+    }
+  } catch (error) {
+    console.warn('Failed to auto-join public team during bootstrap', error);
+  }
+
+  // Final recovery: create a default workspace team for the signed-in user.
+  try {
+    await client.post('/teams', {
+      name: DEFAULT_TEAM_NAME,
+      display_name: DEFAULT_TEAM_DISPLAY_NAME,
+      description: 'Default RustChat workspace',
+    });
+  } catch (error) {
+    const conflictName = `${DEFAULT_TEAM_NAME}-${Date.now().toString(36)}`;
+    try {
+      await client.post('/teams', {
+        name: conflictName,
+        display_name: DEFAULT_TEAM_DISPLAY_NAME,
+        description: 'Default RustChat workspace',
+      });
+    } catch (fallbackError) {
+      console.warn('Failed to auto-create default team during bootstrap', error, fallbackError);
+    }
+  }
+
+  return requestTeams();
 }
 
 export async function resolveDefaultChannelPath(): Promise<string | null> {
@@ -202,7 +251,21 @@ export async function resolveDefaultChannelPath(): Promise<string | null> {
         continue;
       }
 
-      const channelId = currentChannelId();
+      let channelId = currentChannelId();
+      if (!channelId) {
+        try {
+          await fetchJoinableChannels(teamId);
+          const firstJoinable = channelStore.joinableChannels[0];
+          if (firstJoinable) {
+            await joinChannel(firstJoinable.id);
+            await fetchChannels(teamId);
+            channelId = currentChannelId();
+          }
+        } catch {
+          // Ignore join recovery errors and continue trying remaining teams.
+        }
+      }
+
       if (channelId) {
         return `/channels/${channelId}`;
       }
