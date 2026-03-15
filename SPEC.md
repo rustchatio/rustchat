@@ -132,6 +132,14 @@ Implemented in this pass:
    - added calls-plugin configuration controls in settings overlay (`/settings/configuration`) using `GET/PUT /api/v1/admin/plugins/calls`.
 16. Backend route safety correction:
    - removed duplicate v1 router mounts for membership-policy and admin-audit routers that caused overlapping-route panics in integration environments.
+17. Membership policy structure availability:
+   - extended Admin Membership Policies with policy metadata visibility (`source/scope/target/role` structures), target-detail display, and manual user re-sync action wiring.
+18. SMTP automation workflow parity extension:
+   - extended Admin Email with notification-workflow list/toggle controls, SMTP test action, workflow test enqueue action, and recent email-events visibility.
+19. Cloudflare registration hardening in Solid UI:
+   - register route now loads `/api/v1/auth/config`, renders Cloudflare Turnstile when enabled, blocks submit until verification, and submits both `cf-turnstile-response` and honeypot `website` fields.
+20. Admin discoverability from settings:
+   - added admin-only `Advanced` shortcuts from user settings to Admin Server Configuration, Membership Policies, and Email Workflows.
 
 ---
 

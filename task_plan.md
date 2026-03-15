@@ -1,5 +1,30 @@
 # Task Plan
 
+## 2026-03-15 Solid WebUI Admin Policy/SMTP/Cloudflare Registration Closure
+
+### Task
+- Ensure membership-policy structure is clearly available in Solid Admin UI.
+- Implement SMTP automation workflow controls in Solid Admin UI (not only provider/outbox listing).
+- Protect user registration UI with Cloudflare Turnstile + honeypot fields when server policy enables bot protection.
+
+### Implementation Status
+- [x] Registration UI now loads `/api/v1/auth/config`, renders Cloudflare Turnstile when enabled, and submits `cf-turnstile-response` + honeypot `website` fields (`frontend-solid/src/routes/Register.tsx`).
+- [x] Registration form now blocks submit until Turnstile verification is completed (when enabled) and resets verification token on backend verification errors (`frontend-solid/src/routes/Register.tsx`).
+- [x] Admin Email section now includes workflow automation visibility/toggling, SMTP test action, workflow test enqueue action, and recent email-event table (`frontend-solid/src/routes/Admin.tsx`).
+- [x] Admin Membership Policies section now exposes policy metadata structure (source/scope/target/role modes), richer policy target details, and manual per-user resync action (`frontend-solid/src/routes/Admin.tsx`).
+- [x] User settings `Advanced` section now includes admin-only shortcuts to server configuration, membership policies, and email workflows in Admin Console (`frontend-solid/src/routes/Settings.tsx`).
+
+### Verification Status
+1. `cd frontend-solid && npm run build`
+- Result: PASS
+
+2. `cd frontend-solid && npm run test -- tests/auth/authRedirect.test.ts`
+- Result: PASS
+
+3. `cd frontend-solid && PLAYWRIGHT_WEB_SERVER=1 npm run test:e2e -- e2e/tests/auth.spec.ts e2e/tests/settings.spec.ts --project=chromium`
+- Result: PARTIAL (16 passed, 2 skipped, 1 failed, 11 not run due serial abort).
+- Failing test is pre-existing/non-blocking for this change set: `e2e/tests/settings.spec.ts` incorrect-current-password scenario expects old-password login to fail but observed success.
+
 ## 2026-03-14 Solid WebUI Parity Gap Closure (Phase A)
 
 ### Task

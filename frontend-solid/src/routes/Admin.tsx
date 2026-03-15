@@ -199,6 +199,45 @@ interface AdminEmailOutboxEntry {
   created_at: string;
 }
 
+interface AdminEmailWorkflow {
+  id: string;
+  workflow_key: string;
+  name: string;
+  description?: string | null;
+  category: string;
+  enabled: boolean;
+  system_required: boolean;
+  can_disable: boolean;
+  default_locale: string;
+}
+
+interface AdminEmailEvent {
+  id: string;
+  outbox_id?: string | null;
+  workflow_key?: string | null;
+  event_type: string;
+  recipient_email: string;
+  status_code?: number | null;
+  error_category?: string | null;
+  error_message?: string | null;
+  created_at: string;
+}
+
+interface AdminEmailTestResult {
+  status?: string;
+  success?: boolean;
+  message?: string;
+  error?: string;
+  outbox_id?: string;
+}
+
+interface MembershipPolicyMetadata {
+  source_types: Array<{ value: string; label: string }>;
+  scope_types: Array<{ value: string; label: string }>;
+  target_types: Array<{ value: string; label: string }>;
+  role_modes: Array<{ value: string; label: string }>;
+}
+
 const sections: AdminSection[] = [
   { id: '', label: 'Overview', description: 'System summary and quick links' },
   { id: 'users', label: 'Users', description: 'Manage users and account lifecycle' },
@@ -216,6 +255,10 @@ function formatDateTime(dateValue?: string | null): string {
   const parsed = new Date(dateValue);
   if (Number.isNaN(parsed.getTime())) return 'Never';
   return parsed.toLocaleString();
+}
+
+function isValidEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }
 
 async function parseApiError(response: Response): Promise<Error> {
@@ -1109,9 +1152,16 @@ function AdminSecuritySection() {
 function AdminEmailSection() {
   const [providers, setProviders] = createSignal<AdminEmailProvider[]>([]);
   const [outbox, setOutbox] = createSignal<AdminEmailOutboxEntry[]>([]);
+  const [workflows, setWorkflows] = createSignal<AdminEmailWorkflow[]>([]);
+  const [events, setEvents] = createSignal<AdminEmailEvent[]>([]);
   const [isLoading, setIsLoading] = createSignal(true);
   const [isSettingDefaultId, setIsSettingDefaultId] = createSignal<string | null>(null);
   const [isMutatingOutboxId, setIsMutatingOutboxId] = createSignal<string | null>(null);
+  const [isSavingWorkflowId, setIsSavingWorkflowId] = createSignal<string | null>(null);
+  const [isSendingWorkflowTest, setIsSendingWorkflowTest] = createSignal(false);
+  const [isRunningSmtpTest, setIsRunningSmtpTest] = createSignal(false);
+  const [testRecipient, setTestRecipient] = createSignal('');
+  const [selectedWorkflowId, setSelectedWorkflowId] = createSignal('');
   const [notice, setNotice] = createSignal<string | null>(null);
   const [error, setError] = createSignal<string | null>(null);
 
@@ -1123,6 +1173,10 @@ function AdminEmailSection() {
     return Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
   });
 
+  const selectedWorkflow = createMemo(() =>
+    workflows().find((workflow) => workflow.id === selectedWorkflowId()) || null
+  );
+
   const loadEmailData = async () => {
     const token = authStore.token;
     if (!token) return;
@@ -1131,12 +1185,25 @@ function AdminEmailSection() {
     setError(null);
     setNotice(null);
     try {
-      const [providerData, outboxData] = await Promise.all([
+      const [providerData, outboxData, workflowData, eventData] = await Promise.all([
         fetchAdminV4Json<AdminEmailProvider[]>(token, '/admin/email/providers'),
         fetchAdminV4Json<AdminEmailOutboxEntry[]>(token, '/admin/email/outbox?page=1&per_page=20'),
+        fetchAdminJson<AdminEmailWorkflow[]>(token, '/admin/email/workflows').catch(() => []),
+        fetchAdminJson<AdminEmailEvent[]>(token, '/admin/email/events?page=1&per_page=20').catch(
+          () => []
+        ),
       ]);
       setProviders(providerData || []);
       setOutbox(outboxData || []);
+      setWorkflows(workflowData || []);
+      setEvents(eventData || []);
+      if (!testRecipient() && authStore.user()?.email) {
+        setTestRecipient(authStore.user()?.email || '');
+      }
+      if (!selectedWorkflowId() && workflowData.length > 0) {
+        const firstEnabled = workflowData.find((workflow) => workflow.enabled) || workflowData[0];
+        setSelectedWorkflowId(firstEnabled?.id || '');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load email admin data');
     } finally {
@@ -1165,6 +1232,104 @@ function AdminEmailSection() {
       setError(err instanceof Error ? err.message : 'Failed to set default provider');
     } finally {
       setIsSettingDefaultId(null);
+    }
+  };
+
+  const toggleWorkflowEnabled = async (workflow: AdminEmailWorkflow) => {
+    const token = authStore.token;
+    if (!token) return;
+    if (!workflow.can_disable && workflow.enabled) return;
+
+    setIsSavingWorkflowId(workflow.id);
+    setError(null);
+    setNotice(null);
+
+    try {
+      const updated = await fetchAdminJson<AdminEmailWorkflow>(token, `/admin/email/workflows/${workflow.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ enabled: !workflow.enabled }),
+      });
+      setWorkflows((current) =>
+        current.map((item) => (item.id === updated.id ? updated : item))
+      );
+      setNotice(`Workflow "${updated.name}" ${updated.enabled ? 'enabled' : 'disabled'}.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update workflow');
+    } finally {
+      setIsSavingWorkflowId(null);
+    }
+  };
+
+  const runSmtpTest = async () => {
+    const token = authStore.token;
+    if (!token) return;
+    const recipient = testRecipient().trim();
+    if (!isValidEmail(recipient)) {
+      setError('Enter a valid recipient email to run SMTP test.');
+      return;
+    }
+
+    setIsRunningSmtpTest(true);
+    setError(null);
+    setNotice(null);
+
+    try {
+      const result = await fetchAdminV4Json<AdminEmailTestResult>(token, '/admin/email/test', {
+        method: 'POST',
+        body: JSON.stringify({ to: recipient }),
+      });
+      if (result.status === 'error' || result.success === false) {
+        throw new Error(result.error || 'SMTP test failed');
+      }
+      setNotice(result.message || 'SMTP test email sent successfully.');
+      await loadEmailData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'SMTP test failed');
+    } finally {
+      setIsRunningSmtpTest(false);
+    }
+  };
+
+  const sendWorkflowTest = async () => {
+    const token = authStore.token;
+    if (!token) return;
+    const recipient = testRecipient().trim();
+    if (!isValidEmail(recipient)) {
+      setError('Enter a valid recipient email to queue a workflow test.');
+      return;
+    }
+
+    const workflow = selectedWorkflow();
+    if (!workflow) {
+      setError('Select a workflow to test.');
+      return;
+    }
+
+    setIsSendingWorkflowTest(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const result = await fetchAdminJson<AdminEmailTestResult>(token, '/admin/email/send-test', {
+        method: 'POST',
+        body: JSON.stringify({
+          to_email: recipient,
+          workflow_key: workflow.workflow_key,
+        }),
+      });
+      if (result.success === false) {
+        throw new Error(result.error || 'Failed to queue workflow test');
+      }
+      setNotice(
+        result.message ||
+          (result.outbox_id
+            ? `Workflow test queued (${result.outbox_id}).`
+            : 'Workflow test queued successfully.')
+      );
+      await loadEmailData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to queue workflow test');
+    } finally {
+      setIsSendingWorkflowTest(false);
     }
   };
 
@@ -1205,13 +1370,133 @@ function AdminEmailSection() {
       </Show>
 
       <Show when={!isLoading()} fallback={<p class="text-sm text-text-3">Loading email configuration...</p>}>
-        <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
+        <div class="grid grid-cols-1 gap-3 md:grid-cols-4">
           <OverviewCard label="Providers" value={String(providers().length)} />
           <OverviewCard
             label="Enabled Providers"
             value={String(providers().filter((provider) => provider.enabled).length)}
           />
           <OverviewCard label="Outbox Entries" value={String(outbox().length)} />
+          <OverviewCard label="Workflows" value={String(workflows().length)} />
+        </div>
+
+        <div class="rounded-xl border border-border-1 bg-bg-surface-1 p-4 space-y-3">
+          <h3 class="text-sm font-semibold text-text-1">SMTP & Workflow Tests</h3>
+          <label class="block">
+            <span class="block text-xs font-medium text-text-3 mb-1.5">Recipient email</span>
+            <input
+              type="email"
+              value={testRecipient()}
+              onInput={(event) => setTestRecipient(event.currentTarget.value)}
+              placeholder="admin@example.com"
+              class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-sm text-text-1"
+            />
+          </label>
+
+          <div class="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              class="rounded-lg border border-border-1 px-3 py-1.5 text-sm font-medium text-text-2 hover:bg-bg-surface-2 disabled:opacity-60"
+              onClick={() => {
+                void runSmtpTest();
+              }}
+              disabled={isRunningSmtpTest()}
+            >
+              {isRunningSmtpTest() ? 'Running SMTP Test...' : 'Run SMTP Test'}
+            </button>
+          </div>
+
+          <div class="grid grid-cols-1 gap-2 md:grid-cols-[minmax(0,1fr)_auto]">
+            <select
+              value={selectedWorkflowId()}
+              onChange={(event) => setSelectedWorkflowId(event.currentTarget.value)}
+              class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-sm text-text-1"
+            >
+              <option value="" disabled>
+                Select workflow
+              </option>
+              <For each={workflows()}>
+                {(workflow) => (
+                  <option value={workflow.id}>
+                    {workflow.name} ({workflow.workflow_key})
+                  </option>
+                )}
+              </For>
+            </select>
+
+            <button
+              type="button"
+              class="rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
+              onClick={() => {
+                void sendWorkflowTest();
+              }}
+              disabled={isSendingWorkflowTest() || !selectedWorkflowId()}
+            >
+              {isSendingWorkflowTest() ? 'Queueing...' : 'Queue Workflow Test'}
+            </button>
+          </div>
+        </div>
+
+        <div class="rounded-xl border border-border-1 bg-bg-surface-1 p-4 space-y-3">
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm font-semibold text-text-1">Notification Workflows</h3>
+            <button
+              type="button"
+              class="rounded-lg border border-border-1 px-3 py-1.5 text-sm font-medium text-text-2 hover:bg-bg-surface-2"
+              onClick={() => {
+                void loadEmailData();
+              }}
+            >
+              Reload
+            </button>
+          </div>
+
+          <Show when={workflows().length > 0} fallback={<p class="text-sm text-text-3">No workflows found.</p>}>
+            <div class="space-y-2">
+              <For each={workflows()}>
+                {(workflow) => (
+                  <div class="rounded-lg border border-border-1 px-3 py-3">
+                    <div class="flex flex-wrap items-center justify-between gap-3">
+                      <div class="space-y-1">
+                        <p class="text-sm font-medium text-text-1">{workflow.name}</p>
+                        <p class="text-xs text-text-3">
+                          {workflow.workflow_key} · {workflow.category} · locale {workflow.default_locale}
+                        </p>
+                      </div>
+                      <div class="flex items-center gap-2">
+                        <span
+                          class={`rounded-full px-2 py-1 text-xs font-medium ${
+                            workflow.enabled ? 'bg-success/15 text-success' : 'bg-warning/20 text-warning'
+                          }`}
+                        >
+                          {workflow.enabled ? 'Enabled' : 'Disabled'}
+                        </span>
+                        <button
+                          type="button"
+                          class="rounded-lg border border-border-1 px-3 py-1.5 text-xs font-medium text-text-2 hover:bg-bg-surface-2 disabled:opacity-60"
+                          disabled={
+                            isSavingWorkflowId() === workflow.id ||
+                            (!workflow.can_disable && workflow.enabled)
+                          }
+                          onClick={() => {
+                            void toggleWorkflowEnabled(workflow);
+                          }}
+                        >
+                          {isSavingWorkflowId() === workflow.id
+                            ? 'Updating...'
+                            : workflow.enabled
+                              ? workflow.can_disable
+                                ? 'Disable'
+                                : 'Required'
+                              : 'Enable'}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </For>
+            </div>
+          </Show>
         </div>
 
         <div class="rounded-xl border border-border-1 bg-bg-surface-1 p-4 space-y-3">
@@ -1337,6 +1622,40 @@ function AdminEmailSection() {
                             </button>
                           </Show>
                         </td>
+                      </tr>
+                    )}
+                  </For>
+                </tbody>
+              </table>
+            </div>
+          </Show>
+        </div>
+
+        <div class="rounded-xl border border-border-1 bg-bg-surface-1 p-4 space-y-3">
+          <h3 class="text-sm font-semibold text-text-1">Recent Email Events</h3>
+          <Show when={events().length > 0} fallback={<p class="text-sm text-text-3">No email events captured yet.</p>}>
+            <div class="overflow-x-auto rounded-lg border border-border-1">
+              <table class="w-full text-left text-xs">
+                <thead class="border-b border-border-1 bg-bg-surface-2 text-text-3">
+                  <tr>
+                    <th class="px-3 py-2 font-medium">Event</th>
+                    <th class="px-3 py-2 font-medium">Workflow</th>
+                    <th class="px-3 py-2 font-medium">Recipient</th>
+                    <th class="px-3 py-2 font-medium">Error</th>
+                    <th class="px-3 py-2 font-medium">Time</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <For each={events()}>
+                    {(event) => (
+                      <tr class="border-b border-border-1/60 last:border-b-0">
+                        <td class="px-3 py-2 text-text-2 capitalize">{event.event_type}</td>
+                        <td class="px-3 py-2 text-text-2">{event.workflow_key || '-'}</td>
+                        <td class="px-3 py-2 text-text-2">{event.recipient_email}</td>
+                        <td class="px-3 py-2 text-text-2">
+                          {event.error_category || event.error_message || '-'}
+                        </td>
+                        <td class="px-3 py-2 text-text-2">{formatDateTime(event.created_at)}</td>
                       </tr>
                     )}
                   </For>
@@ -1484,8 +1803,12 @@ function AdminComplianceSection() {
 function AdminMembershipPoliciesSection() {
   const [policies, setPolicies] = createSignal<AdminMembershipPolicy[]>([]);
   const [summary, setSummary] = createSignal<AdminMembershipAuditSummary | null>(null);
+  const [metadata, setMetadata] = createSignal<MembershipPolicyMetadata | null>(null);
   const [isLoading, setIsLoading] = createSignal(true);
   const [isMutatingPolicyId, setIsMutatingPolicyId] = createSignal<string | null>(null);
+  const [isResyncing, setIsResyncing] = createSignal(false);
+  const [resyncUserId, setResyncUserId] = createSignal('');
+  const [notice, setNotice] = createSignal<string | null>(null);
   const [error, setError] = createSignal<string | null>(null);
 
   const loadMembershipData = async () => {
@@ -1494,14 +1817,19 @@ function AdminMembershipPoliciesSection() {
 
     setIsLoading(true);
     setError(null);
+    setNotice(null);
 
     try {
-      const [policiesData, summaryData] = await Promise.all([
+      const [policiesData, summaryData, metadataData] = await Promise.all([
         fetchAdminJson<AdminMembershipPolicy[]>(token, '/admin/membership-policies'),
         fetchAdminJson<AdminMembershipAuditSummary>(token, '/admin/audit/membership/summary'),
+        fetchAdminJson<MembershipPolicyMetadata>(token, '/admin/membership-policies/metadata').catch(
+          () => null
+        ),
       ]);
       setPolicies(policiesData || []);
       setSummary(summaryData || null);
+      setMetadata(metadataData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load membership policy data');
     } finally {
@@ -1534,10 +1862,42 @@ function AdminMembershipPoliciesSection() {
       setPolicies((current) =>
         current.map((item) => (item.id === updatedPolicy.id ? updatedPolicy : item))
       );
+      setNotice(`Policy "${updatedPolicy.name}" ${updatedPolicy.enabled ? 'enabled' : 'disabled'}.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update policy');
     } finally {
       setIsMutatingPolicyId(null);
+    }
+  };
+
+  const triggerUserResync = async () => {
+    const token = authStore.token;
+    if (!token) return;
+    const userId = resyncUserId().trim();
+    if (!userId) {
+      setError('Enter a user ID to run membership re-sync.');
+      return;
+    }
+
+    setIsResyncing(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const result = await fetchAdminJson<{
+        memberships_applied: number;
+        memberships_failed: number;
+        teams_processed: number;
+      }>(token, `/admin/membership-policies/users/${userId}/resync`, {
+        method: 'POST',
+      });
+      setNotice(
+        `Re-sync completed: ${result.memberships_applied} applied, ${result.memberships_failed} failed across ${result.teams_processed} team(s).`
+      );
+      await loadMembershipData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to run user re-sync');
+    } finally {
+      setIsResyncing(false);
     }
   };
 
@@ -1549,11 +1909,75 @@ function AdminMembershipPoliciesSection() {
         </div>
       </Show>
 
+      <Show when={notice()}>
+        <div class="rounded-lg border border-success/30 bg-success/10 px-4 py-3 text-sm text-success">
+          {notice()}
+        </div>
+      </Show>
+
       <Show when={!isLoading()} fallback={<p class="text-sm text-text-3">Loading membership policies...</p>}>
         <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
           <OverviewCard label="Policies" value={String(policies().length)} />
           <OverviewCard label="Operations (24h)" value={String(summary()?.total_operations_24h ?? 0)} />
           <OverviewCard label="Failure Rate (24h)" value={`${(summary()?.failure_rate_24h ?? 0).toFixed(1)}%`} />
+        </div>
+
+        <Show when={metadata()}>
+          <div class="rounded-xl border border-border-1 bg-bg-surface-1 p-4 space-y-3">
+            <h3 class="text-sm font-semibold text-text-1">Policy Structure</h3>
+            <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div>
+                <p class="text-xs uppercase tracking-wide text-text-3 mb-1">Source Types</p>
+                <p class="text-sm text-text-2">
+                  {(metadata()?.source_types || []).map((item) => item.label).join(', ') || 'N/A'}
+                </p>
+              </div>
+              <div>
+                <p class="text-xs uppercase tracking-wide text-text-3 mb-1">Scope Types</p>
+                <p class="text-sm text-text-2">
+                  {(metadata()?.scope_types || []).map((item) => item.label).join(', ') || 'N/A'}
+                </p>
+              </div>
+              <div>
+                <p class="text-xs uppercase tracking-wide text-text-3 mb-1">Target Types</p>
+                <p class="text-sm text-text-2">
+                  {(metadata()?.target_types || []).map((item) => item.label).join(', ') || 'N/A'}
+                </p>
+              </div>
+              <div>
+                <p class="text-xs uppercase tracking-wide text-text-3 mb-1">Role Modes</p>
+                <p class="text-sm text-text-2">
+                  {(metadata()?.role_modes || []).map((item) => item.label).join(', ') || 'N/A'}
+                </p>
+              </div>
+            </div>
+          </div>
+        </Show>
+
+        <div class="rounded-xl border border-border-1 bg-bg-surface-1 p-4 space-y-3">
+          <h3 class="text-sm font-semibold text-text-1">Manual User Re-Sync</h3>
+          <p class="text-sm text-text-3">
+            Re-apply auto-membership policies for a specific user across their teams.
+          </p>
+          <div class="grid grid-cols-1 gap-2 md:grid-cols-[minmax(0,1fr)_auto]">
+            <input
+              type="text"
+              value={resyncUserId()}
+              onInput={(event) => setResyncUserId(event.currentTarget.value)}
+              placeholder="User UUID"
+              class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-sm text-text-1"
+            />
+            <button
+              type="button"
+              class="rounded-lg border border-border-1 px-3 py-2 text-sm font-medium text-text-2 hover:bg-bg-surface-2 disabled:opacity-60"
+              onClick={() => {
+                void triggerUserResync();
+              }}
+              disabled={isResyncing()}
+            >
+              {isResyncing() ? 'Running...' : 'Run Re-Sync'}
+            </button>
+          </div>
         </div>
 
         <div class="rounded-xl border border-border-1 bg-bg-surface-1 p-4 space-y-3">
@@ -1581,6 +2005,17 @@ function AdminMembershipPoliciesSection() {
                         <p class="text-xs text-text-3">
                           {policy.scope_type} · {policy.source_type} · {policy.targets.length} targets
                         </p>
+                        <Show when={policy.description}>
+                          <p class="text-xs text-text-3">{policy.description}</p>
+                        </Show>
+                        <Show when={policy.targets.length > 0}>
+                          <p class="text-xs text-text-3">
+                            Targets:{' '}
+                            {policy.targets
+                              .map((target) => `${target.target_type}:${target.target_id}`)
+                              .join(', ')}
+                          </p>
+                        </Show>
                       </div>
 
                       <div class="flex items-center gap-2">

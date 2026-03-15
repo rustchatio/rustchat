@@ -1166,7 +1166,9 @@ function SoundSettingsPanel() {
 // ============================================
 
 function AdvancedSettings() {
+  const navigate = useNavigate();
   const [showResetConfirm, setShowResetConfirm] = createSignal(false);
+  const isAdmin = () => isAdminRole(authStore.user()?.role);
 
   const handleClearCache = () => {
     localStorage.clear();
@@ -1229,6 +1231,38 @@ function AdvancedSettings() {
           </div>
         </Show>
       </div>
+
+      <Show when={isAdmin()}>
+        <div class="p-6 bg-bg-surface-1 rounded-xl border border-border-1 space-y-4">
+          <h3 class="font-semibold text-text-1">Administration</h3>
+          <p class="text-sm text-text-3">
+            Server configuration is managed in Admin Console.
+          </p>
+          <div class="flex flex-wrap gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => navigate('/admin/settings')}
+            >
+              Open Server Configuration
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => navigate('/admin/membership-policies')}
+            >
+              Open Membership Policies
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => navigate('/admin/email')}
+            >
+              Open Email Workflows
+            </Button>
+          </div>
+        </div>
+      </Show>
 
       {/* App Info */}
       <div class="p-6 bg-bg-surface-1 rounded-xl border border-border-1 space-y-4">
