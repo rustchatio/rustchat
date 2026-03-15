@@ -9,9 +9,9 @@ use serde::{Deserialize, Serialize};
 use tracing::{debug, info};
 use uuid::Uuid;
 
-use crate::realtime::{WsEnvelope, WsHub};
 #[cfg(feature = "kafka")]
 use crate::config::KafkaConfig;
+use crate::realtime::{WsEnvelope, WsHub};
 #[cfg(feature = "kafka")]
 use crate::services::kafka_consumer::{ConsumedMessage, MessageHandler};
 #[cfg(feature = "kafka")]
@@ -91,9 +91,9 @@ impl ChannelSizeCache {
         // This ensures consistent routing for the same channel
         // In production, query actual member count from Redis cache
         let bytes = channel_id.as_bytes();
-        let hash: u64 = bytes.iter().fold(0u64, |acc, &b| {
-            acc.wrapping_mul(31).wrapping_add(b as u64)
-        });
+        let hash: u64 = bytes
+            .iter()
+            .fold(0u64, |acc, &b| acc.wrapping_mul(31).wrapping_add(b as u64));
 
         // Use Kafka for approximately 10% of channels (simulating large channels)
         // This is a placeholder - replace with actual member count check
@@ -176,9 +176,10 @@ impl FanoutManager {
 
     /// Send a message to Kafka for massive channel fan-out
     async fn send_to_kafka(&self, envelope: WsEnvelope, channel_id: Uuid) -> anyhow::Result<()> {
-        let producer = self.producer.as_ref().ok_or_else(|| {
-            anyhow::anyhow!("Kafka producer not available")
-        })?;
+        let producer = self
+            .producer
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("Kafka producer not available"))?;
 
         // Convert envelope to post event
         let event = self.envelope_to_event(&envelope, channel_id)?;
@@ -204,7 +205,11 @@ impl FanoutManager {
     }
 
     /// Convert WebSocket envelope to post event
-    fn envelope_to_event(&self, envelope: &WsEnvelope, channel_id: Uuid) -> anyhow::Result<PostEvent> {
+    fn envelope_to_event(
+        &self,
+        envelope: &WsEnvelope,
+        channel_id: Uuid,
+    ) -> anyhow::Result<PostEvent> {
         // Parse the event data to extract post information
         let data = &envelope.data;
 
@@ -354,9 +359,7 @@ impl FanoutManager {
                 ("posted", data)
             }
             PostEvent::Updated {
-                post_id,
-                message,
-                ..
+                post_id, message, ..
             } => (
                 "post_edited",
                 serde_json::json!({

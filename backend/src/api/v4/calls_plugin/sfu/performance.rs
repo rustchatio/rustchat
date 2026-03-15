@@ -41,7 +41,9 @@ impl RtpBufferPool {
     /// Acquire a buffer from the pool
     pub async fn acquire(&self) -> Vec<u8> {
         let mut available = self.available.lock().await;
-        available.pop().unwrap_or_else(|| vec![0u8; RTP_BUFFER_SIZE])
+        available
+            .pop()
+            .unwrap_or_else(|| vec![0u8; RTP_BUFFER_SIZE])
     }
 
     /// Return a buffer to the pool
@@ -77,8 +79,8 @@ impl Default for RtpBufferPool {
 // ICE Gathering Optimization
 // ============================================
 
-use webrtc::peer_connection::RTCPeerConnection;
 use std::time::Duration;
+use webrtc::peer_connection::RTCPeerConnection;
 
 /// Wait for ICE gathering to complete or timeout
 /// Uses event-based gathering instead of fixed sleep
@@ -87,7 +89,9 @@ pub async fn wait_for_ice_gathering(
     timeout: Duration,
 ) -> Result<(), &'static str> {
     // Check if already complete
-    if pc.ice_gathering_state() == webrtc::ice_transport::ice_gathering_state::RTCIceGatheringState::Complete {
+    if pc.ice_gathering_state()
+        == webrtc::ice_transport::ice_gathering_state::RTCIceGatheringState::Complete
+    {
         return Ok(());
     }
 
@@ -95,7 +99,9 @@ pub async fn wait_for_ice_gathering(
     let start = tokio::time::Instant::now();
     let timeout_duration = timeout;
     while start.elapsed() < timeout_duration {
-        if pc.ice_gathering_state() == webrtc::ice_transport::ice_gathering_state::RTCIceGatheringState::Complete {
+        if pc.ice_gathering_state()
+            == webrtc::ice_transport::ice_gathering_state::RTCIceGatheringState::Complete
+        {
             return Ok(());
         }
         tokio::time::sleep(Duration::from_millis(50)).await;
@@ -203,7 +209,8 @@ impl SfuMetrics {
 
     pub fn record_packet_forwarded(&self, bytes: usize) {
         self.packets_forwarded.fetch_add(1, Ordering::Relaxed);
-        self.bytes_forwarded.fetch_add(bytes as u64, Ordering::Relaxed);
+        self.bytes_forwarded
+            .fetch_add(bytes as u64, Ordering::Relaxed);
     }
 
     pub fn record_packet_dropped(&self) {

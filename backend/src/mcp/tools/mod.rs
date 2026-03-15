@@ -98,19 +98,21 @@ pub fn require_string_arg(args: &Value, name: &str) -> Result<String, McpError> 
     args.get(name)
         .and_then(|v| v.as_str())
         .map(|s| s.to_string())
-        .ok_or_else(|| McpError::InvalidToolParameters(format!("Missing required argument: {}", name)))
+        .ok_or_else(|| {
+            McpError::InvalidToolParameters(format!("Missing required argument: {}", name))
+        })
 }
 
 /// Helper function to extract an optional string argument
 pub fn optional_string_arg(args: &Value, name: &str) -> Option<String> {
-    args.get(name).and_then(|v| v.as_str()).map(|s| s.to_string())
+    args.get(name)
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
 }
 
 /// Helper function to extract an optional integer argument with default
 pub fn optional_int_arg(args: &Value, name: &str, default: i64) -> i64 {
-    args.get(name)
-        .and_then(|v| v.as_i64())
-        .unwrap_or(default)
+    args.get(name).and_then(|v| v.as_i64()).unwrap_or(default)
 }
 
 /// Helper function to extract an optional UUID argument
@@ -125,7 +127,9 @@ pub fn require_uuid_arg(args: &Value, name: &str) -> Result<uuid::Uuid, McpError
     args.get(name)
         .and_then(|v| v.as_str())
         .and_then(|s| uuid::Uuid::parse_str(s).ok())
-        .ok_or_else(|| McpError::InvalidToolParameters(format!("Missing or invalid UUID argument: {}", name)))
+        .ok_or_else(|| {
+            McpError::InvalidToolParameters(format!("Missing or invalid UUID argument: {}", name))
+        })
 }
 
 #[cfg(test)]

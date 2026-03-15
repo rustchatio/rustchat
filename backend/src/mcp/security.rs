@@ -31,11 +31,7 @@ pub struct McpSecurityContext {
 }
 
 impl McpSecurityContext {
-    pub fn new(
-        user_id: Uuid,
-        approval_store: McpApprovalStore,
-        audit_log: McpAuditLog,
-    ) -> Self {
+    pub fn new(user_id: Uuid, approval_store: McpApprovalStore, audit_log: McpAuditLog) -> Self {
         Self {
             user_id,
             org_id: None,
@@ -199,7 +195,8 @@ impl McpApprovalStore {
             })?;
 
             let redis_key = format!("mcp:approval:{}", key);
-            conn.set_ex::<_, _, ()>(redis_key, value, ttl as u64).await?;
+            conn.set_ex::<_, _, ()>(redis_key, value, ttl as u64)
+                .await?;
         } else {
             // Store in memory
             inner.memory_store.insert(key.to_string(), approval.clone());
@@ -219,7 +216,10 @@ impl McpApprovalStore {
     }
 
     /// Get pending approval by key
-    pub async fn get_approval(&self, key: &str) -> Result<Option<PendingApproval>, ApprovalStoreError> {
+    pub async fn get_approval(
+        &self,
+        key: &str,
+    ) -> Result<Option<PendingApproval>, ApprovalStoreError> {
         let inner = self.inner.write().await;
 
         if let Some(ref redis) = inner.redis {
@@ -536,12 +536,7 @@ mod tests {
 
         // Request approval
         store
-            .request_approval(
-                "test-key",
-                "post_message",
-                &user_id,
-                serde_json::json!({}),
-            )
+            .request_approval("test-key", "post_message", &user_id, serde_json::json!({}))
             .await
             .unwrap();
 

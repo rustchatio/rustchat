@@ -19,7 +19,7 @@ pub mod tasks;
 
 pub use bus::A2AMessageBus;
 pub use protocol::{
-    AgentAdvertisement, AgentCapability, AgentId, A2AMessage, TaskRequest, TaskResponse,
+    A2AMessage, AgentAdvertisement, AgentCapability, AgentId, TaskRequest, TaskResponse,
     TaskStatus, TaskStatusUpdate,
 };
 pub use registry::AgentRegistry;

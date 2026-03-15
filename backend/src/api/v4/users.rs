@@ -2175,9 +2175,9 @@ async fn get_user_image(
 
     // Return default 1x1 transparent PNG if no image uploaded
     const PNG_1X1: &[u8] = &[
-        137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1, 8,
-        6, 0, 0, 0, 31, 21, 196, 137, 0, 0, 0, 10, 73, 68, 65, 84, 120, 156, 99, 0, 1, 0, 0, 5,
-        0, 1, 13, 10, 45, 180, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130,
+        137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1, 8, 6,
+        0, 0, 0, 31, 21, 196, 137, 0, 0, 0, 10, 73, 68, 65, 84, 120, 156, 99, 0, 1, 0, 0, 5, 0, 1,
+        13, 10, 45, 180, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130,
     ];
 
     Ok((
@@ -2285,7 +2285,11 @@ async fn upload_user_image(
             if let Some(legacy_avatar_bytes) = legacy_avatar {
                 state
                     .s3_client
-                    .upload(&format!("avatars/{}.png", user_uuid), legacy_avatar_bytes, "image/png")
+                    .upload(
+                        &format!("avatars/{}.png", user_uuid),
+                        legacy_avatar_bytes,
+                        "image/png",
+                    )
                     .await?;
             }
 
@@ -2639,7 +2643,13 @@ async fn get_user_image_default(
     auth: MmAuthUser,
     Path(user_id): Path<String>,
 ) -> ApiResult<impl IntoResponse> {
-    get_user_image(State(state), auth, Query(UserImageQuery::default()), Path(user_id)).await
+    get_user_image(
+        State(state),
+        auth,
+        Query(UserImageQuery::default()),
+        Path(user_id),
+    )
+    .await
 }
 
 async fn reset_password(headers: HeaderMap, body: Bytes) -> ApiResult<Json<serde_json::Value>> {
@@ -3272,7 +3282,9 @@ async fn delete_user_hard(
     };
 
     // Check permissions - users can only delete themselves unless they're admin
-    if target_user_id != auth.user_id && !auth.has_permission(&crate::auth::policy::permissions::ADMIN_FULL) {
+    if target_user_id != auth.user_id
+        && !auth.has_permission(&crate::auth::policy::permissions::ADMIN_FULL)
+    {
         return Err(AppError::Forbidden(
             "You can only delete your own account".to_string(),
         ));
@@ -3329,7 +3341,9 @@ async fn export_user_data_gdpr(
     };
 
     // Check permissions - users can only export their own data unless they're admin
-    if target_user_id != auth.user_id && !auth.has_permission(&crate::auth::policy::permissions::ADMIN_FULL) {
+    if target_user_id != auth.user_id
+        && !auth.has_permission(&crate::auth::policy::permissions::ADMIN_FULL)
+    {
         return Err(AppError::Forbidden(
             "You can only export your own data".to_string(),
         ));
@@ -3382,7 +3396,9 @@ async fn anonymize_user_gdpr(
     };
 
     // Check permissions
-    if target_user_id != auth.user_id && !auth.has_permission(&crate::auth::policy::permissions::ADMIN_FULL) {
+    if target_user_id != auth.user_id
+        && !auth.has_permission(&crate::auth::policy::permissions::ADMIN_FULL)
+    {
         return Err(AppError::Forbidden(
             "You can only anonymize your own account".to_string(),
         ));

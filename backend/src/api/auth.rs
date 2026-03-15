@@ -25,11 +25,137 @@ use uuid::Uuid;
 
 const DEFAULT_WORKSPACE_NAME: &str = "rustchat";
 const DEFAULT_WORKSPACE_DISPLAY_NAME: &str = "RustChat";
+const DEFAULT_PRIMARY_CHANNEL_NAME: &str = "town-square";
+const DEFAULT_SECONDARY_CHANNEL_NAME: &str = "off-topic";
+const DEFAULT_REGISTRATION_POLICY_NAME: &str = "Default RustChat Registration Policy";
+const DEFAULT_REGISTRATION_POLICY_DESCRIPTION: &str =
+    "Auto-add new registrations to RustChat, Town Square, and Off-Topic.";
 
 #[derive(sqlx::FromRow)]
 struct DefaultTeamRow {
     id: Uuid,
     org_id: Uuid,
+}
+
+#[derive(sqlx::FromRow)]
+struct DefaultChannelRow {
+    id: Uuid,
+    name: String,
+}
+
+async fn ensure_core_rustchat_channels(
+    state: &AppState,
+    team_id: Uuid,
+    creator_id: Uuid,
+) -> ApiResult<(Uuid, Uuid)> {
+    for (name, display_name) in [
+        (DEFAULT_PRIMARY_CHANNEL_NAME, "Town Square"),
+        (DEFAULT_SECONDARY_CHANNEL_NAME, "Off-Topic"),
+    ] {
+        sqlx::query(
+            r#"
+            INSERT INTO channels (team_id, type, name, display_name, creator_id)
+            VALUES ($1, 'public'::channel_type, $2, $3, $4)
+            ON CONFLICT (team_id, name) DO NOTHING
+            "#,
+        )
+        .bind(team_id)
+        .bind(name)
+        .bind(display_name)
+        .bind(creator_id)
+        .execute(&state.db)
+        .await?;
+    }
+
+    let rows: Vec<DefaultChannelRow> = sqlx::query_as(
+        r#"
+        SELECT id, name
+        FROM channels
+        WHERE team_id = $1
+          AND name = ANY($2::text[])
+        "#,
+    )
+    .bind(team_id)
+    .bind(&[DEFAULT_PRIMARY_CHANNEL_NAME, DEFAULT_SECONDARY_CHANNEL_NAME])
+    .fetch_all(&state.db)
+    .await?;
+
+    let mut town_square_id = None;
+    let mut off_topic_id = None;
+    for row in rows {
+        match row.name.as_str() {
+            DEFAULT_PRIMARY_CHANNEL_NAME => town_square_id = Some(row.id),
+            DEFAULT_SECONDARY_CHANNEL_NAME => off_topic_id = Some(row.id),
+            _ => {}
+        }
+    }
+
+    match (town_square_id, off_topic_id) {
+        (Some(town), Some(off)) => Ok((town, off)),
+        _ => Err(AppError::Internal(
+            "Failed to resolve core default channels".to_string(),
+        )),
+    }
+}
+
+async fn ensure_default_registration_membership_policy(
+    state: &AppState,
+    team_id: Uuid,
+    town_square_channel_id: Uuid,
+    off_topic_channel_id: Uuid,
+) -> ApiResult<()> {
+    let existing_policy_id: Option<Uuid> = sqlx::query_scalar(
+        r#"
+        SELECT id
+        FROM auto_membership_policies
+        WHERE name = $1
+          AND scope_type = 'global'
+          AND team_id IS NULL
+        LIMIT 1
+        "#,
+    )
+    .bind(DEFAULT_REGISTRATION_POLICY_NAME)
+    .fetch_optional(&state.db)
+    .await?;
+
+    let policy_id = match existing_policy_id {
+        Some(id) => id,
+        None => {
+            sqlx::query_scalar(
+                r#"
+                INSERT INTO auto_membership_policies
+                    (name, description, scope_type, team_id, source_type, source_config, enabled, priority)
+                VALUES ($1, $2, 'global', NULL, 'all_users', '{}'::jsonb, true, 100)
+                RETURNING id
+                "#,
+            )
+            .bind(DEFAULT_REGISTRATION_POLICY_NAME)
+            .bind(DEFAULT_REGISTRATION_POLICY_DESCRIPTION)
+            .fetch_one(&state.db)
+            .await?
+        }
+    };
+
+    for (target_type, target_id) in [
+        ("team", team_id),
+        ("channel", town_square_channel_id),
+        ("channel", off_topic_channel_id),
+    ] {
+        sqlx::query(
+            r#"
+            INSERT INTO auto_membership_policy_targets (policy_id, target_type, target_id, role_mode)
+            VALUES ($1, $2, $3, 'member')
+            ON CONFLICT (policy_id, target_type, target_id) DO NOTHING
+            "#,
+        )
+        .bind(policy_id)
+        .bind(target_type)
+        .bind(target_id)
+        .execute(&state.db)
+        .await?;
+    }
+
+    Ok(())
 }
 
 async fn ensure_default_workspace_membership(state: &AppState, user: &User) -> ApiResult<User> {
@@ -95,6 +221,32 @@ async fn ensure_default_workspace_membership(state: &AppState, user: &User) -> A
 
     ensure_default_channels_for_team(state, team.id, user.id).await?;
 
+    match ensure_core_rustchat_channels(state, team.id, user.id).await {
+        Ok((town_square_channel_id, off_topic_channel_id)) => {
+            if let Err(err) = ensure_default_registration_membership_policy(
+                state,
+                team.id,
+                town_square_channel_id,
+                off_topic_channel_id,
+            )
+            .await
+            {
+                tracing::warn!(
+                    team_id = %team.id,
+                    error = %err,
+                    "Default registration membership policy bootstrap failed"
+                );
+            }
+        }
+        Err(err) => {
+            tracing::warn!(
+                team_id = %team.id,
+                error = %err,
+                "Core default channel bootstrap failed"
+            );
+        }
+    }
+
     let membership_role = if user.role == "system_admin" || user.role == "org_admin" {
         "admin"
     } else {
@@ -109,7 +261,8 @@ async fn ensure_default_workspace_membership(state: &AppState, user: &User) -> A
     .execute(&state.db)
     .await?;
 
-    if let Err(err) = apply_default_channel_membership_for_team_join(state, team.id, user.id).await {
+    if let Err(err) = apply_default_channel_membership_for_team_join(state, team.id, user.id).await
+    {
         tracing::warn!(
             team_id = %team.id,
             user_id = %user.id,

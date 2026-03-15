@@ -261,6 +261,14 @@ function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
 }
 
+function parseRoleTokens(roleValue: string | null | undefined): string[] {
+  if (!roleValue) return [];
+  return roleValue
+    .split(/[\s,]+/)
+    .map((token) => token.trim().toLowerCase())
+    .filter((token) => token.length > 0);
+}
+
 async function parseApiError(response: Response): Promise<Error> {
   let message = `Request failed (${response.status})`;
 
@@ -400,9 +408,15 @@ function AdminUsersSection() {
   const [users, setUsers] = createSignal<AdminUser[]>([]);
   const [total, setTotal] = createSignal(0);
   const [isLoading, setIsLoading] = createSignal(true);
+  const [isMutatingUserId, setIsMutatingUserId] = createSignal<string | null>(null);
   const [error, setError] = createSignal<string | null>(null);
+  const [notice, setNotice] = createSignal<string | null>(null);
   const [search, setSearch] = createSignal('');
   const [status, setStatus] = createSignal<'all' | 'active' | 'inactive'>('all');
+  const [includeDeleted, setIncludeDeleted] = createSignal(false);
+  const canDeleteUsers = createMemo(() =>
+    parseRoleTokens(authStore.user()?.role).includes('system_admin')
+  );
 
   const loadUsers = async () => {
     const token = authStore.token;
@@ -410,6 +424,7 @@ function AdminUsersSection() {
 
     setIsLoading(true);
     setError(null);
+    setNotice(null);
 
     try {
       const params = new URLSearchParams({
@@ -422,6 +437,9 @@ function AdminUsersSection() {
       }
       if (status() !== 'all') {
         params.set('status', status());
+      }
+      if (includeDeleted()) {
+        params.set('include_deleted', 'true');
       }
 
       const response = await fetchAdminJson<AdminUsersResponse>(
@@ -447,14 +465,86 @@ function AdminUsersSection() {
     const token = authStore.token;
     if (!token) return;
 
+    setIsMutatingUserId(user.id);
+    setError(null);
+    setNotice(null);
     try {
       const endpoint = user.is_active
         ? `/admin/users/${user.id}/deactivate`
         : `/admin/users/${user.id}/reactivate`;
       await fetchAdminJson<{ status: string }>(token, endpoint, { method: 'POST' });
+      setNotice(
+        `${user.display_name || user.username} ${user.is_active ? 'deactivated' : 'reactivated'}.`
+      );
       await loadUsers();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update user status');
+    } finally {
+      setIsMutatingUserId(null);
+    }
+  };
+
+  const deleteUser = async (user: AdminUser) => {
+    const token = authStore.token;
+    if (!token) return;
+    if (!canDeleteUsers()) {
+      setError('Only system_admin can delete or wipe users.');
+      return;
+    }
+
+    const confirmValue = window.prompt(
+      `Type the username or email to delete this user:\n${user.username} / ${user.email}`,
+      user.username
+    );
+    if (!confirmValue) return;
+    const reason = window.prompt('Optional deletion reason:', 'Admin requested account removal');
+
+    setIsMutatingUserId(user.id);
+    setError(null);
+    setNotice(null);
+    try {
+      await fetchAdminJson<{ status: string }>(token, `/admin/users/${user.id}`, {
+        method: 'DELETE',
+        body: JSON.stringify({
+          confirm: confirmValue.trim(),
+          reason: reason?.trim() || undefined,
+        }),
+      });
+      setNotice(`${user.display_name || user.username} soft-deleted.`);
+      await loadUsers();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete user');
+    } finally {
+      setIsMutatingUserId(null);
+    }
+  };
+
+  const wipeUser = async (user: AdminUser) => {
+    const token = authStore.token;
+    if (!token) return;
+    if (!canDeleteUsers()) {
+      setError('Only system_admin can delete or wipe users.');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Permanently wipe ${user.display_name || user.username}? This cannot be undone.`
+    );
+    if (!confirmed) return;
+
+    setIsMutatingUserId(user.id);
+    setError(null);
+    setNotice(null);
+    try {
+      await fetchAdminJson<{ status: string; message?: string }>(token, `/admin/users/${user.id}/wipe`, {
+        method: 'POST',
+      });
+      setNotice(`${user.display_name || user.username} permanently wiped.`);
+      await loadUsers();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to wipe user');
+    } finally {
+      setIsMutatingUserId(null);
     }
   };
 
@@ -477,6 +567,15 @@ function AdminUsersSection() {
           <option value="active">Active</option>
           <option value="inactive">Inactive</option>
         </select>
+        <label class="inline-flex items-center gap-2 text-sm text-text-2">
+          <input
+            type="checkbox"
+            checked={includeDeleted()}
+            onChange={(event) => setIncludeDeleted(event.currentTarget.checked)}
+            class="h-4 w-4 rounded border-border-1 bg-bg-app"
+          />
+          Include deleted
+        </label>
         <button
           type="button"
           class="rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover"
@@ -492,6 +591,11 @@ function AdminUsersSection() {
       <Show when={error()}>
         <div class="rounded-lg border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
           {error()}
+        </div>
+      </Show>
+      <Show when={notice()}>
+        <div class="rounded-lg border border-success/30 bg-success/10 px-4 py-3 text-sm text-success">
+          {notice()}
         </div>
       </Show>
 
@@ -518,21 +622,67 @@ function AdminUsersSection() {
                       </td>
                       <td class="px-4 py-3 text-text-2">{user.role}</td>
                       <td class="px-4 py-3">
-                        <span class={`rounded-full px-2 py-1 text-xs font-medium ${user.is_active ? 'bg-success/15 text-success' : 'bg-warning/20 text-warning'}`}>
-                          {user.is_active ? 'Active' : 'Inactive'}
-                        </span>
+                        <Show
+                          when={!user.deleted_at}
+                          fallback={
+                            <span class="rounded-full bg-danger/15 px-2 py-1 text-xs font-medium text-danger">
+                              Deleted
+                            </span>
+                          }
+                        >
+                          <span class={`rounded-full px-2 py-1 text-xs font-medium ${user.is_active ? 'bg-success/15 text-success' : 'bg-warning/20 text-warning'}`}>
+                            {user.is_active ? 'Active' : 'Inactive'}
+                          </span>
+                        </Show>
                       </td>
                       <td class="px-4 py-3 text-text-2">{formatDateTime(user.last_login_at)}</td>
                       <td class="px-4 py-3 text-right">
-                        <button
-                          type="button"
-                          class={`rounded-lg px-3 py-1.5 text-xs font-medium ${user.is_active ? 'bg-warning/20 text-warning hover:bg-warning/30' : 'bg-success/20 text-success hover:bg-success/30'}`}
-                          onClick={() => {
-                            void toggleUserActive(user);
-                          }}
-                        >
-                          {user.is_active ? 'Deactivate' : 'Reactivate'}
-                        </button>
+                        <div class="inline-flex items-center gap-2">
+                          <Show when={!user.deleted_at}>
+                            <button
+                              type="button"
+                              class={`rounded-lg px-3 py-1.5 text-xs font-medium ${user.is_active ? 'bg-warning/20 text-warning hover:bg-warning/30' : 'bg-success/20 text-success hover:bg-success/30'} disabled:opacity-60`}
+                              onClick={() => {
+                                void toggleUserActive(user);
+                              }}
+                              disabled={isMutatingUserId() === user.id}
+                            >
+                              {isMutatingUserId() === user.id
+                                ? 'Working...'
+                                : user.is_active
+                                  ? 'Deactivate'
+                                  : 'Reactivate'}
+                            </button>
+                          </Show>
+
+                          <Show when={!user.deleted_at}>
+                            <button
+                              type="button"
+                              class="rounded-lg border border-danger/40 px-3 py-1.5 text-xs font-medium text-danger hover:bg-danger/10 disabled:opacity-60"
+                              onClick={() => {
+                                void deleteUser(user);
+                              }}
+                              disabled={isMutatingUserId() === user.id || !canDeleteUsers()}
+                              title={canDeleteUsers() ? 'Soft delete user' : 'Requires system_admin role'}
+                            >
+                              {isMutatingUserId() === user.id ? 'Working...' : 'Delete'}
+                            </button>
+                          </Show>
+
+                          <Show when={!!user.deleted_at}>
+                            <button
+                              type="button"
+                              class="rounded-lg border border-danger px-3 py-1.5 text-xs font-medium text-danger hover:bg-danger/10 disabled:opacity-60"
+                              onClick={() => {
+                                void wipeUser(user);
+                              }}
+                              disabled={isMutatingUserId() === user.id || !canDeleteUsers()}
+                              title={canDeleteUsers() ? 'Permanently wipe user' : 'Requires system_admin role'}
+                            >
+                              {isMutatingUserId() === user.id ? 'Working...' : 'Wipe'}
+                            </button>
+                          </Show>
+                        </div>
                       </td>
                     </tr>
                   )}
@@ -1055,8 +1205,15 @@ function AdminSecuritySection() {
   const [ssoConfigs, setSsoConfigs] = createSignal<AdminSsoConfig[]>([]);
   const [permissions, setPermissions] = createSignal<AdminPermission[]>([]);
   const [systemAdminPermissions, setSystemAdminPermissions] = createSignal<string[]>([]);
+  const [roleOptions, setRoleOptions] = createSignal<string[]>([]);
+  const [roleUserCounts, setRoleUserCounts] = createSignal<Record<string, number>>({});
+  const [selectedRole, setSelectedRole] = createSignal('system_admin');
+  const [rolePermissions, setRolePermissions] = createSignal<string[]>([]);
   const [isLoading, setIsLoading] = createSignal(true);
+  const [isLoadingRolePermissions, setIsLoadingRolePermissions] = createSignal(false);
+  const [isSavingRolePermissions, setIsSavingRolePermissions] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
+  const [notice, setNotice] = createSignal<string | null>(null);
 
   const permissionsByCategory = createMemo(() => {
     const categories = new Map<string, number>();
@@ -1067,22 +1224,76 @@ function AdminSecuritySection() {
     return Array.from(categories.entries()).sort((a, b) => b[1] - a[1]);
   });
 
+  const permissionGroups = createMemo(() => {
+    const groups = new Map<string, AdminPermission[]>();
+    for (const permission of permissions()) {
+      const category = permission.category || 'uncategorized';
+      const list = groups.get(category) || [];
+      list.push(permission);
+      groups.set(category, list);
+    }
+    return Array.from(groups.entries())
+      .map(([category, list]) => [category, list.sort((a, b) => a.id.localeCompare(b.id))] as const)
+      .sort((a, b) => a[0].localeCompare(b[0]));
+  });
+
+  const loadRolePermissions = async (role: string) => {
+    const token = authStore.token;
+    if (!token || !role) return;
+    setIsLoadingRolePermissions(true);
+    setError(null);
+    try {
+      const roleData = await fetchAdminJson<string[]>(token, `/admin/roles/${role}/permissions`);
+      setRolePermissions(roleData || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load role permissions');
+      setRolePermissions([]);
+    } finally {
+      setIsLoadingRolePermissions(false);
+    }
+  };
+
   const loadSecurityData = async () => {
     const token = authStore.token;
     if (!token) return;
 
     setIsLoading(true);
     setError(null);
+    setNotice(null);
 
     try {
-      const [ssoData, permissionsData, systemAdminData] = await Promise.all([
+      const [ssoData, permissionsData, systemAdminData, usersData] = await Promise.all([
         fetchAdminJson<AdminSsoConfig[]>(token, '/admin/sso'),
         fetchAdminJson<AdminPermission[]>(token, '/admin/permissions'),
         fetchAdminJson<string[]>(token, '/admin/roles/system_admin/permissions'),
+        fetchAdminJson<AdminUsersResponse>(token, '/admin/users?page=1&per_page=200&include_deleted=true').catch(
+          () => ({ users: [], total: 0 })
+        ),
       ]);
       setSsoConfigs(ssoData || []);
       setPermissions(permissionsData || []);
       setSystemAdminPermissions(systemAdminData || []);
+
+      const knownRoles = new Set(['system_admin', 'org_admin', 'team_admin', 'member', 'guest']);
+      const counts: Record<string, number> = {};
+      for (const user of usersData.users || []) {
+        const tokens = parseRoleTokens(user.role);
+        for (const role of tokens) {
+          knownRoles.add(role);
+          counts[role] = (counts[role] || 0) + 1;
+        }
+      }
+      const sortedRoles = Array.from(knownRoles).sort((a, b) => a.localeCompare(b));
+      setRoleOptions(sortedRoles);
+      setRoleUserCounts(counts);
+
+      const preferredRole = sortedRoles.includes(selectedRole())
+        ? selectedRole()
+        : sortedRoles.includes('system_admin')
+          ? 'system_admin'
+          : sortedRoles[0] || 'member';
+      setSelectedRole(preferredRole);
+      await loadRolePermissions(preferredRole);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load security data');
     } finally {
@@ -1096,11 +1307,52 @@ function AdminSecuritySection() {
     }
   });
 
+  const toggleRolePermission = (permissionId: string, enabled: boolean) => {
+    setRolePermissions((current) => {
+      if (enabled) {
+        if (current.includes(permissionId)) return current;
+        return [...current, permissionId].sort();
+      }
+      return current.filter((item) => item !== permissionId);
+    });
+  };
+
+  const saveRolePermissions = async () => {
+    const token = authStore.token;
+    if (!token) return;
+    const role = selectedRole();
+    if (!role) return;
+
+    setIsSavingRolePermissions(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const updated = await fetchAdminJson<string[]>(token, `/admin/roles/${role}/permissions`, {
+        method: 'PUT',
+        body: JSON.stringify({ permissions: rolePermissions() }),
+      });
+      setRolePermissions(updated || []);
+      if (role === 'system_admin') {
+        setSystemAdminPermissions(updated || []);
+      }
+      setNotice(`Permissions for role "${role}" updated.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update role permissions');
+    } finally {
+      setIsSavingRolePermissions(false);
+    }
+  };
+
   return (
     <div class="space-y-4">
       <Show when={error()}>
         <div class="rounded-lg border border-danger/30 bg-danger/10 px-4 py-3 text-sm text-danger">
           {error()}
+        </div>
+      </Show>
+      <Show when={notice()}>
+        <div class="rounded-lg border border-success/30 bg-success/10 px-4 py-3 text-sm text-success">
+          {notice()}
         </div>
       </Show>
 
@@ -1142,6 +1394,107 @@ function AdminSecuritySection() {
                 </div>
               )}
             </For>
+          </div>
+        </div>
+
+        <div class="rounded-xl border border-border-1 bg-bg-surface-1 p-4 space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 class="text-sm font-semibold text-text-1">User Types & Permissions</h3>
+              <p class="text-sm text-text-3">Manage role-level permission assignments.</p>
+            </div>
+            <button
+              type="button"
+              class="rounded-lg border border-border-1 px-3 py-1.5 text-sm font-medium text-text-2 hover:bg-bg-surface-2"
+              onClick={() => {
+                void loadSecurityData();
+              }}
+              disabled={isSavingRolePermissions()}
+            >
+              Reload
+            </button>
+          </div>
+
+          <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <For each={roleOptions()}>
+              {(role) => (
+                <div class="rounded-lg border border-border-1 px-3 py-2 text-sm">
+                  <p class="font-medium text-text-1">{role}</p>
+                  <p class="text-text-3">{roleUserCounts()[role] || 0} users</p>
+                </div>
+              )}
+            </For>
+          </div>
+
+          <div class="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,240px)_1fr]">
+            <div class="space-y-2">
+              <label class="block">
+                <span class="block text-xs font-medium text-text-3 mb-1.5">Role</span>
+                <select
+                  value={selectedRole()}
+                  onChange={(event) => {
+                    const role = event.currentTarget.value;
+                    setSelectedRole(role);
+                    void loadRolePermissions(role);
+                  }}
+                  class="w-full rounded-lg border border-border-1 bg-bg-app px-3 py-2 text-sm text-text-1"
+                >
+                  <For each={roleOptions()}>
+                    {(role) => <option value={role}>{role}</option>}
+                  </For>
+                </select>
+              </label>
+
+              <button
+                type="button"
+                class="w-full rounded-lg bg-brand px-3 py-2 text-sm font-medium text-white hover:bg-brand-hover disabled:opacity-60"
+                onClick={() => {
+                  void saveRolePermissions();
+                }}
+                disabled={isSavingRolePermissions() || isLoadingRolePermissions()}
+              >
+                {isSavingRolePermissions() ? 'Saving...' : 'Save Permissions'}
+              </button>
+            </div>
+
+            <div class="rounded-lg border border-border-1 p-3">
+              <Show
+                when={!isLoadingRolePermissions()}
+                fallback={<p class="text-sm text-text-3">Loading role permissions...</p>}
+              >
+                <div class="max-h-[360px] overflow-y-auto space-y-4">
+                  <For each={permissionGroups()}>
+                    {([category, group]) => (
+                      <div class="space-y-2">
+                        <p class="text-xs uppercase tracking-wide text-text-3">{category}</p>
+                        <div class="space-y-1">
+                          <For each={group}>
+                            {(permission) => (
+                              <label class="flex items-start gap-2 text-sm text-text-2">
+                                <input
+                                  type="checkbox"
+                                  checked={rolePermissions().includes(permission.id)}
+                                  onChange={(event) => {
+                                    toggleRolePermission(permission.id, event.currentTarget.checked);
+                                  }}
+                                  class="mt-0.5 h-4 w-4 rounded border-border-1 bg-bg-app"
+                                />
+                                <span>
+                                  <span class="font-medium text-text-1">{permission.id}</span>
+                                  <Show when={permission.description}>
+                                    <span class="block text-xs text-text-3">{permission.description}</span>
+                                  </Show>
+                                </span>
+                              </label>
+                            )}
+                          </For>
+                        </div>
+                      </div>
+                    )}
+                  </For>
+                </div>
+              </Show>
+            </div>
           </div>
         </div>
       </Show>

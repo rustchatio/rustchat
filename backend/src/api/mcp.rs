@@ -37,8 +37,8 @@ async fn mcp_http_handler(
     }
 
     // Parse JSON-RPC request
-    let json_rpc_request: JsonRpcRequest =
-        serde_json::from_value(request).map_err(|e| AppError::BadRequest(format!("Invalid JSON-RPC: {}", e)))?;
+    let json_rpc_request: JsonRpcRequest = serde_json::from_value(request)
+        .map_err(|e| AppError::BadRequest(format!("Invalid JSON-RPC: {}", e)))?;
 
     // Create security context
     let approval_store = McpApprovalStore::new(state.redis.clone());
@@ -51,7 +51,9 @@ async fn mcp_http_handler(
     let server = McpServer::new(state.config.mcp.clone());
 
     // Handle the request
-    let response = server.handle_request(json_rpc_request, &security_context).await;
+    let response = server
+        .handle_request(json_rpc_request, &security_context)
+        .await;
 
     Ok(Json(serde_json::to_value(response).map_err(|e| {
         AppError::Internal(format!("Serialization error: {}", e))
@@ -111,7 +113,11 @@ async fn handle_mcp_websocket(
                             }
                         };
 
-                        if socket.send(Message::Text(response_json.into())).await.is_err() {
+                        if socket
+                            .send(Message::Text(response_json.into()))
+                            .await
+                            .is_err()
+                        {
                             break;
                         }
                     }
@@ -122,8 +128,13 @@ async fn handle_mcp_websocket(
                                 "error": e.to_string()
                             })),
                         );
-                        let response_json = serde_json::to_string(&error_response).unwrap_or_default();
-                        if socket.send(Message::Text(response_json.into())).await.is_err() {
+                        let response_json =
+                            serde_json::to_string(&error_response).unwrap_or_default();
+                        if socket
+                            .send(Message::Text(response_json.into()))
+                            .await
+                            .is_err()
+                        {
                             break;
                         }
                     }

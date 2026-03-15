@@ -106,12 +106,11 @@ pub async fn hard_delete_post(
     deleted_by: Uuid,
 ) -> ApiResult<()> {
     // First, get all file IDs associated with this post
-    let file_ids: Vec<(Uuid, String)> = sqlx::query_as(
-        "SELECT id, key FROM files WHERE post_id = $1",
-    )
-    .bind(post_id)
-    .fetch_all(db)
-    .await?;
+    let file_ids: Vec<(Uuid, String)> =
+        sqlx::query_as("SELECT id, key FROM files WHERE post_id = $1")
+            .bind(post_id)
+            .fetch_all(db)
+            .await?;
 
     // Cryptographically wipe and delete each file
     for (file_id, s3_key) in file_ids {
@@ -155,7 +154,7 @@ pub async fn hard_delete_post(
     // Delete saved posts references
     sqlx::query("DELETE FROM saved_posts WHERE post_id = $1")
         .bind(post_id)
-    .execute(&mut *tx)
+        .execute(&mut *tx)
         .await?;
 
     // Delete post acknowledgements
@@ -198,7 +197,7 @@ pub async fn hard_delete_post(
 }
 
 /// Cryptographically wipe a file by overwriting with random data before deletion
-/// 
+///
 /// Note: This overwrites the data in S3 by uploading an encrypted random blob
 /// with the same key, then deletes it. This provides defense in depth for
 /// sensitive data.
@@ -238,12 +237,11 @@ pub async fn hard_delete_user(
     let mut tx = db.begin().await?;
 
     // 1. Get all files uploaded by this user
-    let files: Vec<(Uuid, String)> = sqlx::query_as(
-        "SELECT id, key FROM files WHERE uploader_id = $1",
-    )
-    .bind(user_id)
-    .fetch_all(&mut *tx)
-    .await?;
+    let files: Vec<(Uuid, String)> =
+        sqlx::query_as("SELECT id, key FROM files WHERE uploader_id = $1")
+            .bind(user_id)
+            .fetch_all(&mut *tx)
+            .await?;
 
     // 2. Wipe and delete all user files
     for (file_id, s3_key) in &files {
@@ -414,7 +412,7 @@ pub async fn export_user_data(db: &PgPool, user_id: Uuid) -> ApiResult<UserDataE
             username, email, display_name, first_name, last_name,
             nickname, position, created_at, last_login_at, role, is_bot
         FROM users WHERE id = $1
-        "#
+        "#,
     )
     .bind(user_id)
     .fetch_one(db)
@@ -436,7 +434,17 @@ pub async fn export_user_data(db: &PgPool, user_id: Uuid) -> ApiResult<UserDataE
     };
 
     // Get user posts
-    let posts = sqlx::query_as::<_, (Uuid, Uuid, String, DateTime<Utc>, Option<DateTime<Utc>>, Vec<Uuid>)>(
+    let posts = sqlx::query_as::<
+        _,
+        (
+            Uuid,
+            Uuid,
+            String,
+            DateTime<Utc>,
+            Option<DateTime<Utc>>,
+            Vec<Uuid>,
+        ),
+    >(
         r#"
         SELECT id, channel_id, message, created_at, edited_at, file_ids
         FROM posts WHERE user_id = $1
@@ -449,14 +457,16 @@ pub async fn export_user_data(db: &PgPool, user_id: Uuid) -> ApiResult<UserDataE
 
     let posts: Vec<PostExport> = posts
         .into_iter()
-        .map(|(id, channel_id, message, created_at, edited_at, file_ids)| PostExport {
-            id,
-            channel_id,
-            message,
-            created_at,
-            edited_at,
-            file_ids,
-        })
+        .map(
+            |(id, channel_id, message, created_at, edited_at, file_ids)| PostExport {
+                id,
+                channel_id,
+                message,
+                created_at,
+                edited_at,
+                file_ids,
+            },
+        )
         .collect();
 
     // Get user reactions
@@ -504,8 +514,9 @@ pub async fn export_user_data(db: &PgPool, user_id: Uuid) -> ApiResult<UserDataE
     .await?;
 
     // Get channel memberships
-    let channel_memberships = sqlx::query_as::<_, (Uuid, String, Option<String>, DateTime<Utc>, String)>(
-        r#"
+    let channel_memberships =
+        sqlx::query_as::<_, (Uuid, String, Option<String>, DateTime<Utc>, String)>(
+            r#"
         SELECT 
             cm.channel_id,
             c.name as channel_name,
@@ -517,45 +528,50 @@ pub async fn export_user_data(db: &PgPool, user_id: Uuid) -> ApiResult<UserDataE
         LEFT JOIN teams t ON t.id = c.team_id
         WHERE cm.user_id = $1
         "#,
-    )
-    .bind(user_id)
-    .fetch_all(db)
-    .await?;
+        )
+        .bind(user_id)
+        .fetch_all(db)
+        .await?;
 
     let channel_memberships: Vec<ChannelMembershipExport> = channel_memberships
         .into_iter()
-        .map(|(channel_id, channel_name, team_name, joined_at, role)| ChannelMembershipExport {
-            channel_id,
-            channel_name,
-            team_name,
-            joined_at,
-            role,
-        })
+        .map(
+            |(channel_id, channel_name, team_name, joined_at, role)| ChannelMembershipExport {
+                channel_id,
+                channel_name,
+                team_name,
+                joined_at,
+                role,
+            },
+        )
         .collect();
 
     // Get audit log (limited to last 90 days for practical reasons)
-    let audit_log = sqlx::query_as::<_, (String, String, Option<Uuid>, DateTime<Utc>, Option<String>)>(
-        r#"
+    let audit_log =
+        sqlx::query_as::<_, (String, String, Option<Uuid>, DateTime<Utc>, Option<String>)>(
+            r#"
         SELECT action, entity_type, entity_id, created_at, ip_address
         FROM audit_log
         WHERE user_id = $1 AND created_at > NOW() - INTERVAL '90 days'
         ORDER BY created_at DESC
         "#,
-    )
-    .bind(user_id)
-    .fetch_all(db)
-    .await
-    .unwrap_or_default();
+        )
+        .bind(user_id)
+        .fetch_all(db)
+        .await
+        .unwrap_or_default();
 
     let audit_log: Vec<AuditLogExport> = audit_log
         .into_iter()
-        .map(|(action, entity_type, entity_id, created_at, ip_address)| AuditLogExport {
-            action,
-            entity_type,
-            entity_id,
-            created_at,
-            ip_address,
-        })
+        .map(
+            |(action, entity_type, entity_id, created_at, ip_address)| AuditLogExport {
+                action,
+                entity_type,
+                entity_id,
+                created_at,
+                ip_address,
+            },
+        )
         .collect();
 
     Ok(UserDataExport {

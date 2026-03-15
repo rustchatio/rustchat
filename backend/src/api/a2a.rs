@@ -158,10 +158,7 @@ async fn create_task(
     let task_id = Uuid::new_v4();
 
     // Create sender agent ID
-    let sender = AgentId::new(
-        format!("user-{}", auth.user_id),
-        "rustchat_user",
-    );
+    let sender = AgentId::new(format!("user-{}", auth.user_id), "rustchat_user");
 
     // Create receiver agent ID
     let receiver = AgentId::new(&request.receiver_name, &request.receiver_framework);

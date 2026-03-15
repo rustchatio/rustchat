@@ -51,9 +51,7 @@ impl AgentRegistry {
             .values()
             .filter(|adv| {
                 if let Some(filter) = capability_filter {
-                    adv.capabilities
-                        .iter()
-                        .any(|c| c.name.contains(filter))
+                    adv.capabilities.iter().any(|c| c.name.contains(filter))
                 } else {
                     true
                 }

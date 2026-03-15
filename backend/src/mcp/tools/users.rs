@@ -10,20 +10,14 @@ use uuid::Uuid;
 use super::{optional_string_arg, optional_uuid_arg};
 use crate::mcp::capabilities::schemas;
 use crate::mcp::capabilities::{ToolDefinition, ToolSchema};
-use crate::mcp::protocol::{ToolCallResult, McpError};
+use crate::mcp::protocol::{McpError, ToolCallResult};
 use crate::mcp::security::McpSecurityContext;
 
 /// Create the get_user_profile tool definition
 pub fn create_get_user_profile_tool() -> ToolDefinition {
     let mut properties = HashMap::new();
-    properties.insert(
-        "user_id".to_string(),
-        schemas::user_id(),
-    );
-    properties.insert(
-        "username".to_string(),
-        schemas::username(),
-    );
+    properties.insert("user_id".to_string(), schemas::user_id());
+    properties.insert("username".to_string(), schemas::username());
 
     let schema = ToolSchema::object(
         properties,
@@ -106,7 +100,18 @@ pub async fn execute_get_user_profile(
     // Fetch user profile
     let profile = if let Some(ref db) = context.db {
         let query = if let Some(id) = user_id {
-            sqlx::query_as::<_, (Uuid, String, Option<String>, String, String, Option<String>, chrono::DateTime<chrono::Utc>)>(
+            sqlx::query_as::<
+                _,
+                (
+                    Uuid,
+                    String,
+                    Option<String>,
+                    String,
+                    String,
+                    Option<String>,
+                    chrono::DateTime<chrono::Utc>,
+                ),
+            >(
                 r#"
                 SELECT 
                     id,
@@ -118,13 +123,24 @@ pub async fn execute_get_user_profile(
                     created_at
                 FROM users
                 WHERE id = $1 AND deleted_at IS NULL
-                "#
+                "#,
             )
             .bind(id)
             .fetch_optional(db)
             .await
         } else if let Some(name) = username {
-            sqlx::query_as::<_, (Uuid, String, Option<String>, String, String, Option<String>, chrono::DateTime<chrono::Utc>)>(
+            sqlx::query_as::<
+                _,
+                (
+                    Uuid,
+                    String,
+                    Option<String>,
+                    String,
+                    String,
+                    Option<String>,
+                    chrono::DateTime<chrono::Utc>,
+                ),
+            >(
                 r#"
                 SELECT 
                     id,
@@ -136,7 +152,7 @@ pub async fn execute_get_user_profile(
                     created_at
                 FROM users
                 WHERE username = $1 AND deleted_at IS NULL
-                "#
+                "#,
             )
             .bind(name)
             .fetch_optional(db)
@@ -192,14 +208,15 @@ pub async fn execute_list_team_members(
     arguments: Option<Value>,
     context: &McpSecurityContext,
 ) -> Result<ToolCallResult, McpError> {
-    let args = arguments.ok_or_else(|| McpError::InvalidToolParameters("Missing arguments".to_string()))?;
+    let args = arguments
+        .ok_or_else(|| McpError::InvalidToolParameters("Missing arguments".to_string()))?;
     let team_id = optional_uuid_arg(&args, "team_id")
         .ok_or_else(|| McpError::InvalidToolParameters("Missing team_id parameter".to_string()))?;
 
     // Verify user is a member of the team
     if let Some(ref db) = context.db {
         let is_member: bool = sqlx::query_scalar(
-            "SELECT EXISTS(SELECT 1 FROM team_members WHERE team_id = $1 AND user_id = $2)"
+            "SELECT EXISTS(SELECT 1 FROM team_members WHERE team_id = $1 AND user_id = $2)",
         )
         .bind(team_id)
         .bind(context.user_id)
@@ -216,7 +233,16 @@ pub async fn execute_list_team_members(
 
     // Fetch team members
     let members = if let Some(ref db) = context.db {
-        sqlx::query_as::<_, (Uuid, String, Option<String>, String, chrono::DateTime<chrono::Utc>)>(
+        sqlx::query_as::<
+            _,
+            (
+                Uuid,
+                String,
+                Option<String>,
+                String,
+                chrono::DateTime<chrono::Utc>,
+            ),
+        >(
             r#"
             SELECT 
                 u.id,
@@ -236,13 +262,15 @@ pub async fn execute_list_team_members(
         .await
         .map_err(|e| McpError::ToolExecutionFailed(format!("Database error: {}", e)))?
         .into_iter()
-        .map(|(user_id, username, display_name, role, joined_at)| TeamMember {
-            user_id,
-            username,
-            display_name,
-            role,
-            joined_at: Some(joined_at.to_rfc3339()),
-        })
+        .map(
+            |(user_id, username, display_name, role, joined_at)| TeamMember {
+                user_id,
+                username,
+                display_name,
+                role,
+                joined_at: Some(joined_at.to_rfc3339()),
+            },
+        )
         .collect()
     } else {
         // Mock data
@@ -307,11 +335,9 @@ mod tests {
     #[tokio::test]
     async fn test_get_user_profile_with_username() {
         let context = create_test_context();
-        let result = execute_get_user_profile(
-            Some(serde_json::json!({"username": "alice"})),
-            &context,
-        )
-        .await;
+        let result =
+            execute_get_user_profile(Some(serde_json::json!({"username": "alice"})), &context)
+                .await;
 
         assert!(result.is_ok());
         let result = result.unwrap();

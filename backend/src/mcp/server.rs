@@ -82,10 +82,7 @@ impl McpServer {
 
         // Check if MCP is enabled
         if !self.is_enabled().await {
-            return JsonRpcResponse::error(
-                id,
-                JsonRpcError::new(-32099, "MCP server is disabled"),
-            );
+            return JsonRpcResponse::error(id, JsonRpcError::new(-32099, "MCP server is disabled"));
         }
 
         // Route the request based on method
@@ -242,10 +239,7 @@ impl McpServer {
         if tool_def.requires_approval {
             // Check if already approved
             let approval_store = &security_context.approval_store;
-            let approval_key = format!(
-                "mcp:approval:{}:{}",
-                security_context.user_id, params.name
-            );
+            let approval_key = format!("mcp:approval:{}:{}", security_context.user_id, params.name);
 
             let is_approved = approval_store
                 .is_approved(&approval_key)
@@ -285,7 +279,9 @@ impl McpServer {
         arguments: Option<Value>,
         security_context: &McpSecurityContext,
     ) -> Result<ToolCallResult, McpError> {
-        use super::tools::{handle_channel_tool, handle_file_tool, handle_message_tool, handle_user_tool};
+        use super::tools::{
+            handle_channel_tool, handle_file_tool, handle_message_tool, handle_user_tool,
+        };
 
         match tool_name {
             // Channel tools
@@ -297,9 +293,7 @@ impl McpServer {
                 handle_user_tool(tool_name, arguments, security_context).await
             }
             // Message tools
-            "post_message" => {
-                handle_message_tool(tool_name, arguments, security_context).await
-            }
+            "post_message" => handle_message_tool(tool_name, arguments, security_context).await,
             // File tools
             "list_files" | "get_file_info" => {
                 handle_file_tool(tool_name, arguments, security_context).await

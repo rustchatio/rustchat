@@ -5,9 +5,9 @@
 use rustchat::mcp::capabilities::schemas;
 use rustchat::mcp::protocol::ToolCallResult;
 use rustchat::mcp::tools::{
-    create_list_channels_tool, create_get_channel_history_tool, create_search_messages_tool,
-    create_get_user_profile_tool, create_list_team_members_tool, create_post_message_tool,
-    create_list_files_tool, create_get_file_info_tool, handle_channel_tool, optional_int_arg,
+    create_get_channel_history_tool, create_get_file_info_tool, create_get_user_profile_tool,
+    create_list_channels_tool, create_list_files_tool, create_list_team_members_tool,
+    create_post_message_tool, create_search_messages_tool, handle_channel_tool, optional_int_arg,
     optional_string_arg, optional_uuid_arg, require_string_arg, require_uuid_arg,
 };
 use serde_json::json;
@@ -26,9 +26,13 @@ fn test_get_channel_history_tool_definition() {
     let tool = create_get_channel_history_tool();
     assert_eq!(tool.name, "get_channel_history");
     assert!(!tool.requires_approval);
-    
+
     let schema = tool.input_schema;
-    assert!(schema.properties.as_ref().unwrap().contains_key("channel_id"));
+    assert!(schema
+        .properties
+        .as_ref()
+        .unwrap()
+        .contains_key("channel_id"));
     assert!(schema.properties.as_ref().unwrap().contains_key("limit"));
 }
 
@@ -160,9 +164,10 @@ async fn test_execute_list_channels() {
         McpAuditLog::new_mock(),
     );
 
-    let result: Result<ToolCallResult, _> = handle_channel_tool("list_channels", Some(json!({})), &context).await;
+    let result: Result<ToolCallResult, _> =
+        handle_channel_tool("list_channels", Some(json!({})), &context).await;
     assert!(result.is_ok());
-    
+
     let result = result.unwrap();
     assert!(!result.is_error);
 }
@@ -177,7 +182,8 @@ async fn test_execute_get_channel_history_missing_id() {
         McpAuditLog::new_mock(),
     );
 
-    let result: Result<ToolCallResult, _> = handle_channel_tool("get_channel_history", Some(json!({})), &context).await;
+    let result: Result<ToolCallResult, _> =
+        handle_channel_tool("get_channel_history", Some(json!({})), &context).await;
     assert!(result.is_err());
 }
 
@@ -215,7 +221,8 @@ async fn test_execute_search_messages_missing_query() {
         McpAuditLog::new_mock(),
     );
 
-    let result: Result<ToolCallResult, _> = handle_channel_tool("search_messages", Some(json!({})), &context).await;
+    let result: Result<ToolCallResult, _> =
+        handle_channel_tool("search_messages", Some(json!({})), &context).await;
     assert!(result.is_err());
 }
 
@@ -258,6 +265,9 @@ fn test_all_tools_have_descriptions() {
     for tool in tools {
         assert!(!tool.name.is_empty(), "Tool must have a name");
         assert!(!tool.description.is_empty(), "Tool must have a description");
-        assert!(!tool.input_schema.schema_type.is_empty(), "Tool must have a schema type");
+        assert!(
+            !tool.input_schema.schema_type.is_empty(),
+            "Tool must have a schema type"
+        );
     }
 }

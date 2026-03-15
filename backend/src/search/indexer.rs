@@ -72,8 +72,16 @@ impl PostDocument {
             deleted_at: None,
             reply_count,
             last_reply_at,
-            hashtags: if hashtags.is_empty() { None } else { Some(hashtags) },
-            mentions: if mentions.is_empty() { None } else { Some(mentions) },
+            hashtags: if hashtags.is_empty() {
+                None
+            } else {
+                Some(hashtags)
+            },
+            mentions: if mentions.is_empty() {
+                None
+            } else {
+                Some(mentions)
+            },
             has_attachments: !file_ids.is_empty(),
             is_reply: root_post_id.is_some(),
         }
@@ -162,11 +170,7 @@ impl SearchIndexer {
         let status = response.status_code();
         if !status.is_success() {
             let error_body: serde_json::Value = response.json().await?;
-            anyhow::bail!(
-                "Failed to index document: {} - {:?}",
-                status,
-                error_body
-            );
+            anyhow::bail!("Failed to index document: {} - {:?}", status, error_body);
         }
 
         let body: serde_json::Value = response.json().await?;
@@ -209,10 +213,7 @@ impl SearchIndexer {
             // 404 is OK - document didn't exist
             if response.status_code().as_u16() != 404 {
                 let error_body: serde_json::Value = response.json().await?;
-                anyhow::bail!(
-                    "Failed to delete document: {:?}",
-                    error_body
-                );
+                anyhow::bail!("Failed to delete document: {:?}", error_body);
             }
         }
 
@@ -220,7 +221,7 @@ impl SearchIndexer {
     }
 
     /// Bulk index multiple documents
-    /// 
+    ///
     /// NOTE: This implementation indexes documents one by one.
     /// For production with high volume, use the OpenSearch bulk API directly.
     pub async fn bulk_index(&self, docs: &[PostDocument]) -> anyhow::Result<BulkResult> {

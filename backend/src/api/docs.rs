@@ -5,17 +5,13 @@
 //! Note: Swagger UI integration is pending due to axum version compatibility.
 //! The OpenAPI spec can be viewed using external tools like Swagger Editor.
 
-use axum::{
-    response::Json,
-    routing::get,
-    Router,
-};
+use axum::{response::Json, routing::get, Router};
 use utoipa::OpenApi;
 
 use crate::api::AppState;
 
 /// Main API documentation struct
-/// 
+///
 /// This struct defines all the API endpoints, schemas, and security schemes
 /// for the RustChat API. It uses utoipa's derive macro to generate the
 /// OpenAPI 3.1.1 specification at compile time.
@@ -55,12 +51,11 @@ async fn openapi_json() -> Json<serde_json::Value> {
 
 /// Create routes for API documentation
 pub fn router() -> Router<AppState> {
-    Router::new()
-        .route("/openapi.json", get(openapi_json))
+    Router::new().route("/openapi.json", get(openapi_json))
 }
 
 /// Export OpenAPI spec to JSON string
-/// 
+///
 /// This can be used to generate SDKs or for documentation
 #[allow(dead_code)]
 pub fn export_openapi_spec() -> String {
@@ -68,7 +63,7 @@ pub fn export_openapi_spec() -> String {
 }
 
 /// Export OpenAPI spec to file
-/// 
+///
 /// Used for SDK generation pipeline
 #[allow(dead_code)]
 pub fn write_openapi_spec_to_file(path: &str) -> std::io::Result<()> {
@@ -85,7 +80,7 @@ mod tests {
         let spec = ApiDoc::openapi();
         let json = spec.to_json().expect("Failed to serialize spec");
         assert!(!json.is_empty());
-        
+
         // Verify it's valid JSON
         let parsed: serde_json::Value = serde_json::from_str(&json).expect("Invalid JSON");
         assert_eq!(parsed["openapi"], "3.1.0");
@@ -98,15 +93,12 @@ mod tests {
         let spec = ApiDoc::openapi();
         let json = spec.to_json().expect("Failed to serialize spec");
         let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
-        
+
         let tags = parsed["tags"].as_array().expect("Tags should be an array");
         assert!(tags.len() >= 5, "Should have at least 5 tags");
-        
-        let tag_names: Vec<&str> = tags
-            .iter()
-            .filter_map(|t| t["name"].as_str())
-            .collect();
-        
+
+        let tag_names: Vec<&str> = tags.iter().filter_map(|t| t["name"].as_str()).collect();
+
         assert!(tag_names.contains(&"auth"));
         assert!(tag_names.contains(&"users"));
         assert!(tag_names.contains(&"channels"));

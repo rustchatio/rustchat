@@ -137,7 +137,10 @@ impl SchemaProperty {
         }
     }
 
-    pub fn object(_properties: HashMap<String, SchemaProperty>, description: impl Into<String>) -> Self {
+    pub fn object(
+        _properties: HashMap<String, SchemaProperty>,
+        description: impl Into<String>,
+    ) -> Self {
         Self {
             property_type: "object".to_string(),
             description: Some(description.into()),

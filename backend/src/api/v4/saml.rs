@@ -1,5 +1,5 @@
 //! SAML 2.0 Authentication Module
-//! 
+//!
 //! Security Hardening implemented:
 //! - XML Signature Wrapping (XSW) attack prevention
 //! - Strict schema validation
@@ -19,7 +19,7 @@ use serde::Deserialize;
 use serde_json::json;
 
 /// SAML Security Configuration
-/// 
+///
 /// These settings enforce strict security policies for SAML processing
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
@@ -69,7 +69,7 @@ impl Default for SamlSecurityConfig {
 }
 
 /// XML Signature Wrapping Attack Prevention
-/// 
+///
 /// This module provides protection against XSW attacks by:
 /// 1. Validating the signature is on the correct element
 /// 2. Ensuring no duplicated signed elements
@@ -81,7 +81,7 @@ pub struct XmlSignatureValidator;
 #[allow(dead_code)]
 impl XmlSignatureValidator {
     /// Validates that the SAML response is not vulnerable to XSW attacks
-    /// 
+    ///
     /// # Security Checks
     /// - Ensures only one signature is present on the response
     /// - Validates the signed element is the expected one
@@ -90,10 +90,12 @@ impl XmlSignatureValidator {
     pub fn validate_no_wrapping_attack(saml_response: &str) -> Result<(), SamlSecurityError> {
         // Basic XML structure validation without external parser
         // In production, use a proper XML security library
-        
+
         // Check for basic XML structure
-        if !saml_response.starts_with("<?xml") && !saml_response.contains("<samlp:Response")
-            && !saml_response.contains("<Response") {
+        if !saml_response.starts_with("<?xml")
+            && !saml_response.contains("<samlp:Response")
+            && !saml_response.contains("<Response")
+        {
             return Err(SamlSecurityError::InvalidXml);
         }
 
@@ -118,8 +120,9 @@ impl XmlSignatureValidator {
         }
 
         // Pattern 2: Check for comments inside Response or Assertion
-        if saml_response.contains("<!--") && 
-           (saml_response.contains("<Response") || saml_response.contains("<Assertion")) {
+        if saml_response.contains("<!--")
+            && (saml_response.contains("<Response") || saml_response.contains("<Assertion"))
+        {
             // Comments in signed content are suspicious
             // Note: This is a simplified check - proper implementation would
             // parse the XML and check comment locations
@@ -147,7 +150,7 @@ impl XmlSignatureValidator {
     pub fn validate_schema(_saml_response: &str) -> Result<(), SamlSecurityError> {
         // Schema validation is performed using a strict XML parser
         // that only accepts valid SAML 2.0 elements and attributes
-        // 
+        //
         // NOTE: In a full implementation, this would use a schema validator
         // like xmlschema or xerces. For now, we validate basic structure.
         Ok(())
@@ -177,9 +180,17 @@ impl std::fmt::Display for SamlSecurityError {
         match self {
             SamlSecurityError::InvalidXml => write!(f, "Invalid XML structure"),
             SamlSecurityError::MissingSignature => write!(f, "Required signature is missing"),
-            SamlSecurityError::MultipleSignatures => write!(f, "Multiple signatures detected - possible wrapping attack"),
-            SamlSecurityError::DuplicateId => write!(f, "Duplicate ID attributes detected - possible wrapping attack"),
-            SamlSecurityError::SuspiciousComment => write!(f, "Suspicious comment in signed content - possible wrapping attack"),
+            SamlSecurityError::MultipleSignatures => {
+                write!(f, "Multiple signatures detected - possible wrapping attack")
+            }
+            SamlSecurityError::DuplicateId => write!(
+                f,
+                "Duplicate ID attributes detected - possible wrapping attack"
+            ),
+            SamlSecurityError::SuspiciousComment => write!(
+                f,
+                "Suspicious comment in signed content - possible wrapping attack"
+            ),
             SamlSecurityError::InvalidSignature => write!(f, "Invalid signature"),
             SamlSecurityError::InvalidCertificate => write!(f, "Invalid or untrusted certificate"),
             SamlSecurityError::ExpiredAssertion => write!(f, "SAML assertion has expired"),
@@ -317,7 +328,7 @@ async fn reset_saml_auth_data(
 }
 
 /// SAML Assertion Consumer Service (ACS) with security hardening
-/// 
+///
 /// This endpoint processes SAML responses with the following security measures:
 /// 1. XML Signature Wrapping (XSW) attack prevention
 /// 2. Strict schema validation
@@ -341,7 +352,7 @@ async fn saml_assertion_consumer_service(
     // This would be called before parsing the SAML response:
     // XmlSignatureValidator::validate_no_wrapping_attack(&decoded_response)?;
     // XmlSignatureValidator::validate_schema(&decoded_response)?;
-    
+
     saml_not_implemented()
 }
 

@@ -72,15 +72,15 @@ impl McpConfig {
         }
 
         if let Ok(val) = std::env::var("RUSTCHAT_MCP_MAX_TOOLS_PER_REQUEST") {
-            self.max_tools_per_request = val
-                .parse::<u32>()
-                .map_err(|e| anyhow::anyhow!("Invalid RUSTCHAT_MCP_MAX_TOOLS_PER_REQUEST: {}", e))?;
+            self.max_tools_per_request = val.parse::<u32>().map_err(|e| {
+                anyhow::anyhow!("Invalid RUSTCHAT_MCP_MAX_TOOLS_PER_REQUEST: {}", e)
+            })?;
         }
 
         if let Ok(val) = std::env::var("RUSTCHAT_MCP_RATE_LIMIT_PER_MINUTE") {
-            self.rate_limit_requests_per_minute = val
-                .parse::<u32>()
-                .map_err(|e| anyhow::anyhow!("Invalid RUSTCHAT_MCP_RATE_LIMIT_PER_MINUTE: {}", e))?;
+            self.rate_limit_requests_per_minute = val.parse::<u32>().map_err(|e| {
+                anyhow::anyhow!("Invalid RUSTCHAT_MCP_RATE_LIMIT_PER_MINUTE: {}", e)
+            })?;
         }
 
         if let Ok(val) = std::env::var("RUSTCHAT_MCP_ENABLE_AUDIT_LOGGING") {

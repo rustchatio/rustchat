@@ -1713,7 +1713,6 @@ async fn set_post_reminder(
     Ok(Json(serde_json::json!({"status": "OK"})))
 }
 
-
 // GDPR Hard Delete Handler - Track B1.2
 
 /// DELETE /api/v4/posts/{post_id}/hard_delete
@@ -1730,19 +1729,17 @@ async fn hard_delete_post_gdpr(
         .ok_or_else(|| AppError::BadRequest("Invalid post_id".to_string()))?;
 
     // Get the post to check ownership
-    let post: crate::models::Post = sqlx::query_as(
-        "SELECT * FROM posts WHERE id = $1",
-    )
-    .bind(post_uuid)
-    .fetch_optional(&state.db)
-    .await?
-    .ok_or_else(|| AppError::NotFound("Post not found".to_string()))?;
+    let post: crate::models::Post = sqlx::query_as("SELECT * FROM posts WHERE id = $1")
+        .bind(post_uuid)
+        .fetch_optional(&state.db)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Post not found".to_string()))?;
 
     // Check permissions - users can only delete their own posts or be system admin
     let is_author = post.user_id == auth.user_id;
-    let is_admin = auth.has_permission(&permissions::ADMIN_FULL) 
+    let is_admin = auth.has_permission(&permissions::ADMIN_FULL)
         || auth.has_permission(&permissions::SYSTEM_MANAGE);
-    
+
     if !is_author && !is_admin {
         return Err(AppError::Forbidden(
             "You can only delete your own posts".to_string(),

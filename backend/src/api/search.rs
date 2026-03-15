@@ -50,7 +50,7 @@ pub enum SearchSource {
 }
 
 /// Full-text search for messages
-/// 
+///
 /// Tries OpenSearch first if available and requested, falls back to PostgreSQL FTS
 async fn search_messages(
     State(state): State<AppState>,

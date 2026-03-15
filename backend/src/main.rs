@@ -1,6 +1,6 @@
-use rustchat::{api, config::Config, db, realtime::WsHub, storage::S3Client, telemetry};
 #[cfg(feature = "kafka")]
 use rustchat::services::kafka_producer::KafkaProducer;
+use rustchat::{api, config::Config, db, realtime::WsHub, storage::S3Client, telemetry};
 use std::net::SocketAddr;
 use tracing::{info, warn};
 
@@ -161,7 +161,9 @@ async fn main() -> anyhow::Result<()> {
         let ws_hub_clone = ws_hub.clone();
         let kafka_config = config.kafka.clone();
         tokio::spawn(async move {
-            if let Err(e) = rustchat::realtime::start_kafka_fanout_consumer(kafka_config, ws_hub_clone).await {
+            if let Err(e) =
+                rustchat::realtime::start_kafka_fanout_consumer(kafka_config, ws_hub_clone).await
+            {
                 tracing::error!(error = %e, "Failed to start Kafka fan-out consumer");
             }
         });

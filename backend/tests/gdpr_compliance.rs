@@ -15,7 +15,7 @@ mod common;
 async fn create_test_user(db: &PgPool, username: &str) -> Uuid {
     let user_id = Uuid::new_v4();
     let email = format!("{}@test.local", username);
-    
+
     sqlx::query(
         r#"
         INSERT INTO users (id, username, email, password_hash, is_active, role, created_at, updated_at)
@@ -29,7 +29,7 @@ async fn create_test_user(db: &PgPool, username: &str) -> Uuid {
     .execute(db)
     .await
     .expect("Failed to create test user");
-    
+
     user_id
 }
 
@@ -37,13 +37,13 @@ async fn create_test_user(db: &PgPool, username: &str) -> Uuid {
 #[allow(dead_code)]
 async fn create_test_channel(db: &PgPool, team_id: Uuid, name: &str) -> Uuid {
     let channel_id = Uuid::new_v4();
-    
+
     sqlx::query(
         r#"
         INSERT INTO channels (id, team_id, name, display_name, type, created_at, updated_at)
         VALUES ($1, $2, $3, $3, 'O', NOW(), NOW())
         ON CONFLICT DO NOTHING
-        "#
+        "#,
     )
     .bind(channel_id)
     .bind(team_id)
@@ -51,7 +51,7 @@ async fn create_test_channel(db: &PgPool, team_id: Uuid, name: &str) -> Uuid {
     .execute(db)
     .await
     .expect("Failed to create test channel");
-    
+
     channel_id
 }
 
@@ -59,20 +59,20 @@ async fn create_test_channel(db: &PgPool, team_id: Uuid, name: &str) -> Uuid {
 #[allow(dead_code)]
 async fn create_test_team(db: &PgPool, name: &str) -> Uuid {
     let team_id = Uuid::new_v4();
-    
+
     sqlx::query(
         r#"
         INSERT INTO teams (id, name, display_name, type, created_at, updated_at)
         VALUES ($1, $2, $2, 'O', NOW(), NOW())
         ON CONFLICT DO NOTHING
-        "#
+        "#,
     )
     .bind(team_id)
     .bind(name)
     .execute(db)
     .await
     .expect("Failed to create test team");
-    
+
     team_id
 }
 
@@ -80,7 +80,7 @@ async fn create_test_team(db: &PgPool, name: &str) -> Uuid {
 #[allow(dead_code)]
 async fn create_test_post(db: &PgPool, channel_id: Uuid, user_id: Uuid, message: &str) -> Uuid {
     let post_id = Uuid::new_v4();
-    
+
     sqlx::query(
         r#"
         INSERT INTO posts (id, channel_id, user_id, message, props, file_ids, created_at, updated_at)
@@ -94,7 +94,7 @@ async fn create_test_post(db: &PgPool, channel_id: Uuid, user_id: Uuid, message:
     .execute(db)
     .await
     .expect("Failed to create test post");
-    
+
     post_id
 }
 
@@ -106,7 +106,7 @@ async fn add_channel_member(db: &PgPool, channel_id: Uuid, user_id: Uuid) {
         INSERT INTO channel_members (channel_id, user_id, role, created_at, updated_at)
         VALUES ($1, $2, 'member', NOW(), NOW())
         ON CONFLICT DO NOTHING
-        "#
+        "#,
     )
     .bind(channel_id)
     .bind(user_id)
@@ -119,7 +119,7 @@ async fn add_channel_member(db: &PgPool, channel_id: Uuid, user_id: Uuid) {
 async fn test_user_data_export_structure() {
     // This test verifies that the data export structure is properly defined
     use rustchat::services::gdpr::UserDataExport;
-    
+
     // Verify the export structure implements Serialize
     let export = UserDataExport {
         export_id: Uuid::new_v4(),
@@ -145,7 +145,7 @@ async fn test_user_data_export_structure() {
         channel_memberships: vec![],
         audit_log: vec![],
     };
-    
+
     // Serialize to JSON to ensure it works
     let json = serde_json::to_string(&export);
     assert!(json.is_ok(), "UserDataExport should serialize to JSON");
@@ -154,7 +154,7 @@ async fn test_user_data_export_structure() {
 #[tokio::test]
 async fn test_certificate_of_destruction_structure() {
     use rustchat::services::gdpr::CertificateOfDestruction;
-    
+
     let cert = CertificateOfDestruction {
         file_id: Uuid::new_v4(),
         file_name: "test.txt".to_string(),
@@ -163,45 +163,64 @@ async fn test_certificate_of_destruction_structure() {
         wipe_method: "cryptographic_overwrite".to_string(),
         wiped_by: Uuid::new_v4(),
     };
-    
+
     let json = serde_json::to_string(&cert);
-    assert!(json.is_ok(), "CertificateOfDestruction should serialize to JSON");
+    assert!(
+        json.is_ok(),
+        "CertificateOfDestruction should serialize to JSON"
+    );
 }
 
 #[tokio::test]
 async fn test_saml_security_config() {
     use rustchat::api::v4::saml::SamlSecurityConfig;
-    
+
     let config = SamlSecurityConfig::default();
-    
+
     // Verify security settings are strict by default
-    assert!(config.require_signed_response, "Should require signed responses");
-    assert!(config.require_signed_assertions, "Should require signed assertions");
-    assert!(config.strict_schema_validation, "Should use strict schema validation");
+    assert!(
+        config.require_signed_response,
+        "Should require signed responses"
+    );
+    assert!(
+        config.require_signed_assertions,
+        "Should require signed assertions"
+    );
+    assert!(
+        config.strict_schema_validation,
+        "Should use strict schema validation"
+    );
     assert!(config.validate_recipient, "Should validate recipient");
-    assert!(config.strict_timestamp_validation, "Should use strict timestamp validation");
-    assert!(config.clock_skew_seconds <= 300, "Clock skew should be minimal (<= 5 minutes)");
-    
+    assert!(
+        config.strict_timestamp_validation,
+        "Should use strict timestamp validation"
+    );
+    assert!(
+        config.clock_skew_seconds <= 300,
+        "Clock skew should be minimal (<= 5 minutes)"
+    );
+
     // Verify weak algorithms are not allowed
     let weak_algorithms = vec![
         "http://www.w3.org/2000/09/xmldsig#sha1",
         "http://www.w3.org/2000/09/xmldsig#rsa-sha1",
         "http://www.w3.org/2001/04/xmldsig-more#rsa-md5",
     ];
-    
+
     for weak in weak_algorithms {
         assert!(
             !config.allowed_digest_algorithms.contains(&weak.to_string()),
-            "Weak algorithm {} should not be allowed", weak
+            "Weak algorithm {} should not be allowed",
+            weak
         );
     }
 }
 
 #[tokio::test]
 async fn test_saml_xsw_detection() {
-    use rustchat::api::v4::saml::XmlSignatureValidator;
     use rustchat::api::v4::saml::SamlSecurityError;
-    
+    use rustchat::api::v4::saml::XmlSignatureValidator;
+
     // Test valid SAML-like XML (no signature)
     let valid_xml = r#"<?xml version="1.0"?>
     <samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol">
@@ -211,11 +230,13 @@ async fn test_saml_xsw_detection() {
             </Subject>
         </Assertion>
     </samlp:Response>"#;
-    
+
     let result = XmlSignatureValidator::validate_no_wrapping_attack(valid_xml);
-    assert!(matches!(result, Err(SamlSecurityError::MissingSignature)), 
-        "Should detect missing signature");
-    
+    assert!(
+        matches!(result, Err(SamlSecurityError::MissingSignature)),
+        "Should detect missing signature"
+    );
+
     // Test XML with duplicate IDs (XSW indicator)
     let duplicate_id_xml = r##"<?xml version="1.0"?>
     <samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol" ID="abc123">
@@ -230,11 +251,13 @@ async fn test_saml_xsw_detection() {
             </Subject>
         </Assertion>
     </samlp:Response>"##;
-    
+
     let result = XmlSignatureValidator::validate_no_wrapping_attack(duplicate_id_xml);
-    assert!(matches!(result, Err(SamlSecurityError::DuplicateId)),
-        "Should detect duplicate IDs as XSW attack");
-    
+    assert!(
+        matches!(result, Err(SamlSecurityError::DuplicateId)),
+        "Should detect duplicate IDs as XSW attack"
+    );
+
     // Test XML with multiple signatures (XSW indicator)
     let multi_sig_xml = r##"<?xml version="1.0"?>
     <samlp:Response xmlns:samlp="urn:oasis:names:tc:SAML:2.0:protocol">
@@ -250,8 +273,10 @@ async fn test_saml_xsw_detection() {
             </Subject>
         </Assertion>
     </samlp:Response>"##;
-    
+
     let result = XmlSignatureValidator::validate_no_wrapping_attack(multi_sig_xml);
-    assert!(matches!(result, Err(SamlSecurityError::MultipleSignatures)),
-        "Should detect multiple signatures as XSW attack");
+    assert!(
+        matches!(result, Err(SamlSecurityError::MultipleSignatures)),
+        "Should detect multiple signatures as XSW attack"
+    );
 }

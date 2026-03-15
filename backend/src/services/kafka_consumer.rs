@@ -50,11 +50,7 @@ pub trait MessageHandler: Send + Sync {
     async fn handle_message(&self, message: ConsumedMessage<Self::Payload>) -> anyhow::Result<()>;
 
     /// Handle deserialization errors
-    async fn handle_deserialization_error(
-        &self,
-        error: serde_json::Error,
-        raw_payload: &[u8],
-    ) {
+    async fn handle_deserialization_error(&self, error: serde_json::Error, raw_payload: &[u8]) {
         error!(
             error = %error,
             payload = %String::from_utf8_lossy(raw_payload),
@@ -110,9 +106,15 @@ impl KafkaConsumer {
         client_config
             .set("group.id", &group_id)
             .set("bootstrap.servers", &self.config.bootstrap_servers)
-            .set("client.id", format!("{}-consumer-{}", self.config.client_id, self.node_id))
+            .set(
+                "client.id",
+                format!("{}-consumer-{}", self.config.client_id, self.node_id),
+            )
             .set("enable.partition.eof", "false")
-            .set("session.timeout.ms", self.config.session_timeout_ms.to_string())
+            .set(
+                "session.timeout.ms",
+                self.config.session_timeout_ms.to_string(),
+            )
             .set("enable.auto.commit", "true")
             .set(
                 "auto.commit.interval.ms",
@@ -210,7 +212,9 @@ impl KafkaConsumer {
             consumer_clone.unsubscribe();
         });
 
-        Ok(ShutdownSignal { sender: shutdown_tx })
+        Ok(ShutdownSignal {
+            sender: shutdown_tx,
+        })
     }
 
     /// Process a single message
@@ -313,8 +317,8 @@ impl KafkaConsumer {
                 .unwrap_or(0);
 
             // Get high watermark (end offset)
-            let (_, high_watermark) = consumer
-                .fetch_watermarks(topic, partition_id, Duration::from_secs(5))?;
+            let (_, high_watermark) =
+                consumer.fetch_watermarks(topic, partition_id, Duration::from_secs(5))?;
 
             let lag = high_watermark - committed_offset;
             result.push((partition_id, committed_offset, lag));

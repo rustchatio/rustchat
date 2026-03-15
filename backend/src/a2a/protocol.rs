@@ -84,9 +84,7 @@ pub enum A2AMessage {
         capability_filter: Option<String>,
     },
     /// Response containing matching agents
-    DiscoveryResponse {
-        agents: Vec<AgentAdvertisement>,
-    },
+    DiscoveryResponse { agents: Vec<AgentAdvertisement> },
     /// Request to execute a task
     TaskRequest {
         task_id: Uuid,

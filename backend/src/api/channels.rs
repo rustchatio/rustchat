@@ -28,8 +28,14 @@ pub fn router() -> Router<AppState> {
         .route("/{id}/members/{user_id}", delete(remove_member))
         .route("/{id}/read", post(mark_channel_as_read))
         // Mattermost-compatible endpoints that frontend expects
-        .route("/{id}/members/{user_id}/read", post(mark_channel_member_as_read))
-        .route("/{id}/members/{user_id}/notify_props", put(update_notify_props))
+        .route(
+            "/{id}/members/{user_id}/read",
+            post(mark_channel_member_as_read),
+        )
+        .route(
+            "/{id}/members/{user_id}/notify_props",
+            put(update_notify_props),
+        )
         .route("/{id}/stats", get(get_channel_stats))
 }
 
@@ -636,7 +642,8 @@ async fn mark_channel_member_as_read(
     let target_user_id = if user_id == "me" {
         auth.user_id
     } else {
-        user_id.parse::<Uuid>()
+        user_id
+            .parse::<Uuid>()
             .map_err(|_| AppError::BadRequest("Invalid user_id".to_string()))?
     };
 
@@ -710,7 +717,8 @@ async fn update_notify_props(
     let target_user_id = if user_id == "me" {
         auth.user_id
     } else {
-        user_id.parse::<Uuid>()
+        user_id
+            .parse::<Uuid>()
             .map_err(|_| AppError::BadRequest("Invalid user_id".to_string()))?
     };
 

@@ -169,10 +169,8 @@ pub fn router(
     ws_hub: Arc<WsHub>,
     s3_client: S3Client,
     config: Config,
-    #[cfg(feature = "kafka")]
-    kafka_producer: Option<Arc<KafkaProducer>>,
-    #[cfg(not(feature = "kafka"))]
-    _kafka_producer: Option<Arc<()>>,
+    #[cfg(feature = "kafka")] kafka_producer: Option<Arc<KafkaProducer>>,
+    #[cfg(not(feature = "kafka"))] _kafka_producer: Option<Arc<()>>,
 ) -> Router {
     let (voice_event_tx, voice_event_rx) = mpsc::channel(VOICE_EVENT_CHANNEL_CAPACITY);
     let sfu_manager = SFUManager::new(config.calls.clone(), voice_event_tx);

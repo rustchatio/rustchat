@@ -7,9 +7,7 @@ use chrono::Utc;
 use uuid::Uuid;
 
 use rustchat::config::OpenSearchConfig;
-use rustchat::search::{
-    IndexManager, OpenSearchClient, PostDocument, SearchIndexer,
-};
+use rustchat::search::{IndexManager, OpenSearchClient, PostDocument, SearchIndexer};
 
 /// Test configuration for local OpenSearch
 fn test_opensearch_config() -> OpenSearchConfig {
@@ -36,7 +34,7 @@ fn test_opensearch_config() -> OpenSearchConfig {
 async fn is_opensearch_available() -> bool {
     let config = test_opensearch_config();
     let client = OpenSearchClient::new(config);
-    
+
     if !client.is_available() {
         return false;
     }
@@ -68,7 +66,7 @@ async fn test_health_check() {
     let client = OpenSearchClient::new(config);
 
     let health = client.health_check().await.expect("Health check failed");
-    
+
     println!(
         "Cluster health: {:?}, nodes: {}, active_shards: {}",
         health.status, health.number_of_nodes, health.active_shards
@@ -76,8 +74,11 @@ async fn test_health_check() {
 
     // Health should be green or yellow in a healthy cluster
     assert!(
-        matches!(health.status, rustchat::search::client::HealthStatus::Green | 
-                                rustchat::search::client::HealthStatus::Yellow),
+        matches!(
+            health.status,
+            rustchat::search::client::HealthStatus::Green
+                | rustchat::search::client::HealthStatus::Yellow
+        ),
         "Cluster health should be green or yellow"
     );
 }
@@ -94,12 +95,18 @@ async fn test_index_creation() {
     let client = OpenSearchClient::new(config);
     let manager = IndexManager::new(client);
 
-    let index_name = manager.create_posts_index().await.expect("Failed to create index");
-    
+    let index_name = manager
+        .create_posts_index()
+        .await
+        .expect("Failed to create index");
+
     println!("Created index: {}", index_name);
-    
+
     // Verify index exists
-    let exists = manager.index_exists(&index_name).await.expect("Failed to check index");
+    let exists = manager
+        .index_exists(&index_name)
+        .await
+        .expect("Failed to check index");
     assert!(exists, "Index should exist after creation");
 
     // Clean up
@@ -120,7 +127,10 @@ async fn test_document_indexing() {
     let indexer = SearchIndexer::new(client);
 
     // Create index
-    let index_name = manager.create_posts_index().await.expect("Failed to create index");
+    let index_name = manager
+        .create_posts_index()
+        .await
+        .expect("Failed to create index");
 
     // Create a test document
     let doc = PostDocument::from_post(
@@ -138,8 +148,11 @@ async fn test_document_indexing() {
     );
 
     // Index the document
-    let result = indexer.index_post(&doc).await.expect("Failed to index document");
-    
+    let result = indexer
+        .index_post(&doc)
+        .await
+        .expect("Failed to index document");
+
     println!(
         "Indexed document: index={}, id={}, version={}, result={}",
         result.index, result.id, result.version, result.result
@@ -165,7 +178,10 @@ async fn test_bulk_indexing() {
     let indexer = SearchIndexer::new(client);
 
     // Create index
-    let index_name = manager.create_posts_index().await.expect("Failed to create index");
+    let index_name = manager
+        .create_posts_index()
+        .await
+        .expect("Failed to create index");
 
     // Create multiple test documents
     let mut docs = Vec::new();
@@ -187,8 +203,11 @@ async fn test_bulk_indexing() {
     }
 
     // Bulk index
-    let result = indexer.bulk_index(&docs).await.expect("Failed to bulk index");
-    
+    let result = indexer
+        .bulk_index(&docs)
+        .await
+        .expect("Failed to bulk index");
+
     println!(
         "Bulk indexed: took={}ms, items={}, errors={}",
         result.took, result.items_processed, result.errors
@@ -214,7 +233,10 @@ async fn test_document_update() {
     let indexer = SearchIndexer::new(client);
 
     // Create index
-    let index_name = manager.create_posts_index().await.expect("Failed to create index");
+    let index_name = manager
+        .create_posts_index()
+        .await
+        .expect("Failed to create index");
 
     // Create and index a document
     let post_id = Uuid::new_v4();
@@ -232,11 +254,18 @@ async fn test_document_update() {
         &[],
     );
 
-    indexer.index_post(&doc).await.expect("Failed to index document");
+    indexer
+        .index_post(&doc)
+        .await
+        .expect("Failed to index document");
 
     // Update the document
     let result = indexer
-        .update_post(&post_id.to_string(), Some("Updated message".to_string()), Some(true))
+        .update_post(
+            &post_id.to_string(),
+            Some("Updated message".to_string()),
+            Some(true),
+        )
         .await
         .expect("Failed to update document");
 
@@ -260,7 +289,10 @@ async fn test_document_deletion() {
     let indexer = SearchIndexer::new(client);
 
     // Create index
-    let index_name = manager.create_posts_index().await.expect("Failed to create index");
+    let index_name = manager
+        .create_posts_index()
+        .await
+        .expect("Failed to create index");
 
     // Create and index a document
     let post_id = Uuid::new_v4();
@@ -278,7 +310,10 @@ async fn test_document_deletion() {
         &[],
     );
 
-    indexer.index_post(&doc).await.expect("Failed to index document");
+    indexer
+        .index_post(&doc)
+        .await
+        .expect("Failed to index document");
 
     // Delete the document
     indexer
@@ -336,7 +371,7 @@ fn test_index_name_generation() {
         index_prefix: "test".to_string(),
         ..OpenSearchConfig::default()
     };
-    
+
     let client = OpenSearchClient::new(config);
     assert_eq!(client.posts_index(), "test-posts");
     assert_eq!(client.index_name("users"), "test-users");
@@ -344,8 +379,8 @@ fn test_index_name_generation() {
 
 #[test]
 fn test_time_based_index_name() {
-    use rustchat::config::OpenSearchConfig;
     use chrono::TimeZone;
+    use rustchat::config::OpenSearchConfig;
 
     let config = OpenSearchConfig::default();
     let client = OpenSearchClient::new(config);

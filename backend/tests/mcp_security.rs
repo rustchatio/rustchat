@@ -39,12 +39,7 @@ async fn test_approval_store_is_approved() {
 
     // Request approval
     store
-        .request_approval(
-            "test-key-2",
-            "post_message",
-            &user_id,
-            json!({}),
-        )
+        .request_approval("test-key-2", "post_message", &user_id, json!({}))
         .await
         .unwrap();
 
@@ -69,7 +64,7 @@ async fn test_approval_store_approve() {
         .unwrap();
 
     let approved = store.approve("test-key-3").await.unwrap();
-    
+
     assert_eq!(approved.status, ApprovalStatus::Approved);
     assert!(approved.approved_at.is_some());
     assert!(!approved.is_pending());
@@ -86,7 +81,7 @@ async fn test_approval_store_deny() {
         .unwrap();
 
     let denied = store.deny("test-key-4").await.unwrap();
-    
+
     assert_eq!(denied.status, ApprovalStatus::Denied);
     assert!(denied.denied_at.is_some());
     assert!(!denied.is_pending());
@@ -133,12 +128,7 @@ async fn test_approval_store_list_pending() {
     // Create some approvals
     for i in 0..3 {
         store
-            .request_approval(
-                &format!("key-{}", i),
-                "post_message",
-                &user_id,
-                json!({}),
-            )
+            .request_approval(&format!("key-{}", i), "post_message", &user_id, json!({}))
             .await
             .unwrap();
     }
@@ -167,7 +157,7 @@ async fn test_audit_log_log_invocation() {
 
     let logs = audit_log.get_logs().await;
     assert_eq!(logs.len(), 1);
-    
+
     let entry = &logs[0];
     assert_eq!(entry.user_id, user_id);
     assert_eq!(entry.tool_name, "list_channels");
@@ -205,10 +195,13 @@ async fn test_audit_log_multiple_entries() {
 
     let logs = audit_log.get_logs().await;
     assert_eq!(logs.len(), 3);
-    
+
     assert_eq!(logs[0].result, AuditResult::Success);
     assert_eq!(logs[1].result, AuditResult::Error);
-    assert_eq!(logs[1].error_message, Some("Something went wrong".to_string()));
+    assert_eq!(
+        logs[1].error_message,
+        Some("Something went wrong".to_string())
+    );
     assert_eq!(logs[2].result, AuditResult::Denied);
 }
 
@@ -246,18 +239,42 @@ fn test_pending_approval_creation() {
 
 #[test]
 fn test_audit_result_serialization() {
-    assert_eq!(serde_json::to_string(&AuditResult::Success).unwrap(), "\"success\"");
-    assert_eq!(serde_json::to_string(&AuditResult::Error).unwrap(), "\"error\"");
-    assert_eq!(serde_json::to_string(&AuditResult::Denied).unwrap(), "\"denied\"");
-    assert_eq!(serde_json::to_string(&AuditResult::RateLimited).unwrap(), "\"ratelimited\"");
+    assert_eq!(
+        serde_json::to_string(&AuditResult::Success).unwrap(),
+        "\"success\""
+    );
+    assert_eq!(
+        serde_json::to_string(&AuditResult::Error).unwrap(),
+        "\"error\""
+    );
+    assert_eq!(
+        serde_json::to_string(&AuditResult::Denied).unwrap(),
+        "\"denied\""
+    );
+    assert_eq!(
+        serde_json::to_string(&AuditResult::RateLimited).unwrap(),
+        "\"ratelimited\""
+    );
 }
 
 #[test]
 fn test_approval_status_serialization() {
-    assert_eq!(serde_json::to_string(&ApprovalStatus::Pending).unwrap(), "\"pending\"");
-    assert_eq!(serde_json::to_string(&ApprovalStatus::Approved).unwrap(), "\"approved\"");
-    assert_eq!(serde_json::to_string(&ApprovalStatus::Denied).unwrap(), "\"denied\"");
-    assert_eq!(serde_json::to_string(&ApprovalStatus::Expired).unwrap(), "\"expired\"");
+    assert_eq!(
+        serde_json::to_string(&ApprovalStatus::Pending).unwrap(),
+        "\"pending\""
+    );
+    assert_eq!(
+        serde_json::to_string(&ApprovalStatus::Approved).unwrap(),
+        "\"approved\""
+    );
+    assert_eq!(
+        serde_json::to_string(&ApprovalStatus::Denied).unwrap(),
+        "\"denied\""
+    );
+    assert_eq!(
+        serde_json::to_string(&ApprovalStatus::Expired).unwrap(),
+        "\"expired\""
+    );
 }
 
 #[tokio::test]

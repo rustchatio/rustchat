@@ -13,8 +13,8 @@ use opensearch::indices::{
 use serde_json::json;
 use tracing::{info, warn};
 
-use crate::search::OpenSearchClient;
 use crate::search::indexer::{posts_index_mapping, posts_index_settings};
+use crate::search::OpenSearchClient;
 
 /// Index manager for OpenSearch operations
 pub struct IndexManager {
@@ -114,11 +114,7 @@ impl IndexManager {
 
         if !response.status_code().is_success() {
             let error_body: serde_json::Value = response.json().await?;
-            anyhow::bail!(
-                "Failed to create index {}: {:?}",
-                index_name,
-                error_body
-            );
+            anyhow::bail!("Failed to create index {}: {:?}", index_name, error_body);
         }
 
         info!(index = %index_name, "Created posts index");
@@ -146,11 +142,7 @@ impl IndexManager {
             // 404 is OK - index didn't exist
             if response.status_code().as_u16() != 404 {
                 let error_body: serde_json::Value = response.json().await?;
-                anyhow::bail!(
-                    "Failed to delete index {}: {:?}",
-                    index_name,
-                    error_body
-                );
+                anyhow::bail!("Failed to delete index {}: {:?}", index_name, error_body);
             }
         }
 
@@ -239,7 +231,7 @@ impl IndexManager {
     }
 
     /// Perform index rollover
-    /// 
+    ///
     /// Creates a new time-based index and optionally reindexes from the old one
     pub async fn rollover_posts_index(&self) -> anyhow::Result<RolloverResult> {
         let current_index = self.client.posts_index();
@@ -267,7 +259,7 @@ impl IndexManager {
     }
 
     /// Reindex data from one index to another
-    /// 
+    ///
     /// NOTE: This is a simplified implementation. For production, use the OpenSearch reindex API directly.
     pub async fn reindex(
         &self,
@@ -363,7 +355,7 @@ mod tests {
     #[test]
     fn test_time_based_index_name() {
         use crate::config::OpenSearchConfig;
-        
+
         let config = OpenSearchConfig::default();
         let client = crate::search::OpenSearchClient::new(config);
         let manager = IndexManager::new(client);
@@ -378,7 +370,7 @@ mod tests {
     #[test]
     fn test_index_manager_disabled() {
         use crate::config::OpenSearchConfig;
-        
+
         let config = OpenSearchConfig::default();
         let client = crate::search::OpenSearchClient::new(config);
         let manager = IndexManager::new(client);

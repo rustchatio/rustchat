@@ -16,8 +16,11 @@ fn test_kafka_producer_initialization() {
     // Test with disabled config
     let config = KafkaConfig::default();
     let producer = KafkaProducer::new(config, "test-node".to_string());
-    
-    assert!(!producer.is_available(), "Producer should not be available when disabled");
+
+    assert!(
+        !producer.is_available(),
+        "Producer should not be available when disabled"
+    );
 }
 
 /// Test Kafka producer with actual broker
@@ -35,7 +38,7 @@ async fn test_kafka_producer_send_event() {
     };
 
     let producer = KafkaProducer::new(config, "test-node".to_string());
-    
+
     // Skip test if Kafka is not available
     if !producer.is_available() {
         println!("Skipping test: Kafka not available at localhost:9092");
@@ -48,7 +51,7 @@ async fn test_kafka_producer_send_event() {
     let user_id = Uuid::new_v4();
 
     let result = producer.send_post_event(post_id, channel_id, user_id).await;
-    
+
     assert!(
         result.is_ok(),
         "Failed to send post event: {:?}",
@@ -80,7 +83,7 @@ async fn test_kafka_producer_publish_custom() {
     };
 
     let producer = KafkaProducer::new(config, "test-node".to_string());
-    
+
     // Skip test if Kafka is not available
     if !producer.is_available() {
         println!("Skipping test: Kafka not available at localhost:9092");

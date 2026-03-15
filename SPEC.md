@@ -140,6 +140,12 @@ Implemented in this pass:
    - register route now loads `/api/v1/auth/config`, renders Cloudflare Turnstile when enabled, blocks submit until verification, and submits both `cf-turnstile-response` and honeypot `website` fields.
 20. Admin discoverability from settings:
    - added admin-only `Advanced` shortcuts from user settings to Admin Server Configuration, Membership Policies, and Email Workflows.
+21. Admin user lifecycle parity extension:
+   - Admin Users now exposes include-deleted filtering, soft-delete action, and permanent wipe action against existing backend contracts.
+22. User types & permissions parity extension:
+   - Security section now includes role-oriented permissions management (`/admin/roles/{role}/permissions`) with editable assignments.
+23. Default registration policy bootstrap:
+   - auth workspace bootstrap now ensures an initial global auto-membership policy exists for new registrations into `rustchat` + `town-square` + `off-topic`, while preserving manual disable state.
 
 ---
 

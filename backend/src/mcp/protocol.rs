@@ -389,10 +389,7 @@ pub enum ToolContent {
     #[serde(rename = "text")]
     Text { text: String },
     #[serde(rename = "image")]
-    Image {
-        data: String,
-        mime_type: String,
-    },
+    Image { data: String, mime_type: String },
     #[serde(rename = "resource")]
     Resource { resource: ResourceContent },
 }
@@ -436,7 +433,8 @@ mod tests {
 
     #[test]
     fn test_json_rpc_request_serialization() {
-        let request = JsonRpcRequest::new("initialize", Some(serde_json::json!({"version": "1.0"})));
+        let request =
+            JsonRpcRequest::new("initialize", Some(serde_json::json!({"version": "1.0"})));
         let json = serde_json::to_string(&request).unwrap();
         assert!(json.contains("jsonrpc"));
         assert!(json.contains("2.0"));

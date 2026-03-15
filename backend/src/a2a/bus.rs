@@ -60,7 +60,10 @@ impl A2AMessageBus {
     ///
     /// The handler is called for each message received. This function runs indefinitely
     /// until the stream ends or an error occurs.
-    pub async fn subscribe<F>(self: Arc<Self>, mut handler: F) -> Result<(), Box<dyn std::error::Error>>
+    pub async fn subscribe<F>(
+        self: Arc<Self>,
+        mut handler: F,
+    ) -> Result<(), Box<dyn std::error::Error>>
     where
         F: FnMut(A2AMessage) -> std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send>>
             + Send,
@@ -78,27 +81,23 @@ impl A2AMessageBus {
         let mut msg_stream = pubsub.on_message();
         loop {
             match msg_stream.next().await {
-                Some(msg) => {
-                    match msg.get_payload::<String>() {
-                        Ok(payload) => {
-                            match serde_json::from_str::<A2AMessage>(&payload) {
-                                Ok(message) => {
-                                    handler(message).await;
-                                }
-                                Err(e) => {
-                                    warn!(
-                                        error = %e,
-                                        payload = %payload,
-                                        "Failed to deserialize A2A message"
-                                    );
-                                }
-                            }
+                Some(msg) => match msg.get_payload::<String>() {
+                    Ok(payload) => match serde_json::from_str::<A2AMessage>(&payload) {
+                        Ok(message) => {
+                            handler(message).await;
                         }
                         Err(e) => {
-                            warn!(error = %e, "Failed to get message payload");
+                            warn!(
+                                error = %e,
+                                payload = %payload,
+                                "Failed to deserialize A2A message"
+                            );
                         }
+                    },
+                    Err(e) => {
+                        warn!(error = %e, "Failed to get message payload");
                     }
-                }
+                },
                 None => {
                     error!("A2A pub/sub stream ended");
                     break;
@@ -115,7 +114,10 @@ impl A2AMessageBus {
         mut handler: F,
     ) -> Result<(), Box<dyn std::error::Error>>
     where
-        F: FnMut(A2AMessage) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>> + Send>>
+        F: FnMut(
+                A2AMessage,
+            )
+                -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), String>> + Send>>
             + Send,
     {
         let client = redis::Client::open(REDIS_URL)?;
@@ -153,7 +155,7 @@ impl A2AMessageBus {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::a2a::protocol::{AgentId, AgentCapability, AgentAdvertisement};
+    use crate::a2a::protocol::{AgentAdvertisement, AgentCapability, AgentId};
 
     // Note: These tests would require a running Redis instance
     // For unit tests without Redis, we test serialization/deserialization

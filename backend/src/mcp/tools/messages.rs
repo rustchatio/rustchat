@@ -10,7 +10,7 @@ use uuid::Uuid;
 use super::{optional_uuid_arg, require_string_arg, require_uuid_arg};
 use crate::mcp::capabilities::schemas;
 use crate::mcp::capabilities::{ToolDefinition, ToolSchema};
-use crate::mcp::protocol::{ToolCallResult, McpError};
+use crate::mcp::protocol::{McpError, ToolCallResult};
 use crate::mcp::security::McpSecurityContext;
 
 /// Create the post_message tool definition
@@ -50,7 +50,8 @@ pub async fn execute_post_message(
     arguments: Option<Value>,
     context: &McpSecurityContext,
 ) -> Result<ToolCallResult, McpError> {
-    let args = arguments.ok_or_else(|| McpError::InvalidToolParameters("Missing arguments".to_string()))?;
+    let args = arguments
+        .ok_or_else(|| McpError::InvalidToolParameters("Missing arguments".to_string()))?;
     let channel_id = require_uuid_arg(&args, "channel_id")?;
     let message = require_string_arg(&args, "message")?;
     let thread_id = optional_uuid_arg(&args, "thread_id");
@@ -73,7 +74,7 @@ pub async fn execute_post_message(
                 AND cm.user_id = $2
                 AND c.is_archived = false
             )
-            "#
+            "#,
         )
         .bind(channel_id)
         .bind(context.user_id)
@@ -96,7 +97,7 @@ pub async fn execute_post_message(
             INSERT INTO posts (
                 id, channel_id, user_id, message, thread_id, created_at, updated_at
             ) VALUES ($1, $2, $3, $4, $5, $6, $6)
-            "#
+            "#,
         )
         .bind(post_id)
         .bind(channel_id)

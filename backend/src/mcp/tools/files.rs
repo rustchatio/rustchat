@@ -15,25 +15,26 @@ use crate::mcp::security::McpSecurityContext;
 
 /// File info row from database query
 #[allow(clippy::type_complexity)]
-type FileInfoRow = (Uuid, String, Option<String>, i64, Uuid, String, Uuid, String, chrono::DateTime<chrono::Utc>);
+type FileInfoRow = (
+    Uuid,
+    String,
+    Option<String>,
+    i64,
+    Uuid,
+    String,
+    Uuid,
+    String,
+    chrono::DateTime<chrono::Utc>,
+);
 
 /// Create the list_files tool definition
 pub fn create_list_files_tool() -> ToolDefinition {
     let mut properties = HashMap::new();
-    properties.insert(
-        "channel_id".to_string(),
-        schemas::channel_id(),
-    );
-    properties.insert(
-        "limit".to_string(),
-        schemas::limit(20),
-    );
+    properties.insert("channel_id".to_string(), schemas::channel_id());
+    properties.insert("limit".to_string(), schemas::limit(20));
 
-    let schema = ToolSchema::object(
-        properties,
-        vec!["channel_id".to_string()],
-    )
-    .with_description("List files in a channel");
+    let schema = ToolSchema::object(properties, vec!["channel_id".to_string()])
+        .with_description("List files in a channel");
 
     ToolDefinition::new(
         "list_files",
@@ -81,14 +82,15 @@ pub async fn execute_list_files(
     arguments: Option<Value>,
     context: &McpSecurityContext,
 ) -> Result<ToolCallResult, McpError> {
-    let args = arguments.ok_or_else(|| McpError::InvalidToolParameters("Missing arguments".to_string()))?;
+    let args = arguments
+        .ok_or_else(|| McpError::InvalidToolParameters("Missing arguments".to_string()))?;
     let channel_id = require_uuid_arg(&args, "channel_id")?;
     let limit = optional_int_arg(&args, "limit", 20).clamp(1, 50);
 
     // Verify user has access to the channel
     if let Some(ref db) = context.db {
         let has_access: bool = sqlx::query_scalar(
-            "SELECT EXISTS(SELECT 1 FROM channel_members WHERE channel_id = $1 AND user_id = $2)"
+            "SELECT EXISTS(SELECT 1 FROM channel_members WHERE channel_id = $1 AND user_id = $2)",
         )
         .bind(channel_id)
         .bind(context.user_id)
@@ -105,7 +107,19 @@ pub async fn execute_list_files(
 
     // Fetch files
     let files = if let Some(ref db) = context.db {
-        sqlx::query_as::<_, (Uuid, String, Option<String>, i64, Uuid, String, String, chrono::DateTime<chrono::Utc>)>(
+        sqlx::query_as::<
+            _,
+            (
+                Uuid,
+                String,
+                Option<String>,
+                i64,
+                Uuid,
+                String,
+                String,
+                chrono::DateTime<chrono::Utc>,
+            ),
+        >(
             r#"
             SELECT 
                 f.id,
@@ -131,35 +145,35 @@ pub async fn execute_list_files(
         .await
         .map_err(|e| McpError::ToolExecutionFailed(format!("Database error: {}", e)))?
         .into_iter()
-        .map(|(id, name, mime_type, size, user_id, username, channel_name, created_at)| {
-            serde_json::json!({
-                "id": id,
-                "name": name,
-                "mime_type": mime_type,
-                "size": size,
-                "user_id": user_id,
-                "username": username,
-                "channel_id": channel_id,
-                "channel_name": channel_name,
-                "created_at": created_at.to_rfc3339(),
-            })
-        })
+        .map(
+            |(id, name, mime_type, size, user_id, username, channel_name, created_at)| {
+                serde_json::json!({
+                    "id": id,
+                    "name": name,
+                    "mime_type": mime_type,
+                    "size": size,
+                    "user_id": user_id,
+                    "username": username,
+                    "channel_id": channel_id,
+                    "channel_name": channel_name,
+                    "created_at": created_at.to_rfc3339(),
+                })
+            },
+        )
         .collect::<Vec<_>>()
     } else {
         // Mock data
-        vec![
-            serde_json::json!({
-                "id": Uuid::new_v4(),
-                "name": "document.pdf",
-                "mime_type": "application/pdf",
-                "size": 1024000i64,
-                "user_id": Uuid::new_v4(),
-                "username": "alice",
-                "channel_id": channel_id,
-                "channel_name": "general",
-                "created_at": chrono::Utc::now().to_rfc3339(),
-            }),
-        ]
+        vec![serde_json::json!({
+            "id": Uuid::new_v4(),
+            "name": "document.pdf",
+            "mime_type": "application/pdf",
+            "size": 1024000i64,
+            "user_id": Uuid::new_v4(),
+            "username": "alice",
+            "channel_id": channel_id,
+            "channel_name": "general",
+            "created_at": chrono::Utc::now().to_rfc3339(),
+        })]
     };
 
     ToolCallResult::success_json(files)
@@ -171,7 +185,8 @@ pub async fn execute_get_file_info(
     arguments: Option<Value>,
     context: &McpSecurityContext,
 ) -> Result<ToolCallResult, McpError> {
-    let args = arguments.ok_or_else(|| McpError::InvalidToolParameters("Missing arguments".to_string()))?;
+    let args = arguments
+        .ok_or_else(|| McpError::InvalidToolParameters("Missing arguments".to_string()))?;
     let file_id = require_uuid_arg(&args, "file_id")?;
 
     // Fetch file info
@@ -193,7 +208,7 @@ pub async fn execute_get_file_info(
             JOIN channels c ON f.channel_id = c.id
             WHERE f.id = $1
             AND f.delete_at IS NULL
-            "#
+            "#,
         )
         .bind(file_id)
         .fetch_optional(db)
@@ -201,7 +216,17 @@ pub async fn execute_get_file_info(
         .map_err(|e| McpError::ToolExecutionFailed(format!("Database error: {}", e)))?;
 
         match row {
-            Some((id, name, mime_type, size, user_id, username, channel_id, channel_name, created_at)) => {
+            Some((
+                id,
+                name,
+                mime_type,
+                size,
+                user_id,
+                username,
+                channel_id,
+                channel_name,
+                created_at,
+            )) => {
                 // Check if user has access to the channel
                 let has_access: bool = sqlx::query_scalar(
                     "SELECT EXISTS(SELECT 1 FROM channel_members WHERE channel_id = $1 AND user_id = $2)"
@@ -221,10 +246,7 @@ pub async fn execute_get_file_info(
                 // Generate presigned URL
                 let expires_at = chrono::Utc::now() + chrono::Duration::minutes(15);
                 // Note: In a real implementation, we'd use the S3 client to generate a presigned URL
-                let url = format!(
-                    "https://example.com/files/{}/download?token=temporary",
-                    id
-                );
+                let url = format!("https://example.com/files/{}/download?token=temporary", id);
 
                 FileInfo {
                     id,
@@ -260,9 +282,7 @@ pub async fn execute_get_file_info(
             channel_id: Uuid::new_v4(),
             channel_name: "general".to_string(),
             created_at: chrono::Utc::now().to_rfc3339(),
-            expires_at: Some(
-                (chrono::Utc::now() + chrono::Duration::minutes(15)).to_rfc3339(),
-            ),
+            expires_at: Some((chrono::Utc::now() + chrono::Duration::minutes(15)).to_rfc3339()),
         }
     };
 

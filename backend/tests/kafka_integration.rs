@@ -140,7 +140,10 @@ async fn test_producer_consumer_roundtrip() {
     let handler = Arc::new(TestHandler { sender: tx });
 
     // Subscribe to topic
-    let _shutdown = consumer.subscribe(topic, handler).await.expect("Failed to subscribe");
+    let _shutdown = consumer
+        .subscribe(topic, handler)
+        .await
+        .expect("Failed to subscribe");
 
     // Wait a bit for consumer to subscribe
     tokio::time::sleep(Duration::from_secs(2)).await;
@@ -163,7 +166,10 @@ async fn test_producer_consumer_roundtrip() {
         .await
         .expect("Failed to publish message");
 
-    println!("Message published to partition {} at offset {}", result.partition, result.offset);
+    println!(
+        "Message published to partition {} at offset {}",
+        result.partition, result.offset
+    );
 
     // Wait for the message to be received
     let received = timeout(Duration::from_secs(30), rx.recv()).await;
@@ -205,7 +211,10 @@ async fn test_multiple_messages() {
     let handler = Arc::new(TestHandler { sender: tx });
 
     // Subscribe to topic
-    let _shutdown = consumer.subscribe(topic, handler).await.expect("Failed to subscribe");
+    let _shutdown = consumer
+        .subscribe(topic, handler)
+        .await
+        .expect("Failed to subscribe");
 
     // Wait for consumer to subscribe
     tokio::time::sleep(Duration::from_secs(2)).await;

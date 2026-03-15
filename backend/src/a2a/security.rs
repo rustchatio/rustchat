@@ -260,12 +260,7 @@ pub struct AgentAuthToken {
 
 impl AgentAuthToken {
     /// Create a new agent authentication token
-    pub fn new(
-        agent_id: Uuid,
-        user_id: Uuid,
-        scopes: Vec<String>,
-        ttl_seconds: i64,
-    ) -> Self {
+    pub fn new(agent_id: Uuid, user_id: Uuid, scopes: Vec<String>, ttl_seconds: i64) -> Self {
         let now = chrono::Utc::now();
         Self {
             agent_id,
@@ -301,7 +296,11 @@ impl AgentTokenValidator {
     }
 
     /// Generate a JWT for an agent
-    pub fn generate_token(&self, agent_id: Uuid, user_id: Uuid) -> Result<String, A2ASecurityError> {
+    pub fn generate_token(
+        &self,
+        agent_id: Uuid,
+        user_id: Uuid,
+    ) -> Result<String, A2ASecurityError> {
         use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
         use serde::{Deserialize, Serialize};
 
@@ -398,7 +397,9 @@ mod tests {
             capability_filter: None,
         };
 
-        let invalid = context.verify_message(&tampered_message, &signature).unwrap();
+        let invalid = context
+            .verify_message(&tampered_message, &signature)
+            .unwrap();
         assert!(!invalid);
     }
 
@@ -408,7 +409,10 @@ mod tests {
             .with_agent(Uuid::new_v4())
             .with_details(serde_json::json!({"framework": "langchain"}));
 
-        assert!(matches!(event.event_type, A2AAuditEventType::AgentRegistered));
+        assert!(matches!(
+            event.event_type,
+            A2AAuditEventType::AgentRegistered
+        ));
         assert!(event.agent_id.is_some());
         assert_eq!(event.details["framework"], "langchain");
     }

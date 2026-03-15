@@ -5,7 +5,7 @@
 use rustchat::mcp::protocol::{
     ClientCapabilities, Implementation, InitializeRequest, InitializeResult, JsonRpcError,
     JsonRpcId, JsonRpcRequest, JsonRpcResponse, McpError, McpErrorCode, ServerCapabilities,
-    ToolCallRequest, ToolCallResult, ToolInfo, ToolListResult, ToolContent,
+    ToolCallRequest, ToolCallResult, ToolContent, ToolInfo, ToolListResult,
 };
 use serde_json::json;
 
@@ -85,9 +85,9 @@ fn test_json_rpc_error_types() {
 
 #[test]
 fn test_json_rpc_error_with_data() {
-    let error = JsonRpcError::invalid_params()
-        .with_data(json!({"field": "missing", "reason": "required"}));
-    
+    let error =
+        JsonRpcError::invalid_params().with_data(json!({"field": "missing", "reason": "required"}));
+
     assert_eq!(error.code, -32602);
     assert!(error.data.is_some());
 }
@@ -127,13 +127,11 @@ fn test_initialize_result_serialization() {
 #[test]
 fn test_tool_list_result() {
     let result = ToolListResult {
-        tools: vec![
-            ToolInfo {
-                name: "list_channels".to_string(),
-                description: "List channels".to_string(),
-                input_schema: Some(json!({"type": "object"})),
-            },
-        ],
+        tools: vec![ToolInfo {
+            name: "list_channels".to_string(),
+            description: "List channels".to_string(),
+            input_schema: Some(json!({"type": "object"})),
+        }],
     };
 
     let json = serde_json::to_value(&result).unwrap();
@@ -159,10 +157,10 @@ fn test_tool_call_request() {
 #[test]
 fn test_tool_call_result() {
     let result = ToolCallResult::success_text("Operation completed");
-    
+
     assert!(!result.is_error);
     assert_eq!(result.content.len(), 1);
-    
+
     match &result.content[0] {
         ToolContent::Text { text } => assert_eq!(text, "Operation completed"),
         _ => panic!("Expected text content"),
@@ -172,7 +170,7 @@ fn test_tool_call_result() {
 #[test]
 fn test_tool_call_result_error() {
     let result = ToolCallResult::error_text("Something went wrong");
-    
+
     assert!(result.is_error);
     assert_eq!(result.content.len(), 1);
 }
@@ -181,9 +179,9 @@ fn test_tool_call_result_error() {
 fn test_tool_call_result_json() {
     let data = json!({"id": "123", "status": "ok"});
     let result = ToolCallResult::success_json(data).unwrap();
-    
+
     assert!(!result.is_error);
-    
+
     match &result.content[0] {
         ToolContent::Text { text } => {
             let parsed: serde_json::Value = serde_json::from_str(text).unwrap();
@@ -196,18 +194,29 @@ fn test_tool_call_result_json() {
 #[test]
 fn test_mcp_error_conversion() {
     let errors = vec![
-        (McpError::ToolNotFound("test".to_string()), McpErrorCode::ToolNotFound),
+        (
+            McpError::ToolNotFound("test".to_string()),
+            McpErrorCode::ToolNotFound,
+        ),
         (McpError::ApprovalRequired, McpErrorCode::ApprovalRequired),
         (McpError::ApprovalDenied, McpErrorCode::ApprovalDenied),
         (McpError::RateLimitExceeded, McpErrorCode::RateLimitExceeded),
         (McpError::Unauthorized, McpErrorCode::Unauthorized),
-        (McpError::ScopeViolation("test".to_string()), McpErrorCode::ScopeViolation),
+        (
+            McpError::ScopeViolation("test".to_string()),
+            McpErrorCode::ScopeViolation,
+        ),
     ];
 
     for (mcp_err, expected_code) in errors {
         let json_err: JsonRpcError = (&mcp_err).into();
-        assert_eq!(json_err.code, expected_code.as_i32(), 
-            "Error {:?} should have code {}", mcp_err, expected_code.as_i32());
+        assert_eq!(
+            json_err.code,
+            expected_code.as_i32(),
+            "Error {:?} should have code {}",
+            mcp_err,
+            expected_code.as_i32()
+        );
     }
 }
 
@@ -215,7 +224,7 @@ fn test_mcp_error_conversion() {
 fn test_mcp_error_display() {
     let err = McpError::ToolNotFound("my_tool".to_string());
     assert!(err.to_string().contains("my_tool"));
-    
+
     let err = McpError::InvalidProtocolVersion("1.0".to_string());
     assert!(err.to_string().contains("1.0"));
 }
@@ -235,7 +244,7 @@ fn test_json_rpc_id_equality() {
     );
     assert_eq!(JsonRpcId::Number(42), JsonRpcId::Number(42));
     assert_eq!(JsonRpcId::Null, JsonRpcId::Null);
-    
+
     assert_ne!(
         JsonRpcId::String("test".to_string()),
         JsonRpcId::String("other".to_string())
@@ -245,7 +254,7 @@ fn test_json_rpc_id_equality() {
 #[test]
 fn test_batch_message_parsing() {
     // McpMessage type reserved for future protocol tests
-    
+
     let json = json!([
         {"jsonrpc": "2.0", "id": 1, "method": "tools/list"},
         {"jsonrpc": "2.0", "id": 2, "method": "ping"}

@@ -162,7 +162,7 @@ impl KafkaProducer {
                 key: "node_id",
                 value: Some(&self.node_id),
             });
-            
+
             let mut record = FutureRecord::to(topic)
                 .payload(&payload_bytes)
                 .headers(headers);
