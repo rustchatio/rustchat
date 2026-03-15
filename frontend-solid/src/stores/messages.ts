@@ -182,7 +182,12 @@ export async function fetchMessages(channelId: string): Promise<void> {
     if (!response.ok) throw new Error('Failed to fetch messages');
 
     const data = await response.json();
-    const messages: Message[] = (data.messages || [])
+    const rawPosts: Post[] = Array.isArray(data.messages)
+      ? data.messages
+      : Array.isArray(data.posts)
+        ? data.posts
+        : [];
+    const messages: Message[] = rawPosts
       .filter((p: Post) => !p.root_post_id && !p.parent_id)
       .map(postToMessage)
       .reverse();
@@ -195,7 +200,7 @@ export async function fetchMessages(channelId: string): Promise<void> {
     }
 
     // If we got fewer than 50, we probably reached the end
-    setHasMoreOlderByChannel(channelId, (data.messages || []).length >= 50);
+    setHasMoreOlderByChannel(channelId, rawPosts.length >= 50);
   } catch (err) {
     setError(err instanceof Error ? err.message : 'Failed to fetch messages');
     throw err;
@@ -234,7 +239,12 @@ export async function fetchOlderMessages(channelId: string): Promise<void> {
     if (!response.ok) throw new Error('Failed to fetch older messages');
 
     const data = await response.json();
-    const olderMessages: Message[] = (data.messages || [])
+    const rawPosts: Post[] = Array.isArray(data.messages)
+      ? data.messages
+      : Array.isArray(data.posts)
+        ? data.posts
+        : [];
+    const olderMessages: Message[] = rawPosts
       .filter((p: Post) => !p.root_post_id && !p.parent_id)
       .map(postToMessage)
       .reverse();
@@ -243,7 +253,7 @@ export async function fetchOlderMessages(channelId: string): Promise<void> {
       setMessagesByChannel(channelId, [...olderMessages, ...currentMessages]);
     }
 
-    setHasMoreOlderByChannel(channelId, (data.messages || []).length >= 50);
+    setHasMoreOlderByChannel(channelId, rawPosts.length >= 50);
   } catch (err) {
     console.error('Failed to fetch older messages:', err);
   } finally {

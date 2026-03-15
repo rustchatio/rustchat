@@ -1,6 +1,8 @@
 import { createSignal, createEffect, Show, For } from 'solid-js';
 import { authStore } from '@/stores/auth';
 import { channelStore } from '@/stores/channels';
+import { sendMessage } from '@/stores/messages';
+import { generateUUID } from '@/utils/uuid';
 // API calls use fetch directly
 import { Button } from '@/components/ui/Button';
 import { formatFileSize } from '@/utils/file';
@@ -17,6 +19,7 @@ interface FileAttachment {
   type: string;
   progress: number;
   uploaded: boolean;
+  uploadedFileId?: string;
   error?: string;
 }
 
@@ -42,11 +45,13 @@ export function MessageInput(props: MessageInputProps) {
   const [isDragging, setIsDragging] = createSignal(false);
   const [textareaRef, setTextareaRef] = createSignal<HTMLTextAreaElement | null>(null);
   const [cursorPosition, setCursorPosition] = createSignal(0);
+  const [sendError, setSendError] = createSignal<string | null>(null);
   
   const auth = authStore;
   const channels = channelStore;
-  // Use auth and channels in the component
-  console.log('Current user:', auth.user?.()?.username, 'Channel count:', channels.channels.length);
+  // Keep refs for now (used by slash commands/typing context and future behavior).
+  void auth;
+  void channels;
 
   // Auto-resize textarea
   createEffect(() => {
@@ -115,7 +120,7 @@ export function MessageInput(props: MessageInputProps) {
   };
 
   const handleSend = async () => {
-
+    setSendError(null);
 
     const attachments = files();
 
@@ -127,33 +132,37 @@ export function MessageInput(props: MessageInputProps) {
     try {
       // Upload files first
       const fileIds: string[] = [];
+      const token = authStore.token;
       for (const attachment of attachments) {
-        if (!attachment.uploaded && !attachment.error) {
+        if (attachment.error) continue;
+
+        if (attachment.uploaded && attachment.uploadedFileId) {
+          fileIds.push(attachment.uploadedFileId);
+          continue;
+        }
+
+        if (!attachment.uploaded) {
           const formData = new FormData();
           formData.append('file', attachment.file);
           
-          const response = await fetch('/api/v1/files', {
+          const response = await fetch(`/api/v1/files?channel_id=${encodeURIComponent(props.channelId)}`, {
             method: 'POST',
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
             body: formData,
-          }).then(r => r.json());
-          updateFileProgress(attachment.id, 50); // Mock progress
+          });
+          if (!response.ok) {
+            const payload = (await response.json().catch(() => ({}))) as { message?: string };
+            throw new Error(payload.message || `File upload failed for ${attachment.name}`);
+          }
+          const payload = (await response.json()) as { id: string };
+          updateFileProgress(attachment.id, 100);
           
-          fileIds.push(response.id);
-          markFileUploaded(attachment.id);
+          fileIds.push(payload.id);
+          markFileUploaded(attachment.id, payload.id);
         }
       }
 
-      // Send message
-      await fetch('/api/v1/posts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          channel_id: props.channelId,
-          message: message().trim(),
-          root_id: props.threadId,
-          file_ids: fileIds,
-        }),
-      });
+      await sendMessage(props.channelId, message().trim(), props.threadId, fileIds);
 
       // Clear input
       setMessage('');
@@ -161,6 +170,7 @@ export function MessageInput(props: MessageInputProps) {
       props.onSend?.();
     } catch (error) {
       console.error('Failed to send message:', error);
+      setSendError(error instanceof Error ? error.message : 'Failed to send message');
     } finally {
       setIsSending(false);
     }
@@ -263,24 +273,24 @@ export function MessageInput(props: MessageInputProps) {
 
     const newFiles: FileAttachment[] = [];
     for (const file of Array.from(selectedFiles)) {
-      if (file.size > MAX_FILE_SIZE) {
-        newFiles.push({
-          id: Math.random().toString(36).substr(2, 9),
-          file,
-          name: file.name,
-          size: file.size,
-          type: file.type,
+        if (file.size > MAX_FILE_SIZE) {
+          newFiles.push({
+            id: generateUUID(),
+            file,
+            name: file.name,
+            size: file.size,
+            type: file.type,
           progress: 0,
           uploaded: false,
           error: `File too large (max ${formatFileSize(MAX_FILE_SIZE)})`,
         });
-      } else {
-        newFiles.push({
-          id: Math.random().toString(36).substr(2, 9),
-          file,
-          name: file.name,
-          size: file.size,
-          type: file.type,
+        } else {
+          newFiles.push({
+            id: generateUUID(),
+            file,
+            name: file.name,
+            size: file.size,
+            type: file.type,
           progress: 0,
           uploaded: false,
         });
@@ -294,8 +304,12 @@ export function MessageInput(props: MessageInputProps) {
     setFiles(files().map(f => f.id === id ? { ...f, progress } : f));
   };
 
-  const markFileUploaded = (id: string) => {
-    setFiles(files().map(f => f.id === id ? { ...f, uploaded: true, progress: 100 } : f));
+  const markFileUploaded = (id: string, uploadedFileId: string) => {
+    setFiles(
+      files().map((f) =>
+        f.id === id ? { ...f, uploaded: true, progress: 100, uploadedFileId } : f
+      )
+    );
   };
 
   const removeFile = (id: string) => {
@@ -409,6 +423,12 @@ export function MessageInput(props: MessageInputProps) {
       <Show when={messageLength() > 500}>
         <div class="character-counter" classList={{ 'over-limit': isOverLimit() }}>
           {messageLength()}/{MAX_MESSAGE_LENGTH}
+        </div>
+      </Show>
+
+      <Show when={sendError()}>
+        <div class="mt-2 rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-xs text-danger">
+          {sendError()}
         </div>
       </Show>
 
