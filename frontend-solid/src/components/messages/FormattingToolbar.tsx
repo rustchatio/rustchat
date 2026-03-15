@@ -13,13 +13,14 @@ export function FormattingToolbar(props: FormattingToolbarProps) {
   ];
 
   return (
-    <div class="formatting-toolbar">
+    <div class="mb-2 flex flex-wrap items-center gap-1 border-b border-border-1 pb-2">
       {tools.map(tool => (
         <button
-          class="format-button"
+          class="inline-flex h-7 min-w-7 items-center justify-center rounded-md border border-border-1 px-2 text-xs font-medium text-text-2 transition-colors hover:bg-bg-surface-2 hover:text-text-1"
           onClick={() => props.onFormat(tool.id)}
           title={tool.title}
           type="button"
+          aria-label={tool.label}
         >
           {tool.icon}
         </button>

@@ -35,6 +35,10 @@ export interface InputProps extends BaseProps, TestProps {
   name?: string;
   /** Input id (auto-generated if not provided) */
   id?: string;
+  /** Browser autocomplete hint */
+  autocomplete?: string;
+  /** React-style alias for browser autocomplete hint */
+  autoComplete?: string;
   /** Change handler */
   onInput?: (event: InputEvent & { currentTarget: HTMLInputElement }) => void;
   /** Change handler (on blur) */
@@ -60,6 +64,7 @@ export interface InputProps extends BaseProps, TestProps {
 const defaultProps: Partial<InputProps> = {
   type: 'text',
   size: 'md',
+  autoComplete: 'on',
 };
 
 // ============================================
@@ -92,12 +97,13 @@ function generateInputId(): string {
 
 export function Input(props: InputProps): JSX.Element {
   const merged = mergeProps(defaultProps, props);
-  const [local, rest] = splitProps(merged, ['size', 'label', 'helperText', 'error', 'class', 'id']);
+  const [local, rest] = splitProps(merged, ['size', 'label', 'helperText', 'error', 'class', 'id', 'autocomplete', 'autoComplete']);
 
   const inputId = () => local.id ?? generateInputId();
   const helperId = () => `${inputId()}-helper`;
   const errorId = () => `${inputId()}-error`;
   const hasError = () => !!local.error;
+  const resolvedAutoComplete = () => local.autoComplete ?? local.autocomplete ?? 'on';
 
   const ariaDescribedBy = () => {
     const ids: string[] = [];
@@ -121,6 +127,7 @@ export function Input(props: InputProps): JSX.Element {
 
       <input
         id={inputId()}
+        autocomplete={resolvedAutoComplete()}
         class={cn(
           baseStyles,
           sizeStyles[local.size as InputSize],

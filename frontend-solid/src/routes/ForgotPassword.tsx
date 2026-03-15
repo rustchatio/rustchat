@@ -164,7 +164,9 @@ export default function ForgotPassword() {
             <div>
               <Input
                 id="email"
+                name="email"
                 type="email"
+                autocomplete="email"
                 label="Email Address"
                 value={email()}
                 onInput={(e) => {

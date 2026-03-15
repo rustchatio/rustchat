@@ -296,7 +296,9 @@ export default function Login() {
                 <div>
                   <Input
                     id="email"
+                    name="username"
                     type="email"
+                    autocomplete="username"
                     label="Email"
                     value={email()}
                     onInput={(e) => {
@@ -316,7 +318,9 @@ export default function Login() {
                 <div>
                   <Input
                     id="password"
+                    name="password"
                     type="password"
+                    autocomplete="current-password"
                     label="Password"
                     value={password()}
                     onInput={(e) => {

@@ -353,7 +353,9 @@ export default function Register() {
 
             <Input
               id="email"
+              name="email"
               type="email"
+              autocomplete="email"
               label="Email"
               value={email()}
               onInput={(e) => {
@@ -367,7 +369,9 @@ export default function Register() {
 
             <Input
               id="username"
+              name="username"
               type="text"
+              autocomplete="username"
               label="Username"
               value={username()}
               onInput={(e) => {
@@ -381,7 +385,9 @@ export default function Register() {
 
             <Input
               id="firstName"
+              name="firstName"
               type="text"
+              autocomplete="given-name"
               label="First Name"
               value={firstName()}
               onInput={(e) => setFirstName(e.currentTarget.value)}
@@ -390,7 +396,9 @@ export default function Register() {
 
             <Input
               id="lastName"
+              name="lastName"
               type="text"
+              autocomplete="family-name"
               label="Last Name"
               value={lastName()}
               onInput={(e) => setLastName(e.currentTarget.value)}
@@ -399,7 +407,9 @@ export default function Register() {
 
             <Input
               id="password"
+              name="password"
               type="password"
+              autocomplete="new-password"
               label="Password"
               value={password()}
               onInput={(e) => {
@@ -413,7 +423,9 @@ export default function Register() {
 
             <Input
               id="confirmPassword"
+              name="confirmPassword"
               type="password"
+              autocomplete="new-password"
               label="Confirm Password"
               value={confirmPassword()}
               onInput={(e) => {

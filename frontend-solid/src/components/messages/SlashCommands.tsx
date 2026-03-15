@@ -1,4 +1,4 @@
-import { createSignal, createEffect, For, Show } from 'solid-js';
+import { createSignal, createEffect, For, Show, onCleanup } from 'solid-js';
 
 interface Command {
   name: string;
@@ -66,24 +66,31 @@ export function SlashCommands(props: SlashCommandsProps) {
 
   createEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    onCleanup(() => window.removeEventListener('keydown', handleKeyDown));
   });
 
   return (
-    <div class="slash-commands">
-      <Show when={filtered().length > 0} fallback={<div class="no-results">No commands found</div>}>
+    <div class="absolute bottom-full left-3 right-3 z-40 mb-2 overflow-hidden rounded-xl border border-border-1 bg-bg-surface-1 shadow-xl sm:left-0 sm:right-auto sm:w-[420px]">
+      <Show
+        when={filtered().length > 0}
+        fallback={<div class="px-3 py-2 text-sm text-text-3">No commands found</div>}
+      >
         <For each={filtered()}>
           {(command, index) => (
             <button
-              class="command-item"
-              classList={{ selected: index() === selectedIndex() }}
+              class={`w-full px-3 py-2 text-left transition-colors ${
+                index() === selectedIndex()
+                  ? 'bg-brand/10'
+                  : 'hover:bg-bg-surface-2'
+              }`}
               onClick={() => props.onSelect(command.name)}
               onMouseEnter={() => setSelectedIndex(index())}
+              type="button"
             >
-              <div class="command-name">/{command.name}</div>
-              <div class="command-description">
+              <div class="text-sm font-medium text-text-1">/{command.name}</div>
+              <div class="text-xs text-text-3">
                 {command.description}
-                {command.shortcut && <span class="command-shortcut">{command.shortcut}</span>}
+                {command.shortcut && <span class="ml-2 text-text-2">{command.shortcut}</span>}
               </div>
             </button>
           )}

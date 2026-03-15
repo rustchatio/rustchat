@@ -4,13 +4,25 @@
 
 // Simple beep sound using Web Audio API
 let audioContext: AudioContext | null = null;
+let audioUnlocked = false;
+let unlockListenersAttached = false;
+const USER_GESTURE_EVENTS = ['pointerdown', 'keydown', 'touchstart', 'click'] as const;
 
 // ============================================
 // Audio Context Management
 // ============================================
 
+function detachUnlockListeners(): void {
+  if (typeof window === 'undefined' || !unlockListenersAttached) return;
+  for (const eventName of USER_GESTURE_EVENTS) {
+    window.removeEventListener(eventName, unlockAudioFromGesture, true);
+  }
+  unlockListenersAttached = false;
+}
+
 function getAudioContext(): AudioContext | null {
   if (typeof window === 'undefined') return null;
+  if (!audioUnlocked) return null;
   
   if (!audioContext) {
     try {
@@ -24,17 +36,36 @@ function getAudioContext(): AudioContext | null {
   return audioContext;
 }
 
+function unlockAudioFromGesture(): void {
+  audioUnlocked = true;
+  detachUnlockListeners();
+  const ctx = getAudioContext();
+  if (ctx && ctx.state === 'suspended') {
+    void ctx.resume().catch(() => {});
+  }
+}
+
+function attachUnlockListeners(): void {
+  if (typeof window === 'undefined' || unlockListenersAttached) return;
+  for (const eventName of USER_GESTURE_EVENTS) {
+    window.addEventListener(eventName, unlockAudioFromGesture, { capture: true, passive: true });
+  }
+  unlockListenersAttached = true;
+}
+
 // ============================================
 // Sound Synthesis
 // ============================================
 
 function playTone(frequency: number, duration: number, type: OscillatorType = 'sine'): void {
+  attachUnlockListeners();
   const ctx = getAudioContext();
   if (!ctx) return;
 
   // Resume context if suspended (browser policy)
   if (ctx.state === 'suspended') {
-    ctx.resume().catch(() => {});
+    void ctx.resume().then(() => playTone(frequency, duration, type)).catch(() => {});
+    return;
   }
 
   const oscillator = ctx.createOscillator();
@@ -193,3 +224,6 @@ export function playDisconnectedSound(): void {
     Sounds.disconnected();
   }
 }
+
+// Register user-gesture unlock listeners on module load.
+attachUnlockListeners();

@@ -334,11 +334,13 @@ export function MessageInput(props: MessageInputProps) {
 
   const messageLength = () => message().length;
   const isOverLimit = () => messageLength() > MAX_MESSAGE_LENGTH;
+  const fileUploadInputId = () =>
+    `file-upload-${props.channelId}${props.threadId ? `-${props.threadId}` : ''}`;
 
   return (
     <div
-      class="message-input-container"
-      classList={{ 'dragging': isDragging() }}
+      class="relative p-3 sm:p-4"
+      classList={{ 'bg-brand/5 ring-2 ring-brand/40': isDragging() }}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -347,24 +349,36 @@ export function MessageInput(props: MessageInputProps) {
       
       {/* File attachments */}
       <Show when={files().length > 0}>
-        <div class="file-attachments">
+        <div class="mb-2 space-y-2">
           <For each={files()}>
             {(file) => (
-              <div class="file-attachment" classList={{ 'error': !!file.error }}>
-                <div class="file-info">
-                  <span class="file-name">{file.name}</span>
-                  <span class="file-size">{formatFileSize(file.size)}</span>
-                  {file.error && <span class="file-error">{file.error}</span>}
+              <div
+                class={`flex items-start justify-between gap-3 rounded-lg border px-3 py-2 ${
+                  file.error
+                    ? 'border-danger/40 bg-danger/10'
+                    : 'border-border-1 bg-bg-surface-2'
+                }`}
+              >
+                <div class="min-w-0 flex-1">
+                  <div class="truncate text-sm font-medium text-text-1">{file.name}</div>
+                  <div class="text-xs text-text-3">{formatFileSize(file.size)}</div>
+                  {file.error && <div class="mt-1 text-xs text-danger">{file.error}</div>}
                 </div>
                 <Show when={!file.error}>
-                  <div class="file-progress">
-                    <div class="progress-bar" style={{ width: `${file.progress}%` }} />
+                  <div class="w-28 self-center">
+                    <div class="h-1.5 rounded-full bg-bg-app">
+                      <div
+                        class="h-full rounded-full bg-brand transition-all"
+                        style={{ width: `${file.progress}%` }}
+                      />
+                    </div>
                   </div>
                 </Show>
                 <button
-                  class="remove-file"
+                  class="inline-flex h-7 w-7 items-center justify-center rounded-md text-text-3 transition-colors hover:bg-bg-surface-1 hover:text-text-1"
                   onClick={() => removeFile(file.id)}
                   type="button"
+                  aria-label={`Remove ${file.name}`}
                 >
                   ×
                 </button>
@@ -374,7 +388,7 @@ export function MessageInput(props: MessageInputProps) {
         </div>
       </Show>
 
-      <div class="input-row">
+      <div class="flex items-end gap-2">
         <textarea
           ref={setTextareaRef}
           value={message()}
@@ -383,24 +397,31 @@ export function MessageInput(props: MessageInputProps) {
           placeholder={props.placeholder || 'Write a message...'}
           disabled={isSending()}
           rows={1}
-          class="message-textarea"
-          classList={{ 'over-limit': isOverLimit() }}
+          class={`min-h-[40px] max-h-[400px] w-full resize-none rounded-xl border bg-bg-app px-3 py-2 text-sm text-text-1 placeholder:text-text-3 transition-colors focus:outline-none focus:ring-2 ${
+            isOverLimit()
+              ? 'border-danger focus:ring-danger/40'
+              : 'border-border-1 focus:border-brand focus:ring-brand/40'
+          }`}
         />
         
-        <div class="input-actions">
+        <div class="flex items-center gap-1.5 pb-0.5">
           <input
             type="file"
-            id="file-upload"
+            id={fileUploadInputId()}
             multiple
             onChange={(e) => handleFileSelect(e.target.files)}
             style={{ display: 'none' }}
           />
-          <label for="file-upload" class="file-button" title="Attach file">
+          <label
+            for={fileUploadInputId()}
+            class="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-md border border-border-1 text-base text-text-2 transition-colors hover:bg-bg-surface-2 hover:text-text-1"
+            title="Attach file"
+          >
             📎
           </label>
           
           <button
-            class="emoji-button"
+            class="inline-flex h-9 w-9 items-center justify-center rounded-md border border-border-1 text-base text-text-2 transition-colors hover:bg-bg-surface-2 hover:text-text-1"
             onClick={() => setShowEmojiPicker(!showEmojiPicker())}
             type="button"
             title="Add emoji"
@@ -413,6 +434,7 @@ export function MessageInput(props: MessageInputProps) {
             disabled={isSending() || (!message().trim() && files().length === 0) || isOverLimit()}
             loading={isSending()}
             size="sm"
+            class="h-9 min-w-20"
           >
             Send
           </Button>
@@ -421,7 +443,7 @@ export function MessageInput(props: MessageInputProps) {
 
       {/* Character counter */}
       <Show when={messageLength() > 500}>
-        <div class="character-counter" classList={{ 'over-limit': isOverLimit() }}>
+        <div class={`mt-1 text-right text-xs ${isOverLimit() ? 'text-danger' : 'text-text-3'}`}>
           {messageLength()}/{MAX_MESSAGE_LENGTH}
         </div>
       </Show>
@@ -461,8 +483,10 @@ export function MessageInput(props: MessageInputProps) {
 
       {/* Drag overlay */}
       <Show when={isDragging()}>
-        <div class="drag-overlay">
-          <div class="drag-message">Drop files here to upload</div>
+        <div class="pointer-events-none absolute inset-0 z-50 flex items-center justify-center rounded-xl bg-brand/10">
+          <div class="rounded-lg border border-brand/50 bg-bg-surface-1 px-4 py-2 text-sm font-medium text-text-1 shadow-md">
+            Drop files here to upload
+          </div>
         </div>
       </Show>
     </div>
