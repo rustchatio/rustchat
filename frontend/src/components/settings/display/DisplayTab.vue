@@ -3,7 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import SettingItemMin from '../SettingItemMin.vue'
 import SettingItemMax from '../SettingItemMax.vue'
 import ThemeEditor from './ThemeEditor.vue'
-import { useThemeStore, THEME_OPTIONS, type Theme, FONT_SIZE_OPTIONS } from '../../../stores/theme'
+import { useThemeStore, THEME_OPTIONS, type Theme } from '../../../stores/theme'
 import { usePreferencesStore } from '../../../stores/preferences'
 
 
@@ -33,7 +33,7 @@ const localChannelDisplay = ref<'full' | 'centered'>('full')
 const localQuickReactions = ref(true)
 const localRenderEmoticons = ref(true)
 const localLanguage = ref('en')
-const localFontSize = ref<12 | 14 | 16>(14)
+const localFontSize = ref<13 | 14 | 16>(14)
 
 const saving = ref(false)
 
@@ -125,7 +125,7 @@ function syncLocalState() {
   
   // Sync font size from theme store
   const currentSize = themeStore.chatFontSize
-  if (currentSize <= 13) localFontSize.value = 12
+  if (currentSize <= 13) localFontSize.value = 13
   else if (currentSize >= 16) localFontSize.value = 16
   else localFontSize.value = 14
 }
@@ -256,12 +256,12 @@ const commonTimezones = [
           <input
             type="radio"
             v-model="localFontSize"
-            :value="12"
+            :value="13"
             class="w-4 h-4 text-primary"
           />
           <div class="flex-1">
             <div class="text-sm font-medium text-gray-900 dark:text-white">Small</div>
-            <div class="text-xs text-gray-500" style="font-size: 12px;">Compact text for more content on screen</div>
+            <div class="text-xs text-gray-500" style="font-size: 13px;">Compact text for more content on screen</div>
           </div>
         </label>
         <label class="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">

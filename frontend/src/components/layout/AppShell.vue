@@ -7,7 +7,6 @@ import RightSidebar from './RightSidebar.vue';
 import { useUIStore } from '../../stores/ui';
 import { useChannelStore } from '../../stores/channels';
 import { useBreakpoints } from '../../composables/useBreakpoints';
-import { Menu, X } from 'lucide-vue-next';
 
 const emit = defineEmits<{
   (e: 'rhsJump', messageId: string): void;
