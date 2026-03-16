@@ -62,10 +62,15 @@ function trackRequest<T>(config: AxiosRequestConfig, promise: Promise<AxiosRespo
 // Request Interceptor
 // ============================================
 
+const STORAGE_KEY = 'rustchat_auth_token';
+
 client.interceptors.request.use(
   (config) => {
-    // Add auth token
-    const token = authStore.token;
+    // Add auth token - try store first, then localStorage fallback
+    let token = authStore.token;
+    if (!token && typeof window !== 'undefined') {
+      token = localStorage.getItem(STORAGE_KEY) || '';
+    }
     console.log('[API Client] Request:', config.method?.toUpperCase(), config.url, 'Token:', token ? 'present' : 'missing');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
