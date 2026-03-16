@@ -444,37 +444,46 @@
 
 /* === UTILITY CLASSES === */
 
-@utility transition-fast {
+/* Transition utilities */
+.transition-fast {
   transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-@utility transition-standard {
+.transition-standard {
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-@utility transition-slow {
+.transition-slow {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-@utility transition-transform {
+.transition-transform {
   transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-@utility transition-colors {
+.transition-colors {
   transition: color 0.15s, background-color 0.15s, border-color 0.15s;
 }
 
-@utility focus-ring {
+/* Focus ring utilities */
+.focus-ring {
   outline: none;
+}
+
+.focus-ring:focus {
   box-shadow: 0 0 0 2px var(--bg-app), 0 0 0 4px var(--brand);
 }
 
-@utility focus-ring-subtle {
+.focus-ring-subtle {
   outline: none;
+}
+
+.focus-ring-subtle:focus {
   box-shadow: 0 0 0 2px var(--brand);
 }
 
-@utility hover-lift {
+/* Hover lift effect */
+.hover-lift {
   transition: transform 0.2s, box-shadow 0.2s;
 }
 
@@ -483,92 +492,36 @@
   box-shadow: var(--shadow-2);
 }
 
-@utility glass {
+/* Glass morphism */
+.glass {
   backdrop-filter: blur(12px);
   background-color: color-mix(in srgb, var(--bg-surface-1) 90%, transparent);
 }
 
-@utility glass-panel {
+.glass-panel {
   backdrop-filter: blur(16px);
   background-color: color-mix(in srgb, var(--bg-surface-1) 95%, transparent);
 }
 
-@utility text-ellipsis {
+/* Text truncation */
+.text-ellipsis {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-@utility line-clamp-2 {
+.line-clamp-2 {
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
-@utility line-clamp-3 {
+.line-clamp-3 {
   display: -webkit-box;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
-}
-
-/* === INTERACTIVE STATES === */
-
-@layer components {
-  .btn-base {
-    @apply inline-flex items-center justify-center font-medium transition-standard focus-ring;
-  }
-
-  .btn-sm {
-    @apply btn-base px-3 py-1.5 text-xs rounded-r-1;
-  }
-
-  .btn-md {
-    @apply btn-base px-4 py-2 text-sm rounded-r-2;
-  }
-
-  .btn-lg {
-    @apply btn-base px-6 py-3 text-sm rounded-r-3;
-  }
-
-  .btn-primary {
-    @apply bg-brand text-white hover:bg-brand-hover shadow-1;
-  }
-
-  .btn-secondary {
-    @apply bg-bg-surface-2 text-text-1 hover:bg-bg-surface-1 border border-border-1;
-  }
-
-  .btn-ghost {
-    @apply text-text-2 hover:text-text-1 hover:bg-bg-surface-2;
-  }
-
-  .btn-danger {
-    @apply bg-danger text-white hover:opacity-90;
-  }
-
-  .input-base {
-    @apply w-full px-3 py-2 bg-bg-surface-1 text-text-1 border border-border-1 rounded-r-2 
-           transition-standard placeholder:text-text-3
-           focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20;
-  }
-
-  .input-sm {
-    @apply input-base px-2.5 py-1.5 text-xs rounded-r-1;
-  }
-
-  .card {
-    @apply bg-bg-surface-1 border border-border-1 rounded-r-3 shadow-1;
-  }
-
-  .divider {
-    @apply h-px bg-border-1 my-4;
-  }
-
-  .divider-vertical {
-    @apply w-px bg-border-1 mx-4 self-stretch;
-  }
 }
 
 /* === ANIMATIONS === */
