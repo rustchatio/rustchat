@@ -73,12 +73,13 @@ async fn get_auth_policy(
 async fn get_public_auth_config(
     State(state): State<AppState>,
 ) -> ApiResult<Json<serde_json::Value>> {
+    let auth_config = crate::services::auth_config::get_password_rules(&state.db).await?;
     Ok(Json(serde_json::json!({
         "turnstile": {
             "enabled": state.config.turnstile.enabled,
             "site_key": state.config.turnstile.site_key,
         },
-        "registration_enabled": true,
+        "registration_enabled": auth_config.allow_registration,
         "password_reset_enabled": true,
     })))
 }
@@ -92,6 +93,14 @@ async fn register(
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     Json(input): Json<CreateUser>,
 ) -> ApiResult<Json<serde_json::Value>> {
+    // Check if public registration is enabled
+    let auth_config = crate::services::auth_config::get_password_rules(&state.db).await?;
+    if !auth_config.allow_registration {
+        return Err(AppError::Forbidden(
+            "Public registration is disabled".to_string(),
+        ));
+    }
+
     // Check honeypot - if filled, likely a bot
     if let Some(ref honeypot) = input.honeypot {
         if !honeypot.is_empty() {
