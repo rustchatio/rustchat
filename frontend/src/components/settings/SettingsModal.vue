@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { X, LogOut, Bell, Monitor, Layout, Settings, Phone } from 'lucide-vue-next'
+import { X, LogOut, Bell, Monitor, Layout, Settings, Phone, User } from 'lucide-vue-next'
 import DisplayTab from './display/DisplayTab.vue'
 import SidebarTab from './sidebar/SidebarTab.vue'
 import AdvancedTab from './advanced/AdvancedTab.vue'
@@ -33,7 +33,7 @@ const pluginTabs: Array<{ id: SettingsTab; label: string; icon: unknown }> = [
   { id: 'calls', label: 'Calls', icon: Phone },
 ]
 
-const allTabs = [...tabs, ...pluginTabs, { id: 'profile' as SettingsTab, label: 'Profile', icon: Bell }]
+const allTabs = [...tabs, ...pluginTabs, { id: 'profile' as SettingsTab, label: 'Profile', icon: User }]
 
 // Reset state when modal opens
 watch(() => props.isOpen, (isOpen) => {
@@ -56,115 +56,147 @@ function handleLogout() {
 </script>
 
 <template>
-  <div v-if="isOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog">
-     <!-- Backdrop -->
-    <div class="fixed inset-0 bg-gray-500/75 dark:bg-black/70" @click="$emit('close')"></div>
-    
-    <!-- Modal Panel -->
-    <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl ring-1 ring-black/5 w-full max-w-6xl max-h-[92vh] flex flex-col overflow-hidden">
-        <!-- Top header -->
-        <div class="flex items-center justify-between px-6 sm:px-8 py-5 border-b border-gray-200 dark:border-gray-700 shrink-0">
-            <h2 class="text-3xl sm:text-4xl font-semibold tracking-tight text-gray-900 dark:text-white">Settings</h2>
-            <button @click="$emit('close')" class="rounded-md text-gray-400 hover:text-gray-500 focus:outline-none p-1">
-                <X class="h-7 w-7 sm:h-8 sm:w-8" />
-            </button>
+  <Transition
+    enter-active-class="transition-opacity duration-200"
+    enter-from-class="opacity-0"
+    enter-to-class="opacity-100"
+    leave-active-class="transition-opacity duration-150"
+    leave-from-class="opacity-100"
+    leave-to-class="opacity-0"
+  >
+    <div v-if="isOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog">
+      <!-- Backdrop -->
+      <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="$emit('close')"></div>
+      
+      <!-- Modal Panel -->
+      <div class="relative bg-bg-surface-1 rounded-r-3 shadow-2xl ring-1 ring-border-1 w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden">
+        <!-- Header -->
+        <div class="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-border-1 shrink-0">
+          <h2 class="text-xl sm:text-2xl font-semibold text-text-1">Settings</h2>
+          <button 
+            @click="$emit('close')" 
+            class="rounded-r-2 p-2 text-text-3 hover:text-text-1 hover:bg-bg-surface-2 transition-standard focus-ring"
+          >
+            <X class="h-5 w-5" />
+          </button>
         </div>
 
-        <div class="flex-1 min-h-0 flex flex-col sm:flex-row">
-            <!-- Sidebar -->
-            <div class="w-full sm:w-72 bg-gray-50 dark:bg-gray-900 border-b sm:border-b-0 sm:border-r border-gray-200 dark:border-gray-700 flex flex-col shrink-0">
-            <nav class="flex sm:flex-col gap-1 px-2 sm:px-3 pb-2 sm:pb-0 overflow-x-auto sm:overflow-x-visible">
-                <button
-                    v-for="tab in tabs"
-                    :key="tab.id"
-                    @click="setTab(tab.id)"
-                    class="flex items-center px-3 py-2 text-sm font-medium rounded-md whitespace-nowrap"
-                    :class="activeTab === tab.id 
-                        ? 'bg-white dark:bg-gray-800 text-primary shadow-sm border border-gray-200 dark:border-gray-700' 
-                        : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'"
-                >
-                    <component :is="tab.icon" class="mr-2 flex-shrink-0 h-4 w-4 sm:h-5 sm:w-5" />
-                    {{ tab.label }}
-                </button>
+        <div class="flex-1 min-h-0 flex flex-col sm:flex-row overflow-hidden">
+          <!-- Sidebar -->
+          <div class="w-full sm:w-64 bg-bg-surface-2 border-b sm:border-b-0 sm:border-r border-border-1 flex flex-col shrink-0 overflow-y-auto">
+            <!-- Main Tabs -->
+            <nav class="flex sm:flex-col gap-0.5 p-2">
+              <button
+                v-for="tab in tabs"
+                :key="tab.id"
+                @click="setTab(tab.id)"
+                class="flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-r-2 whitespace-nowrap transition-standard"
+                :class="activeTab === tab.id 
+                  ? 'bg-bg-surface-1 text-brand shadow-sm ring-1 ring-border-1' 
+                  : 'text-text-2 hover:bg-bg-surface-1 hover:text-text-1'"
+              >
+                <component :is="tab.icon" class="w-4 h-4 shrink-0" />
+                {{ tab.label }}
+              </button>
             </nav>
 
-            <div class="px-3 pt-2 pb-1 text-xs font-bold tracking-wide text-gray-500 dark:text-gray-400 border-t border-gray-200 dark:border-gray-700 mt-1">
-              PLUGIN PREFERENCES
+            <!-- Plugin Section -->
+            <div class="hidden sm:block px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-text-3">
+              Plugin Preferences
             </div>
-            <nav class="flex sm:flex-col gap-1 px-2 sm:px-3 pb-2 overflow-x-auto sm:overflow-x-visible">
+            <nav class="flex sm:flex-col gap-0.5 px-2 pb-2">
               <button
                 v-for="tab in pluginTabs"
                 :key="tab.id"
                 @click="setTab(tab.id)"
-                class="flex items-center px-3 py-2 text-sm font-medium rounded-md whitespace-nowrap"
+                class="flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-r-2 whitespace-nowrap transition-standard"
                 :class="activeTab === tab.id
-                  ? 'bg-white dark:bg-gray-800 text-primary shadow-sm border border-gray-200 dark:border-gray-700'
-                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'"
+                  ? 'bg-bg-surface-1 text-brand shadow-sm ring-1 ring-border-1'
+                  : 'text-text-2 hover:bg-bg-surface-1 hover:text-text-1'"
               >
-                <component :is="tab.icon" class="mr-2 flex-shrink-0 h-4 w-4 sm:h-5 sm:w-5" />
+                <component :is="tab.icon" class="w-4 h-4 shrink-0" />
                 {{ tab.label }}
               </button>
             </nav>
             
-            <div class="hidden sm:block mt-auto p-3 border-t border-gray-200 dark:border-gray-700">
+            <!-- Profile & Logout -->
+            <div class="mt-auto p-2 border-t border-border-1">
+              <button
+                @click="setTab('profile')"
+                class="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-r-2 transition-standard mb-1"
+                :class="activeTab === 'profile'
+                  ? 'bg-bg-surface-1 text-brand shadow-sm ring-1 ring-border-1'
+                  : 'text-text-2 hover:bg-bg-surface-1 hover:text-text-1'"
+              >
+                <User class="w-4 h-4 shrink-0" />
+                Profile
+              </button>
               <button
                 @click="handleLogout"
-                class="flex items-center w-full px-3 py-2 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors"
+                class="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-danger hover:bg-danger/5 rounded-r-2 transition-standard"
               >
-                <LogOut class="mr-2 h-5 w-5" />
+                <LogOut class="w-4 h-4 shrink-0" />
                 Log out
               </button>
             </div>
+          </nav>
+
+          <!-- Content -->
+          <div class="flex-1 min-w-0 overflow-y-auto p-4 sm:p-6 bg-bg-surface-1">
+            <!-- Messages -->
+            <div v-if="error" class="mb-4 p-3 bg-danger/10 border border-danger/20 rounded-r-2 text-danger text-sm">
+              {{ error }}
+            </div>
+            <div v-if="success" class="mb-4 p-3 bg-success/10 border border-success/20 rounded-r-2 text-success text-sm">
+              {{ success }}
             </div>
 
-            <!-- Content -->
-            <div class="flex-1 min-w-0 min-h-0 overflow-y-auto p-4 sm:p-6">
-                <!-- Messages -->
-                <div v-if="error" class="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-600 dark:text-red-400 text-sm">
-                  {{ error }}
-                </div>
-                <div v-if="success" class="mb-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-green-600 dark:text-green-400 text-sm">
-                  {{ success }}
-                </div>
+            <!-- Tab Content -->
+            <div class="max-w-2xl">
+              <!-- Profile Tab -->
+              <div v-if="activeTab === 'profile'">
+                <h3 class="text-lg font-semibold text-text-1 mb-4">Profile</h3>
+                <ProfileTab />
+              </div>
 
-                <!-- Profile Tab -->
-                <div v-if="activeTab === 'profile'">
-                    <ProfileTab />
-                </div>
+              <!-- Notifications Tab -->
+              <div v-else-if="activeTab === 'notifications'">
+                <h3 class="text-lg font-semibold text-text-1 mb-1">Notifications</h3>
+                <p class="text-sm text-text-3 mb-6">Manage how you receive notifications.</p>
+                <NotificationsTab />
+              </div>
 
-                <!-- Notifications Tab -->
-                <div v-else-if="activeTab === 'notifications'">
-                    <NotificationsTab />
-                </div>
+              <!-- Display Tab -->
+              <div v-else-if="activeTab === 'display'">
+                <h3 class="text-lg font-semibold text-text-1 mb-1">Display</h3>
+                <p class="text-sm text-text-3 mb-6">Customize your display preferences.</p>
+                <DisplayTab />
+              </div>
 
-                <!-- Display Tab -->
-                <div v-else-if="activeTab === 'display'">
-                    <div class="mb-4 text-sm text-gray-600 dark:text-gray-400">
-                        Customize your display preferences.
-                    </div>
-                    <DisplayTab />
-                </div>
+              <!-- Sidebar Tab -->
+              <div v-else-if="activeTab === 'sidebar'">
+                <h3 class="text-lg font-semibold text-text-1 mb-1">Sidebar</h3>
+                <p class="text-sm text-text-3 mb-6">Configure your sidebar preferences.</p>
+                <SidebarTab />
+              </div>
 
-                <!-- Sidebar Tab -->
-                <div v-else-if="activeTab === 'sidebar'">
-                    <div class="mb-4 text-sm text-gray-600 dark:text-gray-400">
-                        Configure your sidebar preferences.
-                    </div>
-                    <SidebarTab />
-                </div>
+              <!-- Advanced Tab -->
+              <div v-else-if="activeTab === 'advanced'">
+                <h3 class="text-lg font-semibold text-text-1 mb-1">Advanced</h3>
+                <p class="text-sm text-text-3 mb-6">Advanced settings and options.</p>
+                <AdvancedTab />
+              </div>
 
-                <!-- Advanced Tab -->
-                <div v-else-if="activeTab === 'advanced'">
-                    <AdvancedTab />
-                </div>
-
-                <!-- Calls Tab -->
-                <div v-else-if="activeTab === 'calls'">
-                    <CallsTab />
-                </div>
-
+              <!-- Calls Tab -->
+              <div v-else-if="activeTab === 'calls'">
+                <h3 class="text-lg font-semibold text-text-1 mb-1">Calls</h3>
+                <p class="text-sm text-text-3 mb-6">Configure your call preferences.</p>
+                <CallsTab />
+              </div>
             </div>
+          </div>
         </div>
+      </div>
     </div>
-  </div>
+  </Transition>
 </template>

@@ -3,7 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import SettingItemMin from '../SettingItemMin.vue'
 import SettingItemMax from '../SettingItemMax.vue'
 import ThemeEditor from './ThemeEditor.vue'
-import { useThemeStore, THEME_OPTIONS, type Theme } from '../../../stores/theme'
+import { useThemeStore, THEME_OPTIONS, type Theme, FONT_SIZE_OPTIONS } from '../../../stores/theme'
 import { usePreferencesStore } from '../../../stores/preferences'
 
 
@@ -33,6 +33,7 @@ const localChannelDisplay = ref<'full' | 'centered'>('full')
 const localQuickReactions = ref(true)
 const localRenderEmoticons = ref(true)
 const localLanguage = ref('en')
+const localFontSize = ref<12 | 14 | 16>(14)
 
 const saving = ref(false)
 
@@ -82,6 +83,13 @@ const languageLabel = computed(() => {
   return labels[preferencesStore.preferences?.language || 'en'] || 'English'
 })
 
+const fontSizeLabel = computed(() => {
+  const size = themeStore.chatFontSize
+  if (size <= 13) return 'Small'
+  if (size <= 14) return 'Medium'
+  return 'Large'
+})
+
 // Initialize local states from preferences on mount
 onMounted(() => {
   preferencesStore.fetchPreferences().then(() => {
@@ -114,6 +122,12 @@ function syncLocalState() {
   localQuickReactions.value = prefs.quick_reactions_enabled ?? true
   localRenderEmoticons.value = prefs.emoji_picker_enabled ?? true
   localLanguage.value = prefs.language || 'en'
+  
+  // Sync font size from theme store
+  const currentSize = themeStore.chatFontSize
+  if (currentSize <= 13) localFontSize.value = 12
+  else if (currentSize >= 16) localFontSize.value = 16
+  else localFontSize.value = 14
 }
 
 function expandRow(rowId: string) {
@@ -219,7 +233,65 @@ const commonTimezones = [
       />
     </SettingItemMax>
 
-    <!-- 2. Threaded Discussions -->
+    <!-- 2. Font Size -->
+    <div v-if="expandedRow !== 'font_size'">
+      <SettingItemMin
+        label="Font Size"
+        :value="fontSizeLabel"
+        description="Adjust the text size for better readability"
+        @click="expandRow('font_size')"
+      />
+    </div>
+    
+    <SettingItemMax
+      v-else
+      label="Font Size"
+      description="Choose your preferred text size"
+      :loading="saving"
+      @save="themeStore.setChatFontSize(localFontSize); expandedRow = null"
+      @cancel="cancelEdit"
+    >
+      <div class="space-y-3">
+        <label class="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+          <input
+            type="radio"
+            v-model="localFontSize"
+            :value="12"
+            class="w-4 h-4 text-primary"
+          />
+          <div class="flex-1">
+            <div class="text-sm font-medium text-gray-900 dark:text-white">Small</div>
+            <div class="text-xs text-gray-500" style="font-size: 12px;">Compact text for more content on screen</div>
+          </div>
+        </label>
+        <label class="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+          <input
+            type="radio"
+            v-model="localFontSize"
+            :value="14"
+            class="w-4 h-4 text-primary"
+          />
+          <div class="flex-1">
+            <div class="text-sm font-medium text-gray-900 dark:text-white">Medium</div>
+            <div class="text-xs text-gray-500" style="font-size: 14px;">Standard text size</div>
+          </div>
+        </label>
+        <label class="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+          <input
+            type="radio"
+            v-model="localFontSize"
+            :value="16"
+            class="w-4 h-4 text-primary"
+          />
+          <div class="flex-1">
+            <div class="text-sm font-medium text-gray-900 dark:text-white">Large</div>
+            <div class="text-xs text-gray-500" style="font-size: 16px;">Larger text for improved readability</div>
+          </div>
+        </label>
+      </div>
+    </SettingItemMax>
+
+    <!-- 3. Threaded Discussions -->
     <div v-if="expandedRow !== 'threaded_discussions'">
       <SettingItemMin
         label="Threaded Discussions"
