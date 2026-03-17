@@ -36,8 +36,10 @@ Implement **prefix-based API key lookup** to achieve O(1) authentication:
 **Performance improvement:** 200k bcrypt operations → 1 bcrypt operation per request
 
 **Target metrics:**
-- Authentication latency: < 10ms (vs current: seconds at scale)
+- Authentication latency (baseline, no concurrency): < 10ms avg at any scale
+- Authentication latency (production, with concurrency): < 20ms P95 at 200k agents
 - Database query: 1 row returned (vs current: 200k rows)
+- Bcrypt operations: 1 per request (vs current: up to 200k per request)
 - Scales to: 500k+ agents (vs current: ~500 agents)
 
 ---
@@ -55,9 +57,9 @@ rck_7a9f3c8b2d1e4c6f89a12b34567890abcdef1234567890abcdef1234567890abcd
 └─ identifier                                                             │
    (rck = RustChat Key)                                                   │
                                                                           │
-└────────────────── random payload (52 hex chars) ────────────────────────┘
+└─────────────── random payload (64 hex chars total) ─────────────────────┘
 
-Total length: 68 characters (was 64)
+Total length: 68 characters (4 char prefix + 64 hex chars)
 Prefix stored: "rck_7a9f3c8b2d1e" (16 chars including identifier)
 ```
 
@@ -89,6 +91,14 @@ CREATE UNIQUE INDEX idx_users_api_key_prefix
   ON users(api_key_prefix)
   WHERE api_key_prefix IS NOT NULL;
 
+-- Back up existing API key hashes before clearing
+-- This allows rollback if needed
+CREATE TEMP TABLE api_key_backup AS
+SELECT id, api_key_hash
+FROM users
+WHERE api_key_hash IS NOT NULL
+  AND entity_type IN ('agent', 'service', 'ci');
+
 -- Mark existing API keys as invalid by clearing their hashes
 -- Forces agents to regenerate keys with new format
 UPDATE users
@@ -105,12 +115,19 @@ COMMENT ON COLUMN users.api_key_prefix IS 'First 16 chars of API key (rck_XXXXXX
 - **UNIQUE index:** Guarantees no collisions, enables O(1) lookups via B-tree
 - **Partial index:** Only indexes non-NULL values, reduces index size and maintenance overhead
 - **Breaking change:** Clears existing api_key_hash to force regeneration with new format
+- **Temp backup table:** Created for rollback safety (exists only during migration transaction)
 
 **Rollback migration:**
 ```sql
--- backend/migrations/20260318000001_add_api_key_prefix_down.sql
+-- Note: SQLx uses single migration files with up/down in same file
+-- This rollback SQL would be in a separate revert migration if needed
+
 DROP INDEX IF EXISTS idx_users_api_key_prefix;
 ALTER TABLE users DROP COLUMN IF EXISTS api_key_prefix;
+
+-- Note: Rollback does NOT restore old api_key_hash values
+-- Agents must regenerate keys even after rollback
+-- For emergency recovery, restore from database backup taken pre-deployment
 ```
 
 ### Authentication Flow
@@ -148,15 +165,18 @@ Time complexity: O(1)
 Average case: 1 bcrypt operation (~5ms) + 1 indexed query (~1ms) = ~6ms total
 ```
 
-**Performance comparison:**
+**Performance comparison (at 200k agent scale):**
 
 | Metric | Before (O(n)) | After (O(1)) | Improvement |
 |--------|---------------|--------------|-------------|
-| Database rows returned | 200,000 | 1 | 200,000× |
-| Bcrypt operations | 200,000 (worst) | 1 (always) | 200,000× |
-| Auth latency (200k agents) | 50,000s | 6ms | 8,300,000× |
-| Memory usage | ~20MB result set | ~1KB result set | 20,000× |
-| Scalability limit | ~500 agents | 500k+ agents | 1,000× |
+| Database rows returned | 200,000 | 1 | 200,000× fewer |
+| Bcrypt operations | 200,000 (worst case) | 1 (always) | 200,000× fewer |
+| Auth latency (theoretical worst) | 50,000s (200k × 250ms) | 6ms (1 × 5ms + 1ms) | 8,300,000× faster |
+| Auth latency (realistic P95) | Minutes (partial scan) | < 20ms | ~10,000× faster |
+| Memory usage | ~20MB result set | ~1KB result set | 20,000× less |
+| Scalability limit | ~500 agents | 500k+ agents | 1,000× more |
+
+**Note on latency metrics:** The "200,000× improvement" represents the theoretical worst case (iterating all 200k entities). In practice, most requests would hit an early match, resulting in "only" minutes of latency. The optimization reduces even the best case from ~250ms (first entity match) to ~6ms.
 
 ---
 
@@ -169,19 +189,30 @@ Average case: 1 bcrypt operation (~5ms) + 1 indexed query (~1ms) = ~6ms total
 **Changes:**
 
 ```rust
-/// Generate a new API key with "rck_" prefix and 64 hex characters
+/// Generate a new API key with "rck_" prefix plus 64 hex characters
 ///
+/// Generates 32 random bytes, encodes as 64 hex characters, then prepends "rck_" prefix.
 /// Format: rck_[64 hex chars] (total 68 characters)
-/// Prefix: First 16 characters (rck_XXXXXXXXXXXX)
+/// Prefix: First 16 characters (rck_XXXXXXXXXXXX where X = first 12 hex chars)
 ///
 /// # Returns
 ///
 /// A 68-character API key with deterministic prefix
+///
+/// # Example
+///
+/// ```rust
+/// let key = generate_api_key();
+/// assert_eq!(key.len(), 68);
+/// assert!(key.starts_with("rck_"));
+/// // Example output: "rck_7a9f3c8b2d1e4c6f89a12b34567890abcdef1234567890abcdef1234567890abcd"
+/// //                      └── 64 hex chars ────────────────────────────────────────┘
+/// ```
 pub fn generate_api_key() -> String {
     let mut rng = rand::thread_rng();
-    let bytes: [u8; 32] = rng.gen();
-    let hex_key = hex::encode(bytes);
-    format!("rck_{}", hex_key)
+    let bytes: [u8; 32] = rng.gen();  // 32 bytes = 256 bits
+    let hex_key = hex::encode(bytes);  // 32 bytes → 64 hex chars
+    format!("rck_{}", hex_key)  // "rck_" + 64 hex = 68 total chars
 }
 
 /// Extract the prefix from an API key for database lookup
@@ -258,6 +289,8 @@ async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::
         })?;
 
     // Query SINGLE entity by prefix (O(1) indexed lookup)
+    // Note: Only non-human entities (agent/service/ci) use API keys
+    // Humans authenticate via JWT tokens (not API keys)
     let entity: Option<(Uuid, String, EntityType, Option<Uuid>, String, String)> =
         sqlx::query_as(
             r#"
@@ -372,66 +405,118 @@ pub async fn register_entity(
     _auth: JwtAuth,
     Json(req): Json<RegisterEntityRequest>,
 ) -> ApiResult<Json<RegisterEntityResponse>> {
-    // Generate API key with prefix
-    let api_key = generate_api_key();
+    // Note: hash_api_key() is defined in backend/src/auth/api_key.rs (already exists)
+    // Uses bcrypt with cost factor 12 (DEFAULT_COST constant)
 
-    // Extract prefix for storage
-    let api_key_prefix = extract_prefix(&api_key)
-        .ok_or_else(|| {
-            tracing::error!("Failed to extract prefix from generated key");
-            ApiError::InternalServerError("Key generation error".to_string())
-        })?;
+    const MAX_COLLISION_RETRIES: u8 = 3;
+    let mut attempt = 0;
 
-    // Hash the full key for storage
-    let api_key_hash = hash_api_key(&api_key).await
-        .map_err(|e| {
-            tracing::error!(error = %e, "Failed to hash API key");
-            ApiError::InternalServerError("Key generation error".to_string())
-        })?;
+    loop {
+        attempt += 1;
 
-    // Insert entity with prefix
-    let entity_id = Uuid::new_v4();
-    sqlx::query(
-        r#"
-        INSERT INTO users (
-            id, email, username, password_hash, entity_type,
-            api_key_hash, api_key_prefix, rate_limit_tier,
-            entity_metadata, is_active, created_at, updated_at
+        // Generate API key with prefix
+        let api_key = generate_api_key();
+
+        // Extract prefix for storage
+        let api_key_prefix = extract_prefix(&api_key)
+            .ok_or_else(|| {
+                tracing::error!("Failed to extract prefix from generated key");
+                ApiError::InternalServerError("Key generation error".to_string())
+            })?;
+
+        // Hash the full key for storage (uses bcrypt cost=12)
+        let api_key_hash = hash_api_key(&api_key).await
+            .map_err(|e| {
+                tracing::error!(error = %e, "Failed to hash API key");
+                ApiError::InternalServerError("Key generation error".to_string())
+            })?;
+
+        // Insert entity with prefix
+        let entity_id = Uuid::new_v4();
+        let insert_result = sqlx::query(
+            r#"
+            INSERT INTO users (
+                id, email, username, password_hash, entity_type,
+                api_key_hash, api_key_prefix, rate_limit_tier,
+                entity_metadata, is_active, created_at, updated_at
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, NOW(), NOW())
+            "#,
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true, NOW(), NOW())
-        "#,
-    )
-    .bind(&entity_id)
-    .bind(&req.email)
-    .bind(&req.username)
-    .bind("")  // Empty password_hash for non-human entities
-    .bind(&req.entity_type)
-    .bind(&api_key_hash)
-    .bind(&api_key_prefix)  // Store prefix for lookups
-    .bind(&rate_limit_tier)
-    .bind(&entity_metadata)
-    .execute(&pool)
-    .await
-    .map_err(|e| {
-        tracing::error!(error = %e, "Failed to insert entity");
-        ApiError::DatabaseError(e)
-    })?;
+        .bind(&entity_id)
+        .bind(&req.email)
+        .bind(&req.username)
+        .bind("")  // Empty password_hash for non-human entities
+        .bind(&req.entity_type)
+        .bind(&api_key_hash)
+        .bind(&api_key_prefix)  // Store prefix for lookups
+        .bind(&rate_limit_tier)
+        .bind(&entity_metadata)
+        .execute(&pool)
+        .await;
 
-    Ok(Json(RegisterEntityResponse {
-        id: entity_id,
-        entity_type: req.entity_type,
-        username: req.username,
-        email: req.email,
-        api_key,  // Return full key (shown only once)
-        rate_limit_tier,
-    }))
+        match insert_result {
+            Ok(_) => {
+                // Success! Return the entity
+                tracing::info!(
+                    entity_id = %entity_id,
+                    prefix = %api_key_prefix,
+                    "Entity registered successfully"
+                );
+
+                return Ok(Json(RegisterEntityResponse {
+                    id: entity_id,
+                    entity_type: req.entity_type,
+                    username: req.username,
+                    email: req.email,
+                    api_key,  // Return full key (shown only once)
+                    rate_limit_tier,
+                }));
+            }
+            Err(e) => {
+                // Check if this is a UNIQUE constraint violation on api_key_prefix
+                let is_collision = e.as_database_error()
+                    .and_then(|db_err| db_err.constraint())
+                    .map(|c| c == "idx_users_api_key_prefix")
+                    .unwrap_or(false);
+
+                if is_collision && attempt < MAX_COLLISION_RETRIES {
+                    // Prefix collision detected - extremely rare but possible
+                    tracing::warn!(
+                        prefix = %api_key_prefix,
+                        attempt = attempt,
+                        "API key prefix collision detected, retrying"
+                    );
+                    metrics::counter!("api_key_prefix.collision_on_insert").increment(1);
+                    continue;  // Retry with new key
+                } else if is_collision {
+                    // Max retries exceeded - this should never happen
+                    tracing::error!(
+                        prefix = %api_key_prefix,
+                        attempts = MAX_COLLISION_RETRIES,
+                        "Failed to generate unique API key prefix after max retries"
+                    );
+                    return Err(ApiError::InternalServerError(
+                        "Unable to generate unique API key. Please try again.".to_string()
+                    ));
+                } else {
+                    // Other database error (not collision)
+                    tracing::error!(error = %e, "Failed to insert entity");
+                    return Err(ApiError::DatabaseError(e));
+                }
+            }
+        }
+    }
 }
 ```
 
 **Key design decisions:**
 - Extract prefix immediately after generation (fail fast if generation broken)
+- **Collision handling:** Retry up to 3 times if UNIQUE constraint violated (probability: < 0.0001%)
 - Store both `api_key_hash` (for validation) and `api_key_prefix` (for lookup)
 - Return full key in response (only time it's ever visible)
+- **hash_api_key() reference:** Defined in `backend/src/auth/api_key.rs`, uses bcrypt DEFAULT_COST (12)
+- Metrics: Track collision events for monitoring
 - Internal errors if prefix extraction fails (should never happen with correct generation)
 
 **Testing requirements:**
