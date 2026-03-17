@@ -60,6 +60,31 @@ pub fn generate_api_key() -> String {
     hex::encode(bytes)
 }
 
+/// Extract the first 16 characters as the API key prefix
+///
+/// The prefix consists of:
+/// - "rck_" (4 chars)
+/// - First 12 hex characters (12 chars)
+///
+/// # Arguments
+/// * `key` - Full API key (68 chars: rck_ + 64 hex)
+///
+/// # Returns
+/// * `Ok(String)` - The 16-character prefix
+/// * `Err` - If key format is invalid
+pub fn extract_prefix(key: &str) -> Result<String, String> {
+    if key.len() != 68 {
+        return Err(format!("Invalid key length: expected 68, got {}", key.len()));
+    }
+
+    if !key.starts_with("rck_") {
+        return Err("Invalid key format: must start with rck_".to_string());
+    }
+
+    let prefix = &key[..16];
+    Ok(prefix.to_string())
+}
+
 /// Hash an API key using bcrypt with cost factor 12
 ///
 /// This function performs CPU-intensive bcrypt hashing in a blocking thread

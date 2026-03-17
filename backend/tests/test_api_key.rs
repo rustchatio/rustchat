@@ -7,7 +7,7 @@
 //! - Resistance to timing attacks via constant-time comparison
 //! - Thread-safe operation in async contexts
 
-use rustchat::auth::api_key::{generate_api_key, hash_api_key, validate_api_key};
+use rustchat::auth::api_key::{extract_prefix, generate_api_key, hash_api_key, validate_api_key};
 
 /// Test that generate_api_key produces 64-character hex strings
 #[tokio::test]
@@ -227,4 +227,19 @@ async fn test_bcrypt_cost_factor() {
 
     let cost = parts[2];
     assert_eq!(cost, "12", "Bcrypt cost factor should be 12");
+}
+
+#[test]
+fn test_extract_prefix_valid() {
+    let key = "rck_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+    let prefix = extract_prefix(key).unwrap();
+    assert_eq!(prefix, "rck_0123456789ab");
+    assert_eq!(prefix.len(), 16);
+}
+
+#[test]
+fn test_extract_prefix_invalid_format() {
+    assert!(extract_prefix("invalid").is_err());
+    assert!(extract_prefix("rck_short").is_err());
+    assert!(extract_prefix("wrong_prefix0123456789abcdef").is_err());
 }
