@@ -6,5 +6,5 @@
 pub mod rate_limit;
 pub mod reliability;
 pub mod security_headers;
-pub mod rate_limit;
+
 pub use rate_limit::*;
