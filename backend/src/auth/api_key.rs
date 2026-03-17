@@ -63,16 +63,31 @@ pub fn generate_api_key() -> String {
 
 /// Extract the first 16 characters as the API key prefix
 ///
+/// **Note:** This function expects API keys in the format produced by the
+/// updated `generate_api_key()` function (Task 3), which prepends "rck_" to
+/// the 64-character hex string.
+///
 /// The prefix consists of:
 /// - "rck_" (4 chars)
 /// - First 12 hex characters (12 chars)
+/// - Total: 16 characters
 ///
 /// # Arguments
-/// * `key` - Full API key (68 chars: rck_ + 64 hex)
+/// * `key` - Full API key with format: "rck_" + 64 hex chars = 68 chars total
 ///
 /// # Returns
-/// * `Ok(String)` - The 16-character prefix
-/// * `Err(AppError)` - If key format is invalid
+/// * `Ok(String)` - The 16-character prefix ("rck_" + first 12 hex chars)
+/// * `Err(AppError)` - If key format is invalid (wrong length or missing "rck_" prefix)
+///
+/// # Example
+/// ```no_run
+/// use rustchat::auth::api_key::extract_prefix;
+///
+/// let key = "rck_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+/// let prefix = extract_prefix(key).unwrap();
+/// assert_eq!(prefix, "rck_0123456789ab");
+/// assert_eq!(prefix.len(), 16);
+/// ```
 pub fn extract_prefix(key: &str) -> Result<String, AppError> {
     if key.len() != 68 {
         return Err(AppError::Validation(format!(

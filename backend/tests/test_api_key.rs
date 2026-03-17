@@ -243,3 +243,19 @@ fn test_extract_prefix_invalid_format() {
     assert!(extract_prefix("rck_short").is_err());
     assert!(extract_prefix("wrong_prefix0123456789abcdef").is_err());
 }
+
+#[test]
+fn test_extract_prefix_boundary_cases() {
+    // One character short (67 chars)
+    let short_key = "rck_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcde";
+    assert_eq!(short_key.len(), 67);
+    assert!(extract_prefix(short_key).is_err());
+
+    // One character long (69 chars)
+    let long_key = "rck_0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef0";
+    assert_eq!(long_key.len(), 69);
+    assert!(extract_prefix(long_key).is_err());
+
+    // Empty string
+    assert!(extract_prefix("").is_err());
+}
