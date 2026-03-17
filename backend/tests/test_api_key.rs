@@ -1,7 +1,7 @@
 //! Integration tests for API key generation and validation
 //!
 //! This test suite validates the full API key lifecycle:
-//! - Generation of 32-byte random hex keys (64 hex characters)
+//! - Generation of API keys with "rck_" prefix (68 chars: rck_ + 64 hex)
 //! - Bcrypt hashing with cost factor 12
 //! - Validation against hashed values
 //! - Resistance to timing attacks via constant-time comparison
@@ -9,18 +9,35 @@
 
 use rustchat::auth::api_key::{extract_prefix, generate_api_key, hash_api_key, validate_api_key};
 
-/// Test that generate_api_key produces 64-character hex strings
+/// Test that generate_api_key produces 68-character strings with rck_ prefix
+#[test]
+fn test_generate_api_key_has_prefix() {
+    let key = generate_api_key();
+    assert_eq!(key.len(), 68, "Key should be 68 chars (rck_ + 64 hex)");
+    assert!(key.starts_with("rck_"), "Key should start with rck_");
+
+    // Verify the rest is valid hex (64 chars)
+    let hex_part = &key[4..];
+    assert_eq!(hex_part.len(), 64);
+    assert!(hex_part.chars().all(|c| c.is_ascii_hexdigit()));
+}
+
+/// Test that generate_api_key produces 68-character strings with rck_ prefix
 #[tokio::test]
 async fn test_generate_api_key_format() {
     let key = generate_api_key();
 
-    // Should be exactly 64 characters (32 bytes * 2 hex chars/byte)
-    assert_eq!(key.len(), 64, "API key should be 64 hex characters");
+    // Should be exactly 68 characters (rck_ + 64 hex)
+    assert_eq!(key.len(), 68, "API key should be 68 characters (rck_ + 64 hex)");
 
-    // Should be valid hex
+    // Should start with rck_
+    assert!(key.starts_with("rck_"), "API key should start with rck_");
+
+    // Hex part (after prefix) should be valid hex
+    let hex_part = &key[4..];
     assert!(
-        key.chars().all(|c| c.is_ascii_hexdigit()),
-        "API key should contain only hex characters"
+        hex_part.chars().all(|c| c.is_ascii_hexdigit()),
+        "API key hex part should contain only hex characters"
     );
 }
 
@@ -193,7 +210,9 @@ async fn test_concurrent_operations() {
 #[tokio::test]
 async fn test_api_key_entropy() {
     let key = generate_api_key();
-    let bytes = hex::decode(&key).expect("Should decode hex");
+    // Skip the "rck_" prefix and decode just the hex part
+    let hex_part = &key[4..];
+    let bytes = hex::decode(hex_part).expect("Should decode hex");
 
     // Check that not all bytes are the same (basic randomness check)
     let first_byte = bytes[0];

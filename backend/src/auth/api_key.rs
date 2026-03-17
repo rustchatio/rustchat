@@ -1,8 +1,8 @@
 //! API key generation and validation for non-human entities
 //!
 //! This module provides secure API key generation and bcrypt-based hashing for
-//! authentication of agents, services, and CI/CD systems. API keys are 32-byte
-//! random hex strings (64 characters) hashed with bcrypt cost factor 12.
+//! authentication of agents, services, and CI/CD systems. API keys consist of
+//! "rck_" prefix plus 64 hex characters (68 total) hashed with bcrypt cost factor 12.
 //!
 //! # Security Features
 //!
@@ -38,27 +38,32 @@ use anyhow::{Context, Result};
 use rand::Rng;
 use crate::error::AppError;
 
-/// Generate a new API key as a 32-byte random hex string (64 characters)
+/// Generate a new API key with "rck_" prefix plus 64 hex characters
 ///
-/// This function generates cryptographically secure random bytes using
-/// `rand::thread_rng()` and encodes them as lowercase hexadecimal.
+/// Generates 32 random bytes, encodes as 64 hex characters, then prepends "rck_" prefix.
+/// Format: rck_[64 hex chars] (total 68 characters)
+/// Prefix: First 16 characters (rck_XXXXXXXXXXXX where X = first 12 hex chars)
 ///
 /// # Returns
 ///
-/// A 64-character hex string representing 32 random bytes
+/// A 68-character API key with deterministic prefix
 ///
 /// # Example
 ///
-/// ```no_run
+/// ```rust
 /// use rustchat::auth::api_key::generate_api_key;
 ///
-/// let api_key = generate_api_key();
-/// assert_eq!(api_key.len(), 64);
+/// let key = generate_api_key();
+/// assert_eq!(key.len(), 68);
+/// assert!(key.starts_with("rck_"));
+/// // Example output: "rck_7a9f3c8b2d1e4c6f89a12b34567890abcdef1234567890abcdef1234567890abcd"
+/// //                      └── 64 hex chars ────────────────────────────────────────┘
 /// ```
 pub fn generate_api_key() -> String {
     let mut rng = rand::thread_rng();
-    let bytes: [u8; 32] = rng.gen();
-    hex::encode(bytes)
+    let bytes: [u8; 32] = rng.gen();  // 32 bytes = 256 bits
+    let hex_key = hex::encode(bytes);  // 32 bytes → 64 hex chars
+    format!("rck_{}", hex_key)  // "rck_" + 64 hex = 68 total chars
 }
 
 /// Extract the first 16 characters as the API key prefix
@@ -115,7 +120,7 @@ pub fn extract_prefix(key: &str) -> Result<String, AppError> {
 ///
 /// # Arguments
 ///
-/// * `api_key` - The plaintext API key to hash (typically 64 hex characters)
+/// * `api_key` - The plaintext API key to hash (68 chars: rck_ + 64 hex)
 ///
 /// # Returns
 ///
@@ -216,8 +221,11 @@ mod tests {
     #[test]
     fn test_generate_api_key_sync() {
         let key = generate_api_key();
-        assert_eq!(key.len(), 64);
-        assert!(key.chars().all(|c| c.is_ascii_hexdigit()));
+        assert_eq!(key.len(), 68);
+        assert!(key.starts_with("rck_"));
+        // Check hex part (after prefix)
+        let hex_part = &key[4..];
+        assert!(hex_part.chars().all(|c| c.is_ascii_hexdigit()));
     }
 
     #[test]
