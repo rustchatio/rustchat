@@ -2187,7 +2187,7 @@ git commit -m "feat: integrate ActivityFeed into main layout"
 
 ## Phase 2b: Breadcrumbs and Quick Switcher (4 days)
 
-### Task 20: Create BreadcrumbBar Component
+### Task 21: Create BreadcrumbBar Component
 
 **Files:**
 - Create: `frontend/src/components/navigation/BreadcrumbBar.vue`
@@ -2269,7 +2269,7 @@ git commit -m "feat: add BreadcrumbBar component"
 
 ---
 
-### Task 21: Add Breadcrumbs to ChannelView
+### Task 22: Add Breadcrumbs to ChannelView
 
 **Files:**
 - Find: `frontend/src/views/main/ChannelView.vue` or similar
@@ -2366,7 +2366,7 @@ git commit -m "feat: integrate breadcrumbs into ChannelView"
 
 ---
 
-### Task 22: Create QuickSwitcherModal Component
+### Task 23: Create QuickSwitcherModal Component
 
 **Files:**
 - Create: `frontend/src/components/navigation/QuickSwitcherModal.vue`
@@ -2622,7 +2622,7 @@ git commit -m "feat: add QuickSwitcherModal component"
 
 ---
 
-### Task 23: Create useQuickSwitcher Composable
+### Task 24: Create useQuickSwitcher Composable
 
 **Files:**
 - Create: `frontend/src/composables/useQuickSwitcher.ts`
@@ -2751,7 +2751,7 @@ git commit -m "feat: add useQuickSwitcher composable"
 
 ---
 
-### Task 24: Integrate Quick Switcher into MainLayout
+### Task 25: Integrate Quick Switcher into MainLayout
 
 **Files:**
 - Modify: Main layout file
@@ -3130,14 +3130,16 @@ git commit -m "feat: complete Phase 2 - Activity Feed and Breadcrumbs Navigation
 ## Plan Notes
 
 ### Scope Adjustments from Spec
-1. **Recent Items API**: The `GET /api/v4/users/{user_id}/recent-items` endpoint is NOT implemented in this plan. The Quick Switcher uses client-side data from existing stores (`channelStore.allChannels`, `teamStore.allTeams`) instead.
+1. **Recent Items API**: The `GET /api/v4/users/{user_id}/recent-items` endpoint is NOT implemented in this plan. The Quick Switcher uses client-side data from existing stores (`channelStore.allChannels`, `teamStore.allTeams`) and localStorage for recent items.
+2. **DM Activity Type**: The `DM` activity type is defined but not auto-created. DMs use the existing `mention` activity when users are messaged in DM channels, or a separate notification system can be added in Phase 3.
 
 ### Implementation Notes
 1. **Activity Creation**: Uses service helper functions (`create_mention_activity`, `create_reply_activity`, etc.) rather than inline SQL
 2. **WebSocket Handlers**: Activity handler registration added as explicit Task 19
 3. **Store APIs**: Uses actual store getters (`allChannels`, `allTeams`, `getChannelById`) verified from codebase
-4. **Event Types**: Located in `backend/src/realtime/events.rs` with exact line references
+4. **Event Types**: Located in `backend/src/realtime/events.rs`
 5. **Test Pattern**: Follows existing test structure using `spawn_app()` and direct SQL setup
+6. **Reaction Integration**: Add activity creation after the reaction INSERT query in `add_reaction` function
 
 ## Plan Review
 
