@@ -58,6 +58,35 @@ Project maturity:
 
 **Next Phase:** Phase 2 - Custom emoji upload, advanced search, expanded test coverage
 
+## API Keys
+
+API keys use the format `rck_[64 hexadecimal characters]` (68 characters total).
+
+Example: `rck_7a9f3c8b2d1e4c6f89a12b34567890abcdef1234567890abcdef1234567890abcd`
+
+**Format Details:**
+- Prefix: `rck_` (identifies RustChat keys)
+- Body: 64 hexadecimal characters (256-bit random entropy)
+- Total length: 68 characters
+
+**Authentication:**
+Include API keys in the `Authorization` header as a Bearer token:
+```bash
+curl -H "Authorization: Bearer rck_7a9f3c8b2d1e4c6f89a12b34567890abcdef1234567890abcdef1234567890abcd" \
+  http://localhost:3000/api/v1/entities/123
+```
+
+**Generation:**
+API keys are generated via the entity registration API and returned exactly once at creation. Store them securely.
+
+```bash
+curl -X POST http://localhost:3000/api/v1/entities/123/keys \
+  -H "Authorization: Bearer $JWT_TOKEN" \
+  -H "Content-Type: application/json"
+```
+
+**Breaking Change (v1.5):** API keys generated before March 2026 used a 64-character format without the `rck_` prefix. These keys are no longer valid and must be regenerated via the entity registration API.
+
 ## What rustchat Does
 
 ### Core platform

@@ -340,8 +340,81 @@ curl -X POST http://localhost:3000/api/v1/entities/{entity_id}/keys \
 
 # 6. Test API key auth
 curl http://localhost:3000/api/v1/entities/{entity_id} \
-  -H "Authorization: Bearer rck_..."
+  -H "Authorization: Bearer rck_7a9f3c8b2d1e4c6f89a12b34567890abcdef1234567890abcdef1234567890abcd"
 ```
+
+---
+
+## API Key Format
+
+### Format Specification
+
+API keys use the format: `rck_[64 hexadecimal characters]` (68 characters total)
+
+**Example:** `rck_7a9f3c8b2d1e4c6f89a12b34567890abcdef1234567890abcdef1234567890abcd`
+
+**Components:**
+- **Prefix** (4 characters): `rck_` identifies RustChat keys
+- **Body** (64 characters): 256-bit random entropy encoded as hexadecimal
+- **Total Length**: 68 characters
+
+### Authentication Usage
+
+Include API keys in HTTP requests using the `Authorization` header with Bearer scheme:
+
+```bash
+curl -H "Authorization: Bearer rck_7a9f3c8b2d1e4c6f89a12b34567890abcdef1234567890abcdef1234567890abcd" \
+  http://localhost:3000/api/v1/messages
+```
+
+### Key Generation
+
+API keys are generated programmatically via the entity registration endpoint:
+
+```bash
+# Generate a new API key for an entity
+curl -X POST http://localhost:3000/api/v1/entities/{entity_id}/keys \
+  -H "Authorization: Bearer $JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "description": "Production API key for bot integration"
+  }'
+
+# Response includes the full key (shown only once at creation):
+# {
+#   "id": "key-uuid",
+#   "entity_id": "entity-uuid",
+#   "api_key": "rck_...",
+#   "created_at": "2026-03-18T00:00:00Z"
+# }
+```
+
+### Security Considerations
+
+- **One-time display**: API keys are returned only once during creation. Store them securely immediately after generation.
+- **No plaintext storage**: Only bcrypt hashes are stored in the database (Argon2id, cost=12)
+- **Revocation**: Keys can be revoked via `DELETE /api/v1/entities/{entity_id}/keys/{key_id}`
+- **Expiry**: Default expiration is 1 year from creation (configurable per deployment)
+- **Rotation**: Rotate keys regularly - no ability to retrieve lost keys
+
+### Breaking Change Notice
+
+**Version 1.5 (March 2026):** API key format was updated from 64 hex characters to 68 characters with `rck_` prefix.
+
+**Migration Required:**
+- Old format: `7a9f3c8b2d1e4c6f89a12b34567890abcdef1234567890abcdef1234567890abcd` (64 chars, no prefix)
+- New format: `rck_7a9f3c8b2d1e4c6f89a12b34567890abcdef1234567890abcdef1234567890abcd` (68 chars, `rck_` prefix)
+
+**Action Required:**
+1. All API keys generated before March 2026 are now invalid
+2. Regenerate keys for all active entities via `/api/v1/entities/{id}/keys`
+3. Update integrations and bots to use new keys
+4. Old keys cannot be recovered - regenerate all
+
+**Reason for Change:**
+- Enables O(1) authentication performance (previously O(n) table scan)
+- Supports scaling to 200k+ concurrent agents
+- Prefix index allows fast database lookup without scanning all entities
 
 ---
 
