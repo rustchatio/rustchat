@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { Post } from '@/api/posts'
-import { threadService, type ThreadResponse } from '../services/threadService'
+import type { Post } from '../../../api/posts'
+import { threadService } from '../services/threadService'
 
 export interface ThreadState {
   isOpen: boolean
@@ -45,7 +45,7 @@ export const useThreadStore = defineStore('thread', () => {
       replies.value = response.order
         .filter(id => id !== postId)
         .map(id => response.posts[id])
-        .filter(Boolean)
+        .filter((post): post is Post => post !== undefined)
       cursor.value = response.next_cursor || null
       hasMore.value = !!response.next_cursor
 
@@ -84,7 +84,7 @@ export const useThreadStore = defineStore('thread', () => {
       const newReplies = response.order
         .filter(id => id !== parentPostId.value)
         .map(id => response.posts[id])
-        .filter(Boolean)
+        .filter((post): post is Post => post !== undefined)
       replies.value.push(...newReplies)
       cursor.value = response.next_cursor || null
       hasMore.value = !!response.next_cursor

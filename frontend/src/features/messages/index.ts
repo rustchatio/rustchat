@@ -19,7 +19,10 @@ export { handleWebSocketEvent as handleMessageWebSocketEvent } from './handlers/
 // export { useMessages } from './composables/useMessages'
 // export { useThread } from './composables/useThread'
 
-// Components (to be created)
+// Components
 // export { default as MessageList } from './components/MessageList.vue'
 // export { default as MessageInput } from './components/MessageInput.vue'
-// export { default as ThreadPanel } from './components/ThreadPanel.vue'
+export { default as ThreadPanel } from '../../components/thread/ThreadPanel.vue'
+export { default as ThreadHeader } from '../../components/thread/ThreadHeader.vue'
+export { default as ThreadReplyList } from '../../components/thread/ThreadReplyList.vue'
+export { default as ThreadReplyItem } from '../../components/thread/ThreadReplyItem.vue'
