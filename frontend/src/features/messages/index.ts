@@ -6,6 +6,7 @@ export { useMessageStore } from './stores/messageStore'
 
 // Services
 export { messageService } from './services/messageService'
+export { threadService, type ThreadResponse, type ThreadQueryParams } from './services/threadService'
 
 // Repositories
 export { messageRepository } from './repositories/messageRepository'
