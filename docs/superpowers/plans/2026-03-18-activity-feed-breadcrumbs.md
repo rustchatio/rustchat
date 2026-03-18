@@ -806,7 +806,7 @@ use crate::services::activity;
 
 - [ ] **Step 2: Add mention activity creation after post creation**
 
-In the `create_post` function, after parsing mentions, add activity creation:
+In the `create_post` function, after parsing mentions, use the activity service helper functions:
 
 ```rust
 // After: Parse mentions (simple parsing for now)
@@ -838,7 +838,7 @@ if !mentions.is_empty() {
     .flatten();
 
     if let Some((team_id, _channel_name)) = team_info {
-        // Create mention activities for each mentioned user
+        // Create mention activities for each mentioned user using service helper
         for username in &mentions {
             // Find the user by username
             if let Ok(Some(mentioned_user_id)) = sqlx::query_scalar::<_, Uuid>(
@@ -868,14 +868,14 @@ if !mentions.is_empty() {
 }
 ```
 
-- [ ] **Step 3: Add reply/thread reply activity creation**
+- [ ] **Step 3: Add reply/thread reply activity creation using service helpers**
 
 For replies (when `root_post_id` is Some), create reply activity for the parent post author:
 
 ```rust
-// In create_post function, after incrementing unread counts:
+// In create_post function, after the mention handling section, add:
 
-// If this is a reply, create activity for parent post author
+// If this is a reply, create activity for parent post author using service helper
 if let Some(r_id) = root_post_id {
     // Get the parent post author
     if let Ok(Some(parent_user_id)) = sqlx::query_scalar::<_, Uuid>(
@@ -895,7 +895,7 @@ if let Some(r_id) = root_post_id {
             .fetch_optional(&state.db)
             .await
             {
-                // Check if this is a thread reply (has root_id in parent)
+                // Check if this is a thread reply (parent has root_post_id)
                 let parent_root: Option<Uuid> = sqlx::query_scalar(
                     "SELECT root_post_id FROM posts WHERE id = $1"
                 )
@@ -906,7 +906,7 @@ if let Some(r_id) = root_post_id {
                 .flatten();
 
                 if parent_root.is_some() {
-                    // Thread reply - notify parent author
+                    // Thread reply - notify parent author using helper
                     let _ = activity::create_thread_reply_activity(
                         state,
                         parent_user_id,
@@ -918,7 +918,7 @@ if let Some(r_id) = root_post_id {
                         &response.message,
                     ).await;
                 } else {
-                    // Regular reply - notify parent author
+                    // Regular reply - notify parent author using helper
                     let _ = activity::create_reply_activity(
                         state,
                         parent_user_id,
@@ -952,37 +952,88 @@ git commit -m "feat: integrate activity creation on mentions and replies"
 ### Task 6: Integrate Activity Creation into Reactions
 
 **Files:**
-- Check: `backend/src/api/v4/posts/reactions.rs`
-- Or: Look for reaction creation code
+- Modify: `backend/src/api/v4/posts/reactions.rs`
 
-- [ ] **Step 1: Find reaction creation code**
+- [ ] **Step 1: Add activity creation in add_reaction function**
 
-Run: `grep -r "create.*reaction" backend/src --include="*.rs"`
-
-- [ ] **Step 2: Add activity creation when reaction is added**
-
-Find where reactions are created (likely in `backend/src/api/v4/posts/reactions.rs` or similar), and add:
+In `backend/src/api/v4/posts/reactions.rs`, in the `add_reaction` function after the reaction is created and before the WebSocket broadcast, add activity creation:
 
 ```rust
-// After creating the reaction, create activity for post author
-if post_user_id != reacting_user_id {
-    // Get channel and team info
-    if let Ok(Some((channel_id, team_id))) = sqlx::query_as::<_, (Uuid, Uuid)>(
-        "SELECT channel_id, team_id FROM posts p JOIN channels c ON p.channel_id = c.id WHERE p.id = $1"
-    )
-    .bind(post_id)
-    .fetch_optional(&state.db)
-    .await
-    {
+// After the reaction is inserted (around line 60), before the mm_reaction creation,
+// add activity creation for post author:
+
+// Get the post author to create activity
+let post_info: Option<(Uuid, Uuid, Uuid)> = sqlx::query_as(
+    "SELECT p.user_id, p.channel_id, c.team_id FROM posts p JOIN channels c ON p.channel_id = c.id WHERE p.id = $1"
+)
+.bind(post_id)
+.fetch_optional(&state.db)
+.await?;
+
+if let Some((post_user_id, chan_id, team_id)) = post_info {
+    // Don't create activity for self-reactions
+    if post_user_id != auth.user_id {
         let _ = crate::services::activity::create_reaction_activity(
-            state,
+            &state,
             post_user_id,
-            reacting_user_id,
-            channel_id,
+            auth.user_id,
+            chan_id,
             team_id,
             post_id,
             &emoji_name,
         ).await;
+    }
+}
+```
+
+- [ ] **Step 2: Run cargo check**
+
+Run: `cd backend && cargo check`
+Expected: No errors
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add backend/src/api/v4/posts/reactions.rs
+git commit -m "feat: create activity on reactions"
+```
+
+---
+
+### Task 7: Add WebSocket Event Type for Activity
+
+**Files:**
+- Modify: `backend/src/realtime/events.rs`
+
+- [ ] **Step 1: Add ActivityCreated event type to EventType enum**
+
+In `backend/src/realtime/events.rs`, add to the EventType enum (around line 38):
+
+```rust
+pub enum EventType {
+    // ... existing variants ...
+
+    // Activity feed events
+    ActivityCreated,
+    ActivityRead,
+
+    // ... rest of variants ...
+}
+```
+
+- [ ] **Step 2: Add string mappings in as_str() method**
+
+In the `as_str()` method (around line 80), add:
+
+```rust
+impl EventType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            // ... existing mappings ...
+            Self::ActivityCreated => "activity_created",
+            Self::ActivityRead => "activity_read",
+            // ... rest of mappings ...
+        }
     }
 }
 ```
@@ -995,38 +1046,7 @@ Expected: No errors
 - [ ] **Step 4: Commit**
 
 ```bash
-git add backend/src/api/v4/posts/reactions.rs  # or relevant file
-git commit -m "feat: create activity on reactions"
-```
-
----
-
-### Task 7: Add WebSocket Event Type for Activity
-
-**Files:**
-- Check: `backend/src/realtime/events.rs` or similar
-
-- [ ] **Step 1: Find WebSocket event types**
-
-Run: `grep -r "EventType" backend/src/realtime --include="*.rs"`
-
-- [ ] **Step 2: Add ActivityCreated event type**
-
-Add to the EventType enum:
-```rust
-ActivityCreated,
-ActivityRead,
-```
-
-- [ ] **Step 3: Run cargo check**
-
-Run: `cd backend && cargo check`
-Expected: No errors
-
-- [ ] **Step 4: Commit**
-
-```bash
-git add backend/src/realtime/events.rs  # or relevant file
+git add backend/src/realtime/events.rs
 git commit -m "feat: add ActivityCreated and ActivityRead WebSocket events"
 ```
 
@@ -2066,7 +2086,44 @@ git commit -m "feat: add activity socket handlers"
 
 ---
 
-### Task 19: Integrate ActivityFeed into MainLayout
+### Task 19: Register Activity WebSocket Handler
+
+**Files:**
+- Modify: `frontend/src/core/websocket/registerHandlers.ts`
+
+- [ ] **Step 1: Import activity handler**
+
+Add to `frontend/src/core/websocket/registerHandlers.ts`:
+```typescript
+import { handleActivityCreated } from '../../features/activity/handlers/activitySocketHandlers'
+```
+
+- [ ] **Step 2: Register activity_created event handler**
+
+Add to the `registerWebSocketHandlers` function:
+```typescript
+// Activity feed events
+wsManager.on('activity_created', (event: WebSocketEvent) => {
+  const data = JSON.parse((event as any).data)
+  handleActivityCreated(data)
+})
+```
+
+- [ ] **Step 3: Run TypeScript check**
+
+Run: `cd frontend && npx vue-tsc --noEmit`
+Expected: No errors
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add frontend/src/core/websocket/registerHandlers.ts
+git commit -m "feat: register activity WebSocket handler"
+```
+
+---
+
+### Task 20: Integrate ActivityFeed into MainLayout
 
 **Files:**
 - Find and modify: Main layout file (likely `frontend/src/layouts/MainLayout.vue` or similar)
@@ -2236,12 +2293,12 @@ const channelId = computed(() => route.params.channelId as string)
 const threadId = computed(() => route.query.thread as string | undefined)
 
 const currentTeam = computed(() => {
-  const channel = channelStore.getChannel(channelId.value)
+  const channel = channelStore.getChannelById(channelId.value)
   if (!channel) return null
-  return teamStore.getTeam(channel.teamId)
+  return teamStore.allTeams.find(t => t.id === channel.teamId) || null
 })
 
-const currentChannel = computed(() => channelStore.getChannel(channelId.value))
+const currentChannel = computed(() => channelStore.getChannelById(channelId.value))
 
 const breadcrumbs = computed(() => {
   const segments = []
@@ -2602,8 +2659,8 @@ export function useQuickSwitcher() {
     const items: QuickSwitcherItem[] = []
 
     // Add all channels from all teams
-    for (const channel of channelStore.getAllChannels) {
-      const team = teamStore.getTeam(channel.teamId)
+    for (const channel of channelStore.allChannels) {
+      const team = teamStore.allTeams.find(t => t.id === channel.teamId)
       items.push({
         id: `channel-${channel.id}`,
         type: 'channel',
@@ -2615,7 +2672,7 @@ export function useQuickSwitcher() {
     }
 
     // Add teams
-    for (const team of teamStore.getAllTeams) {
+    for (const team of teamStore.allTeams) {
       items.push({
         id: `team-${team.id}`,
         type: 'team',
@@ -2753,7 +2810,7 @@ git commit -m "feat: integrate Quick Switcher with Cmd+K shortcut"
 
 ---
 
-### Task 25: Create Backend Integration Tests
+### Task 26: Create Backend Integration Tests
 
 **Files:**
 - Create: `backend/tests/api_activity.rs`
@@ -2763,111 +2820,263 @@ git commit -m "feat: integrate Quick Switcher with Cmd+K shortcut"
 ```rust
 //! Integration tests for Activity Feed API
 
-use rustchat::models::ActivityType;
-
 mod common;
+use common::spawn_app;
+use serde_json::Value;
+use uuid::Uuid;
 
 #[tokio::test]
 async fn test_get_activity_feed_requires_auth() {
-    let (app, _db) = common::setup().await;
+    let app = spawn_app().await;
 
     let response = app
-        .get("/api/v4/users/test-user-id/activity")
+        .api_client
+        .get(&format!("{}/api/v4/users/test-user-id/activity", app.address))
         .send()
-        .await;
+        .await
+        .expect("Failed to send request");
 
     assert_eq!(response.status(), 401);
 }
 
 #[tokio::test]
 async fn test_get_activity_feed_returns_activities() {
-    let (app, db) = common::setup().await;
-    let user = common::create_test_user(&db, "testuser").await;
-    let actor = common::create_test_user(&db, "actor").await;
-    let team = common::create_test_team(&db, "testteam").await;
-    let channel = common::create_test_channel(&db, &team.id, "general").await;
+    let app = spawn_app().await;
 
-    // Create test activity
-    sqlx::query(
-        "INSERT INTO activities (user_id, type, actor_id, channel_id, team_id, post_id, message_text)
-         VALUES ($1, $2, $3, $4, $5, $6, $7)"
-    )
-    .bind(user.id)
-    .bind(ActivityType::Mention)
-    .bind(actor.id)
-    .bind(channel.id)
-    .bind(team.id)
-    .bind(uuid::Uuid::new_v4())
-    .bind("Test mention message")
-    .execute(&db)
-    .await
-    .unwrap();
+    // 1. Create Organization
+    let org_id = Uuid::new_v4();
+    sqlx::query("INSERT INTO organizations (id, name) VALUES ($1, $2)")
+        .bind(org_id)
+        .bind("Test Org")
+        .execute(&app.db_pool)
+        .await
+        .expect("Failed to create organization");
 
-    let response = app
-        .authenticated(&user)
-        .get(&format!("/api/v4/users/{}/activity", user.id))
+    // 2. Register & Login User
+    let user_data = serde_json::json!({
+        "username": "testuser",
+        "email": "test@example.com",
+        "password": "Password123!",
+        "display_name": "Test User",
+        "org_id": org_id
+    });
+
+    app.api_client
+        .post(&format!("{}/api/v1/auth/register", app.address))
+        .json(&user_data)
         .send()
-        .await;
+        .await
+        .expect("Failed to register.");
+
+    let login_data = serde_json::json!({
+        "email": "test@example.com",
+        "password": "Password123!"
+    });
+
+    let login_res = app
+        .api_client
+        .post(&format!("{}/api/v1/auth/login", app.address))
+        .json(&login_data)
+        .send()
+        .await
+        .expect("Failed to login.");
+
+    let login_body: Value = login_res.json().await.unwrap();
+    let token = login_body["token"].as_str().unwrap();
+    let user_id = login_body["user"]["id"].as_str().unwrap();
+    let user_uuid = Uuid::parse_str(user_id).unwrap();
+
+    // 3. Create Actor User
+    let actor_data = serde_json::json!({
+        "username": "actor",
+        "email": "actor@example.com",
+        "password": "Password123!",
+        "display_name": "Actor User",
+        "org_id": org_id
+    });
+
+    app.api_client
+        .post(&format!("{}/api/v1/auth/register", app.address))
+        .json(&actor_data)
+        .send()
+        .await
+        .expect("Failed to register actor.");
+
+    let actor_login = app
+        .api_client
+        .post(&format!("{}/api/v1/auth/login", app.address))
+        .json(&serde_json::json!({
+            "email": "actor@example.com",
+            "password": "Password123!"
+        }))
+        .send()
+        .await
+        .expect("Failed to login actor.");
+
+    let actor_body: Value = actor_login.json().await.unwrap();
+    let actor_id = actor_body["user"]["id"].as_str().unwrap();
+    let actor_uuid = Uuid::parse_str(actor_id).unwrap();
+
+    // 4. Create Team
+    let team_id = Uuid::new_v4();
+    sqlx::query("INSERT INTO teams (id, org_id, name, display_name, allow_open_invite) VALUES ($1, $2, $3, $4, $5)")
+        .bind(team_id)
+        .bind(org_id)
+        .bind("test-team")
+        .bind("Test Team")
+        .bind(true)
+        .execute(&app.db_pool)
+        .await
+        .expect("Failed to insert team");
+
+    // Add both users to team
+    sqlx::query("INSERT INTO team_members (team_id, user_id, role) VALUES ($1, $2, $3)")
+        .bind(team_id)
+        .bind(user_uuid)
+        .bind("member")
+        .execute(&app.db_pool)
+        .await
+        .expect("Failed to add user to team");
+
+    sqlx::query("INSERT INTO team_members (team_id, user_id, role) VALUES ($1, $2, $3)")
+        .bind(team_id)
+        .bind(actor_uuid)
+        .bind("member")
+        .execute(&app.db_pool)
+        .await
+        .expect("Failed to add actor to team");
+
+    // 5. Create Channel
+    let channel_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO channels (id, team_id, name, display_name, type, creator_id) VALUES ($1, $2, $3, $4, $5::channel_type, $6)",
+    )
+    .bind(channel_id)
+    .bind(team_id)
+    .bind("test-channel")
+    .bind("Test Channel")
+    .bind("public")
+    .bind(user_uuid)
+    .execute(&app.db_pool)
+    .await
+    .expect("Failed to insert channel");
+
+    // Add user to channel
+    sqlx::query("INSERT INTO channel_members (channel_id, user_id, role) VALUES ($1, $2, $3)")
+        .bind(channel_id)
+        .bind(user_uuid)
+        .bind("member")
+        .execute(&app.db_pool)
+        .await
+        .expect("Failed to add user to channel");
+
+    // 6. Create activity record
+    let post_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO activities (user_id, type, actor_id, channel_id, team_id, post_id, message_text, read)
+         VALUES ($1, 'mention', $2, $3, $4, $5, $6, false)"
+    )
+    .bind(user_uuid)
+    .bind(actor_uuid)
+    .bind(channel_id)
+    .bind(team_id)
+    .bind(post_id)
+    .bind("@testuser hello!")
+    .execute(&app.db_pool)
+    .await
+    .expect("Failed to insert activity");
+
+    // 7. Get activity feed
+    let response = app
+        .api_client
+        .get(&format!("{}/api/v4/users/{}/activity", app.address, user_id))
+        .bearer_auth(token)
+        .send()
+        .await
+        .expect("Failed to get activity feed");
 
     assert_eq!(response.status(), 200);
 
-    let body: serde_json::Value = response.json().await;
+    let body: Value = response.json().await.unwrap();
     assert!(body["order"].as_array().unwrap().len() > 0);
     assert!(body["unread_count"].as_i64().unwrap() > 0);
 }
 
 #[tokio::test]
-async fn test_mark_activities_read() {
-    let (app, db) = common::setup().await;
-    let user = common::create_test_user(&db, "testuser").await;
-    let actor = common::create_test_user(&db, "actor").await;
-    let team = common::create_test_team(&db, "testteam").await;
-    let channel = common::create_test_channel(&db, &team.id, "general").await;
-
-    // Create test activity
-    let activity_id = uuid::Uuid::new_v4();
-    sqlx::query(
-        "INSERT INTO activities (id, user_id, type, actor_id, channel_id, team_id, post_id, read)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)"
-    )
-    .bind(activity_id)
-    .bind(user.id)
-    .bind(ActivityType::Mention)
-    .bind(actor.id)
-    .bind(channel.id)
-    .bind(team.id)
-    .bind(uuid::Uuid::new_v4())
-    .bind(false)
-    .execute(&db)
-    .await
-    .unwrap();
-
-    let response = app
-        .authenticated(&user)
-        .post(&format!("/api/v4/users/{}/activity/read", user.id))
-        .json(&serde_json::json!({
-            "activity_ids": [activity_id.to_string()]
-        }))
-        .send()
-        .await;
-
-    assert_eq!(response.status(), 200);
-
-    let body: serde_json::Value = response.json().await;
-    assert_eq!(body["updated"].as_i64(), Some(1));
-}
-
-#[tokio::test]
 async fn test_cannot_view_other_users_activity() {
-    let (app, db) = common::setup().await;
-    let user1 = common::create_test_user(&db, "user1").await;
-    let user2 = common::create_test_user(&db, "user2").await;
+    let app = spawn_app().await;
 
-    let response = app
-        .authenticated(&user1)
-        .get(&format!("/api/v4/users/{}/activity", user2.id))
+    // Create first user and login
+    let org_id = Uuid::new_v4();
+    sqlx::query("INSERT INTO organizations (id, name) VALUES ($1, $2)")
+        .bind(org_id)
+        .bind("Test Org")
+        .execute(&app.db_pool)
+        .await
+        .expect("Failed to create organization");
+
+    let user1_data = serde_json::json!({
+        "username": "user1",
+        "email": "user1@example.com",
+        "password": "Password123!",
+        "display_name": "User 1",
+        "org_id": org_id
+    });
+
+    app.api_client
+        .post(&format!("{}/api/v1/auth/register", app.address))
+        .json(&user1_data)
         .send()
-        .await;
+        .await
+        .expect("Failed to register user1.");
+
+    let login1 = app
+        .api_client
+        .post(&format!("{}/api/v1/auth/login", app.address))
+        .json(&serde_json::json!({ "email": "user1@example.com", "password": "Password123!" }))
+        .send()
+        .await
+        .expect("Failed to login user1.");
+
+    let body1: Value = login1.json().await.unwrap();
+    let token1 = body1["token"].as_str().unwrap();
+    let user1_id = body1["user"]["id"].as_str().unwrap();
+
+    // Create second user
+    let user2_data = serde_json::json!({
+        "username": "user2",
+        "email": "user2@example.com",
+        "password": "Password123!",
+        "display_name": "User 2",
+        "org_id": org_id
+    });
+
+    app.api_client
+        .post(&format!("{}/api/v1/auth/register", app.address))
+        .json(&user2_data)
+        .send()
+        .await
+        .expect("Failed to register user2.");
+
+    let login2 = app
+        .api_client
+        .post(&format!("{}/api/v1/auth/login", app.address))
+        .json(&serde_json::json!({ "email": "user2@example.com", "password": "Password123!" }))
+        .send()
+        .await
+        .expect("Failed to login user2.");
+
+    let body2: Value = login2.json().await.unwrap();
+    let user2_id = body2["user"]["id"].as_str().unwrap();
+
+    // Try to access user2's activity feed as user1
+    let response = app
+        .api_client
+        .get(&format!("{}/api/v4/users/{}/activity", app.address, user2_id))
+        .bearer_auth(token1)
+        .send()
+        .await
+        .expect("Failed to send request");
 
     assert_eq!(response.status(), 403);
 }
@@ -2887,7 +3096,7 @@ git commit -m "test: add activity feed integration tests"
 
 ---
 
-### Task 26: Final Verification
+### Task 27: Final Verification
 
 - [ ] **Step 1: Run backend tests**
 
@@ -2918,6 +3127,18 @@ git commit -m "feat: complete Phase 2 - Activity Feed and Breadcrumbs Navigation
 
 ---
 
+## Plan Notes
+
+### Scope Adjustments from Spec
+1. **Recent Items API**: The `GET /api/v4/users/{user_id}/recent-items` endpoint is NOT implemented in this plan. The Quick Switcher uses client-side data from existing stores (`channelStore.allChannels`, `teamStore.allTeams`) instead.
+
+### Implementation Notes
+1. **Activity Creation**: Uses service helper functions (`create_mention_activity`, `create_reply_activity`, etc.) rather than inline SQL
+2. **WebSocket Handlers**: Activity handler registration added as explicit Task 19
+3. **Store APIs**: Uses actual store getters (`allChannels`, `allTeams`, `getChannelById`) verified from codebase
+4. **Event Types**: Located in `backend/src/realtime/events.rs` with exact line references
+5. **Test Pattern**: Follows existing test structure using `spawn_app()` and direct SQL setup
+
 ## Plan Review
 
 After completing this plan, dispatch the plan-document-reviewer subagent to review:
@@ -2934,3 +3155,5 @@ Review context to provide:
 - This is Phase 2 of WebUI Enhancement Initiative
 - Backend: Rust/Axum/SQLx with existing thread/reaction infrastructure
 - Frontend: Vue 3 + TypeScript + Pinia with feature-based architecture
+- WebSocket handler registration is in `frontend/src/core/websocket/registerHandlers.ts`
+- Note: Recent-items API endpoint removed from scope - Quick Switcher uses client-side data
