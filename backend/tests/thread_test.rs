@@ -145,9 +145,26 @@ async fn test_get_thread_returns_parent_and_replies() {
 
     let thread_body: Value = thread_res.json().await.unwrap();
 
-    // The current API returns an array of replies
-    // Verify we get the reply in the response
-    let replies = thread_body.as_array().expect("Expected array response");
-    assert_eq!(replies.len(), 1, "Expected 1 reply");
-    assert_eq!(replies[0]["message"].as_str().unwrap(), "Reply message");
+    // Verify ThreadResponse structure
+    // Should have: order (array), posts (map), next_cursor (optional)
+    let order = thread_body["order"].as_array().expect("Expected order array");
+    let posts = thread_body["posts"].as_object().expect("Expected posts map");
+
+    // Order should have parent first, then replies
+    assert_eq!(order.len(), 2, "Expected 2 posts in order (parent + 1 reply)");
+    assert_eq!(posts.len(), 2, "Expected 2 posts in posts map");
+
+    // First in order should be the parent
+    let parent_in_order = &order[0];
+    let parent_post = posts.get(parent_in_order.as_str().unwrap()).expect("Parent should be in posts map");
+    assert_eq!(parent_post["message"].as_str().unwrap(), "Parent message");
+
+    // Second in order should be the reply
+    let reply_in_order = &order[1];
+    let reply_post = posts.get(reply_in_order.as_str().unwrap()).expect("Reply should be in posts map");
+    assert_eq!(reply_post["message"].as_str().unwrap(), "Reply message");
+
+    // next_cursor should be null since we have no more replies
+    assert!(thread_body["next_cursor"].is_null() || thread_body.get("next_cursor").is_none(),
+            "next_cursor should be null when no more replies");
 }
