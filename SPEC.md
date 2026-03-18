@@ -1,5 +1,8 @@
 # SPEC: WebSocket Auth Expiry Enforcement (2026-03-13)
 
+> **📁 MOVED TO SUPERPOWERS STRUCTURE**
+> This spec has been restructured to: `docs/superpowers/specs/2026-03-13-websocket-auth-expiry-design.md`
+
 > **Status: ✅ IMPLEMENTED** (2026-03-17)
 > 
 > - Both `/api/v4/websocket` and `/ws` endpoints enforce token expiry

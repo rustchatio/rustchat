@@ -1,8 +1,11 @@
 # Feature Specification: RustChat Platform Foundation
 
-**Feature Branch**: `001-platform-foundation`  
-**Created**: 2026-03-13  
-**Status**: Draft  
+> **📁 MOVED TO SUPERPOWERS STRUCTURE**
+> This spec has been restructured to: `docs/superpowers/specs/2026-03-13-platform-foundation-design.md`
+
+**Feature Branch**: `001-platform-foundation`
+**Created**: 2026-03-13
+**Status**: Draft
 **Input**: Platform architecture specification covering technology stack, scalability, agent integration, APIs, and SaaS maturity lifecycle
 
 ---
