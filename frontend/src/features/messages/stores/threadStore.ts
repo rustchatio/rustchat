@@ -126,9 +126,38 @@ export const useThreadStore = defineStore('thread', () => {
     }
   }
 
+  // WebSocket event handlers
+  function onNewReply(post: Post): void {
+    // Only add if not already present (avoid duplicates)
+    const exists = replies.value.some(r => r.id === post.id)
+    if (!exists) {
+      replies.value.push(post)
+      // Update reply count on parent post
+      if (parentPost.value) {
+        parentPost.value.reply_count = (parentPost.value.reply_count || 0) + 1
+      }
+    }
+  }
+
+  function onPostDeleted(postId: string): void {
+    const index = replies.value.findIndex(r => r.id === postId)
+    if (index !== -1) {
+      replies.value.splice(index, 1)
+      // Update reply count on parent post
+      if (parentPost.value) {
+        parentPost.value.reply_count = Math.max(0, (parentPost.value.reply_count || 0) - 1)
+      }
+    }
+    // If the parent post itself was deleted, close the thread
+    if (parentPostId.value === postId) {
+      closeThread()
+    }
+  }
+
   return {
     isOpen, parentPostId, parentPost, replies, hasMore, cursor,
     isLoading, isSending, draft, replyCount,
-    openThread, closeThread, loadMoreReplies, sendReply, setDraft
+    openThread, closeThread, loadMoreReplies, sendReply, setDraft,
+    onNewReply, onPostDeleted
   }
 })

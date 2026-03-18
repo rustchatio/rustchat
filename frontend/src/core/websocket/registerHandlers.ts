@@ -2,19 +2,40 @@
 // Central registration of all feature-specific WebSocket handlers
 
 import { wsManager, type WebSocketEvent } from './WebSocketManager'
-import { handleMessageWebSocketEvent } from '../../features/messages'
+import { handleMessageWebSocketEvent, registerThreadHandlers } from '../../features/messages'
 import { handleCallWebSocketEvent } from '../../features/calls'
 import { handleChannelWebSocketEvent } from '../../features/channels'
+import type { Post } from '../../api/posts'
 
 /**
  * Register all WebSocket event handlers
  * Call this once during app initialization
  */
 export function registerWebSocketHandlers(): void {
+  // Initialize thread handlers
+  const threadHandlers = registerThreadHandlers()
+
   // Message events
-  wsManager.on('posted', (event: WebSocketEvent) => handleMessageWebSocketEvent(event as any))
-  wsManager.on('post_edited', (event: WebSocketEvent) => handleMessageWebSocketEvent(event as any))
-  wsManager.on('post_deleted', (event: WebSocketEvent) => handleMessageWebSocketEvent(event as any))
+  wsManager.on('posted', (event: WebSocketEvent) => {
+    handleMessageWebSocketEvent(event as any)
+    // Also handle for thread updates
+    const data = JSON.parse((event as any).data)
+    const post: Post = JSON.parse(data.post)
+    threadHandlers.handleNewPost(post)
+  })
+  wsManager.on('post_edited', (event: WebSocketEvent) => {
+    handleMessageWebSocketEvent(event as any)
+    // Also handle for thread updates
+    const data = JSON.parse((event as any).data)
+    const post: Post = JSON.parse(data.post)
+    threadHandlers.handlePostUpdated(post)
+  })
+  wsManager.on('post_deleted', (event: WebSocketEvent) => {
+    handleMessageWebSocketEvent(event as any)
+    // Also handle for thread updates
+    const data = JSON.parse((event as any).data)
+    threadHandlers.handlePostDeleted(data.post_id)
+  })
   wsManager.on('reaction_added', (event: WebSocketEvent) => handleMessageWebSocketEvent(event as any))
   wsManager.on('reaction_removed', (event: WebSocketEvent) => handleMessageWebSocketEvent(event as any))
 

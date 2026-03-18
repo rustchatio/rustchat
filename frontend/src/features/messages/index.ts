@@ -14,6 +14,7 @@ export { messageRepository } from './repositories/messageRepository'
 
 // Handlers
 export { handleWebSocketEvent as handleMessageWebSocketEvent } from './handlers/messageSocketHandlers'
+export { registerThreadHandlers } from './handlers/threadSocketHandlers'
 
 // Composables (to be created)
 // export { useMessages } from './composables/useMessages'
