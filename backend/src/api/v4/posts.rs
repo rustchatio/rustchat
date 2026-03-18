@@ -444,12 +444,20 @@ fn default_thread_limit() -> i64 {
     60
 }
 
+/// Mattermost-compatible thread response
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ThreadResponseMm {
+    pub order: Vec<String>,
+    pub posts: std::collections::HashMap<String, mm::Post>,
+    pub next_cursor: Option<String>,
+}
+
 async fn get_post_thread(
     State(state): State<AppState>,
     auth: MmAuthUser,
     Path(post_id): Path<String>,
     axum::extract::Query(query): axum::extract::Query<ThreadQuery>,
-) -> ApiResult<Json<ThreadResponse>> {
+) -> ApiResult<Json<ThreadResponseMm>> {
     let post_id = parse_mm_or_uuid(&post_id)
         .ok_or_else(|| AppError::BadRequest("Invalid post_id".to_string()))?;
 
@@ -482,7 +490,43 @@ async fn get_post_thread(
                 crate::error::AppError::Forbidden("Not a member of this channel".to_string())
             })?;
 
-    Ok(Json(thread_response))
+    // Convert to Mattermost-compatible format
+    let order: Vec<String> = thread_response.order.iter()
+        .map(|id| encode_mm_id(uuid::Uuid::parse_str(id).unwrap_or_default()))
+        .collect();
+
+    let posts: std::collections::HashMap<String, mm::Post> = thread_response.posts.into_iter()
+        .map(|(id, post)| {
+            let mm_id = encode_mm_id(uuid::Uuid::parse_str(&id).unwrap_or_default());
+            let mm_post = mm::Post {
+                id: mm_id.clone(),
+                create_at: post.created_at.timestamp_millis(),
+                update_at: post.edited_at.map(|dt| dt.timestamp_millis()).unwrap_or_else(|| post.created_at.timestamp_millis()),
+                delete_at: post.deleted_at.map(|dt| dt.timestamp_millis()).unwrap_or(0),
+                edit_at: post.edited_at.map(|dt| dt.timestamp_millis()).unwrap_or(0),
+                user_id: encode_mm_id(post.user_id),
+                channel_id: encode_mm_id(post.channel_id),
+                root_id: post.root_post_id.map(|id| encode_mm_id(id)).unwrap_or_default(),
+                original_id: String::new(),
+                message: post.message,
+                post_type: String::new(),
+                props: post.props,
+                hashtags: String::new(),
+                file_ids: post.file_ids.into_iter().map(|id| encode_mm_id(id)).collect(),
+                pending_post_id: post.client_msg_id.unwrap_or_default(),
+                metadata: None,
+            };
+            (mm_id, mm_post)
+        })
+        .collect();
+
+    let next_cursor = thread_response.next_cursor.map(|c| encode_mm_id(uuid::Uuid::parse_str(&c).unwrap_or_default()));
+
+    Ok(Json(ThreadResponseMm {
+        order,
+        posts,
+        next_cursor,
+    }))
 }
 
 async fn handle_post_action(
