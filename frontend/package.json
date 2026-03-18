@@ -15,6 +15,10 @@
     "test:e2e:settings-parity:update": "PLAYWRIGHT_BASE_URL=http://127.0.0.1:4173 PLAYWRIGHT_WEB_SERVER=1 playwright test e2e/settings_parity.spec.ts --project=chromium --update-snapshots"
   },
   "dependencies": {
+    "@tiptap/extension-mention": "^3.20.4",
+    "@tiptap/extension-placeholder": "^3.20.4",
+    "@tiptap/starter-kit": "^3.20.4",
+    "@tiptap/vue-3": "^3.20.4",
     "@types/md5": "^2.3.6",
     "@vueuse/core": "^14.1.0",
     "axios": "^1.13.5",

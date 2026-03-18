@@ -15,7 +15,7 @@ use crate::auth::policy::permissions;
 use crate::auth::AuthUser;
 use crate::error::{ApiResult, AppError};
 use crate::models::{
-    ChannelMember, CreatePost, CreateReaction, Post, PostResponse, Reaction, UpdatePost,
+    ChannelMember, CreatePost, CreateReaction, Post, PostResponse, Reaction, ThreadResponse, UpdatePost,
 };
 
 /// Build posts routes
@@ -44,6 +44,20 @@ pub struct ListPostsQuery {
     pub limit: Option<i64>,
     pub is_pinned: Option<bool>,
     pub q: Option<String>,
+}
+
+/// Query parameters for thread endpoint
+#[derive(Debug, Deserialize)]
+pub struct ThreadQuery {
+    /// Cursor for pagination (post ID to start after)
+    pub cursor: Option<String>,
+    /// Maximum number of replies to return (1-100, default 60)
+    #[serde(default = "default_thread_limit")]
+    pub limit: i64,
+}
+
+fn default_thread_limit() -> i64 {
+    60
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -386,55 +400,39 @@ async fn get_thread(
     State(state): State<AppState>,
     auth: AuthUser,
     Path(id): Path<Uuid>,
-) -> ApiResult<Json<Vec<PostResponse>>> {
-    let root_post: Post = sqlx::query_as(
-        r#"
-        SELECT id, channel_id, user_id, root_post_id, message, props, file_ids,
-               is_pinned, created_at, edited_at, deleted_at,
-               reply_count::int8 as reply_count,
-               last_reply_at, seq
-        FROM posts WHERE id = $1 AND deleted_at IS NULL
-        "#,
-    )
-    .bind(id)
-    .fetch_optional(&state.db)
-    .await?
-    .ok_or_else(|| AppError::NotFound("Post not found".to_string()))?;
+    Query(query): Query<ThreadQuery>,
+) -> ApiResult<Json<ThreadResponse>> {
+    use crate::mattermost_compat::id::parse_mm_or_uuid;
 
-    // Check membership
+    // Parse cursor if provided
+    let cursor = match query.cursor {
+        Some(cursor_str) => Some(
+            parse_mm_or_uuid(&cursor_str)
+                .ok_or_else(|| AppError::BadRequest("Invalid cursor".to_string()))?,
+        ),
+        None => None,
+    };
+
+    // Call the service method
+    let thread_response =
+        crate::services::posts::get_thread(&state, id, cursor, query.limit).await?;
+
+    // Check channel membership permission using the first post
+    let first_post = thread_response
+        .posts
+        .values()
+        .next()
+        .ok_or_else(|| AppError::NotFound("Thread not found".to_string()))?;
+
     let _: ChannelMember =
         sqlx::query_as("SELECT * FROM channel_members WHERE channel_id = $1 AND user_id = $2")
-            .bind(root_post.channel_id)
+            .bind(first_post.channel_id)
             .bind(auth.user_id)
             .fetch_optional(&state.db)
             .await?
             .ok_or_else(|| AppError::Forbidden("Not a member of this channel".to_string()))?;
 
-    let replies: Vec<PostResponse> = sqlx::query_as(
-        r#"
-        SELECT p.id, p.channel_id, p.user_id, p.root_post_id, p.message, p.props, p.file_ids,
-               p.is_pinned, p.created_at, p.edited_at, p.deleted_at,
-               p.reply_count::int8 as reply_count,
-               p.last_reply_at, p.seq,
-               CASE WHEN u.deleted_at IS NOT NULL THEN 'Deleted user' ELSE u.username END as username,
-               u.avatar_url,
-               CASE WHEN u.deleted_at IS NOT NULL THEN 'deleted-user@local' ELSE u.email END as email
-        FROM posts p
-        LEFT JOIN users u ON p.user_id = u.id
-        WHERE p.root_post_id = $1 AND p.deleted_at IS NULL
-        ORDER BY p.created_at
-        "#,
-    )
-    .bind(id)
-    .fetch_all(&state.db)
-    .await?;
-
-    let mut replies = replies;
-    populate_files(&state, &mut replies).await?;
-    populate_reactions(&state, &mut replies).await?;
-    populate_saved_status(&state, auth.user_id, &mut replies).await?;
-
-    Ok(Json(replies))
+    Ok(Json(thread_response))
 }
 
 /// Add a reaction

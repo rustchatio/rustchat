@@ -109,3 +109,14 @@ pub struct PostResponse {
     #[sqlx(default)]
     pub seq: i64,
 }
+
+/// Response for thread endpoint
+#[derive(Debug, Clone, Serialize)]
+pub struct ThreadResponse {
+    /// Order of post IDs (parent first, then replies chronologically)
+    pub order: Vec<String>,
+    /// Map of post ID to post data
+    pub posts: std::collections::HashMap<String, PostResponse>,
+    /// Cursor for pagination (null if no more replies)
+    pub next_cursor: Option<String>,
+}

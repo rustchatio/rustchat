@@ -18,8 +18,10 @@ import TypingIndicator from '../../components/channel/TypingIndicator.vue';
 import ActiveCall from '../../components/calls/ActiveCall.vue';
 import IncomingCallModal from '../../components/calls/IncomingCallModal.vue';
 import { useUIStore, type RhsView } from '../../stores/ui';
+import { useThreadStore } from '../../features/messages';
 
 const channelStore = useChannelStore();
+const threadStore = useThreadStore();
 const messageStore = useMessageStore();
 const unreadStore = useUnreadStore();
 const callsStore = useCallsStore();
@@ -121,6 +123,7 @@ function onTyping() {
 }
 
 function handleMessageReply(messageId: string) {
+    threadStore.openThread(messageId);
     uiStore.openRhs('thread', messageId);
 }
 

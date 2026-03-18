@@ -811,6 +811,105 @@ pub async fn get_post_by_id(state: &AppState, post_id: Uuid) -> ApiResult<PostRe
     Ok(post)
 }
 
+/// Query parameters for thread fetching
+#[derive(Debug, Default)]
+pub struct ThreadQuery {
+    pub cursor: Option<Uuid>,
+    pub limit: i64,
+}
+
+/// Get thread with parent post and replies
+pub async fn get_thread(
+    state: &AppState,
+    post_id: Uuid,
+    cursor: Option<Uuid>,
+    limit: i64,
+) -> ApiResult<crate::models::ThreadResponse> {
+    let limit = limit.clamp(1, 100);
+
+    // Fetch parent post with user info
+    let parent: Option<PostResponse> = sqlx::query_as(
+        r#"
+        SELECT
+            p.id, p.channel_id, p.user_id, p.root_post_id, p.message, p.props, p.file_ids,
+            p.is_pinned, p.created_at, p.edited_at, p.deleted_at,
+            p.reply_count::int8 as reply_count, p.last_reply_at, p.seq,
+            u.username, u.avatar_url, u.email
+        FROM posts p
+        JOIN users u ON p.user_id = u.id
+        WHERE p.id = $1 AND p.deleted_at IS NULL
+        "#
+    )
+    .bind(post_id)
+    .fetch_optional(&state.db)
+    .await?;
+
+    let parent = parent.ok_or_else(|| AppError::NotFound("Post not found".to_string()))?;
+
+    // Build query for replies
+    let mut query = String::from(
+        r#"
+        SELECT
+            p.id, p.channel_id, p.user_id, p.root_post_id, p.message, p.props, p.file_ids,
+            p.is_pinned, p.created_at, p.edited_at, p.deleted_at,
+            p.reply_count::int8 as reply_count, p.last_reply_at, p.seq,
+            u.username, u.avatar_url, u.email
+        FROM posts p
+        JOIN users u ON p.user_id = u.id
+        WHERE p.root_post_id = $1 AND p.deleted_at IS NULL
+        "#
+    );
+
+    if cursor.is_some() {
+        query.push_str(" AND p.id > $2 ");
+    }
+
+    query.push_str("ORDER BY p.created_at ASC LIMIT $3");
+
+    // Fetch replies
+    let replies: Vec<PostResponse> = if let Some(cursor_id) = cursor {
+        sqlx::query_as(&query)
+            .bind(post_id)
+            .bind(cursor_id)
+            .bind(limit + 1) // Fetch one extra to determine if there's more
+            .fetch_all(&state.db)
+            .await?
+    } else {
+        let query_no_cursor = query.replace("AND p.id > $2", "");
+        sqlx::query_as(&query_no_cursor.replace("$3", "$2"))
+            .bind(post_id)
+            .bind(limit + 1)
+            .fetch_all(&state.db)
+            .await?
+    };
+
+    // Determine pagination
+    let has_more = replies.len() > limit as usize;
+    let replies: Vec<PostResponse> = replies.into_iter().take(limit as usize).collect();
+
+    let next_cursor = if has_more {
+        replies.last().map(|r| r.id.to_string())
+    } else {
+        None
+    };
+
+    // Build response
+    let mut order = vec![parent.id.to_string()];
+    let mut posts_map = std::collections::HashMap::new();
+    posts_map.insert(parent.id.to_string(), parent);
+
+    for reply in replies {
+        order.push(reply.id.to_string());
+        posts_map.insert(reply.id.to_string(), reply);
+    }
+
+    Ok(crate::models::ThreadResponse {
+        order,
+        posts: posts_map,
+        next_cursor,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::truncate_preview;

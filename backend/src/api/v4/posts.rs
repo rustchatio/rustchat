@@ -18,7 +18,7 @@ use crate::mattermost_compat::{
     id::{encode_mm_id, parse_mm_or_uuid},
     models as mm,
 };
-use crate::models::{CreatePost, FileInfo};
+use crate::models::{CreatePost, FileInfo, ThreadResponse};
 use crate::realtime::{EventType, WsBroadcast, WsEnvelope};
 use crate::services::posts;
 
@@ -430,36 +430,59 @@ async fn unpin_post(
     Ok(status_ok())
 }
 
+/// Query parameters for thread endpoint
+#[derive(Debug, Deserialize)]
+pub struct ThreadQuery {
+    /// Cursor for pagination (post ID to start after)
+    pub cursor: Option<String>,
+    /// Maximum number of replies to return (1-100, default 60)
+    #[serde(default = "default_thread_limit")]
+    pub limit: i64,
+}
+
+fn default_thread_limit() -> i64 {
+    60
+}
+
+/// Mattermost-compatible thread response
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ThreadResponseMm {
+    pub order: Vec<String>,
+    pub posts: std::collections::HashMap<String, mm::Post>,
+    pub next_cursor: Option<String>,
+}
+
 async fn get_post_thread(
     State(state): State<AppState>,
     auth: MmAuthUser,
     Path(post_id): Path<String>,
-) -> ApiResult<Json<mm::PostList>> {
+    axum::extract::Query(query): axum::extract::Query<ThreadQuery>,
+) -> ApiResult<Json<ThreadResponseMm>> {
     let post_id = parse_mm_or_uuid(&post_id)
         .ok_or_else(|| AppError::BadRequest("Invalid post_id".to_string()))?;
-    use std::collections::HashMap;
 
-    // 1. Get the requested post
-    let root_post: crate::models::post::PostResponse = sqlx::query_as(
-        r#"
-        SELECT p.id, p.channel_id, p.user_id, p.root_post_id, p.message, p.props, p.file_ids,
-               p.is_pinned, p.created_at, p.edited_at, p.deleted_at,
-               p.reply_count::int8 as reply_count,
-               p.last_reply_at, p.seq,
-               u.username, u.avatar_url, u.email
-        FROM posts p
-        LEFT JOIN users u ON p.user_id = u.id
-        WHERE p.id = $1 AND p.deleted_at IS NULL
-        "#,
-    )
-    .bind(post_id)
-    .fetch_one(&state.db)
-    .await?;
+    // Parse cursor if provided
+    let cursor = match query.cursor {
+        Some(cursor_str) => Some(
+            parse_mm_or_uuid(&cursor_str)
+                .ok_or_else(|| AppError::BadRequest("Invalid cursor".to_string()))?,
+        ),
+        None => None,
+    };
 
-    // 2. Check permissions
+    // Call the service method
+    let thread_response = crate::services::posts::get_thread(&state, post_id, cursor, query.limit).await?;
+
+    // Check channel membership permission
+    let first_post = thread_response
+        .posts
+        .values()
+        .next()
+        .ok_or_else(|| AppError::NotFound("Thread not found".to_string()))?;
+
     let _: crate::models::ChannelMember =
         sqlx::query_as("SELECT * FROM channel_members WHERE channel_id = $1 AND user_id = $2")
-            .bind(root_post.channel_id)
+            .bind(first_post.channel_id)
             .bind(auth.user_id)
             .fetch_optional(&state.db)
             .await?
@@ -467,63 +490,42 @@ async fn get_post_thread(
                 crate::error::AppError::Forbidden("Not a member of this channel".to_string())
             })?;
 
-    // 3. Get replies
-    let replies: Vec<crate::models::post::PostResponse> = sqlx::query_as(
-        r#"
-        SELECT p.id, p.channel_id, p.user_id, p.root_post_id, p.message, p.props, p.file_ids,
-               p.is_pinned, p.created_at, p.edited_at, p.deleted_at,
-               p.reply_count::int8 as reply_count,
-               p.last_reply_at, p.seq,
-               u.username, u.avatar_url, u.email
-        FROM posts p
-        LEFT JOIN users u ON p.user_id = u.id
-        WHERE p.root_post_id = $1 AND p.deleted_at IS NULL
-        ORDER BY p.created_at ASC
-        "#,
-    )
-    .bind(post_id)
-    .fetch_all(&state.db)
-    .await?;
+    // Convert to Mattermost-compatible format
+    let order: Vec<String> = thread_response.order.iter()
+        .map(|id| encode_mm_id(uuid::Uuid::parse_str(id).unwrap_or_default()))
+        .collect();
 
-    // 4. Construct response
-    let mut order = Vec::new();
-    let mut posts_map: HashMap<String, mm::Post> = HashMap::new();
-    let mut post_ids = Vec::new();
-    let mut id_map = Vec::new();
+    let posts: std::collections::HashMap<String, mm::Post> = thread_response.posts.into_iter()
+        .map(|(id, post)| {
+            let mm_id = encode_mm_id(uuid::Uuid::parse_str(&id).unwrap_or_default());
+            let mm_post = mm::Post {
+                id: mm_id.clone(),
+                create_at: post.created_at.timestamp_millis(),
+                update_at: post.edited_at.map(|dt| dt.timestamp_millis()).unwrap_or_else(|| post.created_at.timestamp_millis()),
+                delete_at: post.deleted_at.map(|dt| dt.timestamp_millis()).unwrap_or(0),
+                edit_at: post.edited_at.map(|dt| dt.timestamp_millis()).unwrap_or(0),
+                user_id: encode_mm_id(post.user_id),
+                channel_id: encode_mm_id(post.channel_id),
+                root_id: post.root_post_id.map(|id| encode_mm_id(id)).unwrap_or_default(),
+                original_id: String::new(),
+                message: post.message,
+                post_type: String::new(),
+                props: post.props,
+                hashtags: String::new(),
+                file_ids: post.file_ids.into_iter().map(|id| encode_mm_id(id)).collect(),
+                pending_post_id: post.client_msg_id.unwrap_or_default(),
+                metadata: None,
+            };
+            (mm_id, mm_post)
+        })
+        .collect();
 
-    // Add root post
-    let root_id = encode_mm_id(root_post.id);
-    order.push(root_id.clone());
-    let root_uuid = root_post.id;
-    post_ids.push(root_uuid);
-    id_map.push((root_uuid, root_id.clone()));
-    posts_map.insert(root_id, root_post.into());
+    let next_cursor = thread_response.next_cursor.map(|c| encode_mm_id(uuid::Uuid::parse_str(&c).unwrap_or_default()));
 
-    // Add replies
-    for r in replies {
-        let id = encode_mm_id(r.id);
-        post_ids.push(r.id);
-        id_map.push((r.id, id.clone()));
-        order.push(id.clone());
-        posts_map.insert(id, r.into());
-    }
-
-    let reactions_map = reactions_for_posts(&state, &post_ids).await?;
-    for (post_uuid, post_id) in id_map {
-        if let Some(reactions) = reactions_map.get(&post_uuid) {
-            if !reactions.is_empty() {
-                if let Some(post) = posts_map.get_mut(&post_id) {
-                    post.metadata = Some(json!({ "reactions": reactions }));
-                }
-            }
-        }
-    }
-
-    Ok(Json(mm::PostList {
+    Ok(Json(ThreadResponseMm {
         order,
-        posts: posts_map,
-        next_post_id: "".to_string(),
-        prev_post_id: "".to_string(),
+        posts,
+        next_cursor,
     }))
 }
 
