@@ -4,11 +4,13 @@
 
 import { activityRepository } from '../repositories/activityRepository'
 import { useActivityStore } from '../stores/activityStore'
-import { useAuthStore } from '../../../features/auth/stores/authStore'
+import { useAuthStore } from '../../../stores/auth'
 import type { Activity } from '../types'
 import { ActivityType } from '../types'
 
 class ActivityService {
+  private _loadPromise: Promise<void> | null = null
+
   private get store() {
     return useActivityStore()
   }
@@ -57,7 +59,11 @@ class ActivityService {
 
   async loadMore(): Promise<void> {
     if (!this.store.hasMore || this.store.isLoading) return
-    await this.loadActivities()
+    if (this._loadPromise) return  // Prevent concurrent loads
+    this._loadPromise = this.loadActivities().finally(() => {
+      this._loadPromise = null
+    })
+    await this._loadPromise
   }
 
   async markRead(activityId: string): Promise<void> {
