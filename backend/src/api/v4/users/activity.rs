@@ -8,9 +8,9 @@ use axum::{
 use serde::Deserialize;
 use uuid::Uuid;
 
-use super::MmAuthUser;
+use super::{MmAuthUser, resolve_user_id};
 use crate::api::AppState;
-use crate::error::{AppError, ApiResult};
+use crate::error::ApiResult;
 use crate::models::{ActivityFeedResponse, ActivityQuery, MarkReadRequest};
 use crate::services::activity;
 
@@ -81,21 +81,3 @@ async fn mark_all_read(
     Ok(Json(serde_json::json!({ "updated": updated })))
 }
 
-/// Resolve user_id path param (supports "me" alias)
-fn resolve_user_id(user_id: &str, auth: &MmAuthUser) -> Result<Uuid, AppError> {
-    if user_id == "me" {
-        return Ok(auth.user_id);
-    }
-    use crate::mattermost_compat::id::parse_mm_or_uuid;
-    parse_mm_or_uuid(user_id)
-        .ok_or_else(|| AppError::BadRequest(format!("Invalid user id: {}", user_id)))
-        .and_then(|id| {
-            if id != auth.user_id {
-                Err(AppError::Forbidden(
-                    "Cannot access another user's activity feed".to_string(),
-                ))
-            } else {
-                Ok(id)
-            }
-        })
-}
