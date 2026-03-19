@@ -78,7 +78,7 @@ async fn test_service_unlimited_bypasses_rate_limit() {
     }
 
     let redis = create_redis_pool().await.unwrap();
-    let service = RateLimitService::new(redis);
+    let service = RateLimitService::new(redis, sqlx::postgres::PgPoolOptions::new().connect_lazy("postgres://x").unwrap());
     let entity_id = Uuid::new_v4();
 
     // ServiceUnlimited tier should always allow requests
@@ -101,7 +101,7 @@ async fn test_rate_limit_increments_correctly() {
     }
 
     let redis = create_redis_pool().await.unwrap();
-    let service = RateLimitService::new(redis);
+    let service = RateLimitService::new(redis, sqlx::postgres::PgPoolOptions::new().connect_lazy("postgres://x").unwrap());
     let entity_id = Uuid::new_v4();
 
     // Reset any existing rate limit
@@ -143,7 +143,7 @@ async fn test_rate_limit_enforcement() {
     }
 
     let redis = create_redis_pool().await.unwrap();
-    let service = RateLimitService::new(redis);
+    let service = RateLimitService::new(redis, sqlx::postgres::PgPoolOptions::new().connect_lazy("postgres://x").unwrap());
     let entity_id = Uuid::new_v4();
 
     // Use a custom low limit for testing
@@ -181,7 +181,7 @@ async fn test_rate_limit_different_tiers_separate() {
     }
 
     let redis = create_redis_pool().await.unwrap();
-    let service = RateLimitService::new(redis);
+    let service = RateLimitService::new(redis, sqlx::postgres::PgPoolOptions::new().connect_lazy("postgres://x").unwrap());
     let entity_id = Uuid::new_v4();
 
     // Reset both tiers
@@ -238,7 +238,7 @@ async fn test_rate_limit_reset() {
     }
 
     let redis = create_redis_pool().await.unwrap();
-    let service = RateLimitService::new(redis);
+    let service = RateLimitService::new(redis, sqlx::postgres::PgPoolOptions::new().connect_lazy("postgres://x").unwrap());
     let entity_id = Uuid::new_v4();
 
     // Make some requests
@@ -282,7 +282,7 @@ async fn test_rate_limit_status_for_unlimited() {
     }
 
     let redis = create_redis_pool().await.unwrap();
-    let service = RateLimitService::new(redis);
+    let service = RateLimitService::new(redis, sqlx::postgres::PgPoolOptions::new().connect_lazy("postgres://x").unwrap());
     let entity_id = Uuid::new_v4();
 
     // Get status for unlimited tier
@@ -312,7 +312,7 @@ async fn test_different_entities_have_separate_limits() {
     }
 
     let redis = create_redis_pool().await.unwrap();
-    let service = RateLimitService::new(redis);
+    let service = RateLimitService::new(redis, sqlx::postgres::PgPoolOptions::new().connect_lazy("postgres://x").unwrap());
     let entity_1 = Uuid::new_v4();
     let entity_2 = Uuid::new_v4();
 
@@ -363,7 +363,7 @@ async fn test_rate_limit_exceeded_error() {
     }
 
     let redis = create_redis_pool().await.unwrap();
-    let service = RateLimitService::new(redis);
+    let service = RateLimitService::new(redis, sqlx::postgres::PgPoolOptions::new().connect_lazy("postgres://x").unwrap());
     let entity_id = Uuid::new_v4();
 
     // For a real test of exceeding limits, we would need to make 1000+ requests
@@ -396,7 +396,7 @@ async fn test_rate_limit_key_format() {
     }
 
     let redis = create_redis_pool().await.unwrap();
-    let service = RateLimitService::new(redis);
+    let service = RateLimitService::new(redis, sqlx::postgres::PgPoolOptions::new().connect_lazy("postgres://x").unwrap());
     let entity_id = Uuid::new_v4();
 
     // Make a request to create the key

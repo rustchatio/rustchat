@@ -9,28 +9,26 @@ use deadpool_redis::redis::{AsyncCommands, Script};
 use deadpool_redis::Pool;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::sync::RwLock;
 use tracing::{debug, warn};
 
 /// Redis key prefix for rate limiting
 const RATE_LIMIT_KEY_PREFIX: &str = "ratelimit";
 
-/// Lua script for atomic INCR+EXPIRE operation
+/// Lua script for atomic INCR+EXPIRE.
+/// Returns a two-element array: [current_count, ttl_remaining_secs]
 ///
-/// This script atomically increments a counter and sets expiry if it's the first increment.
-/// Returns the new count value.
-///
-/// KEYS[1]: The rate limit key
-/// ARGV[1]: The rate limit threshold
-/// ARGV[2]: The TTL in seconds
+/// KEYS[1]: Redis key
+/// ARGV[1]: Window TTL in seconds
 const RATE_LIMIT_SCRIPT: &str = r#"
 local key = KEYS[1]
-local limit = tonumber(ARGV[1])
-local ttl = tonumber(ARGV[2])
+local ttl = tonumber(ARGV[1])
 local count = redis.call('INCR', key)
 if count == 1 then
     redis.call('EXPIRE', key, ttl)
 end
-return count
+local remaining_ttl = redis.call('TTL', key)
+return {count, remaining_ttl}
 "#;
 
 /// Rate limiting configuration for a tier
@@ -110,16 +108,36 @@ impl Default for RateLimitLimits {
 pub struct RateLimitService {
     redis: Pool,
     script: Arc<Script>,
+    /// PostgreSQL pool used by reload() to read the rate_limits table
+    db: sqlx::PgPool,
+    /// Hot-reloadable IP/key rate limit configuration
+    ip_limits: Arc<RwLock<RateLimitLimits>>,
 }
 
 impl RateLimitService {
-    /// Create a new rate limiting service
-    ///
-    /// # Arguments
-    /// * `redis` - Redis connection pool
-    pub fn new(redis: Pool) -> Self {
-        let script = Arc::new(Script::new(RATE_LIMIT_SCRIPT));
-        Self { redis, script }
+    /// Create service with default IP limits (call `reload()` to populate from DB).
+    pub fn new(redis: Pool, db: sqlx::PgPool) -> Self {
+        Self {
+            redis,
+            script: Arc::new(Script::new(RATE_LIMIT_SCRIPT)),
+            db,
+            ip_limits: Arc::new(RwLock::new(RateLimitLimits::default())),
+        }
+    }
+
+    /// Create service with pre-loaded IP limits.
+    pub fn new_with_limits(redis: Pool, db: sqlx::PgPool, initial_limits: RateLimitLimits) -> Self {
+        Self {
+            redis,
+            script: Arc::new(Script::new(RATE_LIMIT_SCRIPT)),
+            db,
+            ip_limits: Arc::new(RwLock::new(initial_limits)),
+        }
+    }
+
+    /// Returns a clone of the current IP rate limit configuration.
+    pub async fn ip_limits(&self) -> RateLimitLimits {
+        self.ip_limits.read().await.clone()
     }
 
     /// Build the Redis key for rate limiting
@@ -141,18 +159,6 @@ impl RateLimitService {
     }
 
     /// Check rate limit for an entity
-    ///
-    /// # Arguments
-    /// * `entity_id` - The entity UUID to check
-    /// * `tier` - The rate limit tier to apply
-    ///
-    /// # Returns
-    /// * `Ok(())` - Request is allowed
-    /// * `Err(AppError::RateLimitExceeded)` - Rate limit exceeded
-    ///
-    /// # Errors
-    /// * Redis connection errors
-    /// * Rate limit exceeded errors
     pub async fn check_rate_limit(
         &self,
         entity_id: &uuid::Uuid,
@@ -160,68 +166,176 @@ impl RateLimitService {
     ) -> ApiResult<()> {
         let config = RateLimitConfig::for_tier(tier);
 
-        // ServiceUnlimited tier bypasses rate limiting
         if config.is_unlimited() {
-            debug!(
-                entity_id = %entity_id,
-                tier = ?tier,
-                "Rate limit bypassed for unlimited tier"
-            );
+            debug!(entity_id = %entity_id, tier = ?tier, "Rate limit bypassed for unlimited tier");
             return Ok(());
         }
 
         let key = self.build_key(entity_id, tier);
 
-        // Execute atomic INCR+EXPIRE via Lua script
         let mut conn = self.redis.get().await.map_err(|e| {
-            warn!(
-                error = %e,
-                entity_id = %entity_id,
-                tier = ?tier,
-                "Failed to get Redis connection"
-            );
+            warn!(error = %e, entity_id = %entity_id, "Redis connection failed for entity rate limit");
             AppError::Internal(format!("Redis connection error: {}", e))
         })?;
 
-        let count: u64 = self
+        // Script returns [count, ttl]; take only count for entity-level check
+        let result: Vec<u64> = self
             .script
             .key(&key)
-            .arg(config.limit)
             .arg(config.window_secs)
             .invoke_async(&mut *conn)
             .await
             .map_err(|e| {
-                warn!(
-                    error = %e,
-                    entity_id = %entity_id,
-                    tier = ?tier,
-                    "Redis error during rate limit check"
-                );
+                warn!(error = %e, entity_id = %entity_id, "Redis error during entity rate limit");
                 AppError::Redis(e)
             })?;
 
+        let count = result[0];
+
         if count > config.limit {
-            warn!(
-                entity_id = %entity_id,
-                tier = ?tier,
-                count = count,
-                limit = config.limit,
-                "Rate limit exceeded"
-            );
+            warn!(entity_id = %entity_id, tier = ?tier, count, limit = config.limit, "Entity rate limit exceeded");
             return Err(AppError::RateLimitExceeded(format!(
                 "Rate limit exceeded: {} requests in {}s window (limit: {})",
                 count, config.window_secs, config.limit
             )));
         }
 
-        debug!(
-            entity_id = %entity_id,
-            tier = ?tier,
-            count = count,
-            limit = config.limit,
-            "Rate limit check passed"
-        );
+        debug!(entity_id = %entity_id, tier = ?tier, count, limit = config.limit, "Entity rate limit passed");
+        Ok(())
+    }
 
+    /// Check rate limit for an arbitrary string key.
+    /// Fails open on Redis errors to prevent cascading outages.
+    pub async fn check_key(&self, key: &str, config: &IpRateLimitConfig) -> ApiResult<()> {
+        if !config.enabled {
+            return Ok(());
+        }
+
+        let redis_key = format!("{}:ip_limit:{}", RATE_LIMIT_KEY_PREFIX, key);
+
+        let mut conn = match self.redis.get().await {
+            Ok(c) => c,
+            Err(e) => {
+                warn!(error = %e, key, "Redis unavailable for IP rate limit; failing open");
+                return Ok(());
+            }
+        };
+
+        let result: Vec<i64> = match self
+            .script
+            .key(&redis_key)
+            .arg(config.window_secs)
+            .invoke_async(&mut *conn)
+            .await
+        {
+            Ok(r) => r,
+            Err(e) => {
+                warn!(error = %e, key, "Redis Lua error during IP rate limit; failing open");
+                return Ok(());
+            }
+        };
+
+        let count = result[0] as u64;
+        let ttl = result[1];
+
+        if count > config.limit {
+            warn!(key, count, limit = config.limit, ttl, "IP rate limit exceeded");
+            return Err(AppError::RateLimitExceeded(format!(
+                "Too many requests. Retry after {}s.",
+                ttl.max(0)
+            )));
+        }
+
+        debug!(key, count, limit = config.limit, "IP rate limit passed");
+        Ok(())
+    }
+
+    pub async fn check_auth_ip(&self, ip: &str) -> ApiResult<()> {
+        let config = self.ip_limits.read().await.auth_ip;
+        self.check_key(&format!("auth:ip:{}", ip), &config).await
+    }
+
+    pub async fn check_auth_user(&self, user_id: uuid::Uuid) -> ApiResult<()> {
+        let config = self.ip_limits.read().await.auth_user;
+        self.check_key(&format!("auth:user:{}", user_id), &config).await
+    }
+
+    pub async fn check_register_ip(&self, ip: &str) -> ApiResult<()> {
+        let config = self.ip_limits.read().await.register_ip;
+        self.check_key(&format!("register:ip:{}", ip), &config).await
+    }
+
+    pub async fn check_password_reset_ip(&self, ip: &str) -> ApiResult<()> {
+        let config = self.ip_limits.read().await.password_reset_ip;
+        self.check_key(&format!("password_reset:ip:{}", ip), &config).await
+    }
+
+    pub async fn check_websocket_ip(&self, ip: &str) -> ApiResult<()> {
+        let config = self.ip_limits.read().await.websocket_ip;
+        self.check_key(&format!("websocket:ip:{}", ip), &config).await
+    }
+
+    /// Hot-reload IP rate limits from the `rate_limits` database table.
+    /// Applies a 5-second query timeout to avoid blocking callers.
+    pub async fn reload(&self) -> ApiResult<()> {
+        #[derive(sqlx::FromRow)]
+        struct Row {
+            key: String,
+            limit_value: i32,
+            window_secs: i32,
+        }
+
+        let rows: Vec<Row> = tokio::time::timeout(
+            std::time::Duration::from_secs(5),
+            sqlx::query_as::<_, Row>(
+                "SELECT key, limit_value, window_secs FROM rate_limits"
+            )
+            .fetch_all(&self.db),
+        )
+        .await
+        .map_err(|_| AppError::Internal("Rate limit DB reload timed out".into()))?
+        .map_err(|e| AppError::Internal(format!("Rate limit DB reload failed: {}", e)))?;
+
+        let mut limits = RateLimitLimits::default();
+
+        // First pass: apply limit rows (window_secs > 0)
+        for row in &rows {
+            if row.window_secs > 0 {
+                let limit = row.limit_value as u64;
+                let window_secs = row.window_secs as u64;
+                match row.key.as_str() {
+                    "auth_ip_per_minute" =>
+                        limits.auth_ip = IpRateLimitConfig { limit, window_secs, ..limits.auth_ip },
+                    "auth_user_per_minute" =>
+                        limits.auth_user = IpRateLimitConfig { limit, window_secs, ..limits.auth_user },
+                    "register_ip_per_minute" =>
+                        limits.register_ip = IpRateLimitConfig { limit, window_secs, ..limits.register_ip },
+                    "password_reset_ip_per_minute" =>
+                        limits.password_reset_ip = IpRateLimitConfig { limit, window_secs, ..limits.password_reset_ip },
+                    "websocket_ip_per_minute" =>
+                        limits.websocket_ip = IpRateLimitConfig { limit, window_secs, ..limits.websocket_ip },
+                    _ => {}
+                }
+            }
+        }
+
+        // Second pass: apply enabled flag rows (window_secs == 0)
+        for row in &rows {
+            if row.window_secs == 0 {
+                let enabled = row.limit_value != 0;
+                match row.key.as_str() {
+                    "auth_ip_enabled"           => limits.auth_ip.enabled = enabled,
+                    "auth_user_enabled"         => limits.auth_user.enabled = enabled,
+                    "register_ip_enabled"       => limits.register_ip.enabled = enabled,
+                    "password_reset_ip_enabled" => limits.password_reset_ip.enabled = enabled,
+                    "websocket_ip_enabled"      => limits.websocket_ip.enabled = enabled,
+                    _ => {}
+                }
+            }
+        }
+
+        *self.ip_limits.write().await = limits;
+        tracing::info!("IP rate limits reloaded from database");
         Ok(())
     }
 
@@ -347,5 +461,28 @@ mod tests {
         assert_eq!(ci.limit, 5000);
         assert_eq!(ci.window_secs, 3600);
         assert!(!ci.is_unlimited());
+    }
+
+    #[test]
+    fn test_ip_rate_limit_config_defaults() {
+        let limits = RateLimitLimits::default();
+        assert_eq!(limits.auth_ip.limit, 20);
+        assert_eq!(limits.auth_ip.window_secs, 60);
+        assert!(limits.auth_ip.enabled);
+        assert_eq!(limits.password_reset_ip.limit, 5);
+        assert!(limits.password_reset_ip.enabled);
+    }
+
+    #[tokio::test]
+    async fn test_check_key_disabled_bypasses() {
+        // When enabled=false, check_key returns Ok without touching Redis.
+        // Port 1 is unreachable — if Redis were contacted it would fail.
+        let cfg = deadpool_redis::Config::from_url("redis://127.0.0.1:1");
+        let pool = cfg.create_pool(Some(deadpool_redis::Runtime::Tokio1)).expect("pool");
+        let db = sqlx::postgres::PgPoolOptions::new().connect_lazy("postgres://x").unwrap();
+        let svc = RateLimitService::new(pool, db);
+        let config = IpRateLimitConfig { limit: 1, window_secs: 60, enabled: false };
+        let result = svc.check_key("test_key", &config).await;
+        assert!(result.is_ok(), "disabled limit should always pass: {:?}", result);
     }
 }
