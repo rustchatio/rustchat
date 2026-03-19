@@ -63,7 +63,6 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick } from 'vue'
-import { useRouter } from 'vue-router'
 import { Search } from 'lucide-vue-next'
 import { matchSorter } from 'match-sorter'
 import QuickSwitcherItem from './QuickSwitcherItem.vue'
@@ -77,9 +76,9 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   close: []
+  select: [item: QSItem]
 }>()
 
-const router = useRouter()
 const query = ref('')
 const selectedIndex = ref(0)
 const inputRef = ref<HTMLInputElement>()
@@ -108,7 +107,7 @@ watch(() => props.isOpen, async (open) => {
 })
 
 function selectItem(item: QSItem) {
-  router.push(item.to)
+  emit('select', item)
   emit('close')
 }
 

@@ -7,6 +7,7 @@ import { useUIStore } from '../../stores/ui';
 import SearchModal from '../modals/SearchModal.vue';
 import QuickSwitcherModal from '../navigation/QuickSwitcherModal.vue';
 import { useQuickSwitcher } from '../../composables/useQuickSwitcher';
+import type { QuickSwitcherItem } from '../../composables/useQuickSwitcher';
 import SetStatusModal from '../modals/SetStatusModal.vue';
 import RcAvatar from '../ui/RcAvatar.vue';
 import NotificationsDropdown from './NotificationsDropdown.vue';
@@ -51,6 +52,11 @@ function handleKeydown(e: KeyboardEvent) {
     quickSwitcher.toggle();
   }
   if (e.key === 'Escape') {
+    if (quickSwitcher.isOpen.value) {
+      e.stopPropagation();
+      quickSwitcher.close();
+      return;
+    }
     showSearch.value = false;
     showUserMenu.value = false;
     showDndSubmenu.value = false;
@@ -148,6 +154,12 @@ const siteInitial = computed(() => {
 
 function openActivityFeed() {
   activityService.openFeed();
+}
+
+function handleQuickSwitcherSelect(item: QuickSwitcherItem) {
+  quickSwitcher.addRecentItem(item.id);
+  router.push(item.to);
+  quickSwitcher.close();
 }
 </script>
 
@@ -437,6 +449,7 @@ function openActivityFeed() {
       :is-open="quickSwitcher.isOpen.value"
       :items="quickSwitcher.allItems.value"
       :recent-items="quickSwitcher.recentItems.value"
+      @select="handleQuickSwitcherSelect"
       @close="quickSwitcher.close()"
     />
 
