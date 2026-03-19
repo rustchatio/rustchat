@@ -69,6 +69,12 @@ pub async fn test_email_config(
     auth: MmAuthUser,
     Json(payload): Json<TestEmailRequest>,
 ) -> ApiResult<Json<serde_json::Value>> {
+    if !auth.has_permission(&permissions::SYSTEM_MANAGE) {
+        return Err(AppError::Forbidden(
+            "Missing permission to test email configuration".to_string(),
+        ));
+    }
+
     // Get default provider from the new provider system
     let provider_settings: Option<MailProviderSettings> = sqlx::query_as(
         r#"

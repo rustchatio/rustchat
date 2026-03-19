@@ -2444,6 +2444,7 @@ async fn get_users_by_usernames(
 
 async fn get_user_by_email(
     State(state): State<AppState>,
+    _auth: MmAuthUser,
     Path(email): Path<String>,
 ) -> ApiResult<Json<mm::User>> {
     let user: User = sqlx::query_as("SELECT * FROM users WHERE email = $1")
@@ -2680,12 +2681,17 @@ async fn update_user_password(
         .await?;
 
     if user_id != auth.user_id {
-        return Err(AppError::Forbidden(
-            "Cannot change another user's password".to_string(),
-        ));
-    }
-
-    if let Some(current) = input.current_password.as_deref() {
+        // Admins resetting another user's password do not need current_password
+        if !auth.has_permission(&crate::auth::policy::permissions::SYSTEM_MANAGE) {
+            return Err(AppError::Forbidden(
+                "Cannot change another user's password".to_string(),
+            ));
+        }
+    } else {
+        // Self-service: current_password is mandatory
+        let current = input.current_password.as_deref().ok_or_else(|| {
+            AppError::BadRequest("current_password is required".to_string())
+        })?;
         let password_hash = user
             .password_hash
             .as_deref()
