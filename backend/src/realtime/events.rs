@@ -65,6 +65,9 @@ pub enum EventType {
     ConfigUpdated,
     UnreadCountsUpdated,
 
+    ActivityCreated,
+    ActivityRead,
+
     ChannelSubscribed,
     ChannelUnsubscribed,
     ReceivedGroup,
@@ -93,6 +96,8 @@ impl EventType {
             Self::ReactionRemoved => "reaction_removed",
             Self::UserTyping => "typing",
             Self::UserTypingStop => "stop_typing",
+            Self::ActivityCreated => "activity_created",
+            Self::ActivityRead => "activity_read",
             Self::ChannelSubscribed => "channel_subscribed",
             Self::ChannelUnsubscribed => "channel_unsubscribed",
             Self::ReceivedGroup => "received_group",
