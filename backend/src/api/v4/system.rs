@@ -457,6 +457,13 @@ async fn patch_config(
     auth: crate::api::v4::extractors::MmAuthUser,
     Json(patch): Json<serde_json::Value>,
 ) -> ApiResult<Json<serde_json::Value>> {
+    use crate::auth::policy::permissions;
+    if !auth.has_permission(&permissions::SYSTEM_MANAGE) {
+        return Err(crate::error::AppError::Forbidden(
+            "Missing permission to modify server configuration".to_string(),
+        ));
+    }
+
     // Parse and apply patches to the relevant config sections
     // The patch format is { "SectionName": { "key": "value" } }
 
@@ -486,36 +493,32 @@ async fn patch_config(
 
     // Handle EmailSettings
     if let Some(email_settings) = patch.get("EmailSettings").and_then(|v| v.as_object()) {
-        let mut updates = vec![];
-
         if let Some(host) = email_settings.get("SMTPServer").and_then(|v| v.as_str()) {
-            updates.push(format!(
-                "email = jsonb_set(email, '{{smtp_host}}', '\"{}\"', true)",
-                host
-            ));
+            sqlx::query(
+                "UPDATE server_config SET email = jsonb_set(email, '{smtp_host}', $1, true), updated_at = NOW(), updated_by = $2 WHERE id = 'default'"
+            )
+            .bind(serde_json::json!(host))
+            .bind(auth.user_id)
+            .execute(&state.db)
+            .await?;
         }
         if let Some(port) = email_settings.get("SMTPPort").and_then(|v| v.as_str()) {
-            updates.push(format!(
-                "email = jsonb_set(email, '{{smtp_port}}', '{}', true)",
-                port
-            ));
+            sqlx::query(
+                "UPDATE server_config SET email = jsonb_set(email, '{smtp_port}', $1, true), updated_at = NOW(), updated_by = $2 WHERE id = 'default'"
+            )
+            .bind(serde_json::json!(port))
+            .bind(auth.user_id)
+            .execute(&state.db)
+            .await?;
         }
         if let Some(from) = email_settings.get("FeedbackEmail").and_then(|v| v.as_str()) {
-            updates.push(format!(
-                "email = jsonb_set(email, '{{from_address}}', '\"{}\"', true)",
-                from
-            ));
-        }
-
-        if !updates.is_empty() {
-            let query = format!(
-                "UPDATE server_config SET {}, updated_at = NOW(), updated_by = $1 WHERE id = 'default'",
-                updates.join(", ")
-            );
-            sqlx::query(&query)
-                .bind(auth.user_id)
-                .execute(&state.db)
-                .await?;
+            sqlx::query(
+                "UPDATE server_config SET email = jsonb_set(email, '{from_address}', $1, true), updated_at = NOW(), updated_by = $2 WHERE id = 'default'"
+            )
+            .bind(serde_json::json!(from))
+            .bind(auth.user_id)
+            .execute(&state.db)
+            .await?;
         }
     }
 
