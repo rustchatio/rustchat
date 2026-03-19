@@ -5,6 +5,8 @@ import { Bell, Search, HelpCircle, LogOut, Smile, Shield, User, Check, Menu, Che
 import { useAuthStore } from '../../stores/auth';
 import { useUIStore } from '../../stores/ui';
 import SearchModal from '../modals/SearchModal.vue';
+import QuickSwitcherModal from '../navigation/QuickSwitcherModal.vue';
+import { useQuickSwitcher } from '../../composables/useQuickSwitcher';
 import SetStatusModal from '../modals/SetStatusModal.vue';
 import RcAvatar from '../ui/RcAvatar.vue';
 import NotificationsDropdown from './NotificationsDropdown.vue';
@@ -27,6 +29,7 @@ const router = useRouter();
 const { isMobile } = useBreakpoints();
 
 const showSearch = ref(false);
+const quickSwitcher = useQuickSwitcher();
 const showUserMenu = ref(false);
 const showSetStatus = ref(false);
 const showNotifications = ref(false);
@@ -45,7 +48,7 @@ if (auth.user) {
 function handleKeydown(e: KeyboardEvent) {
   if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
     e.preventDefault();
-    showSearch.value = true;
+    quickSwitcher.toggle();
   }
   if (e.key === 'Escape') {
     showSearch.value = false;
@@ -428,7 +431,15 @@ function openActivityFeed() {
 
     <!-- Search Modal -->
     <SearchModal :show="showSearch" @close="showSearch = false" />
-    
+
+    <!-- Quick Switcher Modal -->
+    <QuickSwitcherModal
+      :is-open="quickSwitcher.isOpen.value"
+      :items="quickSwitcher.allItems.value"
+      :recent-items="quickSwitcher.recentItems.value"
+      @close="quickSwitcher.close()"
+    />
+
     <!-- Set Status Modal -->
     <SetStatusModal :show="showSetStatus" @close="showSetStatus = false" />
   </header>
