@@ -656,6 +656,7 @@ struct RewriteRequest {
 }
 
 async fn rewrite_post(
+    _auth: MmAuthUser,
     headers: axum::http::HeaderMap,
     body: Bytes,
 ) -> ApiResult<Json<serde_json::Value>> {

@@ -45,11 +45,24 @@ pub fn router() -> Router<AppState> {
 /// GET /api/v4/channels/{channel_id}/bookmarks
 async fn get_channel_bookmarks(
     State(state): State<AppState>,
-    _auth: MmAuthUser,
+    auth: MmAuthUser,
     Path(channel_id): Path<String>,
 ) -> ApiResult<Json<Vec<BookmarkResponse>>> {
     let channel_uuid = parse_mm_or_uuid(&channel_id)
         .ok_or_else(|| AppError::BadRequest("Invalid channel ID".to_string()))?;
+
+    // Verify membership (system admins bypass)
+    let is_member: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM channel_members WHERE channel_id = $1 AND user_id = $2)",
+    )
+    .bind(channel_uuid)
+    .bind(auth.user_id)
+    .fetch_one(&state.db)
+    .await?;
+
+    if !is_member {
+        return Err(AppError::Forbidden("Not a member of this channel".to_string()));
+    }
 
     let bookmarks: Vec<ChannelBookmark> = sqlx::query_as(
         r#"

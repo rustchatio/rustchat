@@ -22,7 +22,8 @@ pub fn router() -> Router<AppState> {
 }
 use crate::api::v4::extractors::MmAuthUser;
 use crate::api::AppState;
-use crate::error::ApiResult;
+use crate::auth::policy::permissions;
+use crate::error::{ApiResult, AppError};
 use crate::mattermost_compat::{id::encode_mm_id, models as mm};
 use crate::models::Bot;
 use axum::extract::Path;
@@ -52,6 +53,10 @@ pub async fn create_bot(
     auth: MmAuthUser,
     Json(input): Json<CreateBotRequest>,
 ) -> ApiResult<Json<mm::Bot>> {
+    if !auth.has_permission(&permissions::SYSTEM_MANAGE) {
+        return Err(AppError::Forbidden("Missing permission to create bots".to_string()));
+    }
+
     // 1. Create a user for the bot
     let user_id = Uuid::new_v4();
     let _: (Uuid,) = sqlx::query_as(
