@@ -2,6 +2,9 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useStorage } from '@vueuse/core';
 import { useChannelStore } from '../../stores/channels';
+import { useTeamStore } from '../../stores/teams';
+import BreadcrumbBar from '../../components/navigation/BreadcrumbBar.vue';
+import type { BreadcrumbSegment } from '../../components/navigation/BreadcrumbBar.vue';
 
 import { useMessageStore } from '../../stores/messages';
 import { useUnreadStore } from '../../stores/unreads';
@@ -21,6 +24,7 @@ import { useUIStore, type RhsView } from '../../stores/ui';
 import { useThreadStore } from '../../features/messages';
 
 const channelStore = useChannelStore();
+const teamStore = useTeamStore();
 const threadStore = useThreadStore();
 const messageStore = useMessageStore();
 const unreadStore = useUnreadStore();
@@ -46,6 +50,44 @@ onUnmounted(() => {
 
 const currentChannel = computed(() => channelStore.currentChannel);
 const channelId = computed(() => channelStore.currentChannelId);
+
+const currentTeam = computed(() => {
+  if (!currentChannel.value?.team_id) return null
+  return teamStore.teams.find(t => t.id === currentChannel.value!.team_id) ?? null
+})
+
+const breadcrumbs = computed((): BreadcrumbSegment[] => {
+  const segments: BreadcrumbSegment[] = []
+
+  if (currentTeam.value) {
+    segments.push({
+      label: currentTeam.value.display_name || currentTeam.value.name,
+      icon: 'Users',
+      to: `/teams/${currentTeam.value.id}`
+    })
+  }
+
+  if (currentChannel.value) {
+    const channelIcon = currentChannel.value.channel_type === 'private' ? 'Lock' : 'Hash'
+    const channelName = currentChannel.value.display_name || currentChannel.value.name
+    const isInThread = uiStore.rhsView === 'thread'
+
+    segments.push({
+      label: channelName,
+      icon: channelIcon,
+      to: isInThread ? `/channels/${currentChannel.value.id}` : undefined
+    })
+
+    if (isInThread) {
+      segments.push({
+        label: 'Thread',
+        icon: 'MessageSquare'
+      })
+    }
+  }
+
+  return segments
+})
 
 const messageListRef = ref<any>(null);
 
@@ -230,8 +272,13 @@ function handleKeydown(e: KeyboardEvent) {
                       @openSettings="showChannelSettings = true"
                   />
                   
+                  <!-- Breadcrumb navigation -->
+                  <div class="flex items-center px-4 py-1.5 border-b border-gray-100 dark:border-gray-800/50 bg-white dark:bg-gray-900">
+                    <BreadcrumbBar :segments="breadcrumbs" />
+                  </div>
+
                   <!-- Messages -->
-                  <MessageList 
+                  <MessageList
                     ref="messageListRef"
                     :channelId="currentChannel.id"
                     @reply="handleMessageReply"
