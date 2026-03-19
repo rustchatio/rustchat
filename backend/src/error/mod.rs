@@ -49,8 +49,8 @@ pub enum AppError {
     #[error("Too many requests: {0}")]
     TooManyRequests(String),
 
-    #[error("Rate limit exceeded: {0}")]
-    RateLimitExceeded(String),
+    #[error("Rate limit exceeded: {message}")]
+    RateLimitExceeded { message: String, retry_after_secs: i64 },
 }
 
 /// Error response body
@@ -83,7 +83,7 @@ impl AppError {
             AppError::Config(_) => "CONFIG_ERROR",
             AppError::ExternalService(_) => "EXTERNAL_SERVICE_ERROR",
             AppError::TooManyRequests(_) => "TOO_MANY_REQUESTS",
-            AppError::RateLimitExceeded(_) => "RATE_LIMIT_EXCEEDED",
+            AppError::RateLimitExceeded { .. } => "RATE_LIMIT_EXCEEDED",
         }
     }
 
@@ -102,13 +102,54 @@ impl AppError {
             AppError::Config(_) => StatusCode::INTERNAL_SERVER_ERROR,
             AppError::ExternalService(_) => StatusCode::BAD_GATEWAY,
             AppError::TooManyRequests(_) => StatusCode::TOO_MANY_REQUESTS,
-            AppError::RateLimitExceeded(_) => StatusCode::TOO_MANY_REQUESTS,
+            AppError::RateLimitExceeded { .. } => StatusCode::TOO_MANY_REQUESTS,
         }
     }
 }
 
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
+        // Special-case RateLimitExceeded to include Retry-After / X-RateLimit-Reset headers.
+        if let AppError::RateLimitExceeded { ref message, retry_after_secs } = self {
+            use std::time::{SystemTime, UNIX_EPOCH};
+
+            let now = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+            let reset_at = now + retry_after_secs.max(0) as u64;
+
+            let body = serde_json::json!({
+                "error": {
+                    "code": "RATE_LIMIT_EXCEEDED",
+                    "message": message,
+                }
+            });
+
+            tracing::error!(
+                error = %message,
+                code = "RATE_LIMIT_EXCEEDED",
+                status = %StatusCode::TOO_MANY_REQUESTS,
+                retry_after_secs,
+                "API error"
+            );
+
+            let mut response = (
+                StatusCode::TOO_MANY_REQUESTS,
+                Json(body),
+            )
+                .into_response();
+
+            let headers = response.headers_mut();
+            if let Ok(v) = retry_after_secs.max(0).to_string().parse() {
+                headers.insert("Retry-After", v);
+            }
+            if let Ok(v) = reset_at.to_string().parse() {
+                headers.insert("X-RateLimit-Reset", v);
+            }
+            return response;
+        }
+
         let status = self.status_code();
         let message = self.to_string();
 

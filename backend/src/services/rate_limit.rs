@@ -194,10 +194,13 @@ impl RateLimitService {
 
         if count > config.limit {
             warn!(entity_id = %entity_id, tier = ?tier, count, limit = config.limit, "Entity rate limit exceeded");
-            return Err(AppError::RateLimitExceeded(format!(
-                "Rate limit exceeded: {} requests in {}s window (limit: {})",
-                count, config.window_secs, config.limit
-            )));
+            return Err(AppError::RateLimitExceeded {
+                message: format!(
+                    "Rate limit exceeded: {} requests in {}s window (limit: {})",
+                    count, config.window_secs, config.limit
+                ),
+                retry_after_secs: config.window_secs as i64,
+            });
         }
 
         debug!(entity_id = %entity_id, tier = ?tier, count, limit = config.limit, "Entity rate limit passed");
@@ -240,10 +243,10 @@ impl RateLimitService {
 
         if count > config.limit {
             warn!(key, count, limit = config.limit, ttl, "IP rate limit exceeded");
-            return Err(AppError::RateLimitExceeded(format!(
-                "Too many requests. Retry after {}s.",
-                ttl.max(0)
-            )));
+            return Err(AppError::RateLimitExceeded {
+                message: format!("Too many requests. Retry after {}s.", ttl.max(0)),
+                retry_after_secs: ttl.max(0),
+            });
         }
 
         debug!(key, count, limit = config.limit, "IP rate limit passed");
