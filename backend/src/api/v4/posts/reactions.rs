@@ -26,6 +26,34 @@ fn reaction_event_payload(mm_reaction: &mm::Reaction) -> serde_json::Value {
     serde_json::json!({ "reaction": reaction_json })
 }
 
+/// Verify the caller is a member of the channel containing the post.
+async fn check_channel_membership(
+    state: &AppState,
+    post_id: Uuid,
+    user_id: Uuid,
+) -> ApiResult<()> {
+    let is_member: bool = sqlx::query_scalar(
+        r#"
+        SELECT EXISTS(
+            SELECT 1 FROM posts p
+            JOIN channel_members cm ON cm.channel_id = p.channel_id
+            WHERE p.id = $1 AND cm.user_id = $2
+        )
+        "#,
+    )
+    .bind(post_id)
+    .bind(user_id)
+    .fetch_one(&state.db)
+    .await?;
+
+    if !is_member {
+        return Err(AppError::Forbidden(
+            "You are not a member of the channel containing this post".to_string(),
+        ));
+    }
+    Ok(())
+}
+
 pub(super) async fn add_reaction(
     State(state): State<AppState>,
     auth: MmAuthUser,
@@ -43,6 +71,9 @@ pub(super) async fn add_reaction(
 
     let post_id = parse_mm_or_uuid(&input.post_id)
         .ok_or_else(|| AppError::Validation("Invalid post_id".to_string()))?;
+
+    // Verify the caller is a member of the channel containing this post
+    check_channel_membership(&state, post_id, auth.user_id).await?;
 
     let emoji_name =
         crate::mattermost_compat::emoji_data::get_short_name_for_emoji(&input.emoji_name);
@@ -179,6 +210,9 @@ pub(super) async fn remove_reaction(
     let post_id = parse_mm_or_uuid(&post_id)
         .ok_or_else(|| AppError::BadRequest("Invalid post_id".to_string()))?;
 
+    // Verify the caller is a member of the channel containing this post
+    check_channel_membership(&state, post_id, auth.user_id).await?;
+
     remove_reaction_internal(&state, auth.user_id, post_id, &emoji_name).await?;
 
     Ok(Json(serde_json::json!({"status": "OK"})))
@@ -204,6 +238,9 @@ pub(super) async fn remove_reaction_for_user(
 
     let post_id = parse_mm_or_uuid(&post_id)
         .ok_or_else(|| AppError::BadRequest("Invalid post_id".to_string()))?;
+
+    // Verify the caller is a member of the channel containing this post
+    check_channel_membership(&state, post_id, auth.user_id).await?;
 
     remove_reaction_internal(&state, resolved_user_id, post_id, &emoji_name).await?;
 
@@ -277,25 +314,7 @@ pub(super) async fn get_reactions(
         .ok_or_else(|| AppError::BadRequest("Invalid post_id".to_string()))?;
 
     // Verify the caller is a member of the channel that owns this post.
-    let is_member: bool = sqlx::query_scalar(
-        r#"
-        SELECT EXISTS(
-            SELECT 1 FROM posts p
-            JOIN channel_members cm ON cm.channel_id = p.channel_id
-            WHERE p.id = $1 AND cm.user_id = $2
-        )
-        "#,
-    )
-    .bind(post_id)
-    .bind(auth.user_id)
-    .fetch_one(&state.db)
-    .await?;
-
-    if !is_member {
-        return Err(AppError::Forbidden(
-            "You are not a member of the channel containing this post".to_string(),
-        ));
-    }
+    check_channel_membership(&state, post_id, auth.user_id).await?;
 
     let reactions: Vec<(Uuid, Uuid, String, DateTime<Utc>, Uuid)> = sqlx::query_as(
         r#"
