@@ -5,6 +5,7 @@ import { wsManager, type WebSocketEvent } from './WebSocketManager'
 import { handleMessageWebSocketEvent, registerThreadHandlers } from '../../features/messages'
 import { handleCallWebSocketEvent } from '../../features/calls'
 import { handleChannelWebSocketEvent } from '../../features/channels'
+import { handleActivityCreated, handleActivityRead } from '../../features/activity/handlers/activitySocketHandlers'
 import type { Post } from '../../api/posts'
 
 /**
@@ -65,6 +66,16 @@ export function registerWebSocketHandlers(): void {
   wsManager.on('user_added', (event: WebSocketEvent) => handleChannelWebSocketEvent(event as any))
   wsManager.on('user_removed', (event: WebSocketEvent) => handleChannelWebSocketEvent(event as any))
   wsManager.on('channel_viewed', (event: WebSocketEvent) => handleChannelWebSocketEvent(event as any))
+
+  // Activity feed events
+  wsManager.on('activity_created', (event: WebSocketEvent) => {
+    const data = JSON.parse((event as any).data)
+    handleActivityCreated(data)
+  })
+  wsManager.on('activity_read', (event: WebSocketEvent) => {
+    const data = JSON.parse((event as any).data)
+    handleActivityRead(data)
+  })
 
   console.log('[WebSocket] All handlers registered')
 }
