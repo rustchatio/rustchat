@@ -645,6 +645,7 @@ async fn delete_recent_custom_status(
 /// POST /api/v4/users/status/ids
 async fn get_statuses_by_ids(
     State(state): State<AppState>,
+    _auth: MmAuthUser,
     headers: HeaderMap,
     body: Bytes,
 ) -> ApiResult<Json<Vec<mm::Status>>> {

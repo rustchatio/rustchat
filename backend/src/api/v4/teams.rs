@@ -271,13 +271,14 @@ struct AddTeamMemberRequest {
 
 async fn add_team_member(
     State(state): State<AppState>,
-    _auth: MmAuthUser,
+    auth: MmAuthUser,
     Path(team_id): Path<String>,
     headers: axum::http::HeaderMap,
     body: Bytes,
 ) -> ApiResult<Json<mm::TeamMember>> {
     let team_id = parse_mm_or_uuid(&team_id)
         .ok_or_else(|| crate::error::AppError::BadRequest("Invalid team_id".to_string()))?;
+    ensure_team_admin_or_system_manage(&state, team_id, &auth).await?;
     let input: AddTeamMemberRequest = parse_body(&headers, &body, "Invalid member body")?;
     let user_id = parse_mm_or_uuid(&input.user_id)
         .ok_or_else(|| crate::error::AppError::BadRequest("Invalid user_id".to_string()))?;
@@ -460,13 +461,14 @@ struct AddTeamMembersBatchRequest {
 
 async fn add_team_members_batch(
     State(state): State<AppState>,
-    _auth: MmAuthUser,
+    auth: MmAuthUser,
     Path(team_id): Path<String>,
     headers: axum::http::HeaderMap,
     body: Bytes,
 ) -> ApiResult<Json<Vec<mm::TeamMember>>> {
     let team_id = parse_mm_or_uuid(&team_id)
         .ok_or_else(|| crate::error::AppError::BadRequest("Invalid team_id".to_string()))?;
+    ensure_team_admin_or_system_manage(&state, team_id, &auth).await?;
     let input: AddTeamMembersBatchRequest = parse_body(&headers, &body, "Invalid batch body")?;
     let mut members = Vec::new();
     for user_id in input.user_ids {
@@ -530,11 +532,12 @@ async fn get_team_member(
 
 async fn remove_team_member(
     State(state): State<AppState>,
-    _auth: MmAuthUser,
+    auth: MmAuthUser,
     Path((team_id, user_id)): Path<(String, String)>,
 ) -> ApiResult<Json<serde_json::Value>> {
     let team_id = parse_mm_or_uuid(&team_id)
         .ok_or_else(|| crate::error::AppError::BadRequest("Invalid team_id".to_string()))?;
+    ensure_team_admin_or_system_manage(&state, team_id, &auth).await?;
     let user_id = parse_mm_or_uuid(&user_id)
         .ok_or_else(|| crate::error::AppError::BadRequest("Invalid user_id".to_string()))?;
     sqlx::query("DELETE FROM team_members WHERE team_id = $1 AND user_id = $2")
@@ -594,11 +597,12 @@ async fn get_team_stats(
 
 async fn regenerate_team_invite_id(
     State(state): State<AppState>,
-    _auth: MmAuthUser,
+    auth: MmAuthUser,
     Path(team_id): Path<String>,
 ) -> ApiResult<Json<serde_json::Value>> {
     let team_id = parse_mm_or_uuid(&team_id)
         .ok_or_else(|| crate::error::AppError::BadRequest("Invalid team_id".to_string()))?;
+    ensure_team_admin_or_system_manage(&state, team_id, &auth).await?;
 
     let invite_id: String = sqlx::query_scalar(
         r#"
@@ -623,12 +627,13 @@ struct TeamMemberRolesRequest {
 
 async fn update_team_member_roles(
     State(state): State<AppState>,
-    _auth: MmAuthUser,
+    auth: MmAuthUser,
     Path((team_id, user_id)): Path<(String, String)>,
     Json(input): Json<TeamMemberRolesRequest>,
 ) -> ApiResult<Json<serde_json::Value>> {
     let team_id = parse_mm_or_uuid(&team_id)
         .ok_or_else(|| crate::error::AppError::BadRequest("Invalid team_id".to_string()))?;
+    ensure_team_admin_or_system_manage(&state, team_id, &auth).await?;
     let user_id = parse_mm_or_uuid(&user_id)
         .ok_or_else(|| crate::error::AppError::BadRequest("Invalid user_id".to_string()))?;
     let role = if input.roles.contains("team_admin") {
@@ -1010,6 +1015,32 @@ async fn ensure_team_member(
         ));
     }
     Ok(())
+}
+
+/// Ensure the user is a team admin or has system manage permission.
+async fn ensure_team_admin_or_system_manage(
+    state: &AppState,
+    team_id: uuid::Uuid,
+    auth: &MmAuthUser,
+) -> ApiResult<()> {
+    // System admins can manage any team
+    if auth.has_permission(&permissions::SYSTEM_MANAGE) {
+        return Ok(());
+    }
+    // Check if user is a team admin
+    let role: Option<String> = sqlx::query_scalar(
+        "SELECT role FROM team_members WHERE team_id = $1 AND user_id = $2",
+    )
+    .bind(team_id)
+    .bind(auth.user_id)
+    .fetch_optional(&state.db)
+    .await?;
+    match role.as_deref() {
+        Some("admin") | Some("team_admin") => Ok(()),
+        _ => Err(crate::error::AppError::Forbidden(
+            "Team admin privileges required".to_string(),
+        )),
+    }
 }
 
 fn map_team_member(member: TeamMember) -> mm::TeamMember {
