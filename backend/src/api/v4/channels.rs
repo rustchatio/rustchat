@@ -1490,16 +1490,29 @@ async fn add_channel_member(
     let user_id = parse_mm_or_uuid(&input.user_id)
         .ok_or_else(|| crate::error::AppError::BadRequest("Invalid user_id".to_string()))?;
 
-    // Verify caller is member of the channel
-    let _caller_member: crate::models::ChannelMember =
-        sqlx::query_as("SELECT * FROM channel_members WHERE channel_id = $1 AND user_id = $2")
-            .bind(channel_id)
-            .bind(auth.user_id)
-            .fetch_optional(&state.db)
-            .await?
-            .ok_or_else(|| {
-                crate::error::AppError::Forbidden("Not a member of this channel".to_string())
-            })?;
+    // Get channel to check type and verify caller can add members
+    let channel: Option<Channel> = sqlx::query_as("SELECT * FROM channels WHERE id = $1")
+        .bind(channel_id)
+        .fetch_optional(&state.db)
+        .await?;
+    let channel = channel.ok_or_else(|| AppError::NotFound("Channel not found".to_string()))?;
+
+    // For private channels, only channel admins or system admins may add members.
+    // Public channels allow any member to add others.
+    if channel.channel_type == crate::models::channel::ChannelType::Private {
+        ensure_channel_admin_or_system_manage(&state, channel_id, &auth).await?;
+    } else {
+        // For public/direct/group channels, verify caller is a member
+        let _caller_member: crate::models::ChannelMember =
+            sqlx::query_as("SELECT * FROM channel_members WHERE channel_id = $1 AND user_id = $2")
+                .bind(channel_id)
+                .bind(auth.user_id)
+                .fetch_optional(&state.db)
+                .await?
+                .ok_or_else(|| {
+                    crate::error::AppError::Forbidden("Not a member of this channel".to_string())
+                })?;
+    }
 
     // Add the user
     sqlx::query(
