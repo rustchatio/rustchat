@@ -357,22 +357,22 @@ fn test_secret_entropy_validation() {
     };
 
     // Test: Weak secret with low entropy
-    let weak_cfg = build_config("password123", "2Rr8Q7VY9r!Y5K2w7pQ4mN8uX6tB1dF3sL0aZ5hJ");
+    let weak_cfg = build_config("password123", "2Rr8Q7VY9r!Y5K2w7pQ4mN8uX6tB1dF3sL0aZ5hJ"); // pragma: allowlist secret
     let result = validate_secrets(&weak_cfg);
     assert!(!result.is_valid);
 
     // Test: Secret with common pattern
     let common_cfg = build_config(
-        "RUSTCHAT_SECRET_KEY_123_do_not_use_in_prod",
-        "9mT4zL8vC2xN6bQ1jK7hS3dF0pR5wY9uI2oA6eG4",
+        "RUSTCHAT_SECRET_KEY_123_do_not_use_in_prod", // pragma: allowlist secret
+        "9mT4zL8vC2xN6bQ1jK7hS3dF0pR5wY9uI2oA6eG4",   // pragma: allowlist secret
     );
     let result = validate_secrets(&common_cfg);
     assert!(!result.is_valid);
 
     // Test: Strong random secret
     let strong_cfg = build_config(
-        "7M@xQ2vL9!bN4#pR6$hT8%yU1^cD3&kJ5*zW0+fS",
-        "3P!nV7@qL2#xR9$gT4%kY6^dM1&hC8*zB5+uF0wJ",
+        "7M@xQ2vL9!bN4#pR6$hT8%yU1^cD3&kJ5*zW0+fS", // pragma: allowlist secret
+        "3P!nV7@qL2#xR9$gT4%kY6^dM1&hC8*zB5+uF0wJ", // pragma: allowlist secret
     );
     let result = validate_secrets(&strong_cfg);
     assert!(result.is_valid);
