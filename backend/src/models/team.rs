@@ -21,6 +21,9 @@ pub struct Team {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub deleted_at: Option<DateTime<Utc>>,
+    pub privacy: Option<String>,
+    pub icon_path: Option<String>,
+    pub scheme_id: Option<Uuid>,
 }
 
 /// Team member relationship

@@ -64,7 +64,7 @@ pub fn router() -> Router<AppState> {
                 .delete(delete_team_icon),
         )
         .route("/teams/{team_id}/members/me", get(get_team_member_me))
-        .route("/teams/{team_id}/invite/email", post(invite_users_to_team))
+        .route("/teams/{team_id}/invite", post(invite_users_to_team))
         .route(
             "/teams/{team_id}/invite-guests/email",
             post(invite_guests_to_team),
@@ -989,6 +989,25 @@ fn generate_invite_token() -> String {
         .collect()
 }
 
+/// Validates email format: must contain @ with non-empty local and domain parts
+fn is_valid_email(email: &str) -> bool {
+    let email = email.trim();
+    if email.len() < 3 || email.len() > 254 {
+        return false;
+    }
+    let parts: Vec<&str> = email.split('@').collect();
+    if parts.len() != 2 {
+        return false;
+    }
+    let local = parts[0];
+    let domain = parts[1];
+    !local.is_empty()
+        && !domain.is_empty()
+        && domain.contains('.')
+        && !domain.starts_with('.')
+        && !domain.ends_with('.')
+}
+
 async fn invite_users_to_team(
     State(state): State<AppState>,
     auth: MmAuthUser,
@@ -1174,8 +1193,8 @@ async fn invite_users_to_team_by_email(
     let mut responses = Vec::new();
 
     for email in &input.emails {
-        // Validate email contains '@'
-        if !email.contains('@') {
+        // Validate email format
+        if !is_valid_email(email) {
             continue;
         }
 
@@ -1427,11 +1446,19 @@ async fn get_team_members_minus_group_members(
 }
 
 async fn get_team_image(
-    State(_state): State<AppState>,
+    State(state): State<AppState>,
+    _auth: MmAuthUser,
     Path(team_id): Path<String>,
 ) -> ApiResult<impl IntoResponse> {
-    let _team_id = parse_mm_or_uuid(&team_id)
+    let team_id = parse_mm_or_uuid(&team_id)
         .ok_or_else(|| crate::error::AppError::BadRequest("Invalid team_id".to_string()))?;
+
+    // Verify team exists (even though we return placeholder, ensures valid team_id)
+    let _: Team = sqlx::query_as("SELECT * FROM teams WHERE id = $1")
+        .bind(team_id)
+        .fetch_optional(&state.db)
+        .await?
+        .ok_or_else(|| crate::error::AppError::NotFound("Team not found".to_string()))?;
 
     const PNG_1X1: &[u8] = &[
         137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1, 8, 6,

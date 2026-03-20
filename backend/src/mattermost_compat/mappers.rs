@@ -110,10 +110,10 @@ impl From<Team> for mm::Team {
             name: team.name,
             description: team.description.unwrap_or_default(),
             email: "".to_string(),
-            team_type: if team.is_public {
-                "O".to_string()
-            } else {
-                "I".to_string()
+            team_type: match team.privacy.as_deref() {
+                Some("open") => "O".to_string(),
+                Some("invite") => "I".to_string(),
+                _ => if team.is_public { "O".to_string() } else { "I".to_string() },
             },
             company_name: "".to_string(),
             allowed_domains: "".to_string(),
