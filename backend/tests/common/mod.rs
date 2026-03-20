@@ -333,6 +333,7 @@ async fn configure_database(database_url: &str) -> Result<PgPool, String> {
 }
 
 /// Create a minimal AppState for testing extractors
+#[allow(dead_code)]
 pub async fn create_test_state(pool: PgPool) -> anyhow::Result<rustchat::api::AppState> {
     let redis_pool = configure_redis_with_fallback(&collect_test_redis_urls()).await;
     let config = test_config();
