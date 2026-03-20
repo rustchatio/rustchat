@@ -110,7 +110,7 @@ async fn setup_team_channel(ctx: &TestContext) -> (Uuid, Uuid) {
     .execute(&ctx.app.db_pool)
     .await
     .unwrap();
-    sqlx::query("INSERT INTO channel_members (channel_id, user_id, role, notify_props) VALUES ($1, $2, 'member', '{}')")
+    sqlx::query("INSERT INTO channel_members (channel_id, user_id, role, notify_props) VALUES ($1, $2, 'channel_admin', '{}')")
         .bind(channel_id)
         .bind(ctx.user_uuid)
         .execute(&ctx.app.db_pool)

@@ -77,7 +77,7 @@ pub async fn create_activity(
         r#"
         SELECT
             a.id,
-            a.type as "activity_type: ActivityType",
+            a.type as activity_type,
             a.actor_id,
             u.username as actor_username,
             u.avatar_url as actor_avatar_url,
@@ -163,7 +163,7 @@ pub async fn get_activities(
     let sql = r#"
         SELECT
             a.id,
-            a.type as "activity_type: ActivityType",
+            a.type as activity_type,
             a.actor_id,
             u.username as actor_username,
             u.avatar_url as actor_avatar_url,
