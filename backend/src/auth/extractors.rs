@@ -206,18 +206,14 @@ where
             } else {
                 (auth_str.trim().to_string(), false)
             }
-        } else if let Some(token_header) =
-            parts.headers.get(HeaderName::from_static("token"))
-        {
+        } else if let Some(token_header) = parts.headers.get(HeaderName::from_static("token")) {
             let t = token_header
                 .to_str()
                 .map_err(|_| AppError::Unauthorized("Invalid token header".to_string()))?
                 .trim()
                 .to_string();
             (t, false)
-        } else if let Some(cookie_header) =
-            parts.headers.get(HeaderName::from_static("cookie"))
-        {
+        } else if let Some(cookie_header) = parts.headers.get(HeaderName::from_static("cookie")) {
             let cookie_str = cookie_header
                 .to_str()
                 .map_err(|_| AppError::Unauthorized("Invalid cookie header".to_string()))?;
@@ -225,9 +221,7 @@ where
                 .split(';')
                 .map(|s| s.trim())
                 .find_map(|c| c.strip_prefix("MMAUTHTOKEN="))
-                .ok_or_else(|| {
-                    AppError::Unauthorized("Missing authorization header".to_string())
-                })?
+                .ok_or_else(|| AppError::Unauthorized("Missing authorization header".to_string()))?
                 .to_string();
             (t, false)
         } else {

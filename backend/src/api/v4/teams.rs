@@ -196,13 +196,12 @@ async fn update_team_privacy(
             ))
         }
     };
-    let updated: Team =
-        sqlx::query_as("UPDATE teams SET privacy = $1 WHERE id = $2 RETURNING *")
-            .bind(privacy)
-            .bind(team_id)
-            .fetch_optional(&state.db)
-            .await?
-            .ok_or_else(|| crate::error::AppError::NotFound("Team not found".to_string()))?;
+    let updated: Team = sqlx::query_as("UPDATE teams SET privacy = $1 WHERE id = $2 RETURNING *")
+        .bind(privacy)
+        .bind(team_id)
+        .fetch_optional(&state.db)
+        .await?
+        .ok_or_else(|| crate::error::AppError::NotFound("Team not found".to_string()))?;
     Ok(Json(updated.into()))
 }
 
@@ -718,13 +717,14 @@ async fn update_team_member_scheme_roles(
     ensure_team_admin_or_system_manage(&state, team_id, &auth).await?;
 
     // Verify target user exists
-    let _exists: bool =
-        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)")
-            .bind(user_id)
-            .fetch_one(&state.db)
-            .await?;
+    let _exists: bool = sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)")
+        .bind(user_id)
+        .fetch_one(&state.db)
+        .await?;
     if !_exists {
-        return Err(crate::error::AppError::NotFound("User not found".to_string()));
+        return Err(crate::error::AppError::NotFound(
+            "User not found".to_string(),
+        ));
     }
 
     // Determine role from scheme flags
@@ -1339,25 +1339,28 @@ async fn update_team_scheme(
         ));
     }
 
-    let new_scheme_id: Option<Uuid> = if input.scheme_id.is_empty() {
-        None
-    } else {
-        Some(
-            parse_mm_or_uuid(&input.scheme_id)
-                .ok_or_else(|| crate::error::AppError::BadRequest("Invalid scheme_id".to_string()))?,
-        )
-    };
+    let new_scheme_id: Option<Uuid> =
+        if input.scheme_id.is_empty() {
+            None
+        } else {
+            Some(parse_mm_or_uuid(&input.scheme_id).ok_or_else(|| {
+                crate::error::AppError::BadRequest("Invalid scheme_id".to_string())
+            })?)
+        };
 
-    let rows_affected =
-        sqlx::query("UPDATE teams SET scheme_id = $1, updated_at = NOW() WHERE id = $2 AND deleted_at IS NULL")
-            .bind(new_scheme_id)
-            .bind(team_id)
-            .execute(&state.db)
-            .await?
-            .rows_affected();
+    let rows_affected = sqlx::query(
+        "UPDATE teams SET scheme_id = $1, updated_at = NOW() WHERE id = $2 AND deleted_at IS NULL",
+    )
+    .bind(new_scheme_id)
+    .bind(team_id)
+    .execute(&state.db)
+    .await?
+    .rows_affected();
 
     if rows_affected == 0 {
-        return Err(crate::error::AppError::NotFound("Team not found".to_string()));
+        return Err(crate::error::AppError::NotFound(
+            "Team not found".to_string(),
+        ));
     }
 
     Ok(status_ok())
@@ -1631,13 +1634,12 @@ async fn ensure_team_admin_or_system_manage(
         return Ok(());
     }
     // Check if user is a team admin
-    let role: Option<String> = sqlx::query_scalar(
-        "SELECT role FROM team_members WHERE team_id = $1 AND user_id = $2",
-    )
-    .bind(team_id)
-    .bind(auth.user_id)
-    .fetch_optional(&state.db)
-    .await?;
+    let role: Option<String> =
+        sqlx::query_scalar("SELECT role FROM team_members WHERE team_id = $1 AND user_id = $2")
+            .bind(team_id)
+            .bind(auth.user_id)
+            .fetch_optional(&state.db)
+            .await?;
     match role.as_deref() {
         Some("admin") | Some("team_admin") => Ok(()),
         _ => Err(crate::error::AppError::Forbidden(
@@ -1653,7 +1655,9 @@ fn map_team_member(member: TeamMember) -> mm::TeamMember {
         roles: crate::mattermost_compat::mappers::map_team_role(&member.role),
         delete_at: 0,
         scheme_guest: member.role == "guest",
-        scheme_user: member.role != "guest" && member.role != "admin" && member.role != "team_admin",
+        scheme_user: member.role != "guest"
+            && member.role != "admin"
+            && member.role != "team_admin",
         scheme_admin: member.role == "admin" || member.role == "team_admin",
         presence: None,
     }
@@ -1666,7 +1670,9 @@ fn map_team_member_with_presence(member: TeamMember, presence: Option<String>) -
         roles: crate::mattermost_compat::mappers::map_team_role(&member.role),
         delete_at: 0,
         scheme_guest: member.role == "guest",
-        scheme_user: member.role != "guest" && member.role != "admin" && member.role != "team_admin",
+        scheme_user: member.role != "guest"
+            && member.role != "admin"
+            && member.role != "team_admin",
         scheme_admin: member.role == "admin" || member.role == "team_admin",
         presence: presence.filter(|p| !p.is_empty()),
     }

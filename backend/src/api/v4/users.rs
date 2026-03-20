@@ -2287,7 +2287,10 @@ async fn get_known_users(
     Ok(Json(ids))
 }
 
-async fn get_user_stats(State(state): State<AppState>, _auth: MmAuthUser) -> ApiResult<Json<serde_json::Value>> {
+async fn get_user_stats(
+    State(state): State<AppState>,
+    _auth: MmAuthUser,
+) -> ApiResult<Json<serde_json::Value>> {
     let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users")
         .fetch_one(&state.db)
         .await?;
@@ -2698,9 +2701,10 @@ async fn update_user_password(
         }
     } else {
         // Self-service: current_password is mandatory
-        let current = input.current_password.as_deref().ok_or_else(|| {
-            AppError::BadRequest("current_password is required".to_string())
-        })?;
+        let current = input
+            .current_password
+            .as_deref()
+            .ok_or_else(|| AppError::BadRequest("current_password is required".to_string()))?;
         let password_hash = user
             .password_hash
             .as_deref()

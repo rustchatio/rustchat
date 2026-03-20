@@ -98,4 +98,3 @@ async fn mark_all_read(
     let updated = activity::mark_all_read(&state, target_id).await?;
     Ok(Json(serde_json::json!({ "updated": updated })))
 }
-

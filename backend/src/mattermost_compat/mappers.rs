@@ -102,10 +102,7 @@ impl From<Team> for mm::Team {
             id: encode_mm_id(team.id),
             create_at: team.created_at.timestamp_millis(),
             update_at: team.updated_at.timestamp_millis(),
-            delete_at: team
-                .deleted_at
-                .map(|t| t.timestamp_millis())
-                .unwrap_or(0),
+            delete_at: team.deleted_at.map(|t| t.timestamp_millis()).unwrap_or(0),
             display_name: team.display_name.unwrap_or_else(|| team.name.clone()),
             name: team.name,
             description: team.description.unwrap_or_default(),
@@ -113,7 +110,13 @@ impl From<Team> for mm::Team {
             team_type: match team.privacy.as_deref() {
                 Some("open") => "O".to_string(),
                 Some("invite") => "I".to_string(),
-                _ => if team.is_public { "O".to_string() } else { "I".to_string() },
+                _ => {
+                    if team.is_public {
+                        "O".to_string()
+                    } else {
+                        "I".to_string()
+                    }
+                }
             },
             company_name: "".to_string(),
             allowed_domains: "".to_string(),

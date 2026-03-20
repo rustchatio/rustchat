@@ -2,7 +2,9 @@
 
 use crate::api::AppState;
 use crate::error::ApiResult;
-use crate::models::{Activity, ActivityFeedResponse, ActivityQuery, ActivityResponse, ActivityType};
+use crate::models::{
+    Activity, ActivityFeedResponse, ActivityQuery, ActivityResponse, ActivityType,
+};
 use crate::realtime::{EventType, WsBroadcast, WsEnvelope};
 use chrono::{DateTime, Utc};
 use sqlx::Row;
@@ -155,11 +157,10 @@ pub async fn get_activities(
     let limit = query.limit.clamp(1, 100);
 
     // Parse type filter into a Vec<String> for SQL ANY($n) binding
-    let type_filters: Option<Vec<String>> = query.activity_type.as_ref().map(|t| {
-        t.split(',')
-            .map(|s| s.trim().to_string())
-            .collect()
-    });
+    let type_filters: Option<Vec<String>> = query
+        .activity_type
+        .as_ref()
+        .map(|t| t.split(',').map(|s| s.trim().to_string()).collect());
 
     let sql = r#"
         SELECT
@@ -311,12 +312,11 @@ pub async fn mark_activities_read(
 
 /// Mark all activities as read for a user
 pub async fn mark_all_read(state: &AppState, user_id: Uuid) -> ApiResult<usize> {
-    let result = sqlx::query(
-        "UPDATE activities SET read = TRUE WHERE user_id = $1 AND read = FALSE",
-    )
-    .bind(user_id)
-    .execute(&state.db)
-    .await?;
+    let result =
+        sqlx::query("UPDATE activities SET read = TRUE WHERE user_id = $1 AND read = FALSE")
+            .bind(user_id)
+            .execute(&state.db)
+            .await?;
 
     if result.rows_affected() > 0 {
         let broadcast = WsEnvelope::event(

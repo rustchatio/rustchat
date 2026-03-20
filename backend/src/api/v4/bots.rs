@@ -54,7 +54,9 @@ pub async fn create_bot(
     Json(input): Json<CreateBotRequest>,
 ) -> ApiResult<Json<mm::Bot>> {
     if !auth.has_permission(&permissions::SYSTEM_MANAGE) {
-        return Err(AppError::Forbidden("Missing permission to create bots".to_string()));
+        return Err(AppError::Forbidden(
+            "Missing permission to create bots".to_string(),
+        ));
     }
 
     // 1. Create a user for the bot
