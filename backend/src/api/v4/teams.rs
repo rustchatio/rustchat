@@ -694,11 +694,9 @@ async fn update_team_member_roles(
 
 #[derive(Deserialize)]
 struct TeamMemberSchemeRolesRequest {
-    #[allow(dead_code)]
     scheme_admin: Option<bool>,
     #[allow(dead_code)]
     scheme_user: Option<bool>,
-    #[allow(dead_code)]
     scheme_guest: Option<bool>,
 }
 
@@ -706,14 +704,45 @@ async fn update_team_member_scheme_roles(
     State(state): State<AppState>,
     auth: MmAuthUser,
     Path((team_id, user_id)): Path<(String, String)>,
-    Json(_input): Json<TeamMemberSchemeRolesRequest>,
-) -> ApiResult<Json<serde_json::Value>> {
+    Json(input): Json<TeamMemberSchemeRolesRequest>,
+) -> ApiResult<Json<mm::TeamMember>> {
     let team_id = parse_mm_or_uuid(&team_id)
         .ok_or_else(|| crate::error::AppError::BadRequest("Invalid team_id".to_string()))?;
-    let _user_id = parse_mm_or_uuid(&user_id)
+    let user_id = parse_mm_or_uuid(&user_id)
         .ok_or_else(|| crate::error::AppError::BadRequest("Invalid user_id".to_string()))?;
     ensure_team_admin_or_system_manage(&state, team_id, &auth).await?;
-    Ok(status_ok())
+
+    // Verify target user exists
+    let _exists: bool =
+        sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)")
+            .bind(user_id)
+            .fetch_one(&state.db)
+            .await?;
+    if !_exists {
+        return Err(crate::error::AppError::NotFound("User not found".to_string()));
+    }
+
+    // Determine role from scheme flags
+    let role = if input.scheme_admin == Some(true) {
+        "admin"
+    } else if input.scheme_guest == Some(true) {
+        "guest"
+    } else {
+        "member"
+    };
+
+    // Update the role; also verify they are an existing team member
+    let member: TeamMember = sqlx::query_as(
+        "UPDATE team_members SET role = $1 WHERE team_id = $2 AND user_id = $3 RETURNING *",
+    )
+    .bind(role)
+    .bind(team_id)
+    .bind(user_id)
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or_else(|| crate::error::AppError::NotFound("Team member not found".to_string()))?;
+
+    Ok(Json(map_team_member(member)))
 }
 
 async fn get_team_channels(
@@ -1115,8 +1144,8 @@ fn map_team_member(member: TeamMember) -> mm::TeamMember {
         user_id: encode_mm_id(member.user_id),
         roles: crate::mattermost_compat::mappers::map_team_role(&member.role),
         delete_at: 0,
-        scheme_guest: false,
-        scheme_user: true,
+        scheme_guest: member.role == "guest",
+        scheme_user: member.role != "guest" && member.role != "admin" && member.role != "team_admin",
         scheme_admin: member.role == "admin" || member.role == "team_admin",
         presence: None,
     }
@@ -1128,8 +1157,8 @@ fn map_team_member_with_presence(member: TeamMember, presence: Option<String>) -
         user_id: encode_mm_id(member.user_id),
         roles: crate::mattermost_compat::mappers::map_team_role(&member.role),
         delete_at: 0,
-        scheme_guest: false,
-        scheme_user: true,
+        scheme_guest: member.role == "guest",
+        scheme_user: member.role != "guest" && member.role != "admin" && member.role != "team_admin",
         scheme_admin: member.role == "admin" || member.role == "team_admin",
         presence: presence.filter(|p| !p.is_empty()),
     }
