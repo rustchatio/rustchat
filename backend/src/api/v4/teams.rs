@@ -168,16 +168,37 @@ async fn patch_team(
     Ok(Json(team.into()))
 }
 
+#[derive(Deserialize)]
+struct UpdatePrivacyRequest {
+    privacy: String, // "O" for open, "I" for invite
+}
+
 async fn update_team_privacy(
-    _auth: MmAuthUser,
+    State(state): State<AppState>,
+    auth: MmAuthUser,
     Path(team_id): Path<String>,
-    headers: axum::http::HeaderMap,
-    body: Bytes,
-) -> ApiResult<Json<serde_json::Value>> {
-    let _team_id = parse_mm_or_uuid(&team_id)
+    Json(input): Json<UpdatePrivacyRequest>,
+) -> ApiResult<Json<mm::Team>> {
+    let team_id = parse_mm_or_uuid(&team_id)
         .ok_or_else(|| crate::error::AppError::BadRequest("Invalid team_id".to_string()))?;
-    let _value: serde_json::Value = parse_body(&headers, &body, "Invalid privacy body")?;
-    Ok(status_ok())
+    ensure_team_admin_or_system_manage(&state, team_id, &auth).await?;
+    let privacy = match input.privacy.as_str() {
+        "O" => "open",
+        "I" => "invite",
+        _ => {
+            return Err(crate::error::AppError::BadRequest(
+                "Invalid privacy value: must be 'O' (open) or 'I' (invite)".to_string(),
+            ))
+        }
+    };
+    let updated: Team =
+        sqlx::query_as("UPDATE teams SET privacy = $1 WHERE id = $2 RETURNING *")
+            .bind(privacy)
+            .bind(team_id)
+            .fetch_optional(&state.db)
+            .await?
+            .ok_or_else(|| crate::error::AppError::NotFound("Team not found".to_string()))?;
+    Ok(Json(updated.into()))
 }
 
 async fn restore_team(
