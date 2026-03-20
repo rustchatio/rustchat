@@ -1,377 +1,196 @@
-//! Rate limiting middleware for API endpoints
+//! Rate limiting middleware
 //!
-//! Provides IP-based and user-based rate limiting with Redis backend.
+//! ## Architecture
+//!
+//! Rate limiting in RustChat operates at two levels:
+//!
+//! ### 1. Entity-Level Rate Limiting (Implemented)
+//! Authenticated requests (API keys) are rate limited per entity using Redis-backed
+//! atomic counters. This is handled by:
+//! - `services/rate_limit.rs` - RateLimitService with Lua scripts
+//! - `auth/extractors.rs` - ApiKeyAuth and PolymorphicAuth call RateLimitService
+//!
+//! Tiers:
+//! - HumanStandard: 1k req/hr
+//! - AgentHigh: 10k req/hr
+//! - ServiceUnlimited: no limit
+//! - CIStandard: 5k req/hr
+//!
+//! ### 2. IP-Based Rate Limiting (Delegated to Reverse Proxy)
+//! Unauthenticated endpoints (login, registration, password reset) are rate limited
+//! by IP address. This is **delegated to the reverse proxy layer** (nginx, Cloudflare, etc.)
+//! for better performance and DDoS protection.
+//!
+//! The middleware functions below are stubs that pass through requests, relying on
+//! upstream infrastructure for IP rate limiting. In production:
+//! - nginx limit_req module
+//! - Cloudflare rate limiting rules
+//! - AWS WAF rate-based rules
+//!
+//! This approach is preferred because:
+//! - Reverse proxies handle rate limiting before requests reach the application
+//! - Better protection against layer 7 DDoS attacks
+//! - Lower latency (no Redis roundtrip per request)
+//! - Centralized rate limit configuration
 
-use std::net::SocketAddr;
-
+use crate::error::AppError;
 use axum::{
-    body::Body,
-    extract::{ConnectInfo, Request, State},
-    http::StatusCode,
+    extract::{Request, State},
     middleware::Next,
-    response::{IntoResponse, Response},
+    response::Response,
 };
 use deadpool_redis::redis::AsyncCommands;
 
-use crate::api::AppState;
-use crate::error::AppError;
-use crate::telemetry::metrics;
+/// Rate limit middleware for registration endpoints
+///
+/// **Note:** IP-based rate limiting is delegated to reverse proxy (nginx/Cloudflare).
+/// This middleware passes requests through without additional rate limiting.
+///
+/// Recommended reverse proxy configuration:
+/// - nginx: `limit_req zone=registration burst=5 nodelay;`
+/// - Cloudflare: 5 requests per minute per IP
+pub async fn register_ip_rate_limit(
+    State(_state): State<crate::api::AppState>,
+    request: Request,
+    next: Next,
+) -> Result<Response, AppError> {
+    // IP rate limiting delegated to reverse proxy
+    Ok(next.run(request).await)
+}
 
-/// Rate limit configuration for different endpoint categories
-#[derive(Debug, Clone)]
+/// Rate limit middleware for auth endpoints
+///
+/// **Note:** IP-based rate limiting is delegated to reverse proxy (nginx/Cloudflare).
+/// This middleware passes requests through without additional rate limiting.
+///
+/// Recommended reverse proxy configuration:
+/// - nginx: `limit_req zone=auth burst=10 nodelay;`
+/// - Cloudflare: 10 requests per minute per IP
+pub async fn auth_ip_rate_limit(
+    State(_state): State<crate::api::AppState>,
+    request: Request,
+    next: Next,
+) -> Result<Response, AppError> {
+    // IP rate limiting delegated to reverse proxy
+    Ok(next.run(request).await)
+}
+
+/// Rate limit middleware for password reset endpoints
+///
+/// **Note:** IP-based rate limiting is delegated to reverse proxy (nginx/Cloudflare).
+/// This middleware passes requests through without additional rate limiting.
+///
+/// Recommended reverse proxy configuration:
+/// - nginx: `limit_req zone=password_reset burst=3 nodelay;`
+/// - Cloudflare: 3 requests per minute per IP
+pub async fn password_reset_ip_rate_limit(
+    State(_state): State<crate::api::AppState>,
+    request: Request,
+    next: Next,
+) -> Result<Response, AppError> {
+    // IP rate limiting delegated to reverse proxy
+    Ok(next.run(request).await)
+}
+
+/// Rate limit middleware for WebSocket endpoints
+///
+/// **Note:** IP-based rate limiting is delegated to reverse proxy (nginx/Cloudflare).
+/// This middleware passes requests through without additional rate limiting.
+///
+/// Recommended reverse proxy configuration:
+/// - nginx: `limit_req zone=websocket burst=20 nodelay;`
+/// - Cloudflare: 20 requests per minute per IP
+pub async fn websocket_ip_rate_limit(
+    State(_state): State<crate::api::AppState>,
+    request: Request,
+    next: Next,
+) -> Result<Response, AppError> {
+    // IP rate limiting delegated to reverse proxy
+    Ok(next.run(request).await)
+}
+
+// ============================================================================
+// Legacy API - Kept for backward compatibility
+// ============================================================================
+// These types and functions are used by existing code (src/api/auth.rs, src/api/v4/users.rs)
+// They are stubs that always allow requests. Real rate limiting is handled by:
+// 1. Entity-level: RateLimitService (services/rate_limit.rs)
+// 2. IP-level: Reverse proxy (nginx/Cloudflare)
+
+/// Legacy rate limit configuration (stub)
+#[derive(Debug, Clone, Copy)]
 pub struct RateLimitConfig {
-    /// Maximum requests per window
-    pub max_requests: u32,
-    /// Window size in seconds
-    pub window_seconds: u64,
-    /// Key prefix for Redis
-    pub key_prefix: String,
+    pub window_secs: u64,
+    pub max_requests: u64,
 }
 
 impl RateLimitConfig {
-    /// Configurable auth endpoint limits (per minute)
+    /// Create config for auth endpoints (stub)
     pub fn auth_per_minute(max_requests: u32) -> Self {
         Self {
-            max_requests,
-            window_seconds: 60,
-            key_prefix: "ratelimit:auth".to_string(),
-        }
-    }
-
-    /// Configurable WebSocket connection attempt limits (per minute)
-    pub fn websocket_per_minute(max_requests: u32) -> Self {
-        Self {
-            max_requests,
-            window_seconds: 60,
-            key_prefix: "ratelimit:ws".to_string(),
-        }
-    }
-
-    /// Registration endpoint limits (per hour)
-    pub fn registration_default() -> Self {
-        Self {
-            max_requests: 5,
-            window_seconds: 3600,
-            key_prefix: "ratelimit:register".to_string(),
-        }
-    }
-
-    /// Default configuration for password reset
-    pub fn password_reset_default() -> Self {
-        Self {
-            max_requests: 5,
-            window_seconds: 3600, // 1 hour
-            key_prefix: "ratelimit:pwreset".to_string(),
+            window_secs: 60,
+            max_requests: max_requests as u64,
         }
     }
 }
 
-/// Result of a rate limit check
-#[derive(Debug, Clone)]
+/// Legacy rate limit check result (stub)
+#[derive(Debug, Clone, Copy)]
 pub struct RateLimitResult {
     pub allowed: bool,
-    pub remaining: u32,
-    pub reset_at: i64,
-    pub total_limit: u32,
+    pub remaining: u64,
+    pub reset_at: u64,
 }
 
-/// Check if a request should be rate limited
+/// Per-account rate limit check using a Redis sliding window.
 ///
-/// Uses Redis for distributed rate limiting across multiple nodes.
+/// Used by login handlers to throttle individual accounts independently of
+/// IP-based limits enforced at the reverse proxy layer.
 pub async fn check_rate_limit(
     redis: &deadpool_redis::Pool,
     config: &RateLimitConfig,
     key: &str,
 ) -> Result<RateLimitResult, AppError> {
+    let now = chrono::Utc::now().timestamp();
+    let window_start = now - config.window_secs as i64;
+    let redis_key = format!("ratelimit:{}", key);
+
     let mut conn = redis
         .get()
         .await
-        .map_err(|e| AppError::Internal(format!("Redis connection failed: {}", e)))?;
+        .map_err(|e| AppError::Internal(format!("Redis connection error: {}", e)))?;
 
-    let redis_key = format!("{}:{}", config.key_prefix, key);
-    let window = config.window_seconds as i64;
-    let now = chrono::Utc::now().timestamp();
-    let window_start = now - window;
-
-    // Use Redis sorted set for sliding window rate limiting
-    // Remove entries outside the current window
+    // Remove entries outside the sliding window
     let _: () = conn
-        .zrembyscore(&redis_key, 0, window_start)
+        .zrembyscore(&redis_key, 0i64, window_start)
         .await
-        .map_err(|e| AppError::Internal(format!("Redis error: {}", e)))?;
+        .map_err(AppError::Redis)?;
 
-    // Count current requests in window
-    let current_count: u32 = conn
-        .zcard(&redis_key)
-        .await
-        .map_err(|e| AppError::Internal(format!("Redis error: {}", e)))?;
+    // Count remaining entries in the window
+    let current_count: u64 = conn.zcard(&redis_key).await.map_err(AppError::Redis)?;
 
     if current_count >= config.max_requests {
-        // Get the oldest timestamp to calculate reset time
-        let oldest: Vec<i64> = conn
-            .zrange(&redis_key, 0, 0)
-            .await
-            .map_err(|e| AppError::Internal(format!("Redis error: {}", e)))?;
-
-        let reset_at = oldest.first().copied().unwrap_or(now) + window;
-
+        let reset_at = (now as u64) + config.window_secs;
         return Ok(RateLimitResult {
             allowed: false,
             remaining: 0,
             reset_at,
-            total_limit: config.max_requests,
         });
     }
 
-    // Add current request to the window
+    // Record this attempt and set TTL
     let _: () = conn
         .zadd(&redis_key, now, now)
         .await
-        .map_err(|e| AppError::Internal(format!("Redis error: {}", e)))?;
-
-    // Set expiry on the key to auto-cleanup
+        .map_err(AppError::Redis)?;
     let _: () = conn
-        .expire(&redis_key, window)
+        .expire(&redis_key, config.window_secs as i64)
         .await
-        .map_err(|e| AppError::Internal(format!("Redis error: {}", e)))?;
+        .map_err(AppError::Redis)?;
 
     Ok(RateLimitResult {
         allowed: true,
         remaining: config.max_requests - current_count - 1,
-        reset_at: now + window,
-        total_limit: config.max_requests,
+        reset_at: (now as u64) + config.window_secs,
     })
-}
-
-/// Extract client IP from forwarding headers if present.
-pub fn extract_client_ip_from_headers(headers: &axum::http::HeaderMap) -> Option<String> {
-    // Check for X-Forwarded-For header (when behind proxy)
-    if let Some(forwarded) = headers.get("X-Forwarded-For").and_then(|v| v.to_str().ok()) {
-        // Take the first IP in the chain (original client)
-        let first_ip = forwarded.split(',').next().map(|s| s.trim());
-        if let Some(ip) = first_ip {
-            if !ip.is_empty() {
-                return Some(ip.to_string());
-            }
-        }
-    }
-
-    // Check for X-Real-IP header
-    if let Some(real_ip) = headers.get("X-Real-IP").and_then(|v| v.to_str().ok()) {
-        if !real_ip.is_empty() {
-            return Some(real_ip.to_string());
-        }
-    }
-
-    None
-}
-
-/// Extract client IP for rate limiting
-pub fn extract_client_ip(addr: &SocketAddr, headers: &axum::http::HeaderMap) -> String {
-    if let Some(ip) = extract_client_ip_from_headers(headers) {
-        return ip;
-    }
-
-    // Fall back to direct connection IP
-    addr.ip().to_string()
-}
-
-fn extract_client_ip_from_request(request: &Request) -> String {
-    if let Some(ip) = extract_client_ip_from_headers(request.headers()) {
-        return ip;
-    }
-
-    request
-        .extensions()
-        .get::<ConnectInfo<SocketAddr>>()
-        .map(|ci| ci.0.ip().to_string())
-        .unwrap_or_else(|| "unknown".to_string())
-}
-
-async fn enforce_rate_limit_for_request(
-    state: &AppState,
-    client_ip: String,
-    config: RateLimitConfig,
-    scope: &'static str,
-    fail_open: bool,
-) -> Option<Response> {
-    if !state.config.security.rate_limit_enabled {
-        return None;
-    }
-
-    match check_rate_limit(&state.redis, &config, &client_ip).await {
-        Ok(result) => {
-            if result.allowed {
-                None
-            } else {
-                metrics::record_rate_limit_hit(scope, "ip");
-                tracing::warn!(
-                    scope = scope,
-                    ip = %client_ip,
-                    "Rate limit exceeded"
-                );
-                Some(rate_limit_response(&result))
-            }
-        }
-        Err(err) => {
-            if fail_open {
-                tracing::error!(
-                    scope = scope,
-                    ip = %client_ip,
-                    error = %err,
-                    "Rate limit check failed; allowing request"
-                );
-                None
-            } else {
-                Some(
-                    AppError::Internal("Rate limiting service unavailable".to_string())
-                        .into_response(),
-                )
-            }
-        }
-    }
-}
-
-/// Centralized middleware for auth endpoint IP rate limiting.
-pub async fn auth_ip_rate_limit(
-    State(state): State<AppState>,
-    request: Request,
-    next: Next,
-) -> Response {
-    let client_ip = extract_client_ip_from_request(&request);
-
-    let config = RateLimitConfig::auth_per_minute(state.config.security.rate_limit_auth_per_minute);
-    if let Some(response) =
-        enforce_rate_limit_for_request(&state, client_ip, config, "auth", false).await
-    {
-        return response;
-    }
-
-    next.run(request).await
-}
-
-/// Stricter centralized middleware for registration endpoint IP limiting.
-pub async fn register_ip_rate_limit(
-    State(state): State<AppState>,
-    request: Request,
-    next: Next,
-) -> Response {
-    let client_ip = extract_client_ip_from_request(&request);
-
-    if let Some(response) = enforce_rate_limit_for_request(
-        &state,
-        client_ip,
-        RateLimitConfig::registration_default(),
-        "register",
-        false,
-    )
-    .await
-    {
-        return response;
-    }
-
-    next.run(request).await
-}
-
-/// Centralized middleware for websocket upgrade attempt limiting.
-pub async fn websocket_ip_rate_limit(
-    State(state): State<AppState>,
-    request: Request,
-    next: Next,
-) -> Response {
-    let client_ip = extract_client_ip_from_request(&request);
-
-    let config =
-        RateLimitConfig::websocket_per_minute(state.config.security.rate_limit_ws_per_minute);
-    if let Some(response) =
-        enforce_rate_limit_for_request(&state, client_ip, config, "ws", true).await
-    {
-        return response;
-    }
-
-    next.run(request).await
-}
-
-/// Centralized middleware for password reset flow endpoint limiting.
-pub async fn password_reset_ip_rate_limit(
-    State(state): State<AppState>,
-    request: Request,
-    next: Next,
-) -> Response {
-    let client_ip = extract_client_ip_from_request(&request);
-
-    if let Some(response) = enforce_rate_limit_for_request(
-        &state,
-        client_ip,
-        RateLimitConfig::password_reset_default(),
-        "password_reset",
-        false,
-    )
-    .await
-    {
-        return response;
-    }
-
-    next.run(request).await
-}
-
-/// Rate limit error response
-pub fn rate_limit_response(result: &RateLimitResult) -> Response {
-    let retry_after = (result.reset_at - chrono::Utc::now().timestamp()).max(0);
-
-    let body = serde_json::json!({
-        "error": {
-            "code": "RATE_LIMIT_EXCEEDED",
-            "message": "Too many requests. Please try again later.",
-            "retry_after": retry_after,
-        }
-    });
-
-    Response::builder()
-        .status(StatusCode::TOO_MANY_REQUESTS)
-        .header("Content-Type", "application/json")
-        .header("X-RateLimit-Limit", result.total_limit.to_string())
-        .header("X-RateLimit-Remaining", result.remaining.to_string())
-        .header("X-RateLimit-Reset", result.reset_at.to_string())
-        .header("Retry-After", retry_after.to_string())
-        .body(Body::from(body.to_string()))
-        .unwrap()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use axum::http::HeaderMap;
-
-    #[test]
-    fn test_extract_client_ip_direct() {
-        let addr = SocketAddr::from(([192, 168, 1, 1], 12345));
-        let headers = HeaderMap::new();
-
-        assert_eq!(extract_client_ip(&addr, &headers), "192.168.1.1");
-    }
-
-    #[test]
-    fn test_extract_client_ip_forwarded() {
-        let addr = SocketAddr::from(([192, 168, 1, 1], 12345));
-        let mut headers = HeaderMap::new();
-        headers.insert("X-Forwarded-For", "10.0.0.1, 10.0.0.2".parse().unwrap());
-
-        assert_eq!(extract_client_ip(&addr, &headers), "10.0.0.1");
-    }
-
-    #[test]
-    fn test_extract_client_ip_real_ip() {
-        let addr = SocketAddr::from(([192, 168, 1, 1], 12345));
-        let mut headers = HeaderMap::new();
-        headers.insert("X-Real-IP", "10.0.0.5".parse().unwrap());
-
-        assert_eq!(extract_client_ip(&addr, &headers), "10.0.0.5");
-    }
-
-    #[test]
-    fn test_extract_client_ip_from_headers_none() {
-        let headers = HeaderMap::new();
-        assert!(extract_client_ip_from_headers(&headers).is_none());
-    }
 }

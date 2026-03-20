@@ -471,7 +471,8 @@ async fn get_post_thread(
     };
 
     // Call the service method
-    let thread_response = crate::services::posts::get_thread(&state, post_id, cursor, query.limit).await?;
+    let thread_response =
+        crate::services::posts::get_thread(&state, post_id, cursor, query.limit).await?;
 
     // Check channel membership permission
     let first_post = thread_response
@@ -491,17 +492,24 @@ async fn get_post_thread(
             })?;
 
     // Convert to Mattermost-compatible format
-    let order: Vec<String> = thread_response.order.iter()
+    let order: Vec<String> = thread_response
+        .order
+        .iter()
         .map(|id| encode_mm_id(uuid::Uuid::parse_str(id).unwrap_or_default()))
         .collect();
 
-    let posts: std::collections::HashMap<String, mm::Post> = thread_response.posts.into_iter()
+    let posts: std::collections::HashMap<String, mm::Post> = thread_response
+        .posts
+        .into_iter()
         .map(|(id, post)| {
             let mm_id = encode_mm_id(uuid::Uuid::parse_str(&id).unwrap_or_default());
             let mm_post = mm::Post {
                 id: mm_id.clone(),
                 create_at: post.created_at.timestamp_millis(),
-                update_at: post.edited_at.map(|dt| dt.timestamp_millis()).unwrap_or_else(|| post.created_at.timestamp_millis()),
+                update_at: post
+                    .edited_at
+                    .map(|dt| dt.timestamp_millis())
+                    .unwrap_or_else(|| post.created_at.timestamp_millis()),
                 delete_at: post.deleted_at.map(|dt| dt.timestamp_millis()).unwrap_or(0),
                 edit_at: post.edited_at.map(|dt| dt.timestamp_millis()).unwrap_or(0),
                 user_id: encode_mm_id(post.user_id),
@@ -520,7 +528,9 @@ async fn get_post_thread(
         })
         .collect();
 
-    let next_cursor = thread_response.next_cursor.map(|c| encode_mm_id(uuid::Uuid::parse_str(&c).unwrap_or_default()));
+    let next_cursor = thread_response
+        .next_cursor
+        .map(|c| encode_mm_id(uuid::Uuid::parse_str(&c).unwrap_or_default()));
 
     Ok(Json(ThreadResponseMm {
         order,

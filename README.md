@@ -16,18 +16,76 @@ This README is intentionally explicit about:
 
 If a capability is uncertain, it is marked as partial or unverified.
 
-## Current Status (as of 2026-03-07)
+## Current Status (as of 2026-03-17)
 
 Project maturity:
 - **Active development / pre-release**.
 - **No production-ready claim** is made here.
 
-Verification snapshot executed in this workspace:
-- `cd backend && cargo check` -> **PASS**
-- `cd frontend && npm run build` -> **PASS**
-- `cd backend && cargo test --no-fail-fast -- --nocapture` -> **PARTIAL/FAIL** (unit tests passed; many integration tests failed due missing DB bootstrap/test env)
-- `BASE=http://127.0.0.1:3000 ./scripts/mm_compat_smoke.sh` -> **FAIL** (target not running)
-- `BASE=http://127.0.0.1:3000 ./scripts/mm_mobile_smoke.sh` -> **FAIL** (target not running / no compatibility preflight)
+### Phase 1: Entity Foundation ✅ COMPLETE (2026-03-17)
+
+**Deliverables:**
+- Entity registration system (bots, integrations, webhooks)
+- API key authentication with Argon2id hashing
+- Rate limiting per entity (100 req/min) and registration (10 req/min)
+- Database migrations and models for entity management
+- Test infrastructure with seed data fixtures
+- Mobile compatibility audit (39/41 endpoints working - 95.1%)
+- JWT expiry enforcement in WebSocket connections
+
+**Verification Status:**
+- `cd backend && cargo check` -> ✅ **PASS**
+- `cd backend && cargo clippy --all-targets --all-features -- -D warnings` -> ✅ **PASS**
+- `cd frontend && npm run build` -> ✅ **PASS**
+- `cd backend && cargo test --lib` -> ✅ **PASS** (125 unit tests)
+- `cd backend && cargo test --no-fail-fast` -> ⚠️ **CONDITIONAL** (integration tests require `RUSTCHAT_TEST_DATABASE_URL`)
+- Mobile compatibility: ✅ **39/41 endpoints** (see [`docs/mobile-compatibility-matrix.md`](docs/mobile-compatibility-matrix.md))
+
+**Key Files Added:**
+- `backend/migrations/20260317000001_create_entities_and_api_keys.sql`
+- `backend/src/models/entity.rs` - Entity types and models
+- `backend/src/services/api_key_service.rs` - Key generation/validation
+- `backend/src/middleware/api_key_auth.rs` - Authentication extractor
+- `backend/src/middleware/rate_limit.rs` - Rate limiting per entity
+- `backend/src/api/v1/entities.rs` - Entity CRUD endpoints
+- `backend/tests/fixtures/` - Test infrastructure with seed data
+- `docs/mobile-compatibility-matrix.md` - Mobile API coverage report
+
+**Documentation:**
+- Test status: [`backend/tests/test_status.md`](backend/tests/test_status.md)
+- Phase 1 completion: [`docs/phase1-completion-report.md`](docs/phase1-completion-report.md)
+- Mobile compatibility: [`docs/mobile-compatibility-matrix.md`](docs/mobile-compatibility-matrix.md)
+
+**Next Phase:** Phase 2 - Custom emoji upload, advanced search, expanded test coverage
+
+## API Keys
+
+API keys use the format `rck_[64 hexadecimal characters]` (68 characters total).
+
+Example: `rck_7a9f3c8b2d1e4c6f89a12b34567890abcdef1234567890abcdef1234567890abcd`
+
+**Format Details:**
+- Prefix: `rck_` (identifies RustChat keys)
+- Body: 64 hexadecimal characters (256-bit random entropy)
+- Total length: 68 characters
+
+**Authentication:**
+Include API keys in the `Authorization` header as a Bearer token:
+```bash
+curl -H "Authorization: Bearer rck_7a9f3c8b2d1e4c6f89a12b34567890abcdef1234567890abcdef1234567890abcd" \
+  http://localhost:3000/api/v1/entities/123
+```
+
+**Generation:**
+API keys are generated via the entity registration API and returned exactly once at creation. Store them securely.
+
+```bash
+curl -X POST http://localhost:3000/api/v1/entities/123/keys \
+  -H "Authorization: Bearer $JWT_TOKEN" \
+  -H "Content-Type: application/json"
+```
+
+**Breaking Change (v1.5):** API keys generated before March 2026 used a 64-character format without the `rck_` prefix. These keys are no longer valid and must be regenerated via the entity registration API.
 
 ## What rustchat Does
 

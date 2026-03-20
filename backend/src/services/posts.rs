@@ -3,10 +3,10 @@ use std::collections::HashMap;
 use uuid::Uuid;
 
 use crate::api::AppState;
-use crate::services::activity;
 use crate::error::{ApiResult, AppError};
 use crate::models::{ChannelMember, CreatePost, FileUploadResponse, Post, PostResponse};
 use crate::realtime::{EventType, WsBroadcast, WsEnvelope};
+use crate::services::activity;
 
 #[derive(Debug, Default)]
 pub struct PostsQuery {
@@ -93,25 +93,23 @@ pub async fn create_post(
         .await?;
 
         // Create reply/thread_reply activity for the parent post author
-        let parent_info: Option<(Uuid, Option<Uuid>)> = sqlx::query_as(
-            "SELECT user_id, root_post_id FROM posts WHERE id = $1"
-        )
-        .bind(r_id)
-        .fetch_optional(&state.db)
-        .await
-        .ok()
-        .flatten();
-
-        if let Some((parent_user_id, parent_root_id)) = parent_info {
-            if parent_user_id != user_id {
-                let team_id_for_reply: Option<Uuid> = sqlx::query_scalar(
-                    "SELECT team_id FROM channels WHERE id = $1"
-                )
-                .bind(channel_id)
+        let parent_info: Option<(Uuid, Option<Uuid>)> =
+            sqlx::query_as("SELECT user_id, root_post_id FROM posts WHERE id = $1")
+                .bind(r_id)
                 .fetch_optional(&state.db)
                 .await
                 .ok()
                 .flatten();
+
+        if let Some((parent_user_id, parent_root_id)) = parent_info {
+            if parent_user_id != user_id {
+                let team_id_for_reply: Option<Uuid> =
+                    sqlx::query_scalar("SELECT team_id FROM channels WHERE id = $1")
+                        .bind(channel_id)
+                        .fetch_optional(&state.db)
+                        .await
+                        .ok()
+                        .flatten();
 
                 if let Some(team_id) = team_id_for_reply {
                     if parent_root_id.is_some() {
@@ -125,7 +123,8 @@ pub async fn create_post(
                             post.id,
                             r_id,
                             &input.message,
-                        ).await;
+                        )
+                        .await;
                     } else {
                         // Parent is a root post, this is a direct reply
                         let _ = activity::create_reply_activity(
@@ -136,7 +135,8 @@ pub async fn create_post(
                             team_id,
                             post.id,
                             &input.message,
-                        ).await;
+                        )
+                        .await;
                     }
                 }
             }
@@ -306,23 +306,21 @@ pub async fn create_post(
 
         // Create mention activities for mentioned users
         // Get team_id for the channel
-        let team_id_opt: Option<Uuid> = sqlx::query_scalar(
-            "SELECT team_id FROM channels WHERE id = $1"
-        )
-        .bind(channel_id)
-        .fetch_optional(&state.db)
-        .await
-        .ok()
-        .flatten();
+        let team_id_opt: Option<Uuid> =
+            sqlx::query_scalar("SELECT team_id FROM channels WHERE id = $1")
+                .bind(channel_id)
+                .fetch_optional(&state.db)
+                .await
+                .ok()
+                .flatten();
 
         if let Some(team_id) = team_id_opt {
             for username in &mentions {
-                if let Ok(Some(mentioned_user_id)) = sqlx::query_scalar::<_, Uuid>(
-                    "SELECT id FROM users WHERE username = $1"
-                )
-                .bind(username)
-                .fetch_optional(&state.db)
-                .await
+                if let Ok(Some(mentioned_user_id)) =
+                    sqlx::query_scalar::<_, Uuid>("SELECT id FROM users WHERE username = $1")
+                        .bind(username)
+                        .fetch_optional(&state.db)
+                        .await
                 {
                     if mentioned_user_id != user_id {
                         // Only notify if the mentioned user is actually a member of the channel
@@ -344,7 +342,8 @@ pub async fn create_post(
                                 team_id,
                                 post.id,
                                 &response.message,
-                            ).await;
+                            )
+                            .await;
                         }
                     }
                 }
@@ -936,7 +935,7 @@ pub async fn get_thread(
         FROM posts p
         JOIN users u ON p.user_id = u.id
         WHERE p.id = $1 AND p.deleted_at IS NULL
-        "#
+        "#,
     )
     .bind(post_id)
     .fetch_optional(&state.db)
@@ -955,7 +954,7 @@ pub async fn get_thread(
         FROM posts p
         JOIN users u ON p.user_id = u.id
         WHERE p.root_post_id = $1 AND p.deleted_at IS NULL
-        "#
+        "#,
     );
 
     if cursor.is_some() {

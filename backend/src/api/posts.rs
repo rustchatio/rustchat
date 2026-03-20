@@ -15,7 +15,8 @@ use crate::auth::policy::permissions;
 use crate::auth::AuthUser;
 use crate::error::{ApiResult, AppError};
 use crate::models::{
-    ChannelMember, CreatePost, CreateReaction, Post, PostResponse, Reaction, ThreadResponse, UpdatePost,
+    ChannelMember, CreatePost, CreateReaction, Post, PostResponse, Reaction, ThreadResponse,
+    UpdatePost,
 };
 
 /// Build posts routes

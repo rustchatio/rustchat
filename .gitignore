@@ -3,6 +3,9 @@ target/
 debug/
 release/
 
+# Claude Code
+.claude/
+
 #AI
 .codex/
 .agents/*
@@ -32,6 +35,7 @@ release/
 .env
 .env.local
 .env.*.local
+.env-old-*
 
 # OS
 .DS_Store

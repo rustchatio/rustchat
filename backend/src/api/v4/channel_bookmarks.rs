@@ -61,7 +61,9 @@ async fn get_channel_bookmarks(
     .await?;
 
     if !is_member {
-        return Err(AppError::Forbidden("Not a member of this channel".to_string()));
+        return Err(AppError::Forbidden(
+            "Not a member of this channel".to_string(),
+        ));
     }
 
     let bookmarks: Vec<ChannelBookmark> = sqlx::query_as(

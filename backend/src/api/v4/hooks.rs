@@ -54,12 +54,11 @@ async fn can_manage_incoming_hook(
     if auth.has_permission(&permissions::SYSTEM_MANAGE) {
         return Ok(true);
     }
-    let creator_id: Option<Uuid> = sqlx::query_scalar(
-        "SELECT creator_id FROM incoming_webhooks WHERE id = $1"
-    )
-    .bind(hook_id)
-    .fetch_optional(&state.db)
-    .await?;
+    let creator_id: Option<Uuid> =
+        sqlx::query_scalar("SELECT creator_id FROM incoming_webhooks WHERE id = $1")
+            .bind(hook_id)
+            .fetch_optional(&state.db)
+            .await?;
     Ok(creator_id == Some(auth.user_id))
 }
 
@@ -71,12 +70,11 @@ async fn can_manage_outgoing_hook(
     if auth.has_permission(&permissions::SYSTEM_MANAGE) {
         return Ok(true);
     }
-    let creator_id: Option<Uuid> = sqlx::query_scalar(
-        "SELECT creator_id FROM outgoing_webhooks WHERE id = $1"
-    )
-    .bind(hook_id)
-    .fetch_optional(&state.db)
-    .await?;
+    let creator_id: Option<Uuid> =
+        sqlx::query_scalar("SELECT creator_id FROM outgoing_webhooks WHERE id = $1")
+            .bind(hook_id)
+            .fetch_optional(&state.db)
+            .await?;
     Ok(creator_id == Some(auth.user_id))
 }
 
@@ -172,11 +170,14 @@ pub async fn list_incoming_hooks(
         if let Some(ref tid_str) = query.team_id {
             let tid = parse_mm_or_uuid(tid_str);
             if let Some(tid) = tid {
-                sqlx::query_as("SELECT * FROM incoming_webhooks WHERE team_id = $1 LIMIT $2 OFFSET $3")
-                    .bind(tid)
-                    .bind(query.per_page)
-                    .bind(query.page * query.per_page)
-                    .fetch_all(&state.db).await?
+                sqlx::query_as(
+                    "SELECT * FROM incoming_webhooks WHERE team_id = $1 LIMIT $2 OFFSET $3",
+                )
+                .bind(tid)
+                .bind(query.per_page)
+                .bind(query.page * query.per_page)
+                .fetch_all(&state.db)
+                .await?
             } else {
                 vec![]
             }
@@ -184,7 +185,8 @@ pub async fn list_incoming_hooks(
             sqlx::query_as("SELECT * FROM incoming_webhooks LIMIT $1 OFFSET $2")
                 .bind(query.per_page)
                 .bind(query.page * query.per_page)
-                .fetch_all(&state.db).await?
+                .fetch_all(&state.db)
+                .await?
         }
     } else {
         // Regular users can only see hooks they created
@@ -201,11 +203,14 @@ pub async fn list_incoming_hooks(
                 vec![]
             }
         } else {
-            sqlx::query_as("SELECT * FROM incoming_webhooks WHERE creator_id = $1 LIMIT $2 OFFSET $3")
-                .bind(auth.user_id)
-                .bind(query.per_page)
-                .bind(query.page * query.per_page)
-                .fetch_all(&state.db).await?
+            sqlx::query_as(
+                "SELECT * FROM incoming_webhooks WHERE creator_id = $1 LIMIT $2 OFFSET $3",
+            )
+            .bind(auth.user_id)
+            .bind(query.per_page)
+            .bind(query.page * query.per_page)
+            .fetch_all(&state.db)
+            .await?
         }
     };
 
@@ -220,7 +225,10 @@ pub async fn create_outgoing_hook(
     // Validate callback URLs to prevent SSRF
     for url in &input.callback_urls {
         if !crate::services::webhooks::is_valid_callback_url(url) {
-            return Err(AppError::BadRequest(format!("Invalid callback URL (SSRF risk): {}", url)));
+            return Err(AppError::BadRequest(format!(
+                "Invalid callback URL (SSRF risk): {}",
+                url
+            )));
         }
     }
 
@@ -263,11 +271,14 @@ pub async fn list_outgoing_hooks(
         if let Some(ref tid_str) = query.team_id {
             let tid = parse_mm_or_uuid(tid_str);
             if let Some(tid) = tid {
-                sqlx::query_as("SELECT * FROM outgoing_webhooks WHERE team_id = $1 LIMIT $2 OFFSET $3")
-                    .bind(tid)
-                    .bind(query.per_page)
-                    .bind(query.page * query.per_page)
-                    .fetch_all(&state.db).await?
+                sqlx::query_as(
+                    "SELECT * FROM outgoing_webhooks WHERE team_id = $1 LIMIT $2 OFFSET $3",
+                )
+                .bind(tid)
+                .bind(query.per_page)
+                .bind(query.page * query.per_page)
+                .fetch_all(&state.db)
+                .await?
             } else {
                 vec![]
             }
@@ -275,7 +286,8 @@ pub async fn list_outgoing_hooks(
             sqlx::query_as("SELECT * FROM outgoing_webhooks LIMIT $1 OFFSET $2")
                 .bind(query.per_page)
                 .bind(query.page * query.per_page)
-                .fetch_all(&state.db).await?
+                .fetch_all(&state.db)
+                .await?
         }
     } else {
         // Regular users can only see hooks they created
@@ -292,11 +304,14 @@ pub async fn list_outgoing_hooks(
                 vec![]
             }
         } else {
-            sqlx::query_as("SELECT * FROM outgoing_webhooks WHERE creator_id = $1 LIMIT $2 OFFSET $3")
-                .bind(auth.user_id)
-                .bind(query.per_page)
-                .bind(query.page * query.per_page)
-                .fetch_all(&state.db).await?
+            sqlx::query_as(
+                "SELECT * FROM outgoing_webhooks WHERE creator_id = $1 LIMIT $2 OFFSET $3",
+            )
+            .bind(auth.user_id)
+            .bind(query.per_page)
+            .bind(query.page * query.per_page)
+            .fetch_all(&state.db)
+            .await?
         }
     };
 
@@ -345,7 +360,9 @@ async fn get_incoming_hook(
 
     // Check ownership/permission
     if !can_manage_incoming_hook(&state, id, &auth).await? {
-        return Err(AppError::Forbidden("Cannot access this webhook".to_string()));
+        return Err(AppError::Forbidden(
+            "Cannot access this webhook".to_string(),
+        ));
     }
 
     let hook: IncomingWebhook = sqlx::query_as("SELECT * FROM incoming_webhooks WHERE id = $1")
@@ -376,7 +393,9 @@ async fn update_incoming_hook(
 
     // Check ownership/permission
     if !can_manage_incoming_hook(&state, id, &auth).await? {
-        return Err(AppError::Forbidden("Cannot modify this webhook".to_string()));
+        return Err(AppError::Forbidden(
+            "Cannot modify this webhook".to_string(),
+        ));
     }
 
     let hook: IncomingWebhook = sqlx::query_as(
@@ -406,7 +425,9 @@ async fn delete_incoming_hook(
 
     // Check ownership/permission
     if !can_manage_incoming_hook(&state, id, &auth).await? {
-        return Err(AppError::Forbidden("Cannot delete this webhook".to_string()));
+        return Err(AppError::Forbidden(
+            "Cannot delete this webhook".to_string(),
+        ));
     }
 
     sqlx::query("DELETE FROM incoming_webhooks WHERE id = $1")
@@ -427,7 +448,9 @@ async fn get_outgoing_hook(
 
     // Check ownership/permission
     if !can_manage_outgoing_hook(&state, id, &auth).await? {
-        return Err(AppError::Forbidden("Cannot access this webhook".to_string()));
+        return Err(AppError::Forbidden(
+            "Cannot access this webhook".to_string(),
+        ));
     }
 
     let hook: OutgoingWebhook = sqlx::query_as("SELECT * FROM outgoing_webhooks WHERE id = $1")
@@ -458,14 +481,19 @@ async fn update_outgoing_hook(
 
     // Check ownership/permission
     if !can_manage_outgoing_hook(&state, id, &auth).await? {
-        return Err(AppError::Forbidden("Cannot modify this webhook".to_string()));
+        return Err(AppError::Forbidden(
+            "Cannot modify this webhook".to_string(),
+        ));
     }
 
     // Validate callback URLs if provided
     if let Some(ref urls) = input.callback_urls {
         for url in urls {
             if !crate::services::webhooks::is_valid_callback_url(url) {
-                return Err(AppError::BadRequest(format!("Invalid callback URL (SSRF risk): {}", url)));
+                return Err(AppError::BadRequest(format!(
+                    "Invalid callback URL (SSRF risk): {}",
+                    url
+                )));
             }
         }
     }
@@ -501,7 +529,9 @@ async fn delete_outgoing_hook(
 
     // Check ownership/permission
     if !can_manage_outgoing_hook(&state, id, &auth).await? {
-        return Err(AppError::Forbidden("Cannot delete this webhook".to_string()));
+        return Err(AppError::Forbidden(
+            "Cannot delete this webhook".to_string(),
+        ));
     }
 
     sqlx::query("DELETE FROM outgoing_webhooks WHERE id = $1")
@@ -522,7 +552,9 @@ async fn regen_outgoing_hook_token(
 
     // Check ownership/permission
     if !can_manage_outgoing_hook(&state, id, &auth).await? {
-        return Err(AppError::Forbidden("Cannot modify this webhook".to_string()));
+        return Err(AppError::Forbidden(
+            "Cannot modify this webhook".to_string(),
+        ));
     }
 
     let new_token = Uuid::new_v4().to_string().replace("-", "");

@@ -21,7 +21,9 @@ mod site;
 mod teams;
 mod unreads;
 mod users;
-mod v4;
+// Public for integration tests - contains submodules needed for test harness
+pub mod v1;
+pub mod v4;
 mod websocket_core;
 mod ws;
 
@@ -295,6 +297,7 @@ pub fn router(
     Router::new()
         .merge(oauth::web_compat_router())
         .nest("/api/v1", api_v1)
+        .nest("/api/v1", v1::router()) // Phase 1 entity endpoints
         .nest("/api/v4", api_v4)
         .layer(CatchPanicLayer::custom(handle_panic))
         .layer(CompressionLayer::new())

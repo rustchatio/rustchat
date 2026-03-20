@@ -1964,9 +1964,7 @@ async fn search_channels_compat(
     Json(input): Json<HashMap<String, String>>,
 ) -> ApiResult<Json<Vec<mm::Channel>>> {
     let term = input.get("term").cloned().unwrap_or_default();
-    let team_id = input
-        .get("team_id")
-        .and_then(|s| parse_mm_or_uuid(s));
+    let team_id = input.get("team_id").and_then(|s| parse_mm_or_uuid(s));
 
     // Restrict results to channels the caller is a member of, scoped to team if provided.
     // System admins see all channels without the membership restriction.

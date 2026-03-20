@@ -14,6 +14,7 @@ use uuid::Uuid;
 
 use super::extractors::MmAuthUser;
 use crate::api::AppState;
+use crate::auth::extractors::PolymorphicAuth;
 use crate::auth::policy::permissions;
 use crate::auth::{create_token_with_policy, hash_password, verify_password};
 use crate::error::{ApiResult, AppError};
@@ -534,7 +535,12 @@ async fn enforce_password_login_allowed(state: &AppState, user_email: &str) -> A
     ))
 }
 
-async fn me(State(state): State<AppState>, auth: MmAuthUser) -> ApiResult<Json<mm::User>> {
+/// GET /users/me - Get authenticated user (supports both JWT and API key auth)
+///
+/// This endpoint supports polymorphic authentication:
+/// - JWT token (for human users via browser/mobile)
+/// - API key (for agents, services, and CI systems)
+async fn me(State(state): State<AppState>, auth: PolymorphicAuth) -> ApiResult<Json<mm::User>> {
     let user: User = sqlx::query_as("SELECT * FROM users WHERE id = $1")
         .bind(auth.user_id)
         .fetch_one(&state.db)
@@ -2281,7 +2287,10 @@ async fn get_known_users(
     Ok(Json(ids))
 }
 
-async fn get_user_stats(State(state): State<AppState>, _auth: MmAuthUser) -> ApiResult<Json<serde_json::Value>> {
+async fn get_user_stats(
+    State(state): State<AppState>,
+    _auth: MmAuthUser,
+) -> ApiResult<Json<serde_json::Value>> {
     let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users")
         .fetch_one(&state.db)
         .await?;
@@ -2692,9 +2701,10 @@ async fn update_user_password(
         }
     } else {
         // Self-service: current_password is mandatory
-        let current = input.current_password.as_deref().ok_or_else(|| {
-            AppError::BadRequest("current_password is required".to_string())
-        })?;
+        let current = input
+            .current_password
+            .as_deref()
+            .ok_or_else(|| AppError::BadRequest("current_password is required".to_string()))?;
         let password_hash = user
             .password_hash
             .as_deref()

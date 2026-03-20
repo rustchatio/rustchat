@@ -104,7 +104,10 @@ async fn test_get_thread_returns_parent_and_replies() {
 
     let post_res = app
         .api_client
-        .post(format!("{}/api/v1/channels/{}/posts", &app.address, channel_id))
+        .post(format!(
+            "{}/api/v1/channels/{}/posts",
+            &app.address, channel_id
+        ))
         .header("Authorization", format!("Bearer {}", token))
         .json(&post_data)
         .send()
@@ -123,7 +126,10 @@ async fn test_get_thread_returns_parent_and_replies() {
 
     let reply_res = app
         .api_client
-        .post(format!("{}/api/v1/channels/{}/posts", &app.address, channel_id))
+        .post(format!(
+            "{}/api/v1/channels/{}/posts",
+            &app.address, channel_id
+        ))
         .header("Authorization", format!("Bearer {}", token))
         .json(&reply_data)
         .send()
@@ -135,7 +141,10 @@ async fn test_get_thread_returns_parent_and_replies() {
     // 7. Call get_thread endpoint
     let thread_res = app
         .api_client
-        .get(format!("{}/api/v1/posts/{}/thread", &app.address, parent_id))
+        .get(format!(
+            "{}/api/v1/posts/{}/thread",
+            &app.address, parent_id
+        ))
         .header("Authorization", format!("Bearer {}", token))
         .send()
         .await
@@ -147,24 +156,38 @@ async fn test_get_thread_returns_parent_and_replies() {
 
     // Verify ThreadResponse structure
     // Should have: order (array), posts (map), next_cursor (optional)
-    let order = thread_body["order"].as_array().expect("Expected order array");
-    let posts = thread_body["posts"].as_object().expect("Expected posts map");
+    let order = thread_body["order"]
+        .as_array()
+        .expect("Expected order array");
+    let posts = thread_body["posts"]
+        .as_object()
+        .expect("Expected posts map");
 
     // Order should have parent first, then replies
-    assert_eq!(order.len(), 2, "Expected 2 posts in order (parent + 1 reply)");
+    assert_eq!(
+        order.len(),
+        2,
+        "Expected 2 posts in order (parent + 1 reply)"
+    );
     assert_eq!(posts.len(), 2, "Expected 2 posts in posts map");
 
     // First in order should be the parent
     let parent_in_order = &order[0];
-    let parent_post = posts.get(parent_in_order.as_str().unwrap()).expect("Parent should be in posts map");
+    let parent_post = posts
+        .get(parent_in_order.as_str().unwrap())
+        .expect("Parent should be in posts map");
     assert_eq!(parent_post["message"].as_str().unwrap(), "Parent message");
 
     // Second in order should be the reply
     let reply_in_order = &order[1];
-    let reply_post = posts.get(reply_in_order.as_str().unwrap()).expect("Reply should be in posts map");
+    let reply_post = posts
+        .get(reply_in_order.as_str().unwrap())
+        .expect("Reply should be in posts map");
     assert_eq!(reply_post["message"].as_str().unwrap(), "Reply message");
 
     // next_cursor should be null since we have no more replies
-    assert!(thread_body["next_cursor"].is_null() || thread_body.get("next_cursor").is_none(),
-            "next_cursor should be null when no more replies");
+    assert!(
+        thread_body["next_cursor"].is_null() || thread_body.get("next_cursor").is_none(),
+        "next_cursor should be null when no more replies"
+    );
 }

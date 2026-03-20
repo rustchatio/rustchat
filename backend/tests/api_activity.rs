@@ -204,7 +204,11 @@ async fn test_get_activity_feed_returns_activities() {
     assert!(!order.is_empty(), "Expected non-empty order array");
 
     let unread_count = body["unread_count"].as_i64().unwrap_or(0);
-    assert!(unread_count > 0, "Expected unread_count > 0, got {}", unread_count);
+    assert!(
+        unread_count > 0,
+        "Expected unread_count > 0, got {}",
+        unread_count
+    );
 }
 
 #[tokio::test]

@@ -27,7 +27,7 @@ async fn check_file_access(state: &AppState, file: &FileInfo, user_id: Uuid) -> 
         return Ok(());
     };
     let is_member: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM channel_members WHERE channel_id = $1 AND user_id = $2)"
+        "SELECT EXISTS(SELECT 1 FROM channel_members WHERE channel_id = $1 AND user_id = $2)",
     )
     .bind(channel_id)
     .bind(user_id)
@@ -177,7 +177,7 @@ async fn upload_file(
     // Enforce channel membership before associating files with a channel
     if let Some(cid) = channel_id {
         let is_member: bool = sqlx::query_scalar(
-            "SELECT EXISTS(SELECT 1 FROM channel_members WHERE channel_id = $1 AND user_id = $2)"
+            "SELECT EXISTS(SELECT 1 FROM channel_members WHERE channel_id = $1 AND user_id = $2)",
         )
         .bind(cid)
         .bind(auth.user_id)

@@ -48,6 +48,9 @@ pub enum AppError {
 
     #[error("Too many requests: {0}")]
     TooManyRequests(String),
+
+    #[error("Rate limit exceeded: {0}")]
+    RateLimitExceeded(String),
 }
 
 /// Error response body
@@ -80,6 +83,7 @@ impl AppError {
             AppError::Config(_) => "CONFIG_ERROR",
             AppError::ExternalService(_) => "EXTERNAL_SERVICE_ERROR",
             AppError::TooManyRequests(_) => "TOO_MANY_REQUESTS",
+            AppError::RateLimitExceeded(_) => "RATE_LIMIT_EXCEEDED",
         }
     }
 
@@ -98,6 +102,7 @@ impl AppError {
             AppError::Config(_) => StatusCode::INTERNAL_SERVER_ERROR,
             AppError::ExternalService(_) => StatusCode::BAD_GATEWAY,
             AppError::TooManyRequests(_) => StatusCode::TOO_MANY_REQUESTS,
+            AppError::RateLimitExceeded(_) => StatusCode::TOO_MANY_REQUESTS,
         }
     }
 }

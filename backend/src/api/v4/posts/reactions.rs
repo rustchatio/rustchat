@@ -27,11 +27,7 @@ fn reaction_event_payload(mm_reaction: &mm::Reaction) -> serde_json::Value {
 }
 
 /// Verify the caller is a member of the channel containing the post.
-async fn check_channel_membership(
-    state: &AppState,
-    post_id: Uuid,
-    user_id: Uuid,
-) -> ApiResult<()> {
+async fn check_channel_membership(state: &AppState, post_id: Uuid, user_id: Uuid) -> ApiResult<()> {
     let is_member: bool = sqlx::query_scalar(
         r#"
         SELECT EXISTS(
@@ -134,7 +130,8 @@ pub(super) async fn add_reaction(
                 team_id,
                 post_id,
                 &emoji_name,
-            ).await;
+            )
+            .await;
         }
     }
 

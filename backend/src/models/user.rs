@@ -1,5 +1,6 @@
 //! User model and related types
 
+use crate::models::entity::{EntityType, RateLimitTier};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
@@ -67,6 +68,16 @@ pub struct User {
     pub delete_reason: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    // Entity model fields (Phase 1)
+    #[sqlx(default)]
+    pub entity_type: EntityType,
+    #[sqlx(default)]
+    #[serde(skip_serializing)]
+    pub api_key_hash: Option<String>,
+    #[sqlx(default)]
+    pub entity_metadata: serde_json::Value,
+    #[sqlx(default)]
+    pub rate_limit_tier: Option<RateLimitTier>,
 }
 
 /// Public user response (without sensitive fields)
@@ -122,6 +133,22 @@ impl User {
         } else {
             self.email.clone()
         }
+    }
+
+    /// Check if this user is a non-human entity (agent, service, or CI)
+    pub fn is_non_human(&self) -> bool {
+        self.entity_type.is_non_human()
+    }
+
+    /// Get the effective rate limit tier (falls back to entity type default if not set)
+    pub fn effective_rate_limit_tier(&self) -> RateLimitTier {
+        self.rate_limit_tier
+            .unwrap_or_else(|| self.entity_type.default_rate_limit())
+    }
+
+    /// Check if this user requires API key authentication
+    pub fn requires_api_key(&self) -> bool {
+        self.is_non_human()
     }
 }
 

@@ -4,12 +4,14 @@
 
 pub mod activity;
 pub mod admin_models;
+pub mod api_key;
 pub mod call;
 pub mod channel;
 pub mod channel_bookmark;
 pub mod channel_category;
 pub mod custom_profile_attribute;
 pub mod email;
+pub mod entity;
 pub mod file;
 pub mod integration;
 
@@ -32,6 +34,8 @@ pub use scheduled_post::*;
 
 pub use activity::*;
 pub use admin_models::*;
+pub use api_key::*;
+pub use entity::*;
 pub use file::*;
 pub use integration::*;
 
