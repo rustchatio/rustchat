@@ -40,6 +40,14 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
+      rustfs:
+        image: rustfs/rustfs:latest
+        env:
+          RUSTFS_ACCESS_KEY: minioadmin
+          RUSTFS_SECRET_KEY: minioadmin
+        ports:
+          - 9000:9000
+
     steps:
       - uses: actions/checkout@v4
 
@@ -81,6 +89,15 @@ jobs:
         working-directory: ./backend
         run: cargo clippy --all-targets --all-features
 
+      - name: Wait for RustFS (S3)
+        run: |
+          for i in {1..60}; do
+            if curl -fsS http://127.0.0.1:9000/health >/dev/null 2>&1; then
+              echo "RustFS ready"; break
+            fi
+            sleep 1
+          done
+
       - name: Run tests
         working-directory: ./backend
         env:
@@ -88,6 +105,11 @@ jobs:
           REDIS_URL: redis://localhost:6379/
           RUSTCHAT_TEST_DATABASE_URL: postgres://rustchat:rustchat@localhost:5432/rustchat
           RUSTCHAT_TEST_REDIS_URL: redis://localhost:6379/
+          RUSTCHAT_S3_ENDPOINT: "http://localhost:9000"
+          RUSTCHAT_S3_BUCKET: "test-bucket"
+          RUSTCHAT_S3_ACCESS_KEY: "minioadmin"
+          RUSTCHAT_S3_SECRET_KEY: "minioadmin"
+          RUSTCHAT_S3_REGION: "us-east-1"
         run: cargo test
 
   build:
