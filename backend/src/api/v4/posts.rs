@@ -18,7 +18,7 @@ use crate::mattermost_compat::{
     id::{encode_mm_id, parse_mm_or_uuid},
     models as mm,
 };
-use crate::models::{CreatePost, FileInfo, ThreadResponse};
+use crate::models::{CreatePost, FileInfo};
 use crate::realtime::{EventType, WsBroadcast, WsEnvelope};
 use crate::services::posts;
 
@@ -506,13 +506,13 @@ async fn get_post_thread(
                 edit_at: post.edited_at.map(|dt| dt.timestamp_millis()).unwrap_or(0),
                 user_id: encode_mm_id(post.user_id),
                 channel_id: encode_mm_id(post.channel_id),
-                root_id: post.root_post_id.map(|id| encode_mm_id(id)).unwrap_or_default(),
+                root_id: post.root_post_id.map(encode_mm_id).unwrap_or_default(),
                 original_id: String::new(),
                 message: post.message,
                 post_type: String::new(),
                 props: post.props,
                 hashtags: String::new(),
-                file_ids: post.file_ids.into_iter().map(|id| encode_mm_id(id)).collect(),
+                file_ids: post.file_ids.into_iter().map(encode_mm_id).collect(),
                 pending_post_id: post.client_msg_id.unwrap_or_default(),
                 metadata: None,
             };

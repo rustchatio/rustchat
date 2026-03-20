@@ -1,7 +1,7 @@
 //! Activity feed service
 
 use crate::api::AppState;
-use crate::error::{ApiResult, AppError};
+use crate::error::ApiResult;
 use crate::models::{Activity, ActivityFeedResponse, ActivityQuery, ActivityResponse, ActivityType};
 use crate::realtime::{EventType, WsBroadcast, WsEnvelope};
 use chrono::{DateTime, Utc};
@@ -38,6 +38,7 @@ struct ActivityRow {
 }
 
 /// Create a new activity entry
+#[allow(clippy::too_many_arguments)]
 pub async fn create_activity(
     state: &AppState,
     user_id: Uuid,
@@ -421,6 +422,7 @@ pub async fn create_reaction_activity(
 }
 
 /// Create thread reply activity (convenience wrapper)
+#[allow(clippy::too_many_arguments)]
 pub async fn create_thread_reply_activity(
     state: &AppState,
     parent_user_id: Uuid,
