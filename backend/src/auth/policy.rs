@@ -138,7 +138,6 @@ impl Role {
         permissions.insert(TEAM_MANAGE);
         permissions.insert(CHANNEL_MANAGE);
         permissions.insert(USER_MANAGE);
-        permissions.insert(SYSTEM_MANAGE);
         permissions.insert(POST_DELETE);
 
         Self {

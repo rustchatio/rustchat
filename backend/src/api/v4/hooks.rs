@@ -123,11 +123,24 @@ pub async fn create_incoming_hook(
     let channel_id = parse_mm_or_uuid(&input.channel_id)
         .ok_or_else(|| AppError::Validation("Invalid channel_id".to_string()))?;
 
-    // Get team_id for the channel
+    // Get team_id for the channel and verify the caller is a member
     let team_id: Uuid = sqlx::query_scalar("SELECT team_id FROM channels WHERE id = $1")
         .bind(channel_id)
         .fetch_one(&state.db)
         .await?;
+
+    let is_member: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM channel_members WHERE channel_id = $1 AND user_id = $2)",
+    )
+    .bind(channel_id)
+    .bind(auth.user_id)
+    .fetch_one(&state.db)
+    .await?;
+    if !is_member {
+        return Err(AppError::Forbidden(
+            "Not a member of this channel".to_string(),
+        ));
+    }
 
     let hook: IncomingWebhook = sqlx::query_as(
         r#"

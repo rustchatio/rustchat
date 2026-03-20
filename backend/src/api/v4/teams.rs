@@ -136,11 +136,12 @@ async fn get_teams(
 
 async fn get_team(
     State(state): State<AppState>,
-    _auth: MmAuthUser,
+    auth: MmAuthUser,
     Path(team_id): Path<String>,
 ) -> ApiResult<Json<mm::Team>> {
     let team_id = parse_mm_or_uuid(&team_id)
         .ok_or_else(|| crate::error::AppError::BadRequest("Invalid team_id".to_string()))?;
+    ensure_team_member(&state, team_id, auth.user_id).await?;
     let team: Team = sqlx::query_as("SELECT * FROM teams WHERE id = $1")
         .bind(team_id)
         .fetch_one(&state.db)
@@ -151,7 +152,7 @@ async fn get_team(
 
 async fn patch_team(
     State(state): State<AppState>,
-    _auth: MmAuthUser,
+    auth: MmAuthUser,
     Path(team_id): Path<String>,
     headers: axum::http::HeaderMap,
     body: Bytes,
@@ -159,6 +160,7 @@ async fn patch_team(
     let _value: serde_json::Value = parse_body(&headers, &body, "Invalid patch body")?;
     let team_id = parse_mm_or_uuid(&team_id)
         .ok_or_else(|| crate::error::AppError::BadRequest("Invalid team_id".to_string()))?;
+    ensure_team_admin_or_system_manage(&state, team_id, &auth).await?;
     let team: Team = sqlx::query_as("SELECT * FROM teams WHERE id = $1")
         .bind(team_id)
         .fetch_one(&state.db)
@@ -661,14 +663,16 @@ struct TeamMemberSchemeRolesRequest {
 }
 
 async fn update_team_member_scheme_roles(
-    _auth: MmAuthUser,
+    State(state): State<AppState>,
+    auth: MmAuthUser,
     Path((team_id, user_id)): Path<(String, String)>,
     Json(_input): Json<TeamMemberSchemeRolesRequest>,
 ) -> ApiResult<Json<serde_json::Value>> {
-    let _team_id = parse_mm_or_uuid(&team_id)
+    let team_id = parse_mm_or_uuid(&team_id)
         .ok_or_else(|| crate::error::AppError::BadRequest("Invalid team_id".to_string()))?;
     let _user_id = parse_mm_or_uuid(&user_id)
         .ok_or_else(|| crate::error::AppError::BadRequest("Invalid user_id".to_string()))?;
+    ensure_team_admin_or_system_manage(&state, team_id, &auth).await?;
     Ok(status_ok())
 }
 
@@ -749,11 +753,24 @@ async fn get_team_deleted_channels(
     let team_id = parse_mm_or_uuid(&team_id)
         .ok_or_else(|| crate::error::AppError::BadRequest("Invalid team_id".to_string()))?;
     ensure_team_member(&state, team_id, auth.user_id).await?;
-    let channels: Vec<Channel> =
-        sqlx::query_as("SELECT * FROM channels WHERE team_id = $1 AND is_archived = true")
-            .bind(team_id)
-            .fetch_all(&state.db)
-            .await?;
+    // Return public archived channels plus private archived channels the user belongs to
+    let channels: Vec<Channel> = sqlx::query_as(
+        r#"
+        SELECT c.* FROM channels c
+        WHERE c.team_id = $1 AND c.is_archived = true
+          AND (
+            c.type != 'P'
+            OR EXISTS (
+                SELECT 1 FROM channel_members cm
+                WHERE cm.channel_id = c.id AND cm.user_id = $2
+            )
+          )
+        "#,
+    )
+    .bind(team_id)
+    .bind(auth.user_id)
+    .fetch_all(&state.db)
+    .await?;
     Ok(Json(channels.into_iter().map(|c| c.into()).collect()))
 }
 
