@@ -105,7 +105,8 @@ pub async fn create_activity(
     .flatten()
     .map(|row: sqlx::postgres::PgRow| ActivityResponse {
         id: row.get("id"),
-        r#type: row.get("activity_type"),
+        r#type: ActivityType::parse(&row.get::<String, _>("activity_type"))
+            .expect("unknown activity type"),
         actor_id: row.get("actor_id"),
         actor_username: row.get("actor_username"),
         actor_avatar_url: row.get("actor_avatar_url"),
@@ -202,7 +203,8 @@ pub async fn get_activities(
         .into_iter()
         .map(|row| ActivityRow {
             id: row.get("id"),
-            activity_type: row.get("activity_type"),
+            activity_type: ActivityType::parse(&row.get::<String, _>("activity_type"))
+                .expect("unknown activity type"),
             actor_id: row.get("actor_id"),
             actor_username: row.get("actor_username"),
             actor_avatar_url: row.get("actor_avatar_url"),

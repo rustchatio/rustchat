@@ -300,5 +300,6 @@ async fn mm_preferences_endpoints_smoke() {
         .await
         .unwrap();
     let prefs_after: serde_json::Value = pref_get_after.json().await.unwrap();
-    assert_eq!(prefs_after.as_array().unwrap().len(), 1);
+    // 8 default prefs seeded on registration + 1 remaining (tutorial/step), display/theme was deleted
+    assert_eq!(prefs_after.as_array().unwrap().len(), 9);
 }
