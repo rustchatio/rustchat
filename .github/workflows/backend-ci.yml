@@ -12,19 +12,20 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
-  # Postgres service credentials
-  POSTGRES_USER: rustchat
+  # Postgres service credentials - using default 'postgres' superuser
   POSTGRES_PASSWORD: password
-  POSTGRES_DB: rustchat
+  POSTGRES_DB: postgres
 
 jobs:
   test:
     name: cargo check + test
     runs-on: ubuntu-latest
     env:
-      DATABASE_URL: postgres://rustchat:password@localhost:5432/rustchat
-      RUSTCHAT_DATABASE_URL: postgres://rustchat:password@localhost:5432/rustchat
+      DATABASE_URL: postgres://postgres:password@localhost:5432/postgres
+      RUSTCHAT_DATABASE_URL: postgres://postgres:password@localhost:5432/postgres
       RUSTCHAT_JWT_SECRET: "test-secret"
+      # Test database URL (must be superuser-capable to create/drop test DBs)
+      RUSTCHAT_TEST_DATABASE_URL: postgres://postgres:password@localhost:5432/postgres
       # S3 Configuration (Mock values for testing)
       RUSTCHAT_S3_ENDPOINT: "http://localhost:9000"
       RUSTCHAT_S3_BUCKET: "test-bucket"
@@ -35,9 +36,9 @@ jobs:
       postgres:
         image: postgres:15
         env:
-          POSTGRES_USER: rustchat
+          # Using default 'postgres' superuser instead of creating a custom user
           POSTGRES_PASSWORD: password
-          POSTGRES_DB: rustchat
+          POSTGRES_DB: postgres
         ports:
           - 5432:5432
         # Set health checks to wait until postgres is ready
@@ -89,12 +90,12 @@ jobs:
           set -euo pipefail
           echo "::group::Waiting for Postgres"
           for i in {1..30}; do
-            if pg_isready -h localhost -p 5432 -U "$POSTGRES_USER" >/dev/null 2>&1; then
+            if pg_isready -h localhost -p 5432 -U "postgres" >/dev/null 2>&1; then
               break
             fi
             sleep 1
           done
-          pg_isready -h localhost -p 5432 -U "$POSTGRES_USER"
+          pg_isready -h localhost -p 5432 -U "postgres"
           echo "::endgroup::"
           echo "::group::Waiting for Redis"
           for i in {1..30}; do

@@ -281,7 +281,7 @@ async fn test_s3(
 /// GET /config
 async fn get_config(
     State(state): State<AppState>,
-    _auth: crate::api::v4::extractors::MmAuthUser,
+    auth: crate::api::v4::extractors::MmAuthUser,
 ) -> ApiResult<Json<serde_json::Value>> {
     // Fetch config from DB
     let config: crate::models::ServerConfig =
@@ -353,7 +353,12 @@ async fn get_config(
             "FeedbackEmail": provider_settings.as_ref().map(|p| p.from_address.clone()).unwrap_or_default(),
             "SMTPServer": provider_settings.as_ref().map(|p| p.host.clone()).unwrap_or_default(),
             "SMTPPort": provider_settings.as_ref().map(|p| p.port.to_string()).unwrap_or_else(|| "587".to_string()),
-            "SMTPUsername": provider_settings.as_ref().map(|p| p.username.clone()).unwrap_or_default(),
+            // Redacted for non-admin callers to prevent credential reconnaissance
+            "SMTPUsername": if auth.has_permission(&crate::auth::policy::permissions::SYSTEM_MANAGE) {
+                provider_settings.as_ref().map(|p| p.username.clone()).unwrap_or_default()
+            } else {
+                String::new()
+            },
             "ConnectionSecurity": provider_settings.as_ref().map(|p| match p.tls_mode {
                 crate::models::email::TlsMode::ImplicitTls => "TLS",
                 crate::models::email::TlsMode::Starttls => "STARTTLS",

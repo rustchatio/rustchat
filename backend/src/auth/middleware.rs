@@ -147,7 +147,9 @@ mod tests {
             org_id: None,
         };
 
-        assert!(user.has_permission(&permissions::SYSTEM_MANAGE));
+        // org_admin does NOT grant SYSTEM_MANAGE (removed to prevent privilege escalation)
+        assert!(!user.has_permission(&permissions::SYSTEM_MANAGE));
+        assert!(user.has_permission(&permissions::USER_MANAGE));
         assert!(!user.has_permission(&permissions::ADMIN_FULL));
 
         assert!(user.can_access_owned(user.user_id, &permissions::ADMIN_FULL));

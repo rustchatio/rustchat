@@ -17,7 +17,7 @@ use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use uuid::Uuid;
 
-use common::spawn_app;
+use common::{spawn_app, spawn_app_with_config, test_config};
 use rustchat::services::oauth_token_exchange::{create_exchange_code, ExchangeCodePayload};
 
 fn unique_test_ip() -> String {
@@ -80,7 +80,9 @@ async fn create_test_user_token(app: &common::TestApp) -> String {
 /// Test rate limiting on login endpoint
 #[tokio::test]
 async fn test_login_rate_limiting() {
-    let app = spawn_app().await;
+    let mut config = test_config();
+    config.security.rate_limit_enabled = true;
+    let app = spawn_app_with_config(config).await;
     let client_ip = unique_test_ip();
     let redis_key = format!("ratelimit:auth:{client_ip}");
     let now = chrono::Utc::now().timestamp();

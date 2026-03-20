@@ -138,7 +138,6 @@ impl Role {
         permissions.insert(TEAM_MANAGE);
         permissions.insert(CHANNEL_MANAGE);
         permissions.insert(USER_MANAGE);
-        permissions.insert(SYSTEM_MANAGE);
         permissions.insert(POST_DELETE);
 
         Self {
@@ -349,12 +348,27 @@ mod tests {
 
     #[test]
     fn test_policy_engine_multi_role_support() {
+        // org_admin does NOT grant SYSTEM_MANAGE (removed to prevent privilege escalation)
         assert_eq!(
             PolicyEngine::check_permission("member org_admin", &permissions::SYSTEM_MANAGE),
-            AuthzResult::Allow
+            AuthzResult::Deny("Permission denied")
         );
         assert_eq!(
             PolicyEngine::check_permission("member,org_admin", &permissions::SYSTEM_MANAGE),
+            AuthzResult::Deny("Permission denied")
+        );
+        // org_admin still grants USER_MANAGE and TEAM_MANAGE
+        assert_eq!(
+            PolicyEngine::check_permission("org_admin", &permissions::USER_MANAGE),
+            AuthzResult::Allow
+        );
+        assert_eq!(
+            PolicyEngine::check_permission("org_admin", &permissions::TEAM_MANAGE),
+            AuthzResult::Allow
+        );
+        // system_admin retains SYSTEM_MANAGE
+        assert_eq!(
+            PolicyEngine::check_permission("system_admin", &permissions::SYSTEM_MANAGE),
             AuthzResult::Allow
         );
     }

@@ -80,7 +80,7 @@ pub struct MarkReadRequest {
 
 impl ActivityType {
     /// Parse activity type from string
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse(s: &str) -> Option<Self> {
         match s {
             "mention" => Some(ActivityType::Mention),
             "reply" => Some(ActivityType::Reply),

@@ -1887,6 +1887,7 @@ enum UsersByIdsRequest {
 
 async fn get_users_by_ids(
     State(state): State<AppState>,
+    _auth: MmAuthUser,
     headers: HeaderMap,
     Query(_query): Query<std::collections::HashMap<String, String>>,
     body: Bytes,
@@ -2280,7 +2281,7 @@ async fn get_known_users(
     Ok(Json(ids))
 }
 
-async fn get_user_stats(State(state): State<AppState>) -> ApiResult<Json<serde_json::Value>> {
+async fn get_user_stats(State(state): State<AppState>, _auth: MmAuthUser) -> ApiResult<Json<serde_json::Value>> {
     let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users")
         .fetch_one(&state.db)
         .await?;
@@ -2290,8 +2291,9 @@ async fn get_user_stats(State(state): State<AppState>) -> ApiResult<Json<serde_j
 
 async fn get_user_stats_filtered(
     State(state): State<AppState>,
+    auth: MmAuthUser,
 ) -> ApiResult<Json<serde_json::Value>> {
-    get_user_stats(State(state)).await
+    get_user_stats(State(state), auth).await
 }
 
 async fn get_user_group_channels(
@@ -2417,6 +2419,7 @@ enum UsersByUsernamesRequest {
 
 async fn get_users_by_usernames(
     State(state): State<AppState>,
+    _auth: MmAuthUser,
     headers: HeaderMap,
     body: Bytes,
 ) -> ApiResult<Json<Vec<mm::User>>> {

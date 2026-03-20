@@ -20,6 +20,10 @@ pub struct Team {
     pub allow_open_invite: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    pub deleted_at: Option<DateTime<Utc>>,
+    pub privacy: Option<String>,
+    pub icon_path: Option<String>,
+    pub scheme_id: Option<Uuid>,
 }
 
 /// Team member relationship
