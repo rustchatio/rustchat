@@ -11,7 +11,6 @@ use std::net::SocketAddr;
 use super::AppState;
 use crate::auth::{create_token_with_policy, hash_password, verify_password, AuthUser};
 use crate::error::{ApiResult, AppError};
-use crate::middleware::rate_limit::{self, RateLimitConfig};
 use crate::models::{AuthResponse, CreateUser, LoginRequest, User, UserResponse};
 use crate::services::membership_policies::apply_auto_membership_for_new_user;
 use crate::services::password_reset::{
@@ -339,6 +338,7 @@ async fn register(
 /// Login with email and password
 async fn login(
     State(state): State<AppState>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
     Json(input): Json<LoginRequest>,
 ) -> ApiResult<Json<AuthResponse>> {
     // Find user by email
@@ -352,20 +352,10 @@ async fn login(
 
     enforce_password_login_allowed(&state, &user.email).await?;
 
-    // Keep per-account throttle in addition to centralized per-IP middleware.
-    if state.config.security.rate_limit_enabled {
-        let config =
-            RateLimitConfig::auth_per_minute(state.config.security.rate_limit_auth_per_minute);
-        let user_key = format!("user:{}", user.id);
-        let user_result = rate_limit::check_rate_limit(&state.redis, &config, &user_key).await?;
-
-        if !user_result.allowed {
-            tracing::warn!(user_id = %user.id, "Rate limit exceeded for user login");
-            return Err(AppError::TooManyRequests(
-                "Too many login attempts. Please try again later.".to_string(),
-            ));
-        }
-    }
+    // IP-based limit (all attempts from this IP address)
+    state.rate_limit.check_auth_ip(&addr.ip().to_string()).await?;
+    // Per-account limit (attempts against this specific user account)
+    state.rate_limit.check_auth_user(user.id).await?;
 
     // Verify password (OAuth users or users pending password setup cannot login with password)
     let password_hash = user.password_hash.as_deref().ok_or_else(|| {

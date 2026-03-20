@@ -1,5 +1,6 @@
-use rustchat::{api, config::Config, db, realtime::WsHub, storage::S3Client, telemetry};
+use rustchat::{api, config::Config, db, realtime::WsHub, services::rate_limit::RateLimitService, storage::S3Client, telemetry};
 use std::net::SocketAddr;
+use std::sync::Arc;
 use tracing::{info, warn};
 
 #[tokio::main]
@@ -124,6 +125,17 @@ async fn main() -> anyhow::Result<()> {
         config.encryption_key.clone(),
     );
 
+    // Build rate limit service and load limits from DB
+    let rate_limit_service = {
+        let svc = RateLimitService::new(redis_pool.clone(), db_pool.clone());
+        if let Err(e) = svc.reload().await {
+            warn!(error = %e, "Rate limit DB load failed at startup; using defaults");
+        } else {
+            info!("Rate limits loaded from database");
+        }
+        Arc::new(svc)
+    };
+
     // Build application router (spawns reconciliation worker internally)
     let app = api::router(
         db_pool.clone(),
@@ -133,6 +145,7 @@ async fn main() -> anyhow::Result<()> {
         ws_hub,
         s3_client,
         config.clone(),
+        rate_limit_service,
     );
 
     // Start server

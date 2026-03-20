@@ -374,6 +374,10 @@ mod tests {
             delete_reason: None,
             created_at: now,
             updated_at: now,
+            entity_type: crate::models::entity::EntityType::Human,
+            api_key_hash: None,
+            entity_metadata: serde_json::json!({}),
+            rate_limit_tier: None,
         };
 
         let mm_u: mm::User = u.into();

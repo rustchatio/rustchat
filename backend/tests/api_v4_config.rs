@@ -3,7 +3,8 @@ use axum::{
     body::Body,
     http::{Request, StatusCode},
 };
-use rustchat::{api::router, config::Config, realtime::WsHub, storage::S3Client};
+use rustchat::{api::router, config::Config, realtime::WsHub, services::rate_limit::RateLimitService, storage::S3Client};
+use std::sync::Arc;
 use sqlx::postgres::PgPoolOptions;
 use tower::ServiceExt;
 
@@ -31,6 +32,7 @@ async fn config_client_returns_diagnostic_id() {
     );
 
     // 2. Build router using public api
+    let rate_limit = Arc::new(RateLimitService::new(redis.clone(), db.clone()));
     let app = router(
         db,
         redis,
@@ -39,6 +41,7 @@ async fn config_client_returns_diagnostic_id() {
         ws_hub,
         s3_client,
         test_config(),
+        rate_limit,
     );
 
     // 3. Make request
@@ -94,6 +97,7 @@ async fn license_client_returns_boolean() {
     );
 
     // 2. Build router using public api
+    let rate_limit = Arc::new(RateLimitService::new(redis.clone(), db.clone()));
     let app = router(
         db,
         redis,
@@ -102,6 +106,7 @@ async fn license_client_returns_boolean() {
         ws_hub,
         s3_client,
         test_config(),
+        rate_limit,
     );
 
     // 3. Make request

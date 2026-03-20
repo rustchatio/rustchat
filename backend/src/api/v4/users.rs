@@ -1,6 +1,6 @@
 use axum::{
     body::Bytes,
-    extract::{Path, Query, State},
+    extract::{ConnectInfo, Path, Query, State},
     http::{HeaderMap, HeaderValue},
     middleware,
     response::IntoResponse,
@@ -10,10 +10,12 @@ use axum::{
 use serde::de::DeserializeOwned;
 use serde::Deserialize;
 use std::collections::HashMap;
+use std::net::SocketAddr;
 use uuid::Uuid;
 
 use super::extractors::MmAuthUser;
 use crate::api::AppState;
+use crate::auth::extractors::PolymorphicAuth;
 use crate::auth::policy::permissions;
 use crate::auth::{create_token_with_policy, hash_password, verify_password};
 use crate::error::{ApiResult, AppError};
@@ -21,7 +23,6 @@ use crate::mattermost_compat::{
     id::{encode_mm_id, parse_mm_or_uuid},
     models as mm,
 };
-use crate::middleware::rate_limit::{self, RateLimitConfig};
 use crate::models::{channel::Channel, Team, TeamMember, User};
 use crate::services::oauth_token_exchange::{exchange_code_with_sso_verification, ExchangeError};
 
@@ -281,6 +282,7 @@ struct LoginSsoCodeExchangeRequest {
 
 async fn login(
     State(state): State<AppState>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
     body: Bytes,
 ) -> ApiResult<impl IntoResponse> {
@@ -302,21 +304,8 @@ async fn login(
 
     enforce_password_login_allowed(&state, &user.email).await?;
 
-    if state.config.security.rate_limit_enabled {
-        let config =
-            RateLimitConfig::auth_per_minute(state.config.security.rate_limit_auth_per_minute);
-        let user_key = format!("user:{}", user.id);
-        let user_result = rate_limit::check_rate_limit(&state.redis, &config, &user_key).await?;
-        if !user_result.allowed {
-            tracing::warn!(
-                user_id = %user.id,
-                "Rate limit exceeded for v4 user login"
-            );
-            return Err(AppError::TooManyRequests(
-                "Too many login attempts. Please try again later.".to_string(),
-            ));
-        }
-    }
+    state.rate_limit.check_auth_ip(&addr.ip().to_string()).await?;
+    state.rate_limit.check_auth_user(user.id).await?;
 
     // Verify password (OAuth users without password cannot login with password)
     let password_hash = user
@@ -534,7 +523,12 @@ async fn enforce_password_login_allowed(state: &AppState, user_email: &str) -> A
     ))
 }
 
-async fn me(State(state): State<AppState>, auth: MmAuthUser) -> ApiResult<Json<mm::User>> {
+/// GET /users/me - Get authenticated user (supports both JWT and API key auth)
+///
+/// This endpoint supports polymorphic authentication:
+/// - JWT token (for human users via browser/mobile)
+/// - API key (for agents, services, and CI systems)
+async fn me(State(state): State<AppState>, auth: PolymorphicAuth) -> ApiResult<Json<mm::User>> {
     let user: User = sqlx::query_as("SELECT * FROM users WHERE id = $1")
         .bind(auth.user_id)
         .fetch_one(&state.db)

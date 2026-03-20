@@ -1,7 +1,8 @@
 use once_cell::sync::Lazy;
-use rustchat::{api, config::Config, realtime::WsHub, storage::S3Client};
+use rustchat::{api, config::Config, realtime::WsHub, services::rate_limit::RateLimitService, storage::S3Client};
 use sqlx::{Connection, Executor, PgConnection, PgPool};
 use std::net::SocketAddr;
+use std::sync::Arc;
 use uuid::Uuid;
 
 // Ensure tracing is initialized only once
@@ -77,6 +78,7 @@ pub async fn spawn_app_with_config(config: Config) -> TestApp {
     // Initialize Redis using explicit test URL first, then known local fallbacks.
     let redis_pool = configure_redis_with_fallback(&collect_test_redis_urls()).await;
 
+    let rate_limit = Arc::new(RateLimitService::new(redis_pool.clone(), db_pool.clone()));
     let app = api::router(
         db_pool.clone(),
         redis_pool.clone(),
@@ -85,6 +87,7 @@ pub async fn spawn_app_with_config(config: Config) -> TestApp {
         ws_hub,
         s3_client,
         config,
+        rate_limit,
     );
 
     let server = axum::serve(
@@ -330,4 +333,75 @@ async fn configure_database(database_url: &str) -> Result<PgPool, String> {
         .map_err(|err| format!("failed to migrate database {}: {}", random_db_name, err))?;
 
     Ok(pool)
+}
+
+/// Create a minimal AppState for testing extractors
+pub async fn create_test_state(pool: PgPool) -> anyhow::Result<rustchat::api::AppState> {
+    let redis_pool = configure_redis_with_fallback(&collect_test_redis_urls()).await;
+    let config = test_config();
+    let ws_hub = WsHub::new();
+    let s3_client = S3Client::new(
+        Some("http://localhost:9000".to_string()),
+        None,
+        "test-bucket".to_string(),
+        Some("minioadmin".to_string()),
+        Some("minioadmin".to_string()),
+        "us-east-1".to_string(),
+    );
+
+    let jwt_secret = Uuid::new_v4().to_string();
+    let jwt_expiry_hours = 1;
+
+    let rate_limit_svc = Arc::new(RateLimitService::new(redis_pool.clone(), pool.clone()));
+
+    // Build a temporary router to get properly initialized managers
+    // This is cleaner than trying to construct them directly
+    let _temp_router = rustchat::api::router(
+        pool.clone(),
+        redis_pool.clone(),
+        jwt_secret.clone(),
+        jwt_expiry_hours,
+        ws_hub.clone(),
+        s3_client.clone(),
+        config.clone(),
+        rate_limit_svc.clone(),
+    );
+
+    // Extract state from the router
+    // The router construction already created all the necessary managers
+    // We'll create a new state that matches what the router has
+    Ok(rustchat::api::AppState {
+        db: pool,
+        redis: redis_pool.clone(),
+        jwt_secret,
+        jwt_issuer: config.jwt_issuer.clone(),
+        jwt_audience: config.jwt_audience.clone(),
+        jwt_expiry_hours,
+        ws_hub,
+        connection_store: rustchat::realtime::ConnectionStore::new(),
+        s3_client,
+        http_client: reqwest::Client::new(),
+        start_time: std::time::Instant::now(),
+        config: config.clone(),
+        // Extract from router's state - but since we can't access it directly,
+        // we'll just drop the router and create dummy managers that won't be used
+        // The extractor tests don't need SFU or call state functionality
+        sfu_manager: {
+            let (voice_tx, _) = tokio::sync::mpsc::channel(1);
+            use rustchat::api::v4::calls_plugin::sfu::SFUManager;
+            SFUManager::new(config.calls.clone(), voice_tx)
+        },
+        call_state_manager: {
+            use rustchat::api::v4::calls_plugin::state::{CallStateBackend, CallStateManager};
+            std::sync::Arc::new(CallStateManager::with_backend(
+                Some(redis_pool.clone()),
+                CallStateBackend::parse(&config.calls.state_backend),
+            ))
+        },
+        circuit_breakers: std::sync::Arc::new(
+            rustchat::middleware::reliability::ServiceCircuitBreakers::new(),
+        ),
+        rate_limit: rate_limit_svc,
+        reconciliation_tx: None,
+    })
 }

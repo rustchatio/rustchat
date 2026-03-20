@@ -4,6 +4,55 @@ use axum::{
     Json, Router,
 };
 use serde::Deserialize;
+use crate::services::rate_limit::{IpRateLimitConfig, RateLimitLimits};
+
+#[derive(Debug, serde::Serialize, serde::Deserialize, Clone)]
+pub struct LimitEntry {
+    pub limit: u32,
+    pub window_secs: u32,
+    pub enabled: bool,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct RateLimitsResponse {
+    pub auth_ip: LimitEntry,
+    pub auth_user: LimitEntry,
+    pub register_ip: LimitEntry,
+    pub password_reset_ip: LimitEntry,
+    pub websocket_ip: LimitEntry,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct UpdateRateLimitsRequest {
+    pub auth_ip: Option<LimitEntry>,
+    pub auth_user: Option<LimitEntry>,
+    pub register_ip: Option<LimitEntry>,
+    pub password_reset_ip: Option<LimitEntry>,
+    pub websocket_ip: Option<LimitEntry>,
+}
+
+fn limits_to_response(limits: &RateLimitLimits) -> RateLimitsResponse {
+    let e = |c: IpRateLimitConfig| LimitEntry {
+        limit: c.limit as u32,
+        window_secs: c.window_secs as u32,
+        enabled: c.enabled,
+    };
+    RateLimitsResponse {
+        auth_ip: e(limits.auth_ip),
+        auth_user: e(limits.auth_user),
+        register_ip: e(limits.register_ip),
+        password_reset_ip: e(limits.password_reset_ip),
+        websocket_ip: e(limits.websocket_ip),
+    }
+}
+
+fn entry_to_config(e: &LimitEntry) -> crate::services::rate_limit::IpRateLimitConfig {
+    crate::services::rate_limit::IpRateLimitConfig {
+        limit: e.limit as u64,
+        window_secs: e.window_secs as u64,
+        enabled: e.enabled,
+    }
+}
 use uuid::Uuid;
 
 pub fn router() -> Router<AppState> {
@@ -15,6 +64,7 @@ pub fn router() -> Router<AppState> {
             "/admin/keycloak/sync/users/{user_id}",
             post(trigger_keycloak_user_sync),
         )
+        .route("/admin/rate-limits", get(get_rate_limits).put(update_rate_limits))
 }
 use crate::api::v4::extractors::MmAuthUser;
 use crate::api::AppState;
@@ -220,4 +270,131 @@ async fn trigger_keycloak_user_sync(
         "status": "OK",
         "report": report
     })))
+}
+
+async fn upsert_rate_limit(
+    db: &sqlx::PgPool,
+    limit_key: &str,
+    flag_key: &str,
+    entry: &LimitEntry,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "INSERT INTO rate_limits (key, limit_value, window_secs, updated_at)
+         VALUES ($1, $2, $3, NOW())
+         ON CONFLICT (key) DO UPDATE
+         SET limit_value = EXCLUDED.limit_value,
+             window_secs = EXCLUDED.window_secs,
+             updated_at = NOW()",
+    )
+    .bind(limit_key)
+    .bind(entry.limit as i32)
+    .bind(entry.window_secs as i32)
+    .execute(db)
+    .await?;
+
+    // window_secs = 0 marks this as an enabled-flag row (see rate_limits table comment)
+    sqlx::query(
+        "INSERT INTO rate_limits (key, limit_value, window_secs, updated_at)
+         VALUES ($1, $2, 0, NOW())
+         ON CONFLICT (key) DO UPDATE
+         SET limit_value = EXCLUDED.limit_value,
+             updated_at = NOW()",
+    )
+    .bind(flag_key)
+    .bind(if entry.enabled { 1i32 } else { 0i32 })
+    .execute(db)
+    .await?;
+
+    Ok(())
+}
+
+pub async fn get_rate_limits(
+    State(state): State<AppState>,
+    auth: MmAuthUser,
+) -> ApiResult<Json<RateLimitsResponse>> {
+    if !auth.has_permission(&permissions::SYSTEM_MANAGE) {
+        return Err(AppError::Forbidden("Insufficient permissions".to_string()));
+    }
+    let limits = state.rate_limit.ip_limits().await;
+    Ok(Json(limits_to_response(&limits)))
+}
+
+pub async fn update_rate_limits(
+    State(state): State<AppState>,
+    auth: MmAuthUser,
+    Json(payload): Json<UpdateRateLimitsRequest>,
+) -> ApiResult<Json<RateLimitsResponse>> {
+    if !auth.has_permission(&permissions::SYSTEM_MANAGE) {
+        return Err(AppError::Forbidden("Insufficient permissions".to_string()));
+    }
+
+    // Validate that limit values fit safely into the DB column (INTEGER = i32)
+    let entries = [
+        payload.auth_ip.as_ref(),
+        payload.auth_user.as_ref(),
+        payload.register_ip.as_ref(),
+        payload.password_reset_ip.as_ref(),
+        payload.websocket_ip.as_ref(),
+    ];
+    for entry in entries.into_iter().flatten() {
+        if entry.limit > i32::MAX as u32 {
+            return Err(AppError::BadRequest(format!(
+                "limit value {} exceeds maximum allowed ({})",
+                entry.limit,
+                i32::MAX
+            )));
+        }
+    }
+
+    if let Some(ref e) = payload.auth_ip {
+        upsert_rate_limit(&state.db, "auth_ip_per_minute", "auth_ip_enabled", e).await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+    }
+    if let Some(ref e) = payload.auth_user {
+        upsert_rate_limit(&state.db, "auth_user_per_minute", "auth_user_enabled", e).await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+    }
+    if let Some(ref e) = payload.register_ip {
+        upsert_rate_limit(&state.db, "register_ip_per_minute", "register_ip_enabled", e).await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+    }
+    if let Some(ref e) = payload.password_reset_ip {
+        upsert_rate_limit(&state.db, "password_reset_ip_per_minute", "password_reset_ip_enabled", e).await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+    }
+    if let Some(ref e) = payload.websocket_ip {
+        upsert_rate_limit(&state.db, "websocket_ip_per_minute", "websocket_ip_enabled", e).await
+            .map_err(|e| AppError::Internal(e.to_string()))?;
+    }
+
+    // Hot-reload — new limits take effect immediately for subsequent requests
+    let reloaded = state.rate_limit.reload().await;
+    if let Err(ref e) = reloaded {
+        tracing::warn!(error = %e, "Rate limit hot-reload failed after admin update");
+    }
+
+    // If reload failed, build the response from the current cache merged with the
+    // payload so the caller sees what was written to DB, not stale in-memory state.
+    let limits = if reloaded.is_ok() {
+        state.rate_limit.ip_limits().await
+    } else {
+        let mut current = state.rate_limit.ip_limits().await;
+        if let Some(ref e) = payload.auth_ip {
+            current.auth_ip = entry_to_config(e);
+        }
+        if let Some(ref e) = payload.auth_user {
+            current.auth_user = entry_to_config(e);
+        }
+        if let Some(ref e) = payload.register_ip {
+            current.register_ip = entry_to_config(e);
+        }
+        if let Some(ref e) = payload.password_reset_ip {
+            current.password_reset_ip = entry_to_config(e);
+        }
+        if let Some(ref e) = payload.websocket_ip {
+            current.websocket_ip = entry_to_config(e);
+        }
+        current
+    };
+    Ok(Json(limits_to_response(&limits)))
 }

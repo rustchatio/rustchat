@@ -30,7 +30,6 @@ pub struct UpdateStatusRequest {
     pub dnd_end_time: Option<i64>,
 }
 
-
 /// Build users routes
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -46,7 +45,10 @@ pub fn router() -> Router<AppState> {
         .route("/{id}/status", get(get_user_status))
         .route("/status/ids", axum::routing::post(get_statuses_by_ids))
         // Thread routes (Mattermost-compatible)
-        .route("/{user_id}/teams/{team_id}/threads/{thread_id}/read/{timestamp}", axum::routing::put(mark_thread_as_read))
+        .route(
+            "/{user_id}/teams/{team_id}/threads/{thread_id}/read/{timestamp}",
+            axum::routing::put(mark_thread_as_read),
+        )
 }
 
 #[derive(Debug, Deserialize)]
@@ -442,7 +444,6 @@ async fn get_statuses_by_ids(
     Ok(Json(serde_json::json!(result)))
 }
 
-
 /// Mark a thread as read
 /// PUT /users/{user_id}/teams/{team_id}/threads/{thread_id}/read/{timestamp}
 async fn mark_thread_as_read(
@@ -454,7 +455,8 @@ async fn mark_thread_as_read(
     let target_user_id = if user_id == "me" {
         auth.user_id
     } else {
-        user_id.parse::<Uuid>()
+        user_id
+            .parse::<Uuid>()
             .map_err(|_| AppError::BadRequest("Invalid user_id".to_string()))?
     };
 
@@ -465,8 +467,8 @@ async fn mark_thread_as_read(
         ));
     }
 
-    let read_at = chrono::DateTime::from_timestamp_millis(timestamp)
-        .unwrap_or_else(chrono::Utc::now);
+    let read_at =
+        chrono::DateTime::from_timestamp_millis(timestamp).unwrap_or_else(chrono::Utc::now);
 
     // Upsert thread membership with read time
     sqlx::query(r#"

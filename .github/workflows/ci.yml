@@ -1,0 +1,105 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-Dwarnings"
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: rustchat
+          POSTGRES_PASSWORD: rustchat
+          POSTGRES_DB: rustchat
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry
+        uses: actions/cache@v3
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo index
+        uses: actions/cache@v3
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo build
+        uses: actions/cache@v3
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install SQLx CLI
+        run: cargo install sqlx-cli --no-default-features --features postgres
+
+      - name: Run migrations
+        working-directory: ./backend
+        env:
+          DATABASE_URL: postgres://rustchat:rustchat@localhost:5432/rustchat
+        run: sqlx migrate run
+
+      - name: Check formatting
+        working-directory: ./backend
+        run: cargo fmt --all -- --check
+
+      - name: Run clippy
+        working-directory: ./backend
+        run: cargo clippy --all-targets --all-features
+
+      - name: Run tests
+        working-directory: ./backend
+        env:
+          DATABASE_URL: postgres://rustchat:rustchat@localhost:5432/rustchat
+          REDIS_URL: redis://localhost:6379/
+          RUSTCHAT_TEST_DATABASE_URL: postgres://rustchat:rustchat@localhost:5432/rustchat
+          RUSTCHAT_TEST_REDIS_URL: redis://localhost:6379/
+        run: cargo test
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build
+        working-directory: ./backend
+        run: cargo build --release
