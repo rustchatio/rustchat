@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [5.0.0] - 2026-03-09
+## [0.3.5] - 2026-03-09
 
 ### Added
 - VoIP Push Notification support for call ringing on mobile devices.
@@ -21,7 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Docker Compose configuration to include push-proxy service on port 3001.
 - Backend push notification service to route calls through push proxy.
-- Major version bump to 5.0.0 reflecting significant new features and maturity.
+- Version bump to 0.3.5 reflecting significant new features and maturity.
 
 ### Security
 - Fixed protobuf vulnerability (RUSTSEC-2024-0437) by upgrading prometheus 0.13 -> 0.14.
