@@ -189,7 +189,7 @@ async function bootstrapAuthenticatedSession(page: Page) {
 }
 
 async function openSettingsFromUserMenu(page: Page) {
-  const avatarTrigger = page.locator('header div.ml-2.relative > div.cursor-pointer').first()
+  const avatarTrigger = page.getByTestId('user-menu-trigger')
   await expect(avatarTrigger).toBeVisible({ timeout: 15000 })
   await avatarTrigger.click()
 

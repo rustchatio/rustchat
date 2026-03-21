@@ -285,6 +285,7 @@ function handleQuickSwitcherSelect(item: QuickSwitcherItem) {
       <!-- User Menu -->
       <div class="relative ml-1">
         <button
+          data-testid="user-menu-trigger"
           @click="showUserMenu = !showUserMenu"
           class="relative flex items-center gap-2 pl-1 pr-2 py-1 rounded-r-2 hover:bg-bg-surface-2 transition-standard focus-ring"
           :class="{ 'bg-bg-surface-2': showUserMenu }"
