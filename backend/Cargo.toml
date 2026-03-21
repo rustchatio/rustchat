@@ -62,8 +62,8 @@ async-trait = "0.1"
 handlebars = "5.1"
 
 # S3 Storage
-aws-sdk-s3 = { version = "1.68", features = ["behavior-version-latest"] }
-aws-config = { version = "1.6", features = ["behavior-version-latest"] }
+aws-sdk-s3 = { version = "1.127", features = ["behavior-version-latest"] }
+aws-config = { version = "1.8", features = ["behavior-version-latest"] }
 
 # File handling
 mime = "0.3"
