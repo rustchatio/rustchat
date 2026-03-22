@@ -58,3 +58,6 @@ coverage/
 
 # Cargo
 .worktrees/
+
+# sccache directory
+.sccache/

@@ -1,0 +1,37 @@
+[build]
+# Use sccache for caching
+rustc-wrapper = "sccache"
+
+# Use fast linker - mold on Linux, lld on macOS
+[target.x86_64-unknown-linux-gnu]
+linker = "clang"
+rustflags = ["-C", "link-arg=-fuse-ld=mold"]
+
+[target.aarch64-unknown-linux-gnu]
+linker = "clang"
+rustflags = ["-C", "link-arg=-fuse-ld=mold"]
+
+[target.x86_64-apple-darwin]
+# lld from LLVM (brew install lld)
+rustflags = ["-C", "link-arg=-fuse-ld=lld"]
+
+[target.aarch64-apple-darwin]
+# lld from LLVM (brew install lld)
+rustflags = ["-C", "link-arg=-fuse-ld=lld"]
+
+[env]
+# sccache configuration
+SCCACHE_CACHE_SIZE = "10G"
+# Cache relative to workspace root (requires Cargo 1.56+)
+SCCACHE_DIR = { value = ".sccache", relative = true }
+
+[profile.dev]
+# Disable incremental compilation when using sccache (they conflict)
+# sccache provides caching across builds; incremental caches within a build
+incremental = false
+# Use less aggressive debug info for faster builds
+debug = 1
+
+[profile.dev.package."*"]
+# Build dependencies with light optimization for faster overall builds
+opt-level = 1
