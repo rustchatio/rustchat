@@ -6,6 +6,7 @@ body:
     id: area
     attributes:
       label: Area
+      description: Which part of the system is affected?
       options:
         - backend
         - frontend
@@ -35,6 +36,7 @@ body:
     id: compat-impact
     attributes:
       label: Compatibility impact
+      description: Does this affect Mattermost client compatibility?
       options:
         - "No"
         - "Yes — affects Mattermost clients"
