@@ -24,6 +24,7 @@ tiers:
 
   architectural:
     description: "Architecture redesign, storage model, protocol, security model changes"
+    # No file/line hard limits — architectural changes require human judgment, not mechanical gates
     required_reviewers: 2
     senior_review: true
     tests_required: true

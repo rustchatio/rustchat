@@ -9,8 +9,7 @@ agents:
   - name: backend-agent
     mode: bounded-write
     description: "Implements backend features and fixes"
-    applicable_skills:
-      - any non-compat skill
+    notes: "Use any non-compat skill from .agents/skills/ (e.g. user-validation, production-readiness-gate)"
     allowed_paths:
       - backend/src/**
       - backend/tests/**
@@ -35,8 +34,7 @@ agents:
   - name: frontend-agent
     mode: bounded-write
     description: "Implements frontend features and fixes"
-    applicable_skills:
-      - any non-compat skill
+    notes: "Use any non-compat skill from .agents/skills/ (e.g. user-validation, production-readiness-gate)"
     allowed_paths:
       - frontend/src/**
       - frontend/e2e/**
@@ -50,6 +48,7 @@ agents:
 
   - name: compat-agent
     mode: read-only
+    # read-only mode uses readable_paths/writable_paths instead of allowed_paths/prohibited_paths
     description: "Performs Mattermost compatibility analysis and produces design artifacts"
     applicable_skills:
       - mattermost-api-parity
