@@ -1,0 +1,71 @@
+# Agent Boundary Contracts
+# Reference: docs/superpowers/specs/2026-03-22-governance-layer-design.md
+#
+# These define SCOPE BOUNDARIES (which paths agents may touch).
+# The .agents/skills/ directory defines CAPABILITY SKILLS (what agents can do in a domain).
+# These two systems are complementary: skills tell the agent HOW; contracts define WHERE.
+
+agents:
+  - name: backend-agent
+    mode: bounded-write
+    description: "Implements backend features and fixes"
+    applicable_skills:
+      - any non-compat skill
+    allowed_paths:
+      - backend/src/**
+      - backend/tests/**
+      - backend/migrations/**
+      - push-proxy/**
+    prohibited_paths:
+      - backend/src/auth/**                # requires explicit approval
+      - backend/src/api/v4/**              # requires compat-reviewer co-approval
+      - backend/src/mattermost_compat/**   # requires compat-reviewer co-approval
+      - backend/src/a2a/**                 # requires senior review
+      - .governance/**
+      - frontend/**
+    max_files_changed: 10
+    max_lines_changed: 300
+    requires_tests: true
+    requires_human_review: true
+    requires_adr_for:
+      - auth changes
+      - permission changes
+      - API contract changes
+
+  - name: frontend-agent
+    mode: bounded-write
+    description: "Implements frontend features and fixes"
+    applicable_skills:
+      - any non-compat skill
+    allowed_paths:
+      - frontend/src/**
+      - frontend/e2e/**
+    prohibited_paths:
+      - backend/**
+      - .governance/**
+    max_files_changed: 10
+    max_lines_changed: 300
+    requires_tests: false
+    requires_human_review: true
+
+  - name: compat-agent
+    mode: read-only
+    description: "Performs Mattermost compatibility analysis and produces design artifacts"
+    applicable_skills:
+      - mattermost-api-parity
+      - mm-endpoint-contract-parity
+      - mm-websocket-calls-parity
+      - mm-mobile-journey-parity
+    readable_paths:
+      - backend/compat/**
+      - backend/src/api/v4/**
+      - backend/src/mattermost_compat/**
+      - tools/mm-compat/**
+    writable_paths:
+      - previous-analyses/**
+      - docs/superpowers/specs/**
+      - docs/superpowers/plans/**
+    prohibited_paths:
+      - .governance/**
+    cannot_approve_prs: true
+    cannot_write_production_code: true

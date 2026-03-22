@@ -1,0 +1,23 @@
+# PR Size Limits
+# Reference: docs/superpowers/specs/2026-03-22-governance-layer-design.md
+#
+# Exceptions are additive constraints on top of risk-tier limits.
+# A path subject to both must satisfy the stricter rule.
+
+default:
+  max_files: 10
+  max_lines_changed: 300
+
+exceptions:
+  - path: "backend/tests/**"
+    max_lines_changed: 500
+
+  - path: "frontend/e2e/**"
+    max_lines_changed: 500
+
+  - path: "docs/**"
+    max_lines_changed: 600
+
+  - path: "backend/migrations/**"
+    max_lines_changed: 150
+    note: "Migrations are irreversible — keep them small and focused; split into multiple PRs if needed"

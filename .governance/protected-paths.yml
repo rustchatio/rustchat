@@ -1,0 +1,48 @@
+# Protected Paths
+# Paths that auto-elevate minimum risk tier when changed.
+# Reference: docs/superpowers/specs/2026-03-22-governance-layer-design.md
+
+paths:
+  - pattern: "backend/src/auth/**"
+    min_tier: elevated
+    reason: "Authentication is security-critical"
+
+  - pattern: "backend/src/api/v4/**"
+    min_tier: elevated
+    reason: "Mattermost HTTP compatibility surface"
+
+  - pattern: "backend/src/mattermost_compat/**"
+    min_tier: elevated
+    reason: "Mattermost compatibility utilities"
+
+  - pattern: "backend/src/realtime/**"
+    min_tier: elevated
+    reason: "WebSocket event contracts"
+
+  - pattern: "backend/migrations/**"
+    min_tier: elevated
+    reason: "Database schema changes are irreversible"
+
+  - pattern: "backend/compat/**"
+    min_tier: elevated
+    reason: "Compatibility contracts and golden tests"
+
+  - pattern: "tools/mm-compat/**"
+    min_tier: elevated
+    reason: "Compatibility analysis tooling"
+
+  - pattern: "backend/src/a2a/**"
+    min_tier: elevated
+    reason: "Agent-to-agent communication layer"
+
+  - pattern: ".github/CODEOWNERS"
+    min_tier: elevated
+    reason: "Ownership changes affect review routing"
+
+  - pattern: ".governance/**"
+    min_tier: architectural
+    reason: "Policy changes affect the entire development model"
+
+  - pattern: "docs/superpowers/specs/**"
+    min_tier: elevated
+    reason: "Design record integrity"

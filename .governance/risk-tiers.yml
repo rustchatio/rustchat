@@ -1,0 +1,32 @@
+# Risk Tiers Configuration
+# Reference: docs/superpowers/specs/2026-03-22-governance-layer-design.md
+
+tiers:
+  standard:
+    description: "Typos, UI polish, test additions, internal refactors, CI improvements"
+    max_files: 10
+    max_lines: 300
+    required_reviewers: 1
+    senior_review: false
+    tests_required: false
+    decision_note_required: false
+    adr_required: false
+
+  elevated:
+    description: "Auth, permissions, API behavior, schema/migrations, compat-sensitive paths"
+    max_files: 10
+    max_lines: 300
+    required_reviewers: 1
+    senior_review: true
+    tests_required: true
+    decision_note_required: true
+    adr_required: false
+
+  architectural:
+    description: "Architecture redesign, storage model, protocol, security model changes"
+    required_reviewers: 2
+    senior_review: true
+    tests_required: true
+    decision_note_required: true
+    adr_required: true
+    design_review: true
