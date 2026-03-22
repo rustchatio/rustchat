@@ -1,0 +1,66 @@
+name: Bug Report
+description: Report a bug or unexpected behavior
+labels: ["type/bug"]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of the system is affected?
+      options:
+        - backend
+        - frontend
+        - compat
+        - push-proxy
+        - infra
+    validations:
+      required: true
+
+  - type: textarea
+    id: current-behavior
+    attributes:
+      label: Current behavior
+      description: What is happening?
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-behavior
+    attributes:
+      label: Expected behavior
+      description: What should happen instead?
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Go to...
+        2. Click...
+        3. See error...
+    validations:
+      required: false
+
+  - type: dropdown
+    id: compat-impact
+    attributes:
+      label: Compatibility impact
+      description: Does this affect Mattermost client compatibility?
+      options:
+        - "No"
+        - "Yes — affects Mattermost clients"
+        - Unknown
+    validations:
+      required: true
+
+  - type: dropdown
+    id: risk-tier
+    attributes:
+      label: Risk tier suggestion
+      options:
+        - standard
+        - elevated
+    validations:
+      required: true

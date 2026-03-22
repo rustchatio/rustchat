@@ -1,0 +1,50 @@
+name: Refactor / Tech Debt
+description: Propose a code improvement or refactor
+labels: ["type/refactor"]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - backend
+        - frontend
+        - compat
+        - push-proxy
+        - infra
+    validations:
+      required: true
+
+  - type: textarea
+    id: current-state
+    attributes:
+      label: What is wrong today?
+      description: Describe the current problem or tech debt.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-improvement
+    attributes:
+      label: Proposed improvement
+    validations:
+      required: true
+
+  - type: textarea
+    id: blast-radius
+    attributes:
+      label: Blast radius
+      description: What could break if this goes wrong?
+    validations:
+      required: false
+
+  - type: dropdown
+    id: risk-tier
+    attributes:
+      label: Risk tier
+      options:
+        - standard
+        - elevated
+        - architectural
+    validations:
+      required: true

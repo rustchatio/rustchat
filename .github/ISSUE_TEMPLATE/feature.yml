@@ -1,0 +1,64 @@
+name: Feature Request
+description: Propose a new feature or improvement
+labels: ["type/feature"]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - backend
+        - frontend
+        - compat
+        - push-proxy
+        - infra
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem statement
+      description: What problem does this feature solve?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposed-behavior
+    attributes:
+      label: Proposed behavior
+      description: What should the feature do?
+    validations:
+      required: true
+
+  - type: dropdown
+    id: compat-impact
+    attributes:
+      label: Compatibility impact
+      options:
+        - "No"
+        - "Yes — affects Mattermost clients"
+        - Unknown
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance criteria
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: false
+
+  - type: dropdown
+    id: adr-needed
+    attributes:
+      label: ADR needed?
+      options:
+        - "No"
+        - "Yes"
+        - Unsure
+    validations:
+      required: true
