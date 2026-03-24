@@ -57,6 +57,9 @@ jobs:
       - name: Run sccache-cache
         uses: mozilla-actions/sccache-action@v0.0.9
 
+      - name: Install mold linker
+        uses: rui314/setup-mold@v1
+
       - name: Cache cargo registry
         uses: actions/cache@v3
         with:
@@ -127,6 +130,9 @@ jobs:
 
       - name: Run sccache-cache
         uses: mozilla-actions/sccache-action@v0.0.9
+
+      - name: Install mold linker
+        uses: rui314/setup-mold@v1
 
       - name: Build
         working-directory: ./backend

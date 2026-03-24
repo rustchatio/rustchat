@@ -79,6 +79,9 @@ jobs:
       - name: Run sccache-cache
         uses: mozilla-actions/sccache-action@v0.0.9
 
+      - name: Install mold linker
+        uses: rui314/setup-mold@v1
+
       - name: Cache Cargo registry
         uses: actions/cache@v4
         with:
