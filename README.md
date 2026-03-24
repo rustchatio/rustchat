@@ -294,6 +294,7 @@ rustchat/
 | [Ownership Map](docs/ownership-map.md) | Code ownership, review routing, agent boundaries |
 | [Repo Current State](docs/repo-current-state.md) | Current version, services, known gaps |
 | [Target Operating Model](docs/target-operating-model.md) | Goals, applied operating model, deferred items |
+| [Contributor Model](docs/contributor-model.md) | How human contributors participate in the project |
 
 ## License
 
