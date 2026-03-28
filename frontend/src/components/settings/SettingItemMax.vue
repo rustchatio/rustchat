@@ -16,17 +16,17 @@ defineEmits<{
 </script>
 
 <template>
-  <div class="bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg">
+  <div class="rounded-r-2 border border-border-1 bg-bg-surface-2">
     <!-- Header -->
-    <div class="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+    <div class="flex items-center justify-between border-b border-border-1 px-4 py-3">
       <div>
-        <h4 class="text-sm font-semibold text-gray-900 dark:text-white">{{ label }}</h4>
-        <p v-if="description" class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{{ description }}</p>
+        <h4 class="text-sm font-semibold text-text-1">{{ label }}</h4>
+        <p v-if="description" class="mt-0.5 text-xs text-text-3">{{ description }}</p>
       </div>
       <button
         type="button"
         @click="$emit('cancel')"
-        class="p-1 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+        class="rounded-r-1 p-1 text-text-3 transition-standard hover:bg-bg-surface-1 hover:text-text-2"
       >
         <X class="w-4 h-4" />
       </button>
@@ -38,7 +38,7 @@ defineEmits<{
     </div>
     
     <!-- Actions -->
-    <div class="px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex items-center justify-end gap-2">
+    <div class="flex items-center justify-end gap-2 border-t border-border-1 px-4 py-3">
       <BaseButton 
         size="sm" 
         variant="secondary" 

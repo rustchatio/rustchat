@@ -129,7 +129,7 @@ const handleLeave = async () => {
         @click="toggleView('members')"
         class="flex items-center justify-center w-11 h-11 rounded-r-2 transition-standard focus-ring"
         :class="{ 
-          'bg-brand text-white': uiStore.rhsView === 'members',
+          'bg-brand text-brand-foreground': uiStore.rhsView === 'members',
           'hover:bg-bg-surface-2 text-text-2': uiStore.rhsView !== 'members'
         }"
         title="Members"
@@ -176,7 +176,7 @@ const handleLeave = async () => {
         @click="toggleView('search')"
         class="hidden sm:flex items-center justify-center w-11 h-11 rounded-r-2 transition-standard focus-ring"
         :class="{ 
-          'bg-brand text-white': uiStore.rhsView === 'search',
+          'bg-brand text-brand-foreground': uiStore.rhsView === 'search',
           'hover:bg-bg-surface-2 text-text-2': uiStore.rhsView !== 'search'
         }"
         title="Search"
@@ -190,7 +190,7 @@ const handleLeave = async () => {
         @click="toggleView('pinned')"
         class="flex items-center justify-center w-11 h-11 rounded-r-2 transition-standard focus-ring"
         :class="{ 
-          'bg-brand text-white': uiStore.rhsView === 'pinned',
+          'bg-brand text-brand-foreground': uiStore.rhsView === 'pinned',
           'hover:bg-bg-surface-2 text-text-2': uiStore.rhsView !== 'pinned'
         }"
         title="Pinned items"
@@ -204,7 +204,7 @@ const handleLeave = async () => {
         @click="toggleView('saved')"
         class="flex items-center justify-center w-11 h-11 rounded-r-2 transition-standard focus-ring"
         :class="{ 
-          'bg-brand text-white': uiStore.rhsView === 'saved',
+          'bg-brand text-brand-foreground': uiStore.rhsView === 'saved',
           'hover:bg-bg-surface-2 text-text-2': uiStore.rhsView !== 'saved'
         }"
         title="Saved items"

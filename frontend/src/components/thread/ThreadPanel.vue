@@ -139,7 +139,7 @@ onUnmounted(() => {
         <button
           @click="sendReply"
           :disabled="!threadStore.draft.trim() || threadStore.isSending"
-          class="p-2.5 bg-brand text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-brand-hover transition-all active:scale-95 shadow-lg shadow-brand/20 mb-1 mr-1 flex items-center justify-center"
+          class="mb-1 mr-1 flex items-center justify-center rounded-lg bg-brand p-2.5 text-brand-foreground shadow-lg shadow-brand/20 transition-all hover:bg-brand-hover active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Loader2 v-if="threadStore.isSending" class="w-4 h-4 animate-spin" />
           <Send v-else class="w-4 h-4" />

@@ -19,27 +19,27 @@ const slots = useSlots()
   <button
     type="button"
     @click="$emit('click')"
-    class="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors group"
+    class="group flex w-full items-center justify-between rounded-r-1 px-4 py-3 text-left transition-standard hover:bg-bg-surface-2"
   >
     <div class="flex items-start flex-1 min-w-0">
       <div v-if="slots.icon" class="mr-3 mt-0.5">
         <slot name="icon" />
       </div>
       <div class="min-w-0">
-        <div class="text-sm font-medium text-gray-900 dark:text-gray-100">
+        <div class="text-sm font-medium text-text-1">
           {{ label }}
         </div>
-        <div v-if="description" class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+        <div v-if="description" class="mt-0.5 text-xs text-text-3">
           {{ description }}
         </div>
       </div>
     </div>
     <div class="flex items-center gap-2 ml-4">
-      <span class="text-sm text-gray-500 dark:text-gray-400 truncate max-w-[200px]">
+      <span class="max-w-[200px] truncate text-sm text-text-3">
         {{ value }}
       </span>
       <slot name="extra" />
-      <ChevronRight class="w-4 h-4 text-gray-400 group-hover:text-gray-500 transition-colors flex-shrink-0" />
+      <ChevronRight class="h-4 w-4 shrink-0 text-text-3 transition-standard group-hover:text-text-2" />
     </div>
   </button>
 </template>

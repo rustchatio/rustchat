@@ -405,7 +405,7 @@ async function toggleReaction(emoji: string) {
           <button
             @click="saveEdit"
             :disabled="saving"
-            class="px-3 py-1.5 bg-brand text-white text-xs font-medium rounded-r-1 hover:bg-brand-hover disabled:opacity-50 transition-standard flex items-center gap-1"
+            class="flex items-center gap-1 rounded-r-1 bg-brand px-3 py-1.5 text-xs font-medium text-brand-foreground transition-standard hover:bg-brand-hover disabled:opacity-50"
           >
             <Check class="w-3 h-3" />
             <span>{{ saving ? 'Saving...' : 'Save' }}</span>

@@ -59,7 +59,7 @@ watch([() => authStore.isAuthenticated, isActiveTab], async ([isAuth, isActive])
         Another tab is currently active for messaging in this browser session.
       </p>
       <button
-        class="mt-5 inline-flex items-center justify-center rounded-r-1 bg-brand px-4 py-2 text-sm font-medium text-white transition-standard hover:bg-brand-hover"
+        class="mt-5 inline-flex items-center justify-center rounded-r-1 bg-brand px-4 py-2 text-sm font-medium text-brand-foreground transition-standard hover:bg-brand-hover"
         @click="takeOver"
       >
         Use this tab instead

@@ -201,7 +201,7 @@ function handleKeydown(e: KeyboardEvent) {
         <button
           @click="sendReply"
           :disabled="!replyContent.trim()"
-          class="p-2.5 bg-primary text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-primary-hover transition-all active:scale-95 shadow-lg shadow-primary/20 mb-1 mr-1"
+          class="mb-1 mr-1 rounded-lg bg-primary p-2.5 text-brand-foreground shadow-lg shadow-primary/20 transition-all hover:bg-brand-hover active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Send class="w-4 h-4" />
         </button>

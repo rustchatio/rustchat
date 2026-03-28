@@ -44,29 +44,29 @@ export const THEME_OPTIONS: Array<{
     { 
         id: 'light', 
         label: 'Light', 
-        swatches: { primary: '#2563eb', accent: '#0ea5e9', background: '#f6f8fb' },
+        swatches: { primary: '#b45309', accent: '#14b8a6', background: '#f5f3ef' },
         colors: {
-            sidebarBg: '#1e325c',
-            sidebarText: '#ffffff',
-            centerChannelBg: '#ffffff',
-            centerChannelColor: '#3d3c40',
-            linkColor: '#166de0',
-            buttonBg: '#166de0',
-            buttonColor: '#ffffff',
+            sidebarBg: '#f2eee7',
+            sidebarText: '#1c1917',
+            centerChannelBg: '#fffdf8',
+            centerChannelColor: '#1c1917',
+            linkColor: '#b45309',
+            buttonBg: '#b45309',
+            buttonColor: '#fffdf8',
         }
     },
     { 
         id: 'dark', 
         label: 'Dark', 
-        swatches: { primary: '#38bdf8', accent: '#22d3ee', background: '#0b1220' },
+        swatches: { primary: '#f59e0b', accent: '#14b8a6', background: '#12100d' },
         colors: {
-            sidebarBg: '#1f222a',
-            sidebarText: '#ffffff',
-            centerChannelBg: '#0b1220',
-            centerChannelColor: '#dddddd',
-            linkColor: '#38bdf8',
-            buttonBg: '#38bdf8',
-            buttonColor: '#ffffff',
+            sidebarBg: '#15120f',
+            sidebarText: '#f7f3ec',
+            centerChannelBg: '#1a1713',
+            centerChannelColor: '#f7f3ec',
+            linkColor: '#f59e0b',
+            buttonBg: '#f59e0b',
+            buttonColor: '#1a1713',
         }
     },
     { 
@@ -100,14 +100,14 @@ export const THEME_OPTIONS: Array<{
     { 
         id: 'futuristic', 
         label: 'Futuristic', 
-        swatches: { primary: '#06b6d4', accent: '#22c55e', background: '#030712' },
+        swatches: { primary: '#22d3ee', accent: '#22c55e', background: '#030712' },
         colors: {
             sidebarBg: '#0f172a',
             sidebarText: '#22c55e',
             centerChannelBg: '#030712',
-            centerChannelColor: '#06b6d4',
+            centerChannelColor: '#d6f1ff',
             linkColor: '#22c55e',
-            buttonBg: '#06b6d4',
+            buttonBg: '#22d3ee',
             buttonColor: '#000000',
         }
     },
@@ -161,13 +161,13 @@ export function getThemeColors(themeId: Theme): ThemeColors {
 }
 
 const DEFAULT_THEME_COLORS: ThemeColors = {
-    sidebarBg: '#1e325c',
-    sidebarText: '#ffffff',
-    centerChannelBg: '#ffffff',
-    centerChannelColor: '#3d3c40',
-    linkColor: '#166de0',
-    buttonBg: '#166de0',
-    buttonColor: '#ffffff',
+    sidebarBg: '#f2eee7',
+    sidebarText: '#1c1917',
+    centerChannelBg: '#fffdf8',
+    centerChannelColor: '#1c1917',
+    linkColor: '#b45309',
+    buttonBg: '#b45309',
+    buttonColor: '#fffdf8',
 }
 
 export const FONT_OPTIONS: Array<{ id: ChatFont; label: string; cssVar: string }> = [
@@ -303,7 +303,7 @@ export const useThemeStore = defineStore('theme', () => {
     const initialFont =
         typeof window !== 'undefined' && isChatFont(localStorage.getItem(STORAGE_FONT))
             ? (localStorage.getItem(STORAGE_FONT) as ChatFont)
-            : 'inter'
+            : 'ibm-plex-sans'
     const initialFontSize =
         typeof window !== 'undefined' ? normalizeFontSize(localStorage.getItem(STORAGE_FONT_SIZE)) : 14
 
@@ -325,15 +325,6 @@ export const useThemeStore = defineStore('theme', () => {
             root.classList.remove('dark')
         }
 
-        // Apply theme color CSS variables
-        const colors = getThemeColors(theme.value)
-        root.style.setProperty('--theme-sidebar-bg', colors.sidebarBg)
-        root.style.setProperty('--theme-sidebar-text', colors.sidebarText)
-        root.style.setProperty('--theme-center-channel-bg', colors.centerChannelBg)
-        root.style.setProperty('--theme-center-channel-color', colors.centerChannelColor)
-        root.style.setProperty('--theme-link-color', colors.linkColor)
-        root.style.setProperty('--theme-button-bg', colors.buttonBg)
-        root.style.setProperty('--theme-button-color', colors.buttonColor)
     }
 
     function applyTypography() {

@@ -1,5 +1,34 @@
 # Task Plan
 
+## 2026-03-28 Theme Source-of-Truth Fix + Brand/Typography Second Pass
+
+### Task
+- Strengthen RustChat’s typography and brand presence so the authenticated app shell feels less generic.
+- Fix theme-driven contrast issues where filled buttons and text could become unreadable on certain presets.
+- Remove hardcoded neutral colors from the main profile and display settings surfaces so theme selection actually propagates.
+
+### Implementation Status
+- [x] Warmed the default light/dark palette and switched the default chat font family toward `IBM Plex Sans` in `frontend/src/style.css`.
+- [x] Added a `brand-foreground` token so filled controls can keep readable text across all shipped theme presets.
+- [x] Updated theme metadata and defaults in `frontend/src/stores/theme.ts` to align the UI selector with the active runtime theme system.
+- [x] Replaced the broken faux-custom theme editor with a preset-only, token-backed editor in `frontend/src/components/settings/display/ThemeEditor.vue`.
+- [x] Retokenized the display settings rows in `frontend/src/components/settings/display/DisplayTab.vue` and the profile settings page in `frontend/src/views/settings/ProfileView.vue`.
+- [x] Applied contrast-safe filled-button text to shared shell controls in the composer, headers, rails, and related settings surfaces.
+
+### Verification Status
+1. `cd frontend && npm run build`
+- Result: PASS
+
+### Manual Verification Commands
+1. `cd frontend && npm run dev`
+2. Login, open `Settings -> Display`, and switch between `Light`, `Dark`, `Futuristic`, and `High Contrast`.
+3. Verify the theme preview cards, save button, composer send button, team rail selection, and profile/settings actions keep readable label contrast.
+4. Open `/settings/profile` and confirm font, font size, and theme changes apply live without gray overrides on the page chrome or form controls.
+
+### Readiness
+- Ready for user acceptance testing.
+- Remaining known limitation: `frontend/src/features/theme/*` still exists as an inactive parallel theme stack; runtime behavior now stays on `frontend/src/stores/theme.ts`.
+
 ## 2026-03-13 WebSocket Token Expiry Enforcement
 
 ### Task

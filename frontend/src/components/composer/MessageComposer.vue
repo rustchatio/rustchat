@@ -961,7 +961,7 @@ onUnmounted(() => {
 
           <!-- Send Button -->
           <button
-            class="flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-r-1 bg-brand px-3 sm:px-4 text-white shadow-1 transition-standard hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50"
+            class="flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-r-1 bg-brand px-3 text-brand-foreground shadow-1 transition-standard hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50 sm:px-4"
             :disabled="!canSend"
             aria-label="Send message"
             @click="handleSend"

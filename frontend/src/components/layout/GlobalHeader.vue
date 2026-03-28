@@ -191,11 +191,11 @@ function handleQuickSwitcherSelect(item: QuickSwitcherItem) {
         />
         <div 
           v-else 
-          class="w-8 h-8 bg-brand rounded-lg flex items-center justify-center text-sm font-bold text-white shrink-0"
+          class="flex h-9 w-9 shrink-0 items-center justify-center rounded-r-1 bg-brand text-sm font-semibold text-brand-foreground shadow-1"
         >
           {{ siteInitial }}
         </div>
-        <span class="font-semibold text-base tracking-tight text-text-1 truncate hidden sm:block">
+        <span class="hidden truncate text-[17px] font-semibold tracking-[-0.03em] text-text-1 sm:block">
           {{ configStore.siteConfig.site_name }}
         </span>
       </div>

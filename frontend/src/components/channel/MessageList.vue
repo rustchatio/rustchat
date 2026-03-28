@@ -210,7 +210,7 @@ function handleOpenProfile(userId: string) {
         <button
           v-if="showNewMessagesBtn"
           @click="scrollToBottom('smooth')"
-          class="fixed bottom-24 left-1/2 -translate-x-1/2 z-20 bg-brand hover:bg-brand-hover text-white px-4 py-2 rounded-full shadow-2 flex items-center gap-2 text-sm font-medium transition-standard"
+          class="fixed bottom-24 left-1/2 z-20 flex -translate-x-1/2 items-center gap-2 rounded-full bg-brand px-4 py-2 text-sm font-medium text-brand-foreground shadow-2 transition-standard hover:bg-brand-hover"
         >
           <ArrowDown class="w-4 h-4" />
           <span>New messages</span>

@@ -149,7 +149,7 @@ async function handleSaveStatus() {
       <!-- Avatar -->
       <div class="flex items-center space-x-4">
         <div class="relative group">
-          <div class="h-16 w-16 sm:h-20 sm:w-20 rounded-full bg-primary flex items-center justify-center text-xl sm:text-2xl text-white font-bold overflow-hidden ring-2 ring-transparent group-hover:ring-primary/50 transition-all">
+          <div class="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-primary text-xl font-bold text-brand-foreground ring-2 ring-transparent transition-all group-hover:ring-primary/50 sm:h-20 sm:w-20 sm:text-2xl">
             <img v-if="avatarUrl" :src="avatarUrl" alt="Avatar" class="w-full h-full object-cover" />
             <span v-else>{{ auth.user?.username?.charAt(0).toUpperCase() || 'U' }}</span>
           </div>

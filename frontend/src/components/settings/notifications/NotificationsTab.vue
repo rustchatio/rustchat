@@ -568,7 +568,7 @@ function formatKeywordList(keywords: string[]): string {
           <div class="mt-4 flex flex-wrap gap-2">
             <button
               type="button"
-              class="rounded bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+              class="rounded bg-primary px-4 py-2 text-sm font-medium text-brand-foreground hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-60"
               :disabled="sendingTestNotification"
               @click="sendTestNotification"
             >

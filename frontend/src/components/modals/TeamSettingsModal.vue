@@ -209,7 +209,7 @@ async function removeMember(userId: string) {
         <!-- Header -->
         <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700 shrink-0">
           <div class="flex items-center space-x-3">
-            <div class="w-10 h-10 rounded-lg bg-primary flex items-center justify-center text-white font-bold text-lg">
+            <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-lg font-bold text-brand-foreground">
               {{ (team.display_name || team.name).charAt(0).toUpperCase() }}
             </div>
             <div>
@@ -245,7 +245,7 @@ async function removeMember(userId: string) {
             <!-- Team Icon -->
             <div class="flex items-center space-x-4">
               <div class="relative">
-                <div class="w-16 h-16 rounded-lg bg-primary flex items-center justify-center text-white font-bold text-2xl">
+                <div class="flex h-16 w-16 items-center justify-center rounded-lg bg-primary text-2xl font-bold text-brand-foreground">
                   {{ (team.display_name || team.name).charAt(0).toUpperCase() }}
                 </div>
                 <button 
@@ -317,7 +317,7 @@ async function removeMember(userId: string) {
                 />
                 <button
                   @click="copyInviteLink"
-                  class="px-3 py-2 bg-primary text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center space-x-1"
+                  class="flex items-center space-x-1 rounded-lg bg-primary px-3 py-2 text-brand-foreground transition-colors hover:bg-brand-hover"
                 >
                   <component :is="copied ? Check : Copy" class="w-4 h-4" />
                   <span class="text-sm">{{ copied ? 'Copied' : 'Copy' }}</span>

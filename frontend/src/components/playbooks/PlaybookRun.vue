@@ -205,7 +205,7 @@ function formatDate(date: string) {
                             <button 
                                 type="submit" 
                                 :disabled="!newUpdate || sendingUpdate"
-                                class="p-2 bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50"
+                                class="p-2 bg-primary text-brand-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50"
                             >
                                 <Send class="w-4 h-4" />
                             </button>

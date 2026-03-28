@@ -411,7 +411,7 @@ async function handleLeaveTeam() {
               @contextmenu.prevent="openContextMenu(channel, $event)"
               class="group/item relative px-2 py-1.5 rounded-r-1 flex items-center justify-between cursor-pointer transition-standard"
               :class="{ 
-                'bg-brand text-white shadow-1': channelStore.currentChannelId === channel.id, 
+                'bg-brand text-brand-foreground shadow-1': channelStore.currentChannelId === channel.id, 
                 'hover:bg-bg-surface-1': channelStore.currentChannelId !== channel.id 
               }"
             >

@@ -44,6 +44,9 @@ const selectedFontSize = computed({
 const themes = THEME_OPTIONS;
 const fonts = FONT_OPTIONS;
 const fontSizes = FONT_SIZE_OPTIONS;
+const fieldLabelClass = 'text-sm font-semibold text-text-2';
+const fieldInputClass = 'w-full rounded-lg border border-border-1 bg-bg-surface-2 px-4 py-2.5 text-text-1 outline-none transition-standard placeholder:text-text-3 focus:border-brand focus:ring-2 focus:ring-brand/15';
+const fieldHintClass = 'text-xs text-text-3';
 
 function setTheme(theme: Theme) {
     themeStore.setTheme(theme);
@@ -124,37 +127,38 @@ async function removeAvatar() {
 </script>
 
 <template>
-    <div class="min-h-screen bg-gray-50 dark:bg-gray-950 p-6">
-        <div class="max-w-2xl mx-auto space-y-8">
-            <!-- Header -->
+    <div class="min-h-screen bg-bg-app p-6 text-text-1">
+        <div class="mx-auto max-w-3xl space-y-8">
             <div class="flex items-center justify-between">
                 <div class="flex items-center space-x-4">
-                    <router-link to="/" class="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full text-gray-500 transition-colors">
+                    <router-link to="/" class="rounded-full p-2 text-text-3 transition-colors hover:bg-bg-surface-2 hover:text-text-1">
                         <ArrowLeft class="w-6 h-6" />
                     </router-link>
-                    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Profile Settings</h1>
+                    <div>
+                        <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-brand">Personal Studio</p>
+                        <h1 class="text-[30px] font-semibold tracking-[-0.04em] text-text-1">Profile Settings</h1>
+                    </div>
                 </div>
             </div>
 
-            <div class="bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 overflow-hidden">
-                <!-- Avatar Section -->
-                <div class="p-8 border-b border-gray-100 dark:border-gray-800 flex flex-col items-center">
+            <div class="overflow-hidden rounded-xl border border-border-1 bg-bg-surface-1 shadow-1">
+                <div class="flex flex-col items-center border-b border-border-1 bg-[radial-gradient(circle_at_top,_color-mix(in_srgb,_var(--brand)_10%,transparent),transparent_55%)] p-8">
                     <div class="relative group">
                         <RcAvatar 
                             :userId="user?.id"
                             :username="user?.username"
                             :src="user?.avatar_url"
                             :size="120"
-                            class="ring-4 ring-white dark:ring-gray-900 shadow-lg"
+                            class="shadow-2 ring-4 ring-bg-surface-1"
                         />
                         <button 
                             @click="fileInput?.click()"
-                            class="absolute inset-0 flex items-center justify-center bg-black/40 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                            class="absolute inset-0 flex cursor-pointer items-center justify-center rounded-full bg-black/45 text-white opacity-0 transition-opacity group-hover:opacity-100"
                         >
                             <Camera class="w-8 h-8" />
                         </button>
-                        <div v-if="uploading" class="absolute inset-0 flex items-center justify-center bg-black/60 text-white rounded-full z-10">
-                            <div class="animate-spin w-8 h-8 border-2 border-white border-t-transparent rounded-full"></div>
+                        <div v-if="uploading" class="absolute inset-0 z-10 flex items-center justify-center rounded-full bg-black/60 text-white">
+                            <div class="h-8 w-8 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
                         </div>
                     </div>
                     
@@ -166,127 +170,134 @@ async function removeAvatar() {
                         @change="handleAvatarUpload"
                     />
 
+                    <div class="mt-5 text-center">
+                        <p class="text-lg font-semibold tracking-[-0.02em] text-text-1">{{ user?.display_name || user?.username }}</p>
+                        <p class="text-sm text-text-3">@{{ user?.username }}</p>
+                    </div>
+
                     <div class="mt-4 flex items-center space-x-4">
                         <button 
                             @click="fileInput?.click()"
-                            class="text-sm font-medium text-primary hover:text-primary-dark transition-colors"
+                            class="text-sm font-medium text-brand transition-colors hover:text-brand-hover"
                         >
                             Change Photo
                         </button>
                         <button 
                             v-if="user?.avatar_url"
                             @click="removeAvatar"
-                            class="text-sm font-medium text-red-500 hover:text-red-600 transition-colors flex items-center"
+                            class="flex items-center text-sm font-medium text-danger transition-colors hover:opacity-80"
                         >
-                            <Trash2 class="w-4 h-4 mr-1" />
+                            <Trash2 class="mr-1 h-4 w-4" />
                             Remove
                         </button>
                     </div>
                 </div>
 
-                <!-- Form Section -->
-                <div class="p-8 space-y-6">
-                    <div v-if="error" class="p-4 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-lg text-sm">
+                <div class="space-y-6 p-8">
+                    <div v-if="error" class="rounded-lg border border-danger/20 bg-danger/10 p-4 text-sm text-danger">
                         {{ error }}
                     </div>
-                    <div v-if="success" class="p-4 bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 rounded-lg text-sm">
+                    <div v-if="success" class="rounded-lg border border-success/20 bg-success/10 p-4 text-sm text-success">
                         Profile updated successfully!
                     </div>
 
                     <div class="grid grid-cols-1 gap-6">
                         <div class="grid grid-cols-2 gap-4">
                             <div class="space-y-2">
-                                <label class="text-sm font-semibold text-gray-700 dark:text-gray-300">First Name</label>
+                                <label :class="fieldLabelClass">First Name</label>
                                 <input 
                                     v-model="firstName"
                                     type="text" 
                                     placeholder="John"
-                                    class="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all dark:text-white"
+                                    :class="fieldInputClass"
                                 />
                             </div>
                             <div class="space-y-2">
-                                <label class="text-sm font-semibold text-gray-700 dark:text-gray-300">Last Name</label>
+                                <label :class="fieldLabelClass">Last Name</label>
                                 <input 
                                     v-model="lastName"
                                     type="text" 
                                     placeholder="Doe"
-                                    class="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all dark:text-white"
+                                    :class="fieldInputClass"
                                 />
                             </div>
                         </div>
 
                         <div class="space-y-2">
-                            <label class="text-sm font-semibold text-gray-700 dark:text-gray-300">Nickname</label>
+                            <label :class="fieldLabelClass">Nickname</label>
                             <input 
                                 v-model="nickname"
                                 type="text" 
                                 placeholder="Johnny"
-                                class="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all dark:text-white"
+                                :class="fieldInputClass"
                             />
-                            <p class="text-xs text-gray-500">How you want to be called.</p>
+                            <p :class="fieldHintClass">How you want to be called.</p>
                         </div>
 
                         <div class="space-y-2">
-                            <label class="text-sm font-semibold text-gray-700 dark:text-gray-300">Position</label>
+                            <label :class="fieldLabelClass">Position</label>
                             <input 
                                 v-model="position"
                                 type="text" 
                                 placeholder="Software Engineer"
-                                class="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all dark:text-white"
+                                :class="fieldInputClass"
                             />
-                            <p class="text-xs text-gray-500">Your job title or role.</p>
+                            <p :class="fieldHintClass">Your job title or role.</p>
                         </div>
 
                         <div class="space-y-2">
-                            <label class="text-sm font-semibold text-gray-700 dark:text-gray-300">Display Name</label>
+                            <label :class="fieldLabelClass">Display Name</label>
                             <input 
                                 v-model="displayName"
                                 type="text" 
                                 placeholder="e.g. John Doe"
-                                class="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all dark:text-white"
+                                :class="fieldInputClass"
                             />
-                            <p class="text-xs text-gray-500">This is how you'll appear to others in RustChat.</p>
+                            <p :class="fieldHintClass">This is how you'll appear to others in RustChat.</p>
                         </div>
 
                         <div class="space-y-2">
-                            <label class="text-sm font-semibold text-gray-700 dark:text-gray-300">Username</label>
+                            <label :class="fieldLabelClass">Username</label>
                             <div class="relative">
-                                <span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 font-medium">@</span>
+                                <span class="absolute left-4 top-1/2 -translate-y-1/2 font-medium text-text-3">@</span>
                                 <input 
                                     v-model="username"
                                     type="text" 
-                                    class="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg pl-9 pr-4 py-2.5 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all dark:text-white"
+                                    :class="`${fieldInputClass} pl-9 pr-4`"
                                 />
                             </div>
                         </div>
 
                         <div class="space-y-2 pt-4">
-                            <label class="text-sm font-semibold text-gray-700 dark:text-gray-300">Email Address</label>
+                            <label :class="fieldLabelClass">Email Address</label>
                             <input 
                                 :value="user?.email"
                                 type="email" 
                                 disabled
-                                class="w-full bg-gray-100 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-800 rounded-lg px-4 py-2.5 text-gray-500 cursor-not-allowed"
+                                class="w-full cursor-not-allowed rounded-lg border border-border-1 bg-bg-surface-2 px-4 py-2.5 text-text-3 opacity-80"
                             />
-                            <p class="text-xs text-gray-500">Email address cannot be changed.</p>
+                            <p :class="fieldHintClass">Email address cannot be changed.</p>
                         </div>
 
-                        <div class="space-y-5 pt-6 mt-6 border-t border-gray-100 dark:border-gray-800">
-                            <label class="text-sm font-semibold text-gray-700 dark:text-gray-300">Appearance</label>
+                        <div class="mt-6 space-y-5 border-t border-border-1 pt-6">
+                            <div>
+                                <label :class="fieldLabelClass">Appearance</label>
+                                <p class="mt-1 text-sm text-text-3">Theme, typography, and sizing all apply live so you can check contrast as you go.</p>
+                            </div>
 
                             <div class="space-y-2">
-                                <p class="text-sm font-medium text-gray-900 dark:text-gray-100">Theme Palette</p>
-                                <p class="text-xs text-gray-500">Pick one of 8 color themes.</p>
+                                <p class="text-sm font-medium text-text-1">Theme Palette</p>
+                                <p class="text-xs text-text-3">Pick one of 8 color themes.</p>
                                 <div class="grid grid-cols-4 gap-3">
                                     <button
                                         v-for="theme in themes"
                                         :key="theme.id"
                                         type="button"
                                         @click="setTheme(theme.id)"
-                                        class="rounded-lg border p-2 transition-all text-left"
+                                        class="rounded-lg border p-2 text-left transition-all"
                                         :class="selectedTheme === theme.id
-                                            ? 'border-brand shadow-[0_0_0_2px_rgba(37,99,235,0.18)]'
-                                            : 'border-border-1 hover:border-border-2'"
+                                            ? 'border-brand bg-brand/5 ring-2 ring-brand/20'
+                                            : 'border-border-1 hover:border-border-2 hover:bg-bg-surface-2'"
                                     >
                                         <div class="flex items-center gap-1.5">
                                             <span
@@ -308,10 +319,10 @@ async function removeAvatar() {
                             </div>
 
                             <div class="space-y-2">
-                                <label class="text-sm font-medium text-gray-900 dark:text-gray-100">Font Preview</label>
+                                <label class="text-sm font-medium text-text-1">Font Preview</label>
                                 <select
                                     v-model="selectedFont"
-                                    class="w-full bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all dark:text-white"
+                                    class="w-full rounded-lg border border-border-1 bg-bg-surface-2 px-3 py-2.5 text-text-1 outline-none transition-standard focus:border-brand focus:ring-2 focus:ring-brand/15"
                                 >
                                     <option
                                         v-for="font in fonts"
@@ -325,7 +336,7 @@ async function removeAvatar() {
                             </div>
 
                             <div class="space-y-2">
-                                <label class="text-sm font-medium text-gray-900 dark:text-gray-100">Chat Font Size</label>
+                                <label class="text-sm font-medium text-text-1">Chat Font Size</label>
                                 <div class="grid grid-cols-5 gap-2">
                                     <label
                                         v-for="size in fontSizes"
@@ -352,14 +363,14 @@ async function removeAvatar() {
                         </div>
                     </div>
 
-                    <div class="pt-6 flex justify-end">
+                    <div class="flex justify-end pt-6">
                         <button 
                             @click="handleUpdateProfile"
                             :disabled="saving"
-                            class="bg-primary hover:bg-primary-dark text-white px-8 py-2.5 rounded-lg font-bold shadow-lg shadow-primary/20 transition-all flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                            class="flex items-center space-x-2 rounded-lg bg-brand px-8 py-2.5 font-bold text-brand-foreground shadow-lg shadow-brand/20 transition-all hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50"
                         >
-                            <Save v-if="!saving" class="w-5 h-5" />
-                            <div v-else class="animate-spin w-5 h-5 border-2 border-white border-t-transparent rounded-full"></div>
+                            <Save v-if="!saving" class="h-5 w-5" />
+                            <div v-else class="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent"></div>
                             <span>{{ saving ? 'Saving...' : 'Save Changes' }}</span>
                         </button>
                     </div>

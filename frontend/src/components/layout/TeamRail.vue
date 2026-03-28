@@ -42,7 +42,7 @@ function getInitials(name: string): string {
           @click="selectTeam(team.id)"
           class="w-10 h-10 rounded-r-2 font-bold text-sm transition-standard relative overflow-hidden flex items-center justify-center"
           :class="{ 
-            'bg-brand text-white shadow-1': teamStore.currentTeamId === team.id,
+            'bg-brand text-brand-foreground shadow-1': teamStore.currentTeamId === team.id,
             'bg-bg-surface-1 text-text-1 hover:bg-bg-surface-1 hover:text-brand border border-border-1': teamStore.currentTeamId !== team.id
           }"
           :title="team.display_name || team.name"

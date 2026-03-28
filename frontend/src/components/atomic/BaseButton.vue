@@ -16,7 +16,7 @@ defineProps<{
         ? 'text-gray-700 bg-white border-gray-300 hover:bg-gray-50 focus:ring-primary' 
         : variant === 'danger'
         ? 'text-white bg-red-600 hover:bg-red-700 focus:ring-red-500'
-        : 'text-white bg-primary hover:bg-blue-700 focus:ring-primary',
+        : 'text-brand-foreground bg-primary hover:bg-brand-hover focus:ring-primary',
       block ? 'w-full' : ''
     ]"
     :disabled="loading"

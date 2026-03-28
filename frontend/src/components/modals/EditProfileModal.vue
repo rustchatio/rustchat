@@ -112,7 +112,7 @@ function handleClose() {
           <!-- Avatar Preview -->
           <div class="flex justify-center">
             <div class="relative">
-              <div class="w-24 h-24 rounded-full bg-primary flex items-center justify-center text-white text-3xl font-bold overflow-hidden">
+              <div class="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full bg-primary text-3xl font-bold text-brand-foreground">
                 <img v-if="avatarUrl" :src="avatarUrl" alt="Avatar" class="w-full h-full object-cover" />
                 <User v-else class="w-12 h-12" />
               </div>

@@ -771,7 +771,7 @@ const canSend = computed(() => {
                         <button 
                             @click="onSend"
                             :disabled="!canSend"
-                            class="flex items-center gap-1 px-3 py-1.5 bg-primary hover:bg-primary-hover disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-r-1 transition-standard"
+                            class="flex items-center gap-1 rounded-r-1 bg-primary px-3 py-1.5 text-brand-foreground transition-standard hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50"
                             aria-label="Send message"
                         >
                             <Send class="w-4 h-4" />
@@ -779,7 +779,7 @@ const canSend = computed(() => {
                         </button>
                         <button 
                             @click="showSendOptions = !showSendOptions"
-                            class="p-1.5 bg-primary hover:bg-primary-hover text-white rounded-r-1 ml-0.5 transition-standard"
+                            class="ml-0.5 rounded-r-1 bg-primary p-1.5 text-brand-foreground transition-standard hover:bg-brand-hover"
                             aria-label="Send options"
                         >
                             <ChevronDown class="w-3 h-3" />

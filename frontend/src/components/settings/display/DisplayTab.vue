@@ -37,6 +37,14 @@ const localFontSize = ref<13 | 14 | 16>(14)
 
 const saving = ref(false)
 
+const optionCardClass = 'flex items-center gap-3 rounded-lg border border-border-1 bg-bg-surface-1 p-3 text-text-1 transition-standard hover:bg-bg-surface-2'
+const optionToggleCardClass = 'flex items-center justify-between rounded-lg border border-border-1 bg-bg-surface-1 p-3 text-text-1 transition-standard hover:bg-bg-surface-2'
+const optionTitleClass = 'text-sm font-medium text-text-1'
+const optionDescriptionClass = 'text-xs text-text-3'
+const radioClass = 'h-4 w-4 cursor-pointer accent-brand'
+const checkboxClass = 'h-5 w-5 cursor-pointer rounded accent-brand'
+const selectClass = 'w-full rounded-lg border border-border-1 bg-bg-surface-1 px-3 py-2 text-sm text-text-1 outline-none transition-standard focus:border-brand focus:ring-2 focus:ring-brand/15'
+
 // Theme display label
 const themeLabel = computed(() => {
   const option = THEME_OPTIONS.find(t => t.id === themeStore.theme)
@@ -221,7 +229,7 @@ const commonTimezones = [
     <SettingItemMax
       v-else
       label="Theme"
-      description="Select a premade theme or customize your own colors"
+      description="Select a premade theme tuned for contrast and readability"
       :loading="savingTheme"
       @save="() => {}"
       @cancel="handleCancelTheme"
@@ -252,40 +260,40 @@ const commonTimezones = [
       @cancel="cancelEdit"
     >
       <div class="space-y-3">
-        <label class="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+        <label :class="optionCardClass">
           <input
             type="radio"
             v-model="localFontSize"
             :value="13"
-            class="w-4 h-4 text-primary"
+            :class="radioClass"
           />
           <div class="flex-1">
-            <div class="text-sm font-medium text-gray-900 dark:text-white">Small</div>
-            <div class="text-xs text-gray-500" style="font-size: 13px;">Compact text for more content on screen</div>
+            <div :class="optionTitleClass">Small</div>
+            <div :class="optionDescriptionClass" style="font-size: 13px;">Compact text for more content on screen</div>
           </div>
         </label>
-        <label class="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+        <label :class="optionCardClass">
           <input
             type="radio"
             v-model="localFontSize"
             :value="14"
-            class="w-4 h-4 text-primary"
+            :class="radioClass"
           />
           <div class="flex-1">
-            <div class="text-sm font-medium text-gray-900 dark:text-white">Medium</div>
-            <div class="text-xs text-gray-500" style="font-size: 14px;">Standard text size</div>
+            <div :class="optionTitleClass">Medium</div>
+            <div :class="optionDescriptionClass" style="font-size: 14px;">Standard text size</div>
           </div>
         </label>
-        <label class="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+        <label :class="optionCardClass">
           <input
             type="radio"
             v-model="localFontSize"
             :value="16"
-            class="w-4 h-4 text-primary"
+            :class="radioClass"
           />
           <div class="flex-1">
-            <div class="text-sm font-medium text-gray-900 dark:text-white">Large</div>
-            <div class="text-xs text-gray-500" style="font-size: 16px;">Larger text for improved readability</div>
+            <div :class="optionTitleClass">Large</div>
+            <div :class="optionDescriptionClass" style="font-size: 16px;">Larger text for improved readability</div>
           </div>
         </label>
       </div>
@@ -310,28 +318,28 @@ const commonTimezones = [
       @cancel="cancelEdit"
     >
       <div class="space-y-3">
-        <label class="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+        <label :class="optionCardClass">
           <input
             type="radio"
             v-model="localCollapsedReplyThreads"
             :value="false"
-            class="w-4 h-4 text-primary"
+            :class="radioClass"
           />
           <div class="flex-1">
-            <div class="text-sm font-medium text-gray-900 dark:text-white">Expanded</div>
-            <div class="text-xs text-gray-500">Show all replies in the channel</div>
+            <div :class="optionTitleClass">Expanded</div>
+            <div :class="optionDescriptionClass">Show all replies in the channel</div>
           </div>
         </label>
-        <label class="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+        <label :class="optionCardClass">
           <input
             type="radio"
             v-model="localCollapsedReplyThreads"
             :value="true"
-            class="w-4 h-4 text-primary"
+            :class="radioClass"
           />
           <div class="flex-1">
-            <div class="text-sm font-medium text-gray-900 dark:text-white">Collapsed</div>
-            <div class="text-xs text-gray-500">Show only the number of replies in the channel</div>
+            <div :class="optionTitleClass">Collapsed</div>
+            <div :class="optionDescriptionClass">Show only the number of replies in the channel</div>
           </div>
         </label>
       </div>
@@ -356,28 +364,28 @@ const commonTimezones = [
       @cancel="cancelEdit"
     >
       <div class="space-y-3">
-        <label class="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+        <label :class="optionCardClass">
           <input
             type="radio"
             v-model="localUseMilitaryTime"
             :value="false"
-            class="w-4 h-4 text-primary"
+            :class="radioClass"
           />
           <div class="flex-1">
-            <div class="text-sm font-medium text-gray-900 dark:text-white">12-hour clock</div>
-            <div class="text-xs text-gray-500">Example: 4:00 PM</div>
+            <div :class="optionTitleClass">12-hour clock</div>
+            <div :class="optionDescriptionClass">Example: 4:00 PM</div>
           </div>
         </label>
-        <label class="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+        <label :class="optionCardClass">
           <input
             type="radio"
             v-model="localUseMilitaryTime"
             :value="true"
-            class="w-4 h-4 text-primary"
+            :class="radioClass"
           />
           <div class="flex-1">
-            <div class="text-sm font-medium text-gray-900 dark:text-white">24-hour clock</div>
-            <div class="text-xs text-gray-500">Example: 16:00</div>
+            <div :class="optionTitleClass">24-hour clock</div>
+            <div :class="optionDescriptionClass">Example: 16:00</div>
           </div>
         </label>
       </div>
@@ -402,40 +410,40 @@ const commonTimezones = [
       @cancel="cancelEdit"
     >
       <div class="space-y-3">
-        <label class="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+        <label :class="optionCardClass">
           <input
             type="radio"
             v-model="localTeammateNameDisplay"
             value="username"
-            class="w-4 h-4 text-primary"
+            :class="radioClass"
           />
           <div class="flex-1">
-            <div class="text-sm font-medium text-gray-900 dark:text-white">Show username</div>
-            <div class="text-xs text-gray-500">@username</div>
+            <div :class="optionTitleClass">Show username</div>
+            <div :class="optionDescriptionClass">@username</div>
           </div>
         </label>
-        <label class="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+        <label :class="optionCardClass">
           <input
             type="radio"
             v-model="localTeammateNameDisplay"
             value="nickname"
-            class="w-4 h-4 text-primary"
+            :class="radioClass"
           />
           <div class="flex-1">
-            <div class="text-sm font-medium text-gray-900 dark:text-white">Show nickname</div>
-            <div class="text-xs text-gray-500">If set, otherwise username</div>
+            <div :class="optionTitleClass">Show nickname</div>
+            <div :class="optionDescriptionClass">If set, otherwise username</div>
           </div>
         </label>
-        <label class="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+        <label :class="optionCardClass">
           <input
             type="radio"
             v-model="localTeammateNameDisplay"
             value="full_name"
-            class="w-4 h-4 text-primary"
+            :class="radioClass"
           />
           <div class="flex-1">
-            <div class="text-sm font-medium text-gray-900 dark:text-white">Show full name</div>
-            <div class="text-xs text-gray-500">First and last name, if set</div>
+            <div :class="optionTitleClass">Show full name</div>
+            <div :class="optionDescriptionClass">First and last name, if set</div>
           </div>
         </label>
       </div>
@@ -460,28 +468,28 @@ const commonTimezones = [
       @cancel="cancelEdit"
     >
       <div class="space-y-3">
-        <label class="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+        <label :class="optionCardClass">
           <input
             type="radio"
             v-model="localAvailabilityVisible"
             :value="true"
-            class="w-4 h-4 text-primary"
+            :class="radioClass"
           />
           <div class="flex-1">
-            <div class="text-sm font-medium text-gray-900 dark:text-white">Show</div>
-            <div class="text-xs text-gray-500">Display online status on profile images</div>
+            <div :class="optionTitleClass">Show</div>
+            <div :class="optionDescriptionClass">Display online status on profile images</div>
           </div>
         </label>
-        <label class="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+        <label :class="optionCardClass">
           <input
             type="radio"
             v-model="localAvailabilityVisible"
             :value="false"
-            class="w-4 h-4 text-primary"
+            :class="radioClass"
           />
           <div class="flex-1">
-            <div class="text-sm font-medium text-gray-900 dark:text-white">Hide</div>
-            <div class="text-xs text-gray-500">Do not show online status indicators</div>
+            <div :class="optionTitleClass">Hide</div>
+            <div :class="optionDescriptionClass">Do not show online status indicators</div>
           </div>
         </label>
       </div>
@@ -506,15 +514,15 @@ const commonTimezones = [
       @cancel="cancelEdit"
     >
       <div class="space-y-3">
-        <label class="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+        <label :class="optionToggleCardClass">
           <div>
-            <div class="text-sm font-medium text-gray-900 dark:text-white">Share last active time</div>
-            <div class="text-xs text-gray-500">Teammates can see when you were last online</div>
+            <div :class="optionTitleClass">Share last active time</div>
+            <div :class="optionDescriptionClass">Teammates can see when you were last online</div>
           </div>
           <input
             type="checkbox"
             v-model="localShowLastActive"
-            class="w-5 h-5 text-primary rounded"
+            :class="checkboxClass"
           />
         </label>
       </div>
@@ -539,35 +547,35 @@ const commonTimezones = [
       @cancel="cancelEdit"
     >
       <div class="space-y-4">
-        <label class="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+        <label :class="optionCardClass">
           <input
             type="radio"
             v-model="localTimezoneMode"
             value="auto"
-            class="w-4 h-4 text-primary"
+            :class="radioClass"
           />
           <div class="flex-1">
-            <div class="text-sm font-medium text-gray-900 dark:text-white">Auto</div>
-            <div class="text-xs text-gray-500">Use your browser's timezone</div>
+            <div :class="optionTitleClass">Auto</div>
+            <div :class="optionDescriptionClass">Use your browser's timezone</div>
           </div>
         </label>
-        <label class="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+        <label :class="optionCardClass">
           <input
             type="radio"
             v-model="localTimezoneMode"
             value="manual"
-            class="w-4 h-4 text-primary"
+            :class="radioClass"
           />
           <div class="flex-1">
-            <div class="text-sm font-medium text-gray-900 dark:text-white">Manual</div>
-            <div class="text-xs text-gray-500">Select a specific timezone</div>
+            <div :class="optionTitleClass">Manual</div>
+            <div :class="optionDescriptionClass">Select a specific timezone</div>
           </div>
         </label>
         
         <div v-if="localTimezoneMode === 'manual'" class="mt-3">
           <select
             v-model="localTimezone"
-            class="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm"
+            :class="selectClass"
           >
             <option v-for="tz in commonTimezones" :key="tz" :value="tz">{{ tz }}</option>
           </select>
@@ -594,15 +602,15 @@ const commonTimezones = [
       @cancel="cancelEdit"
     >
       <div class="space-y-3">
-        <label class="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+        <label :class="optionToggleCardClass">
           <div>
-            <div class="text-sm font-medium text-gray-900 dark:text-white">Show link previews</div>
-            <div class="text-xs text-gray-500">Display previews when links are posted</div>
+            <div :class="optionTitleClass">Show link previews</div>
+            <div :class="optionDescriptionClass">Display previews when links are posted</div>
           </div>
           <input
             type="checkbox"
             v-model="localLinkPreviews"
-            class="w-5 h-5 text-primary rounded"
+            :class="checkboxClass"
           />
         </label>
       </div>
@@ -627,15 +635,15 @@ const commonTimezones = [
       @cancel="cancelEdit"
     >
       <div class="space-y-3">
-        <label class="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+        <label :class="optionToggleCardClass">
           <div>
-            <div class="text-sm font-medium text-gray-900 dark:text-white">Show image previews</div>
-            <div class="text-xs text-gray-500">Display image previews in messages</div>
+            <div :class="optionTitleClass">Show image previews</div>
+            <div :class="optionDescriptionClass">Display image previews in messages</div>
           </div>
           <input
             type="checkbox"
             v-model="localImagePreviews"
-            class="w-5 h-5 text-primary rounded"
+            :class="checkboxClass"
           />
         </label>
       </div>
@@ -660,28 +668,28 @@ const commonTimezones = [
       @cancel="cancelEdit"
     >
       <div class="space-y-3">
-        <label class="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+        <label :class="optionCardClass">
           <input
             type="radio"
             v-model="localMessageDisplay"
             value="standard"
-            class="w-4 h-4 text-primary"
+            :class="radioClass"
           />
           <div class="flex-1">
-            <div class="text-sm font-medium text-gray-900 dark:text-white">Standard</div>
-            <div class="text-xs text-gray-500">Full message display with avatars</div>
+            <div :class="optionTitleClass">Standard</div>
+            <div :class="optionDescriptionClass">Full message display with avatars</div>
           </div>
         </label>
-        <label class="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+        <label :class="optionCardClass">
           <input
             type="radio"
             v-model="localMessageDisplay"
             value="compact"
-            class="w-4 h-4 text-primary"
+            :class="radioClass"
           />
           <div class="flex-1">
-            <div class="text-sm font-medium text-gray-900 dark:text-white">Compact</div>
-            <div class="text-xs text-gray-500">Condensed view for more messages on screen</div>
+            <div :class="optionTitleClass">Compact</div>
+            <div :class="optionDescriptionClass">Condensed view for more messages on screen</div>
           </div>
         </label>
       </div>
@@ -706,15 +714,15 @@ const commonTimezones = [
       @cancel="cancelEdit"
     >
       <div class="space-y-3">
-        <label class="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+        <label :class="optionToggleCardClass">
           <div>
-            <div class="text-sm font-medium text-gray-900 dark:text-white">Click to open threads</div>
-            <div class="text-xs text-gray-500">Click on any message to view its thread</div>
+            <div :class="optionTitleClass">Click to open threads</div>
+            <div :class="optionDescriptionClass">Click on any message to view its thread</div>
           </div>
           <input
             type="checkbox"
             v-model="localClickToReply"
-            class="w-5 h-5 text-primary rounded"
+            :class="checkboxClass"
           />
         </label>
       </div>
@@ -739,28 +747,28 @@ const commonTimezones = [
       @cancel="cancelEdit"
     >
       <div class="space-y-3">
-        <label class="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+        <label :class="optionCardClass">
           <input
             type="radio"
             v-model="localChannelDisplay"
             value="full"
-            class="w-4 h-4 text-primary"
+            :class="radioClass"
           />
           <div class="flex-1">
-            <div class="text-sm font-medium text-gray-900 dark:text-white">Full width</div>
-            <div class="text-xs text-gray-500">Use the full width of the window</div>
+            <div :class="optionTitleClass">Full width</div>
+            <div :class="optionDescriptionClass">Use the full width of the window</div>
           </div>
         </label>
-        <label class="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+        <label :class="optionCardClass">
           <input
             type="radio"
             v-model="localChannelDisplay"
             value="centered"
-            class="w-4 h-4 text-primary"
+            :class="radioClass"
           />
           <div class="flex-1">
-            <div class="text-sm font-medium text-gray-900 dark:text-white">Centered</div>
-            <div class="text-xs text-gray-500">Center content with fixed width</div>
+            <div :class="optionTitleClass">Centered</div>
+            <div :class="optionDescriptionClass">Center content with fixed width</div>
           </div>
         </label>
       </div>
@@ -785,15 +793,15 @@ const commonTimezones = [
       @cancel="cancelEdit"
     >
       <div class="space-y-3">
-        <label class="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+        <label :class="optionToggleCardClass">
           <div>
-            <div class="text-sm font-medium text-gray-900 dark:text-white">Show quick reactions</div>
-            <div class="text-xs text-gray-500">Display emoji reaction buttons on hover</div>
+            <div :class="optionTitleClass">Show quick reactions</div>
+            <div :class="optionDescriptionClass">Display emoji reaction buttons on hover</div>
           </div>
           <input
             type="checkbox"
             v-model="localQuickReactions"
-            class="w-5 h-5 text-primary rounded"
+            :class="checkboxClass"
           />
         </label>
       </div>
@@ -818,15 +826,15 @@ const commonTimezones = [
       @cancel="cancelEdit"
     >
       <div class="space-y-3">
-        <label class="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+        <label :class="optionToggleCardClass">
           <div>
-            <div class="text-sm font-medium text-gray-900 dark:text-white">Render emoticons</div>
-            <div class="text-xs text-gray-500">Convert :) to 😊 and other text emoticons</div>
+            <div :class="optionTitleClass">Render emoticons</div>
+            <div :class="optionDescriptionClass">Convert :) to 😊 and other text emoticons</div>
           </div>
           <input
             type="checkbox"
             v-model="localRenderEmoticons"
-            class="w-5 h-5 text-primary rounded"
+            :class="checkboxClass"
           />
         </label>
       </div>
@@ -853,7 +861,7 @@ const commonTimezones = [
       <div class="space-y-3">
         <select
           v-model="localLanguage"
-          class="w-full px-3 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm"
+          :class="selectClass"
         >
           <option value="en">English</option>
           <option value="es">Español</option>

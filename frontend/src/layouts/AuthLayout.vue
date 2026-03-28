@@ -8,7 +8,7 @@ const configStore = useConfigStore()
     <div class="sm:mx-auto sm:w-full sm:max-w-md">
       <div class="flex justify-center">
         <img v-if="configStore.siteConfig.logo_url" :src="configStore.siteConfig.logo_url" class="h-16 w-16 object-cover rounded-xl" alt="Logo" />
-        <div v-else class="h-12 w-12 bg-primary rounded-xl flex items-center justify-center text-white text-2xl font-bold">
+        <div v-else class="flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-2xl font-bold text-brand-foreground">
           {{ configStore.siteConfig.site_name.charAt(0).toUpperCase() }}
         </div>
       </div>
