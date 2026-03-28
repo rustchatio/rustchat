@@ -46,6 +46,7 @@ const deleting = ref(false)
 const isEditing = ref(false)
 const editContent = ref('')
 const editInputRef = ref<HTMLTextAreaElement | null>(null)
+const emojiButtonRef = ref<HTMLElement | null>(null)
 const saving = ref(false)
 
 const isOwnMessage = computed(() => authStore.user?.id === props.message.userId)
@@ -214,7 +215,23 @@ function openGallery(file: FileUploadResponse) {
 
 async function handleEmojiSelect(emoji: string) {
   showEmojiPicker.value = false
+  showActions.value = false
   await toggleReaction(emoji)
+}
+
+function handleMessageMouseLeave() {
+  if (showEmojiPicker.value) {
+    showMenu.value = false
+    return
+  }
+
+  showActions.value = false
+  showMenu.value = false
+}
+
+function handleEmojiPickerClose() {
+  showEmojiPicker.value = false
+  showActions.value = false
 }
 
 async function toggleReaction(emoji: string) {
@@ -348,7 +365,7 @@ async function toggleReaction(emoji: string) {
       }
     ]"
     @mouseenter="showActions = true"
-    @mouseleave="showActions = false; showMenu = false; showEmojiPicker = false"
+    @mouseleave="handleMessageMouseLeave"
   >
     <!-- Avatar -->
     <div class="shrink-0 select-none mr-2 sm:mr-3 mt-0.5 cursor-pointer" @click="openUserProfile">
@@ -502,14 +519,20 @@ async function toggleReaction(emoji: string) {
       
       <div class="relative">
         <button 
-          @click.stop="showEmojiPicker = !showEmojiPicker"
+          ref="emojiButtonRef"
+          @click.stop="showEmojiPicker = !showEmojiPicker; showActions = true"
           class="p-1.5 hover:bg-bg-surface-2 text-text-3 hover:text-text-1 transition-colors rounded"
           :class="{ 'bg-bg-surface-2 text-brand': showEmojiPicker }"
           title="Add reaction"
         >
           <Smile class="w-4 h-4" />
         </button>
-        <EmojiPicker :show="showEmojiPicker" @select="handleEmojiSelect" @close="showEmojiPicker = false" />
+        <EmojiPicker
+          :show="showEmojiPicker"
+          :anchor-el="emojiButtonRef"
+          @select="handleEmojiSelect"
+          @close="handleEmojiPickerClose"
+        />
       </div>
       
       <div class="relative">

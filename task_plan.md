@@ -1,5 +1,33 @@
 # Task Plan
 
+## 2026-03-28 Emoji Picker Overlay and Clickability Fix
+
+### Task
+- Fix shared emoji picker positioning so every trigger opens the overlay from the correct anchor.
+- Stop the message reaction picker from becoming unclickable when moving the pointer from the message row into the teleported picker.
+- Correct the Mattermost composer so the picker inserts emoji glyphs directly instead of treating them like `:shortcode:` autocomplete values.
+
+### Implementation Status
+- [x] Retokenized `frontend/src/components/atomic/EmojiPicker.vue` to the active design token system while keeping the teleported fixed-position overlay behavior.
+- [x] Added anchored picker positioning and hover-safe close handling in `frontend/src/components/channel/MessageItem.vue` so reaction pickers stay clickable.
+- [x] Added anchored picker positioning in `frontend/src/components/settings/StatusPicker.vue`.
+- [x] Fixed `frontend/src/components/composer/MattermostComposer.vue` so picker selections insert glyphs at the cursor position and keep focus/selection behavior intact.
+
+### Verification Status
+1. `cd frontend && npm run build`
+- Result: PASS
+- Note: existing Vite warning about `frontend/src/stores/calls.ts` being both dynamically and statically imported still appears, but the build completes successfully.
+
+### Manual Verification Commands
+1. `cd frontend && npm run dev`
+2. Open a channel, hover a message, click the reaction smile button, and move the pointer into the picker. Verify the picker stays open and every emoji remains clickable.
+3. Open the status picker and confirm the emoji overlay opens aligned to the trigger and remains above the modal/backdrop.
+4. Switch to the Mattermost composer, insert an emoji from the picker, and verify the actual emoji glyph is inserted at the cursor without breaking typing focus.
+
+### Readiness
+- Ready for user acceptance testing.
+- Remaining follow-up: if we want emoji name search instead of glyph-only filtering, that should be a separate UX improvement pass.
+
 ## 2026-03-28 Settings, Profile, and Admin Normalization Pass
 
 ### Task

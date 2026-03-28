@@ -1,3 +1,127 @@
+# SPEC: Emoji Picker Overlay and Clickability Fix (2026-03-28)
+
+## Problem Statement
+
+The shared emoji picker is not behaving consistently across RustChat. Users can open it in some places, but in others it appears detached from the trigger, sits in the wrong place, or becomes effectively unclickable because another UI surface closes or visually covers it.
+
+Current investigation points to two concrete causes:
+
+1. `frontend/src/components/atomic/EmojiPicker.vue` only computes floating position when it receives an `anchorEl`, but not every caller passes one.
+2. `frontend/src/components/channel/MessageItem.vue` closes the hover action strip on `mouseleave`, which also closes the teleported emoji picker while the pointer moves toward it.
+
+This makes emoji interactions feel flaky, especially for reactions and status editing.
+
+## Goals
+
+1. Make the emoji picker open in a reliable, clickable position everywhere it is used.
+2. Fix the message-reaction emoji flow so the picker remains usable instead of closing while the pointer moves into it.
+3. Standardize emoji-picker integration so future callers follow one pattern.
+4. Keep the change scoped to UI behavior and shared picker rendering only.
+
+## Non-Goals
+
+1. No backend or API changes.
+2. No new emoji dataset or emoji search-by-name improvements in this pass.
+3. No redesign of all popovers/menus in the app.
+4. No changes to emoji reaction business logic beyond making the picker usable.
+
+## Scope and Contract Impact
+
+In scope:
+- `frontend/src/components/atomic/EmojiPicker.vue`
+- `frontend/src/components/channel/MessageItem.vue`
+- `frontend/src/components/settings/StatusPicker.vue`
+- `frontend/src/components/composer/MattermostComposer.vue`
+- `frontend/src/components/composer/MessageComposer.vue` only if a small consistency update is useful
+
+Contract impact:
+- No server/API contract change.
+- No intended change to stored preferences or message/reaction schemas.
+- User-visible contract change: emoji pickers should anchor consistently and remain clickable instead of appearing underneath or disappearing unexpectedly.
+
+Out of scope for this phase:
+- custom emoji management
+- autocomplete/name-search redesign
+- broad modal/token cleanup outside the picker itself
+
+## Current Implementation Findings
+
+1. `frontend/src/components/atomic/EmojiPicker.vue` teleports to `body` and uses `position: fixed`, which is good for escaping local overflow and stacking contexts.
+2. That same picker returns early from `updatePosition()` when `anchorEl` is missing, so callers without an anchor open an unpositioned floating panel.
+3. `frontend/src/components/composer/MessageComposer.vue` already passes an anchor element correctly.
+4. `frontend/src/components/channel/MessageItem.vue`, `frontend/src/components/settings/StatusPicker.vue`, and `frontend/src/components/composer/MattermostComposer.vue` currently open the picker without passing an anchor.
+5. `frontend/src/components/channel/MessageItem.vue` also closes `showEmojiPicker` on row `mouseleave`, which conflicts with a teleported picker rendered outside that row.
+
+## Implementation Outline
+
+### Phase 1: Shared Picker Positioning Contract
+
+Target file:
+- `frontend/src/components/atomic/EmojiPicker.vue`
+
+Work:
+- keep the picker teleported to `body`
+- make the positioning contract explicit and robust when shown
+- retokenize the picker surface away from hardcoded `gray-*` / `dark:*` classes while touching it
+
+Expected outcome:
+- the shared picker has one reliable floating behavior and one consistent visual system
+
+### Phase 2: Fix Missing Anchor Integrations
+
+Target files:
+- `frontend/src/components/channel/MessageItem.vue`
+- `frontend/src/components/settings/StatusPicker.vue`
+- `frontend/src/components/composer/MattermostComposer.vue`
+
+Work:
+- add trigger refs and pass `anchorEl` to the shared picker everywhere
+- align each caller to the same open/close wiring pattern already used in `MessageComposer.vue`
+
+Expected outcome:
+- emoji pickers open from the correct trigger instead of appearing detached
+
+### Phase 3: Fix Reaction Hover Dismissal
+
+Target file:
+- `frontend/src/components/channel/MessageItem.vue`
+
+Work:
+- stop closing the picker simply because the message row loses hover while the picker is open
+- keep message actions usable without leaving stray open overlays behind
+
+Expected outcome:
+- reaction emoji selection becomes clickable and stable
+
+## Verification Plan
+
+Automated:
+- `cd frontend && npm run build`
+
+Manual:
+- `cd frontend && npm run dev`
+- verify emoji picker behavior in:
+  - channel message hover reactions
+  - main composer
+  - Mattermost composer
+  - status picker
+- check these outcomes:
+  - picker appears adjacent to the clicked trigger
+  - picker stays open long enough to click an emoji
+  - picker does not render underneath nearby overlays or clipped containers
+  - outside click and Escape still close it cleanly
+
+## Expected Result
+
+After this fix, emoji interactions should feel dependable instead of brittle.
+
+The user should feel:
+- “the picker opens where I expect”
+- “I can actually click the emoji”
+- “reactions and status editing no longer fight the UI”
+
+---
+
 # SPEC: Theme Cleanup and Unused File Removal (2026-03-28)
 
 ## Problem Statement

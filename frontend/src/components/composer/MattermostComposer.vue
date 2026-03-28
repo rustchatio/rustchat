@@ -32,6 +32,7 @@ const emit = defineEmits<{
 
 // Refs
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
+const emojiButtonRef = ref<HTMLElement | null>(null)
 const content = ref('')
 const selectionStart = ref(0)
 const selectionEnd = ref(0)
@@ -125,9 +126,9 @@ function onNumberedList() { applyTransform(makeNumberedList) }
 
 // Handle emoji selection
 function onEmojiSelect(emojiName: string) {
-    const result = insertEmoji(getTextSelection(), emojiName)
-    content.value = result.text
-    showEmojiAutocomplete.value = false
+  const result = insertEmoji(getTextSelection(), emojiName)
+  content.value = result.text
+  showEmojiAutocomplete.value = false
     
     nextTick(() => {
         const textarea = textareaRef.value
@@ -135,6 +136,27 @@ function onEmojiSelect(emojiName: string) {
             textarea.focus()
             textarea.setSelectionRange(result.selectionStart, result.selectionEnd)
             updateSelection()
+        }
+    })
+}
+
+function onEmojiGlyphSelect(emoji: string) {
+    const selection = getTextSelection()
+    const newText = selection.text.substring(0, selection.selectionStart)
+        + emoji
+        + selection.text.substring(selection.selectionEnd)
+
+    const newPos = selection.selectionStart + emoji.length
+    content.value = newText
+    showEmojiPicker.value = false
+
+    nextTick(() => {
+        const textarea = textareaRef.value
+        if (textarea) {
+            textarea.focus()
+            textarea.setSelectionRange(newPos, newPos)
+            updateSelection()
+            autoResize()
         }
     })
 }
@@ -727,6 +749,7 @@ const canSend = computed(() => {
                     <!-- Emoji -->
                     <div class="relative">
                         <button 
+                            ref="emojiButtonRef"
                             @click="showEmojiPicker = !showEmojiPicker"
                             class="p-1.5 rounded hover:bg-bg-surface-2 text-text-3 hover:text-text-1 transition-standard"
                             title="Emoji"
@@ -737,7 +760,8 @@ const canSend = computed(() => {
                         <EmojiPicker
                             v-if="showEmojiPicker"
                             :show="showEmojiPicker"
-                            @select="(emoji) => { onEmojiSelect(emoji); showEmojiPicker = false; }"
+                            :anchor-el="emojiButtonRef"
+                            @select="onEmojiGlyphSelect"
                             @close="showEmojiPicker = false"
                         />
                     </div>

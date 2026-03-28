@@ -116,26 +116,26 @@ onUnmounted(() => {
       v-if="show"
       ref="pickerRef"
       :style="pickerStyle"
-      class="fixed z-[9999] w-[22rem] max-w-[calc(100vw-1rem)] bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-black/5 dark:border-white/10 overflow-hidden animate-fade-in"
+      class="fixed z-[9999] w-[22rem] max-w-[calc(100vw-1rem)] overflow-hidden rounded-r-3 border border-border-1 bg-bg-surface-1 text-text-1 shadow-2xl animate-fade-in"
     >
       <!-- Header -->
-      <div class="p-2 border-b border-gray-200 dark:border-gray-700">
+      <div class="border-b border-border-1 p-2">
         <input
           v-model="searchQuery"
           type="text"
           placeholder="Search emoji..."
-          class="w-full px-3 py-1.5 text-sm bg-gray-100 dark:bg-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-gray-900 dark:text-white"
+          class="w-full rounded-r-2 border border-border-1 bg-bg-surface-2 px-3 py-1.5 text-sm text-text-1 placeholder:text-text-3 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/15"
         />
       </div>
 
       <!-- Categories -->
-      <div class="flex items-center px-2 py-1 border-b border-gray-100 dark:border-gray-700 space-x-1">
+      <div class="flex items-center space-x-1 border-b border-border-1 px-2 py-1">
         <button
           v-for="cat in categories"
           :key="cat.id"
           @click="activeCategory = cat.id"
-          class="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-          :class="activeCategory === cat.id ? 'bg-gray-200 dark:bg-gray-600' : ''"
+          class="rounded-r-1 p-1.5 text-lg transition-standard hover:bg-bg-surface-2"
+          :class="activeCategory === cat.id ? 'bg-bg-surface-2 text-brand' : 'text-text-2'"
         >
           {{ cat.name }}
         </button>
@@ -147,14 +147,14 @@ onUnmounted(() => {
           v-for="emoji in filteredEmojis"
           :key="emoji"
           @click="selectEmoji(emoji)"
-          class="p-1.5 text-xl hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+          class="rounded-r-1 p-1.5 text-xl transition-standard hover:bg-bg-surface-2"
         >
           {{ emoji }}
         </button>
       </div>
 
       <!-- Empty State -->
-      <div v-if="filteredEmojis.length === 0" class="p-4 text-center text-gray-500 text-sm">
+      <div v-if="filteredEmojis.length === 0" class="p-4 text-center text-sm text-text-3">
         No emojis found
       </div>
     </div>

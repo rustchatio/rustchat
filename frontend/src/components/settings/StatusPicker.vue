@@ -19,6 +19,7 @@ const statusText = ref('')
 const statusEmoji = ref('')
 const duration = ref<number | null>(null)
 const showEmojiPicker = ref(false)
+const emojiButtonRef = ref<HTMLElement | null>(null)
 
 const durationOptions = [
   { value: null, label: "Don't clear" },
@@ -89,6 +90,7 @@ async function handleClear() {
           <!-- Status Input -->
           <div class="flex items-center space-x-3">
             <button 
+              ref="emojiButtonRef"
               @click="showEmojiPicker = !showEmojiPicker"
               class="w-10 h-10 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
             >
@@ -104,7 +106,12 @@ async function handleClear() {
           
           <!-- Emoji Picker -->
           <div v-if="showEmojiPicker" class="relative">
-            <EmojiPicker :show="showEmojiPicker" @select="selectEmoji" @close="showEmojiPicker = false" />
+            <EmojiPicker
+              :show="showEmojiPicker"
+              :anchor-el="emojiButtonRef"
+              @select="selectEmoji"
+              @close="showEmojiPicker = false"
+            />
           </div>
           
           <!-- Quick Presets -->
