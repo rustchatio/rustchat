@@ -66,7 +66,6 @@
 ### Readiness
 - Ready for user acceptance testing.
 - Remaining follow-up: carry the same system into broader settings, modal, and admin surfaces over time.
-
 ## 2026-03-28 Theme Source-of-Truth Fix + Brand/Typography Second Pass
 
 ### Task

@@ -1,3 +1,76 @@
+# SPEC: Theme Cleanup and Unused File Removal (2026-03-28)
+
+## Problem Statement
+
+The second design/theme pass left one clear cleanup target behind: `frontend/src/features/theme/*` is a parallel theme implementation that is no longer part of the live runtime path.
+
+The app currently boots and persists appearance through:
+- `frontend/src/main.ts`
+- `frontend/src/stores/theme.ts`
+- the components that import from `frontend/src/stores/theme.ts`
+
+Nothing in the active app imports the files under `frontend/src/features/theme/*`. Keeping them around creates confusion for future theme work, makes the codebase look like it has two sources of truth, and increases the chance that someone edits the wrong implementation later.
+
+## Goals
+
+1. Remove the unused parallel theme implementation from `frontend/src/features/theme/*`.
+2. Leave one obvious runtime source of truth for appearance: `frontend/src/stores/theme.ts`.
+3. Keep cleanup scoped and safe, with no user-visible behavior change beyond reducing maintenance confusion.
+
+## Non-Goals
+
+1. No additional visual redesign in this cleanup pass.
+2. No backend changes.
+3. No refactor of unrelated settings/admin surfaces.
+4. No changes to the already-unrelated dirty files in the worktree.
+
+## Scope and Contract Impact
+
+In scope:
+- delete unused files in `frontend/src/features/theme/`
+- confirm there are no remaining imports from that folder
+- run a frontend build after removal
+
+Contract impact:
+- No API contract change
+- No persisted preference schema change
+- No intended user-visible behavior change
+
+Out of scope:
+- removing other legacy UI files unless they are proven unused in the same direct cleanup path
+- touching `SPEC.md`, backend files, `.gitignore`, or `frontend/src/views/admin/ServerSettings.vue` beyond this scoped cleanup workflow
+
+## Current Implementation Findings
+
+1. `frontend/src/main.ts` initializes the live theme system from `frontend/src/stores/theme.ts`.
+2. Active settings/profile/theme controls all import from `frontend/src/stores/theme.ts`.
+3. `frontend/src/features/theme/index.ts`, `services/themeService.ts`, `stores/themeStore.ts`, `repositories/themeRepository.ts`, and `types.ts` are only referenced internally within that same unused feature folder.
+4. No active app code imports `frontend/src/features/theme/*`.
+
+## Implementation Outline
+
+1. Remove the unused files under `frontend/src/features/theme/`.
+2. Re-run a repo search to confirm nothing still references that folder.
+3. Run `cd frontend && npm run build`.
+4. Update `task_plan.md` with cleanup status and manual verification commands.
+
+## Verification Plan
+
+Automated:
+- `cd frontend && npm run build`
+- `rg -n "features/theme" frontend/src`
+
+Manual:
+- `cd frontend && npm run dev`
+- Login and verify theme switching still works from Settings -> Display and the profile/settings surfaces still load normally.
+
+Expected result after implementation:
+- The repository has one clear theme source of truth.
+- The unused theme feature files are gone.
+- Frontend behavior remains unchanged after build verification.
+
+---
+
 # SPEC: Settings, Profile, and Admin Normalization Pass (2026-03-28)
 
 ## Problem Statement
