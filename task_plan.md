@@ -252,6 +252,7 @@ Small compatibility-aligned messaging fixes:
 - [x] Upgraded DM rows from abstract status dots to avatar-led identity with proper presence badges (`frontend/src/components/layout/ChannelSidebar.vue`, `frontend/src/components/ui/RcAvatar.vue`).
 - [x] Redesigned member list and profile modal presence treatment with explicit status labels/icons and token-safe surfaces (`frontend/src/components/channel/ChannelMembersPanel.vue`, `frontend/src/components/modals/UserProfileModal.vue`).
 - [x] Removed the admin/slate modal theme leak from team, channel, and direct-message pickers so collaboration flows use the same token-driven shell styling (`frontend/src/components/modals/BrowseTeamsModal.vue`, `frontend/src/components/modals/BrowseChannelsModal.vue`, `frontend/src/components/modals/DirectMessageModal.vue`).
+- [x] Filled the direct-message details gap in the right sidebar so DM conversations show the other user’s avatar, presence, and custom status instead of only generic channel metadata (`frontend/src/components/channel/ChannelInfoPanel.vue`).
 
 ### Verification Status
 
@@ -270,6 +271,7 @@ Small compatibility-aligned messaging fixes:
    - the center search treatment is a single-line “Search” action
 5. Open the members panel and a user profile modal and confirm presence states render with consistent labels/icons for `Online`, `Away`, `Do not disturb`, and `Offline`.
 6. Open `Browse Teams`, `Browse Channels`, and `Direct Messages` and confirm they inherit the regular collaboration theme instead of the old dark/admin palette.
+7. Open a direct message, then open `Channel Info` in the right sidebar and confirm the other user’s avatar, presence badge, and custom status are shown.
 
 ### Readiness
 - The approved UIX spec items for reaction deduplication, header/search compression, and presence/status credibility are implemented in code.

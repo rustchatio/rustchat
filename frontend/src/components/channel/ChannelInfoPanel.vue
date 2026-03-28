@@ -11,15 +11,23 @@ import {
   LogOut,
   Edit3,
   Check,
-  Copy
+  Copy,
+  Mail,
+  Briefcase,
+  Clock3,
+  Minus,
+  Circle
 } from 'lucide-vue-next'
 import { format } from 'date-fns'
 import { useChannelStore } from '../../stores/channels'
 import { useAuthStore } from '../../stores/auth'
 import { useMessageStore } from '../../stores/messages'
 import { useUIStore } from '../../stores/ui'
+import { useTeamStore } from '../../stores/teams'
+import { usePresenceStore } from '../../features/presence'
 import api from '../../api/client'
 import RcAvatar from '../ui/RcAvatar.vue'
+import type { PresenceStatus } from '../../core/entities/User'
 
 const props = defineProps<{
   channelId: string
@@ -34,6 +42,8 @@ const channelStore = useChannelStore()
 const authStore = useAuthStore()
 const messageStore = useMessageStore()
 const uiStore = useUIStore()
+const teamStore = useTeamStore()
+const presenceStore = usePresenceStore()
 
 const loading = ref(false)
 const memberCount = ref(0)
@@ -41,6 +51,16 @@ const messageCount = ref(0)
 const showCopiedToast = ref(false)
 const isFavorite = ref(false)
 const isMuted = ref(false)
+const directContact = ref<{
+  id: string
+  username: string
+  display_name?: string
+  email?: string
+  position?: string
+  avatar_url?: string
+  status_text?: string
+  status_emoji?: string
+} | null>(null)
 
 const channel = computed(() => 
   channelStore.channels.find(c => c.id === props.channelId)
@@ -50,7 +70,63 @@ const isCreator = computed(() =>
   channel.value?.creator_id === authStore.user?.id
 )
 
+const directContactId = computed(() => {
+  if (channel.value?.channel_type !== 'direct' || !authStore.user?.id) {
+    return null
+  }
 
+  const parts = channel.value.name?.split('_') || []
+  if (parts.length !== 3) {
+    return null
+  }
+
+  return parts[1] === authStore.user.id ? parts[2] : parts[1]
+})
+
+const directContactMember = computed(() => {
+  if (!directContactId.value) {
+    return null
+  }
+  return teamStore.members.find((member) => member.user_id === directContactId.value) || null
+})
+
+const directContactName = computed(() => {
+  return (
+    directContact.value?.display_name ||
+    directContactMember.value?.display_name ||
+    directContact.value?.username ||
+    directContactMember.value?.username ||
+    channel.value?.display_name ||
+    'Direct Message'
+  )
+})
+
+const directContactPresence = computed<PresenceStatus>(() => {
+  if (!directContactId.value) {
+    return 'offline'
+  }
+
+  return (
+    presenceStore.getUserPresence(directContactId.value).value?.presence as PresenceStatus ||
+    (directContactMember.value?.presence?.toLowerCase() as PresenceStatus) ||
+    'offline'
+  )
+})
+
+const directContactPresenceMeta = computed(() => {
+  switch (directContactPresence.value) {
+    case 'online':
+      return { label: 'Online', icon: Check, badgeClass: 'bg-success/12 text-success border-success/25' }
+    case 'away':
+      return { label: 'Away', icon: Clock3, badgeClass: 'bg-warning/12 text-warning border-warning/25' }
+    case 'dnd':
+      return { label: 'Do not disturb', icon: Minus, badgeClass: 'bg-danger/12 text-danger border-danger/25' }
+    default:
+      return { label: 'Offline', icon: Circle, badgeClass: 'bg-bg-surface-2 text-text-3 border-border-1' }
+  }
+})
+
+const showDirectMessageProfile = computed(() => channel.value?.channel_type === 'direct' && !!directContactId.value)
 
 const channelIcon = computed(() => {
   if (!channel.value) return Hash
@@ -67,6 +143,21 @@ const channelTypeLabel = computed(() => {
   }
   return types[channel.value.channel_type] || 'Channel'
 })
+
+async function loadDirectContact() {
+  if (!directContactId.value) {
+    directContact.value = null
+    return
+  }
+
+  try {
+    const { data } = await api.get(`/users/${directContactId.value}`)
+    directContact.value = data
+  } catch (e) {
+    console.error('Failed to load direct message contact:', e)
+    directContact.value = null
+  }
+}
 
 async function loadStats() {
   if (!props.channelId) return
@@ -160,7 +251,10 @@ function copyChannelLink() {
   setTimeout(() => showCopiedToast.value = false, 2000)
 }
 
-watch(() => props.channelId, loadStats, { immediate: true })
+watch(() => props.channelId, async () => {
+  await loadStats()
+  await loadDirectContact()
+}, { immediate: true })
 </script>
 
 <template>
@@ -168,7 +262,16 @@ watch(() => props.channelId, loadStats, { immediate: true })
     <!-- Channel Header Card -->
     <div class="p-5 border-b border-border-1 bg-bg-surface-2/30">
       <div class="flex items-start space-x-3">
+        <RcAvatar
+          v-if="showDirectMessageProfile"
+          :userId="directContactId || undefined"
+          :username="directContact?.username || directContactMember?.username || directContactName"
+          :src="directContact?.avatar_url || directContactMember?.avatar_url"
+          size="lg"
+          class="shrink-0"
+        />
         <div 
+          v-else
           class="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
           :class="channel?.channel_type === 'private' ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'"
         >
@@ -176,19 +279,35 @@ watch(() => props.channelId, loadStats, { immediate: true })
         </div>
         <div class="flex-1 min-w-0">
           <h3 class="font-bold text-lg text-text-1 truncate">
-            {{ channel?.display_name || channel?.name }}
+            {{ showDirectMessageProfile ? directContactName : (channel?.display_name || channel?.name) }}
           </h3>
-          <p class="text-xs text-text-3 font-medium">{{ channelTypeLabel }}</p>
+          <p class="text-xs text-text-3 font-medium">
+            {{ showDirectMessageProfile ? `@${directContact?.username || directContactMember?.username || ''}` : channelTypeLabel }}
+          </p>
         </div>
+      </div>
+
+      <div v-if="showDirectMessageProfile" class="mt-3 flex flex-wrap items-center gap-2">
+        <span class="inline-flex items-center gap-1 rounded-full border px-3 py-1 text-sm font-medium" :class="directContactPresenceMeta.badgeClass">
+          <component :is="directContactPresenceMeta.icon" class="h-3.5 w-3.5" />
+          {{ directContactPresenceMeta.label }}
+        </span>
+        <span
+          v-if="directContact?.status_text"
+          class="inline-flex max-w-full items-center gap-1 rounded-full border border-border-1 bg-bg-surface-1 px-3 py-1 text-sm text-text-2"
+        >
+          <span v-if="directContact?.status_emoji">{{ directContact.status_emoji }}</span>
+          <span class="truncate">{{ directContact.status_text }}</span>
+        </span>
       </div>
       
       <!-- Purpose -->
-      <p v-if="channel?.purpose" class="mt-3 text-sm text-text-2 leading-relaxed">
+      <p v-if="channel?.purpose && !showDirectMessageProfile" class="mt-3 text-sm text-text-2 leading-relaxed">
         {{ channel.purpose }}
       </p>
       
       <!-- Header/Topic -->
-      <div v-if="channel?.header" class="mt-3 p-3 bg-bg-surface-1 rounded-lg border border-border-1">
+      <div v-if="channel?.header && !showDirectMessageProfile" class="mt-3 p-3 bg-bg-surface-1 rounded-lg border border-border-1">
         <p class="text-xs text-text-3 uppercase font-bold tracking-wider mb-1">Topic</p>
         <p class="text-sm text-text-2">{{ channel.header }}</p>
       </div>
@@ -260,9 +379,29 @@ watch(() => props.channelId, loadStats, { immediate: true })
 
     <!-- Channel Details -->
     <div class="flex-1 overflow-y-auto p-4 space-y-4">
+      <template v-if="showDirectMessageProfile">
+        <div v-if="directContact?.email">
+          <label class="text-[11px] font-bold text-text-3 uppercase tracking-wider mb-2 block">Email</label>
+          <div class="flex items-center space-x-2 text-text-2">
+            <Mail class="w-4 h-4 text-text-3" />
+            <span class="text-sm">{{ directContact.email }}</span>
+          </div>
+        </div>
+
+        <div v-if="directContact?.position">
+          <label class="text-[11px] font-bold text-text-3 uppercase tracking-wider mb-2 block">Position</label>
+          <div class="flex items-center space-x-2 text-text-2">
+            <Briefcase class="w-4 h-4 text-text-3" />
+            <span class="text-sm">{{ directContact.position }}</span>
+          </div>
+        </div>
+      </template>
+
       <!-- Channel ID / Link -->
       <div>
-        <label class="text-[11px] font-bold text-text-3 uppercase tracking-wider mb-2 block">Channel Link</label>
+        <label class="text-[11px] font-bold text-text-3 uppercase tracking-wider mb-2 block">
+          {{ showDirectMessageProfile ? 'Conversation Link' : 'Channel Link' }}
+        </label>
         <div class="flex items-center space-x-2">
           <code class="flex-1 px-3 py-2 bg-bg-surface-2 rounded-lg text-xs text-text-2 font-mono truncate">
             {{ channel?.name }}
@@ -287,7 +426,7 @@ watch(() => props.channelId, loadStats, { immediate: true })
       </div>
 
       <!-- Creator -->
-      <div v-if="channel?.creator_id">
+      <div v-if="channel?.creator_id && !showDirectMessageProfile">
         <label class="text-[11px] font-bold text-text-3 uppercase tracking-wider mb-2 block">Created By</label>
         <div class="flex items-center space-x-2">
           <RcAvatar 
