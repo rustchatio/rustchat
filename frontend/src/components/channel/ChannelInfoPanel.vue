@@ -10,13 +10,9 @@ import {
   Star, 
   LogOut,
   Edit3,
-  Check,
   Copy,
   Mail,
-  Briefcase,
-  Clock3,
-  Minus,
-  Circle
+  Briefcase
 } from 'lucide-vue-next'
 import { format } from 'date-fns'
 import { useChannelStore } from '../../stores/channels'
@@ -24,10 +20,11 @@ import { useAuthStore } from '../../stores/auth'
 import { useMessageStore } from '../../stores/messages'
 import { useUIStore } from '../../stores/ui'
 import { useTeamStore } from '../../stores/teams'
-import { usePresenceStore } from '../../features/presence'
 import api from '../../api/client'
 import RcAvatar from '../ui/RcAvatar.vue'
-import type { PresenceStatus } from '../../core/entities/User'
+import { getPresencePresentation } from '../../features/presence/presencePresentation'
+import { useUserSummary } from '../../composables/useUserSummary'
+import { getDirectMessageCounterpartyId } from '../../utils/directMessage'
 
 const props = defineProps<{
   channelId: string
@@ -43,7 +40,6 @@ const authStore = useAuthStore()
 const messageStore = useMessageStore()
 const uiStore = useUIStore()
 const teamStore = useTeamStore()
-const presenceStore = usePresenceStore()
 
 const loading = ref(false)
 const memberCount = ref(0)
@@ -51,16 +47,6 @@ const messageCount = ref(0)
 const showCopiedToast = ref(false)
 const isFavorite = ref(false)
 const isMuted = ref(false)
-const directContact = ref<{
-  id: string
-  username: string
-  display_name?: string
-  email?: string
-  position?: string
-  avatar_url?: string
-  status_text?: string
-  status_emoji?: string
-} | null>(null)
 
 const channel = computed(() => 
   channelStore.channels.find(c => c.id === props.channelId)
@@ -71,17 +57,13 @@ const isCreator = computed(() =>
 )
 
 const directContactId = computed(() => {
-  if (channel.value?.channel_type !== 'direct' || !authStore.user?.id) {
+  if (channel.value?.channel_type !== 'direct') {
     return null
   }
-
-  const parts = channel.value.name?.split('_') || []
-  if (parts.length !== 3) {
-    return null
-  }
-
-  return parts[1] === authStore.user.id ? parts[2] : parts[1]
+  return getDirectMessageCounterpartyId(channel.value.name, authStore.user?.id)
 })
+
+const { userSummary: directContact, isLoading: directContactLoading } = useUserSummary(() => directContactId.value)
 
 const directContactMember = computed(() => {
   if (!directContactId.value) {
@@ -92,7 +74,7 @@ const directContactMember = computed(() => {
 
 const directContactName = computed(() => {
   return (
-    directContact.value?.display_name ||
+    directContact.value?.displayName ||
     directContactMember.value?.display_name ||
     directContact.value?.username ||
     directContactMember.value?.username ||
@@ -101,30 +83,7 @@ const directContactName = computed(() => {
   )
 })
 
-const directContactPresence = computed<PresenceStatus>(() => {
-  if (!directContactId.value) {
-    return 'offline'
-  }
-
-  return (
-    presenceStore.getUserPresence(directContactId.value).value?.presence as PresenceStatus ||
-    (directContactMember.value?.presence?.toLowerCase() as PresenceStatus) ||
-    'offline'
-  )
-})
-
-const directContactPresenceMeta = computed(() => {
-  switch (directContactPresence.value) {
-    case 'online':
-      return { label: 'Online', icon: Check, badgeClass: 'bg-success/12 text-success border-success/25' }
-    case 'away':
-      return { label: 'Away', icon: Clock3, badgeClass: 'bg-warning/12 text-warning border-warning/25' }
-    case 'dnd':
-      return { label: 'Do not disturb', icon: Minus, badgeClass: 'bg-danger/12 text-danger border-danger/25' }
-    default:
-      return { label: 'Offline', icon: Circle, badgeClass: 'bg-bg-surface-2 text-text-3 border-border-1' }
-  }
-})
+const directContactPresenceMeta = computed(() => getPresencePresentation(directContact.value?.presence || directContactMember.value?.presence))
 
 const showDirectMessageProfile = computed(() => channel.value?.channel_type === 'direct' && !!directContactId.value)
 
@@ -143,21 +102,6 @@ const channelTypeLabel = computed(() => {
   }
   return types[channel.value.channel_type] || 'Channel'
 })
-
-async function loadDirectContact() {
-  if (!directContactId.value) {
-    directContact.value = null
-    return
-  }
-
-  try {
-    const { data } = await api.get(`/users/${directContactId.value}`)
-    directContact.value = data
-  } catch (e) {
-    console.error('Failed to load direct message contact:', e)
-    directContact.value = null
-  }
-}
 
 async function loadStats() {
   if (!props.channelId) return
@@ -253,7 +197,6 @@ function copyChannelLink() {
 
 watch(() => props.channelId, async () => {
   await loadStats()
-  await loadDirectContact()
 }, { immediate: true })
 </script>
 
@@ -266,7 +209,7 @@ watch(() => props.channelId, async () => {
           v-if="showDirectMessageProfile"
           :userId="directContactId || undefined"
           :username="directContact?.username || directContactMember?.username || directContactName"
-          :src="directContact?.avatar_url || directContactMember?.avatar_url"
+          :src="directContact?.avatarUrl || directContactMember?.avatar_url"
           size="lg"
           class="shrink-0"
         />
@@ -293,12 +236,13 @@ watch(() => props.channelId, async () => {
           {{ directContactPresenceMeta.label }}
         </span>
         <span
-          v-if="directContact?.status_text"
+          v-if="directContact?.statusText"
           class="inline-flex max-w-full items-center gap-1 rounded-full border border-border-1 bg-bg-surface-1 px-3 py-1 text-sm text-text-2"
         >
-          <span v-if="directContact?.status_emoji">{{ directContact.status_emoji }}</span>
-          <span class="truncate">{{ directContact.status_text }}</span>
+          <span v-if="directContact?.statusEmoji">{{ directContact.statusEmoji }}</span>
+          <span class="truncate">{{ directContact.statusText }}</span>
         </span>
+        <span v-else-if="directContactLoading" class="text-xs text-text-3">Loading profile details...</span>
       </div>
       
       <!-- Purpose -->

@@ -1,5 +1,41 @@
 # Task Plan
 
+## 2026-03-28 Reaction Deduplication + Shared Presence/Status Layer
+
+### Task
+- Keep the reaction deduplication fix.
+- Implement the approved Option B architecture from `SPEC.md`.
+- Stop the UI from computing presence/status separately in each touched component.
+
+### Architecture Locked In
+- Add one shared frontend presence/status presenter for badge label, icon, and visual treatment.
+- Add one shared user-summary source for direct-message and profile/detail surfaces.
+- Move session cleanup and active presence usage fully onto `frontend/src/features/presence/stores/presenceStore.ts`.
+- Treat `frontend/src/stores/presence.ts` as legacy and remove it from the active flow.
+
+### Implementation Checklist
+- [ ] Keep reaction canonicalization centered in `frontend/src/utils/emoji.ts`, `frontend/src/stores/messages.ts`, and `frontend/src/components/channel/MessageItem.vue`.
+- [ ] Add the shared presence/status presenter and switch touched UI surfaces to use it.
+- [ ] Add one DM/user-summary helper so `ChannelSidebar`, `ChannelInfoPanel`, and `UserProfileModal` do not shape user data independently.
+- [ ] Update `frontend/src/stores/auth.ts` to clear the active feature presence store during logout/session expiry.
+- [ ] Remove or quarantine the legacy presence store so new code cannot accidentally keep using it.
+- [ ] Add regression tests for reaction alias dedupe and session presence cleanup.
+
+### Manual Verification Commands
+1. `cd frontend && npm run build`
+2. `cd frontend && npm run dev`
+3. In an authenticated channel, react with `👍` to a message that already has `+1` or `thumbsup`, then remove it again. Verify one reaction bucket is rendered throughout.
+4. Open a direct message and compare the DM sidebar row, channel info panel, and user profile modal. Verify availability and custom status agree across all three surfaces.
+5. Log out, then log back in as the same or another user. Verify no stale presence badges survive session cleanup.
+
+### Parallelization
+- Lane A: reaction normalization hardening
+- Lane B: shared presence/status architecture
+- Lane C: UI rollout on top of Lane B
+
+### Readiness
+- Ready for implementation once the branch follows the locked Option B architecture above.
+
 ## 2026-03-28 CI Required-Check Alignment for Frontend-Only PRs
 
 ### Task
@@ -358,3 +394,15 @@ Small compatibility-aligned messaging fixes:
 - SC-008: Accessibility audit passes WCAG 2.1 AA and BITV 2.0 with zero violations
 - SC-009: `cargo audit` shows zero high/critical CVEs at release
 - SC-010: Zero-downtime deployment achieved via blue-green strategy
+
+## GSTACK REVIEW REPORT
+
+| Review | Trigger | Why | Runs | Status | Findings |
+|--------|---------|-----|------|--------|----------|
+| CEO Review | `/plan-ceo-review` | Scope & strategy | 0 | — | — |
+| Codex Review | `/codex review` | Independent 2nd opinion | 0 | — | — |
+| Eng Review | `/plan-eng-review` | Architecture & tests (required) | 1 | ISSUES OPEN | 16 issues, 2 critical gaps |
+| Design Review | `/plan-design-review` | UI/UX gaps | 0 | — | — |
+
+**UNRESOLVED:** 2
+**VERDICT:** ENG REVIEW NOT CLEAR — eng review required before implementation continues

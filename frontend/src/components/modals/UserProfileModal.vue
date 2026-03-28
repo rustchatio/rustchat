@@ -1,28 +1,13 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue';
-import { X, Mail, MessageCircle, Briefcase, Check, Clock3, Minus, Circle } from 'lucide-vue-next';
+import { computed } from 'vue';
+import { X, Mail, MessageCircle, Briefcase } from 'lucide-vue-next';
 import RcAvatar from '../ui/RcAvatar.vue';
 import BaseButton from '../atomic/BaseButton.vue';
-import { usePresenceStore } from '../../features/presence';
 import { useChannelStore } from '../../stores/channels';
 import { useRouter } from 'vue-router';
 import client from '../../api/client';
-import type { PresenceStatus } from '../../core/entities/User';
-
-interface UserProfile {
-  id: string;
-  username: string;
-  email: string;
-  display_name?: string;
-  first_name?: string;
-  last_name?: string;
-  nickname?: string;
-  position?: string;
-  avatar_url?: string;
-  presence?: string;
-  status_text?: string;
-  status_emoji?: string;
-}
+import { getPresencePresentation } from '../../features/presence/presencePresentation';
+import { useUserSummary } from '../../composables/useUserSummary';
 
 const props = defineProps<{
   show: boolean;
@@ -34,57 +19,22 @@ const emit = defineEmits<{
 }>();
 
 const router = useRouter();
-const presenceStore = usePresenceStore();
 const channelStore = useChannelStore();
-
-const loading = ref(false);
-const error = ref('');
-const user = ref<UserProfile | null>(null);
+const { userSummary: user, isLoading: loading, error } = useUserSummary(() => (props.show ? props.userId : null));
 
 const fullName = computed(() => {
   if (!user.value) return '';
-  const first = user.value.first_name || '';
-  const last = user.value.last_name || '';
+  const first = user.value.firstName || '';
+  const last = user.value.lastName || '';
   if (first || last) return `${first} ${last}`.trim();
-  return user.value.display_name || user.value.nickname || user.value.username;
+  return user.value.displayName || user.value.nickname || user.value.username;
 });
 
-const userPresence = computed(() => {
-  if (!user.value) return 'offline';
-  return (presenceStore.getUserPresence(user.value.id).value?.presence as PresenceStatus) || 'offline';
-});
-
-const presenceMeta = computed(() => {
-  switch (userPresence.value) {
-    case 'online':
-      return { label: 'Online', icon: Check, badgeClass: 'bg-success/12 text-success border-success/25' };
-    case 'away':
-      return { label: 'Away', icon: Clock3, badgeClass: 'bg-warning/12 text-warning border-warning/25' };
-    case 'dnd':
-      return { label: 'Do not disturb', icon: Minus, badgeClass: 'bg-danger/12 text-danger border-danger/25' };
-    default:
-      return { label: 'Offline', icon: Circle, badgeClass: 'bg-bg-surface-2 text-text-3 border-border-1' };
-  }
-});
-
-async function fetchUser() {
-  if (!props.userId) return;
-  loading.value = true;
-  error.value = '';
-  try {
-    const { data } = await client.get(`/users/${props.userId}`);
-    user.value = data;
-  } catch (e: any) {
-    error.value = e.response?.data?.message || 'Failed to load user profile';
-  } finally {
-    loading.value = false;
-  }
-}
+const presenceMeta = computed(() => getPresencePresentation(user.value?.presence));
 
 async function startDirectMessage() {
   if (!user.value) return;
   try {
-    // Create DM channel via API
     const { data: channel } = await client.post('/channels/direct', {
       user_ids: [user.value.id]
     });
@@ -99,15 +49,7 @@ async function startDirectMessage() {
   }
 }
 
-watch(() => props.show, (isOpen) => {
-  if (isOpen && props.userId) {
-    fetchUser();
-  }
-});
-
 function handleClose() {
-  user.value = null;
-  error.value = '';
   emit('close');
 }
 </script>
@@ -144,7 +86,7 @@ function handleClose() {
             <RcAvatar 
               :userId="user.id"
               :username="user.username"
-              :src="user.avatar_url"
+              :src="user.avatarUrl"
               :size="96"
               :showPresence="false"
               class="shadow-lg ring-4 ring-bg-surface-1"
@@ -164,9 +106,9 @@ function handleClose() {
                 <component :is="presenceMeta.icon" class="h-3.5 w-3.5" />
                 {{ presenceMeta.label }}
               </span>
-              <span v-if="user.status_text" class="inline-flex max-w-full items-center gap-1 rounded-full border border-border-1 bg-bg-surface-2 px-3 py-1 text-sm text-text-2">
-                <span v-if="user.status_emoji">{{ user.status_emoji }}</span>
-                <span class="truncate">{{ user.status_text }}</span>
+              <span v-if="user.statusText" class="inline-flex max-w-full items-center gap-1 rounded-full border border-border-1 bg-bg-surface-2 px-3 py-1 text-sm text-text-2">
+                <span v-if="user.statusEmoji">{{ user.statusEmoji }}</span>
+                <span class="truncate">{{ user.statusText }}</span>
               </span>
             </div>
           </div>
@@ -192,9 +134,9 @@ function handleClose() {
             </div>
 
             <!-- First & Last Name -->
-            <div v-if="user.first_name || user.last_name" class="flex items-center space-x-3 text-sm text-text-2">
+            <div v-if="user.firstName || user.lastName" class="flex items-center space-x-3 text-sm text-text-2">
               <span class="w-16 text-xs uppercase tracking-wider text-text-4">Full Name</span>
-              <span>{{ user.first_name }} {{ user.last_name }}</span>
+              <span>{{ user.firstName }} {{ user.lastName }}</span>
             </div>
 
             <!-- Position -->

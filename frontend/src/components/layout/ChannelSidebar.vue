@@ -19,6 +19,7 @@ import AddChannelMembersModal from '../modals/AddChannelMembersModal.vue';
 import type { SidebarCategory } from '../../api/channels';
 import { channelRepository } from '../../features/channels/repositories/channelRepository';
 import RcAvatar from '../ui/RcAvatar.vue';
+import { getDirectMessageCounterpartyId } from '../../utils/directMessage';
 
 const teamStore = useTeamStore();
 const channelStore = useChannelStore();
@@ -130,15 +131,12 @@ function normalizeChannelForDisplay(c: any) {
   
   // Handle DM channels
   if (c.channel_type === 'direct' || c.name?.startsWith('dm_')) {
-    const parts = c.name.split('_');
-    if (parts.length === 3) {
-      otherId = parts[1] === authStore.user?.id ? parts[2] : parts[1];
-      const member = teamStore.members.find(m => m.user_id === otherId);
-      if (member) {
-        displayName = member.display_name || member.username;
-        avatarUrl = member.avatar_url || '';
-        username = member.username;
-      }
+    otherId = getDirectMessageCounterpartyId(c.name, authStore.user?.id) || '';
+    const member = otherId ? teamStore.members.find(m => m.user_id === otherId) : null;
+    if (member) {
+      displayName = member.display_name || member.username;
+      avatarUrl = member.avatar_url || '';
+      username = member.username;
     }
     
     // Get presence status

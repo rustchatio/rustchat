@@ -48,6 +48,9 @@ Live review findings from [https://app.rustchat.io](https://app.rustchat.io) wit
 In scope:
 - reaction identity normalization in frontend message/realtime handling
 - shell/composer refinement aligned to `DESIGN.md`
+- one shared frontend presence/status presenter for all touched UI surfaces
+- one cached frontend user-summary source for direct-message and profile/detail surfaces
+- migration off the legacy presence store used by logout/session cleanup
 - live verification against the current authenticated app
 
 Primary target files:
@@ -55,6 +58,9 @@ Primary target files:
 - `frontend/src/stores/messages.ts`
 - `frontend/src/composables/useWebSocket.ts`
 - `frontend/src/utils/emoji.ts`
+- `frontend/src/features/presence/stores/presenceStore.ts`
+- `frontend/src/composables/usePresence.ts`
+- `frontend/src/stores/auth.ts`
 - `frontend/src/components/layout/GlobalHeader.vue`
 - `frontend/src/components/layout/ChannelSidebar.vue`
 - `frontend/src/components/channel/ChannelHeader.vue`
@@ -74,6 +80,44 @@ Out of scope:
 - settings/admin redesign beyond incidental token consistency if touched locally
 - calls UI redesign
 - Mattermost parity changes unrelated to reaction identity normalization
+
+## Architecture Decision
+
+Engineering review outcome: proceed with **Option B**.
+
+That means this pass does **not** keep adding status UI one surface at a time. It first establishes one small shared frontend architecture:
+
+1. **Shared presence/status presenter**
+   - owns the mapping from raw presence state to label, icon, tone, badge classes, and avatar-badge treatment
+   - is consumed by avatar, member list, DM list, channel info, user profile, and header status UI
+2. **Shared user-summary source**
+   - owns the merged frontend view of user identity details needed by this pass
+   - pulls from team member data when available
+   - can layer richer `/users/:id` fields on top for direct-message/profile surfaces
+   - avoids each component fetching and shaping user state independently
+3. **Single presence store**
+   - all runtime presence reads/writes/clears must flow through `frontend/src/features/presence/stores/presenceStore.ts`
+   - `frontend/src/stores/presence.ts` is legacy and must not remain part of active session cleanup or new UI work
+
+Why this is the chosen architecture:
+- minimal diff relative to a full people-directory refactor
+- explicit rather than clever
+- DRY enough to stop five parallel status implementations
+- complete enough that future UI work does not recreate the same bug class
+
+## What Already Exists
+
+Existing code and flows that should be reused:
+
+1. `frontend/src/utils/emoji.ts` already has enough alias data to canonicalize multiple reaction representations.
+2. `frontend/src/stores/messages.ts` is now the right place to normalize fetched and realtime reaction state.
+3. `frontend/src/components/channel/MessageItem.vue` already owns the user-triggered reaction toggle path.
+4. `frontend/src/features/presence/stores/presenceStore.ts` already exists as the right live-presence store.
+5. `frontend/src/composables/usePresence.ts` already supports bulk presence hydration from `users/status/ids`.
+6. `frontend/src/stores/teams.ts` already provides a cached member list with display names, avatars, and fallback presence.
+7. `frontend/src/components/ui/RcAvatar.vue` already provides the shared avatar shell that should own presence badge rendering once the presenter exists.
+
+This pass should **reuse** these pieces. It should **not** build a second live-presence system or a per-component status-shaping pattern.
 
 ## Current Implementation Findings
 
@@ -162,13 +206,20 @@ Expected outcome:
 ### Phase 4: Presence and Status System Refinement
 
 Target files:
+- `frontend/src/features/presence/stores/presenceStore.ts`
+- `frontend/src/composables/usePresence.ts`
+- `frontend/src/stores/auth.ts`
 - `frontend/src/components/ui/RcAvatar.vue`
 - `frontend/src/components/layout/ChannelSidebar.vue`
 - `frontend/src/components/channel/ChannelMembersPanel.vue`
+- `frontend/src/components/channel/ChannelInfoPanel.vue`
 - `frontend/src/components/modals/UserProfileModal.vue`
 - `frontend/src/components/layout/GlobalHeader.vue`
 
 Work:
+- add one shared presence/status presenter so touched surfaces consume one product rule
+- add one user-summary source for DM counterpart and profile/detail surfaces
+- move logout/session cleanup to the feature presence store and remove legacy-store dependency
 - define one visual system for other-user availability states that is credible at Slack/Mattermost quality
 - replace ambiguous or weak presence dots where necessary with clearer badge/icon treatment
 - distinguish availability from custom status so users do not have to infer one from the other
@@ -178,6 +229,74 @@ Expected outcome:
 - other users’ state is readable at a glance
 - avatar/status treatment feels deliberate, not improvised
 - RustChat looks more like a serious collaboration product and less like a generic chat clone
+
+## Failure-Prone Areas We Must Close
+
+1. **Stale presence after logout**
+   - Current risk: logout clears the legacy presence store, while active UI reads the feature store.
+   - Requirement: session cleanup must clear the same store the UI reads.
+2. **Cross-surface status drift**
+   - Current risk: DM list, member list, DM info panel, profile modal, and header all compute status separately.
+   - Requirement: all touched surfaces must use the same presenter and same user-summary source.
+3. **DM counterpart resolution drift**
+   - Current risk: multiple components parse direct-message channel names independently.
+   - Requirement: one helper owns “other participant in this DM” resolution.
+4. **Reaction alias regression**
+   - Current risk: future glyph/name alias changes can reintroduce duplicate visible buckets.
+   - Requirement: reaction normalization behavior gets regression coverage.
+
+## Test Requirements
+
+Automated:
+- `cd frontend && npm run build`
+- add regression coverage for reaction canonicalization and store merge/remove behavior
+- add regression coverage for session cleanup clearing the active presence store
+- if a frontend unit-test runner is already present in the repo, wire these tests into a runnable command instead of leaving them as orphaned files
+
+Manual:
+- `cd frontend && npm run dev`
+- verify `👍`, `+1`, and `thumbsup` collapse into one reaction bucket during optimistic update and websocket echo
+- verify removing the same reaction immediately after adding it leaves no duplicate or stale bucket
+- verify DM sidebar row, channel info panel, and user profile modal all agree on availability and custom status for the same user
+- verify logout or token expiry clears presence badges before the next login
+
+Recommended E2E coverage:
+- authenticated channel reaction alias flow
+- direct-message cross-surface status consistency flow
+
+## Worktree Parallelization Strategy
+
+Dependency table:
+
+| Step | Modules touched | Depends on |
+|------|-----------------|------------|
+| Reaction normalization hardening | `frontend/src/utils`, `frontend/src/stores`, `frontend/src/components/channel` | — |
+| Presence/status architecture layer | `frontend/src/features/presence`, `frontend/src/composables`, `frontend/src/stores` | — |
+| Presence/status UI rollout | `frontend/src/components/ui`, `frontend/src/components/layout`, `frontend/src/components/channel`, `frontend/src/components/modals` | Presence/status architecture layer |
+
+Parallel lanes:
+- Lane A: Reaction normalization hardening
+- Lane B: Presence/status architecture layer
+- Lane C: Presence/status UI rollout, sequential after Lane B
+
+Execution order:
+- Launch Lane A and Lane B in parallel worktrees.
+- Merge Lane B first.
+- Run Lane C on top of the merged presence/status architecture.
+- Rebase or merge Lane A if needed, then run final verification.
+
+Conflict flags:
+- Lane A and Lane C both touch `frontend/src/components/channel/`.
+- Lane B and Lane C both touch `frontend/src/stores` / `frontend/src/composables`.
+- Those are manageable conflicts, but Lane C should not start before the shared presenter/user-summary contract is stable.
+
+## NOT in Scope
+
+1. Full people-directory or user-cache redesign for the whole product.
+2. Backend API changes to enrich team member payloads.
+3. Reworking unrelated settings/admin surfaces in this branch.
+4. Calls UX changes.
+5. Any second presence implementation or temporary per-component status rule that would be thrown away later.
 
 ## Verification Plan
 

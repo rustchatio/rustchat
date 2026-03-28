@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { Check, Clock3, Minus } from 'lucide-vue-next';
 import { usePresenceStore } from '../../features/presence';
+import { getPresencePresentation, normalizePresenceStatus } from '../../features/presence/presencePresentation';
 import { useTeamStore } from '../../stores/teams';
 import type { PresenceStatus } from '../../core/entities/User';
 
@@ -34,7 +34,7 @@ const fallbackTeamPresence = computed<PresenceStatus | null>(() => {
 });
 
 const currentPresence = computed<PresenceStatus>(() => {
-  return (userPresence.value?.presence?.toLowerCase() as PresenceStatus) || fallbackTeamPresence.value || 'offline';
+  return normalizePresenceStatus(userPresence.value?.presence || fallbackTeamPresence.value);
 });
 
 const initials = computed(() => {
@@ -121,24 +121,7 @@ const presenceSizeClass = computed(() => {
   }
 });
 
-const presenceBadgeClass = computed(() => {
-  switch (currentPresence.value) {
-    case 'online': return 'bg-success text-white border-bg-surface-1';
-    case 'away': return 'bg-warning/15 text-warning border-bg-surface-1';
-    case 'dnd': return 'bg-danger text-white border-bg-surface-1';
-    case 'offline': return 'bg-bg-surface-1 text-text-4 border-border-2';
-    default: return 'bg-bg-surface-1 text-text-4 border-border-2';
-  }
-});
-
-const presenceIcon = computed(() => {
-  switch (currentPresence.value) {
-    case 'online': return Check;
-    case 'away': return Clock3;
-    case 'dnd': return Minus;
-    default: return null;
-  }
-});
+const presenceMeta = computed(() => getPresencePresentation(currentPresence.value));
 
 const showPresenceIcon = computed(() => {
   const size = props.size;
@@ -188,12 +171,12 @@ const presenceIconClass = computed(() => {
     <div 
       v-if="showPresence"
       class="absolute bottom-0 right-0 flex items-center justify-center rounded-full shadow-sm"
-      :class="[presenceSizeClass, presenceBadgeClass]"
-      title="Presence status"
+      :class="[presenceSizeClass, presenceMeta.badgeClass]"
+      :title="presenceMeta.label"
     >
       <component
-        :is="presenceIcon"
-        v-if="presenceIcon && showPresenceIcon"
+        :is="presenceMeta.icon"
+        v-if="presenceMeta.icon && showPresenceIcon"
         :class="presenceIconClass"
         stroke-width="2.5"
       />

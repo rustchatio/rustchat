@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue';
-import { Search, UserPlus, Shield, User, Check, Clock3, Minus, Circle } from 'lucide-vue-next';
+import { Search, UserPlus, Shield, User } from 'lucide-vue-next';
 import RcAvatar from '../ui/RcAvatar.vue';
 import api from '../../api/client';
 import type { PresenceStatus } from '../../core/entities/User';
+import { getPresencePresentation, normalizePresenceStatus } from '../../features/presence/presencePresentation';
 
 const props = defineProps<{
     channelId: string;
@@ -38,17 +39,14 @@ const filteredMembers = computed(() => {
 });
 
 function getPresenceMeta(presence?: string) {
-    const normalized = (presence?.toLowerCase() as PresenceStatus) || 'offline';
-    switch (normalized) {
-        case 'online':
-            return { label: 'Online', icon: Check, badgeClass: 'bg-success/12 text-success border-success/25' };
-        case 'away':
-            return { label: 'Away', icon: Clock3, badgeClass: 'bg-warning/12 text-warning border-warning/25' };
-        case 'dnd':
-            return { label: 'Do not disturb', icon: Minus, badgeClass: 'bg-danger/12 text-danger border-danger/25' };
-        default:
-            return { label: 'Offline', icon: Circle, badgeClass: 'bg-bg-surface-2 text-text-3 border-border-1' };
-    }
+    const meta = getPresencePresentation(presence);
+    return {
+        label: meta.label,
+        icon: meta.icon,
+        badgeClass: meta.status === 'offline'
+            ? 'bg-bg-surface-2 text-text-3 border-border-1'
+            : `${meta.badgeClass} border`,
+    };
 }
 
 const presenceSections = computed(() => {
@@ -58,7 +56,7 @@ const presenceSections = computed(() => {
             key: presence,
             label: getPresenceMeta(presence).label,
             members: filteredMembers.value.filter(
-                (member) => ((member.presence?.toLowerCase() as PresenceStatus) || 'offline') === presence
+                (member) => normalizePresenceStatus(member.presence) === presence
             ),
         }))
         .filter((section) => section.members.length > 0);

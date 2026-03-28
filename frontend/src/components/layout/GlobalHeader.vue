@@ -132,16 +132,6 @@ const userPresence = computed(() => {
   return presenceStore.self?.presence || 'online';
 });
 
-const presenceColor = computed(() => {
-  const colors: Record<string, string> = {
-    online: 'bg-success',
-    away: 'bg-warning',
-    dnd: 'bg-danger',
-    offline: 'bg-text-4'
-  };
-  return colors[userPresence.value] || 'bg-text-4';
-});
-
 const dndDurations = [
   { label: '30 minutes', value: 'thirty_minutes' },
   { label: '1 hour', value: 'one_hour' },
@@ -301,20 +291,13 @@ function handleQuickSwitcherSelect(item: QuickSwitcherItem) {
           class="relative flex min-h-11 items-center gap-2 rounded-r-2 py-1 pl-1.5 pr-2.5 transition-standard focus-ring hover:bg-bg-surface-1"
           :class="{ 'bg-bg-surface-1': showUserMenu }"
         >
-          <div class="relative">
-            <RcAvatar 
-              :userId="auth.user?.id"
-              :src="auth.user?.avatar_url" 
-              :username="auth.user?.username" 
-              size="sm"
-              class="w-7 h-7"
-            />
-            <!-- Presence dot -->
-            <span 
-              class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-bg-surface-1"
-              :class="presenceColor"
-            />
-          </div>
+          <RcAvatar 
+            :userId="auth.user?.id"
+            :src="auth.user?.avatar_url" 
+            :username="auth.user?.username" 
+            size="sm"
+            class="w-7 h-7"
+          />
           <span class="hidden max-w-[120px] truncate text-sm font-medium text-text-1 lg:block">
             {{ auth.user?.username }}
           </span>

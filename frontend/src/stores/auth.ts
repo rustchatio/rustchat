@@ -2,11 +2,12 @@ import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
 import { useStorage } from '@vueuse/core'
 import client from '../api/client'
+import { clearUserSummaryCache } from '../composables/useUserSummary'
+import { usePresenceStore } from '../features/presence'
 import { useThemeStore } from './theme'
 import { useMessageStore } from './messages'
 import { useChannelStore } from './channels'
 import { useUnreadStore } from './unreads'
-import { usePresenceStore } from './presence'
 import { useTeamStore } from './teams'
 import { useChannelPreferencesStore } from './channelPreferences'
 import { useUIStore } from './ui'
@@ -71,6 +72,7 @@ export const useAuthStore = defineStore('auth', () => {
         useChannelStore().clearChannels()
         useUnreadStore().clearAllState()
         usePresenceStore().clear()
+        clearUserSummaryCache()
         useTeamStore().clear()
         useChannelPreferencesStore().clearState()
 
