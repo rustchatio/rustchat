@@ -69,13 +69,13 @@ function handleLogout() {
       <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="$emit('close')"></div>
       
       <!-- Modal Panel -->
-      <div class="relative bg-bg-surface-1 rounded-r-3 shadow-2xl ring-1 ring-border-1 w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden">
+      <div class="relative bg-bg-surface-1 rounded-r-3 shadow-2xl ring-1 ring-border-1 w-full max-w-5xl max-h-[calc(100svh-1rem)] sm:max-h-[90vh] flex flex-col overflow-hidden">
         <!-- Header -->
         <div class="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-border-1 shrink-0">
           <h2 class="text-xl sm:text-2xl font-semibold text-text-1">Settings</h2>
           <button 
             @click="$emit('close')" 
-            class="rounded-r-2 p-2 text-text-3 hover:text-text-1 hover:bg-bg-surface-2 transition-standard focus-ring"
+            class="flex h-11 w-11 items-center justify-center rounded-r-2 text-text-3 hover:text-text-1 hover:bg-bg-surface-2 transition-standard focus-ring"
           >
             <X class="h-5 w-5" />
           </button>
@@ -85,12 +85,12 @@ function handleLogout() {
           <!-- Sidebar -->
           <div class="w-full sm:w-64 bg-bg-surface-2 border-b sm:border-b-0 sm:border-r border-border-1 flex flex-col shrink-0 overflow-y-auto">
             <!-- Main Tabs -->
-            <nav class="flex sm:flex-col gap-0.5 p-2">
+            <nav class="grid grid-cols-2 gap-2 p-3 sm:flex sm:flex-col sm:gap-0.5 sm:p-2">
               <button
                 v-for="tab in tabs"
                 :key="tab.id"
                 @click="setTab(tab.id)"
-                class="flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-r-2 whitespace-nowrap transition-standard"
+                class="flex min-h-11 items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-r-2 whitespace-nowrap transition-standard"
                 :class="activeTab === tab.id 
                   ? 'bg-bg-surface-1 text-brand shadow-sm ring-1 ring-border-1' 
                   : 'text-text-2 hover:bg-bg-surface-1 hover:text-text-1'"
@@ -101,15 +101,15 @@ function handleLogout() {
             </nav>
 
             <!-- Plugin Section -->
-            <div class="hidden sm:block px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-text-3">
+            <div class="px-3 pt-0 pb-2 sm:px-4 sm:py-2 text-[10px] font-semibold uppercase tracking-wider text-text-3">
               Plugin Preferences
             </div>
-            <nav class="flex sm:flex-col gap-0.5 px-2 pb-2">
+            <nav class="grid grid-cols-2 gap-2 px-3 pb-3 sm:flex sm:flex-col sm:gap-0.5 sm:px-2 sm:pb-2">
               <button
                 v-for="tab in pluginTabs"
                 :key="tab.id"
                 @click="setTab(tab.id)"
-                class="flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-r-2 whitespace-nowrap transition-standard"
+                class="flex min-h-11 items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-r-2 whitespace-nowrap transition-standard"
                 :class="activeTab === tab.id
                   ? 'bg-bg-surface-1 text-brand shadow-sm ring-1 ring-border-1'
                   : 'text-text-2 hover:bg-bg-surface-1 hover:text-text-1'"
@@ -120,10 +120,10 @@ function handleLogout() {
             </nav>
             
             <!-- Profile & Logout -->
-            <div class="mt-auto p-2 border-t border-border-1">
+            <div class="grid grid-cols-2 gap-2 p-3 border-t border-border-1 sm:mt-auto sm:block sm:p-2">
               <button
                 @click="setTab('profile')"
-                class="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-r-2 transition-standard mb-1"
+                class="w-full flex min-h-11 items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-r-2 transition-standard sm:mb-1"
                 :class="activeTab === 'profile'
                   ? 'bg-bg-surface-1 text-brand shadow-sm ring-1 ring-border-1'
                   : 'text-text-2 hover:bg-bg-surface-1 hover:text-text-1'"
@@ -133,7 +133,7 @@ function handleLogout() {
               </button>
               <button
                 @click="handleLogout"
-                class="w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium text-danger hover:bg-danger/5 rounded-r-2 transition-standard"
+                class="w-full flex min-h-11 items-center gap-3 px-3 py-2.5 text-sm font-medium text-danger hover:bg-danger/5 rounded-r-2 transition-standard"
               >
                 <LogOut class="w-4 h-4 shrink-0" />
                 Log out
