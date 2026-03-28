@@ -1,5 +1,33 @@
 # Task Plan
 
+## 2026-03-28 CI Required-Check Alignment for Frontend-Only PRs
+
+### Task
+- Fix the GitHub Actions/branch-protection mismatch that blocks frontend-only PRs even when all visible checks are green.
+- Ensure the required `cargo check + test` status is always reported on PRs to `main`.
+- Preserve full backend validation when backend-related files actually change.
+
+### Implementation Status
+- [x] Removed the top-level PR path filter from [backend-ci.yml](/Users/scolak/Projects/rustchat/.github/workflows/backend-ci.yml) so the workflow always starts for PRs targeting `main`.
+- [x] Added an internal backend-change detection job that compares the current ref against the PR base or push predecessor SHA.
+- [x] Split heavy backend validation into a separate conditional job that only runs when backend-related files change.
+- [x] Added a lightweight always-reporting gate job named `cargo check + test` that passes with a clear skip message for frontend-only changes and fails if backend validation fails when required.
+
+### Verification Status
+1. `ruby -e 'require "yaml"; YAML.load_file(".github/workflows/backend-ci.yml"); puts "YAML ok"'`
+- Result: PASS
+
+### Manual Verification Commands
+1. `gh pr checks 64`
+2. Open the GitHub Actions run for a frontend-only PR and confirm:
+- `cargo check + test` appears as a completed successful check
+- the log shows `No backend-related changes detected; backend validation skipped.`
+3. Open a backend-touching PR and confirm the `Backend validation` job runs full cargo validation before the `cargo check + test` gate concludes successfully.
+
+### Readiness
+- Ready for PR validation on GitHub Actions.
+- Known limitation: local verification here is limited to YAML parsing; the full behavior depends on a live Actions run.
+
 ## 2026-03-28 Emoji Picker Overlay and Clickability Fix
 
 ### Task

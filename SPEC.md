@@ -1,3 +1,135 @@
+# SPEC: CI Required-Check Alignment for Frontend-Only PRs (2026-03-28)
+
+## Problem Statement
+
+PR #64 is mergeable, approved, and green on all visible checks, but GitHub still reports it as blocked.
+
+The root cause is a mismatch between branch protection and workflow triggering:
+
+1. `main` requires a check named `cargo check + test`.
+2. That check is produced by `.github/workflows/backend-ci.yml`.
+3. `backend-ci.yml` is path-filtered to only run when `backend/**` or the workflow file itself changes.
+4. Frontend-only PRs therefore never emit the required `cargo check + test` status, so GitHub blocks merge even when the PR is otherwise healthy.
+
+This is a workflow contract bug. It creates false-negative merge blocks for frontend-only work and makes CI feel arbitrary.
+
+## Goals
+
+1. Ensure required backend checks always produce a final status on pull requests targeting `main`.
+2. Preserve the existing heavy backend validation when backend code actually changes.
+3. Avoid forcing frontend-only PRs to touch backend files just to satisfy branch protection.
+4. Keep the fix understandable for future contributors and maintainers.
+
+## Non-Goals
+
+1. No change to backend application code.
+2. No reduction in backend validation for PRs that do touch backend paths.
+3. No redesign of the entire GitHub Actions setup in this pass.
+4. No branch-protection admin change as the primary fix.
+
+## Scope and Contract Impact
+
+In scope:
+- `.github/workflows/backend-ci.yml`
+- optionally `.github/workflows/ci.yml` only if needed to avoid duplicate/confusing status behavior
+- verification against PR check behavior for frontend-only changes
+
+Contract impact:
+- No product/API contract change.
+- Repository workflow contract change:
+  - PRs to `main` should always emit `cargo check + test`
+  - backend-touching PRs should still run the full backend job
+  - frontend-only PRs should emit a fast pass/skip-equivalent success instead of no status at all
+
+Out of scope:
+- changing required check names on `main`
+- removing branch protection requirements
+- broader CI optimization unrelated to this required-check mismatch
+
+## Current Implementation Findings
+
+1. `.github/workflows/backend-ci.yml` defines the required `cargo check + test` status.
+2. That workflow is currently restricted with:
+   - `pull_request.branches: [main]`
+   - `pull_request.paths: ["backend/**", ".github/workflows/backend-ci.yml"]`
+3. Branch protection on `main` still requires `cargo check + test`, regardless of whether the workflow was skipped by path filtering.
+4. `.github/workflows/ci.yml` always runs and already provides `Test` and `Build`, which is why frontend-only PRs can appear fully green while still being blocked.
+
+## Implementation Outline
+
+### Phase 1: Make Backend CI Always Report on PRs
+
+Target file:
+- `.github/workflows/backend-ci.yml`
+
+Work:
+- remove or replace the current top-level `paths` filter for pull requests
+- add a lightweight change-detection step inside the workflow
+- split behavior so the workflow always starts, but only runs the expensive backend validation when backend-relevant files changed
+
+Expected outcome:
+- GitHub always receives a `cargo check + test` conclusion for PRs to `main`
+- frontend-only PRs stop getting silently blocked by a missing required status
+
+### Phase 2: Keep Backend Validation Strict When Needed
+
+Target file:
+- `.github/workflows/backend-ci.yml`
+
+Work:
+- gate the heavy job steps on whether backend-related files changed
+- for frontend-only PRs, produce a successful no-op path with a clear log message like “No backend changes detected; backend validation skipped”
+
+Expected outcome:
+- backend-touching PRs still run full `cargo check`, `clippy`, and `cargo test`
+- frontend-only PRs satisfy required status without burning unnecessary CI time
+
+### Phase 3: Verify Check Behavior
+
+Work:
+- validate the workflow YAML locally as far as feasible
+- verify the logic by reviewing the rendered diff and expected job conditions
+- after merge/push, confirm that a frontend-only PR shows `cargo check + test` as successful rather than missing
+
+Expected outcome:
+- branch protection and workflow triggering become aligned
+
+## Proposed Implementation Shape
+
+Preferred shape:
+- keep one job named `cargo check + test`
+- add an early “detect changed files” step
+- run full backend commands only when backend-related files changed
+- otherwise run a short success step that exits 0
+
+Why this shape:
+- preserves the exact required check name already configured in branch protection
+- avoids creating a second required-check mismatch
+- keeps the workflow behavior obvious in the Actions UI
+
+## Verification Plan
+
+Automated:
+- YAML review of `.github/workflows/backend-ci.yml`
+- if feasible, run a lightweight syntax sanity check locally
+
+Post-push verification:
+- `gh pr checks <pr-number>`
+- `gh pr view <pr-number> --json mergeStateStatus,statusCheckRollup`
+
+Manual expectation:
+- on a frontend-only PR, `cargo check + test` should appear and pass with a skip/no-op message
+- on a backend PR, `cargo check + test` should run the full backend validation path
+
+## Expected Result
+
+After this fix:
+- frontend-only PRs no longer get blocked by a missing backend required check
+- backend PRs keep the same strict validation standard
+- merge readiness becomes predictable and consistent with what GitHub visibly shows
+
+---
+
 # SPEC: Emoji Picker Overlay and Clickability Fix (2026-03-28)
 
 ## Problem Statement
