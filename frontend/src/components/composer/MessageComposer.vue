@@ -875,11 +875,11 @@ onUnmounted(() => {
       </div>
 
       <!-- Bottom Toolbar -->
-      <div class="flex items-center justify-between border-t border-border-1/60 px-2 py-1.5">
+      <div class="flex flex-wrap items-center gap-x-2 gap-y-2 border-t border-border-1/60 px-2 py-2">
         <!-- Left Actions -->
-        <div class="flex items-center gap-0.5">
+        <div class="flex items-center gap-1">
           <button
-            class="rounded p-1.5 transition-standard hover:bg-brand/10 hover:text-brand focus-ring"
+            class="flex h-11 w-11 items-center justify-center rounded-r-1 transition-standard hover:bg-brand/10 hover:text-brand focus-ring"
             title="Attach file"
             aria-label="Attach file"
             @click="openFilePicker"
@@ -890,7 +890,7 @@ onUnmounted(() => {
           <div class="relative">
             <button
               ref="emojiButtonRef"
-              class="rounded p-1.5 transition-standard hover:bg-warning/10 hover:text-warning focus-ring"
+              class="flex h-11 w-11 items-center justify-center rounded-r-1 transition-standard hover:bg-warning/10 hover:text-warning focus-ring"
               title="Insert emoji"
               aria-label="Insert emoji"
               @click="showEmojiPicker = !showEmojiPicker"
@@ -906,7 +906,7 @@ onUnmounted(() => {
           </div>
 
           <button
-            class="hidden sm:inline-flex items-center gap-1 rounded px-2 py-1.5 transition-standard focus-ring"
+            class="hidden sm:inline-flex min-h-11 items-center gap-1 rounded-r-1 px-3 transition-standard focus-ring"
             :class="showToolbar ? 'bg-brand/10 text-brand' : 'hover:bg-brand/10 hover:text-brand'"
             :disabled="!formattingAllowed"
             :title="showToolbar ? 'Hide formatting (Ctrl+Alt+T)' : 'Show formatting (Ctrl+Alt+T)'"
@@ -920,7 +920,7 @@ onUnmounted(() => {
 
           <button
             v-if="!callsStore.isInCall"
-            class="rounded p-1.5 transition-standard hover:bg-success/10 hover:text-success focus-ring"
+            class="flex h-11 w-11 items-center justify-center rounded-r-1 transition-standard hover:bg-success/10 hover:text-success focus-ring"
             title="Start audio call"
             aria-label="Start audio call"
             @click="$emit('startAudioCall')"
@@ -929,7 +929,7 @@ onUnmounted(() => {
           </button>
           <button
             v-else
-            class="rounded bg-success/10 p-1.5 text-success transition-standard focus-ring"
+            class="flex h-11 w-11 items-center justify-center rounded-r-1 bg-success/10 text-success transition-standard focus-ring"
             title="Show active call"
             aria-label="Show active call"
             @click="callsStore.toggleExpanded()"
@@ -939,9 +939,9 @@ onUnmounted(() => {
         </div>
 
         <!-- Right: Shortcuts + Send -->
-        <div class="flex items-center gap-2">
+        <div class="ml-auto flex items-center gap-2 sm:gap-3">
           <!-- Keyboard Shortcuts Hint -->
-          <div class="hidden lg:flex items-center gap-2 text-[11px] text-text-3">
+          <div class="hidden xl:flex items-center gap-2 text-[11px] text-text-3">
             <span class="flex items-center gap-1">
               <kbd class="px-1.5 py-0.5 bg-bg-surface-2 rounded text-[10px]">{{ sendShortcutLabel }}</kbd>
               <span>to send</span>
@@ -954,14 +954,14 @@ onUnmounted(() => {
           </div>
 
           <!-- Mobile Command Hint -->
-          <div class="lg:hidden text-[11px] text-text-3">
+          <div class="hidden md:flex xl:hidden items-center text-[11px] text-text-3">
             <kbd class="px-1 py-0.5 bg-bg-surface-2 rounded">^k</kbd>
             <span class="ml-1">command</span>
           </div>
 
           <!-- Send Button -->
           <button
-            class="flex items-center gap-1.5 rounded-r-1 bg-brand px-3 py-1.5 text-white shadow-1 transition-standard hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50"
+            class="flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-r-1 bg-brand px-3 sm:px-4 text-white shadow-1 transition-standard hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50"
             :disabled="!canSend"
             aria-label="Send message"
             @click="handleSend"

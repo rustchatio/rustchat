@@ -44,7 +44,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div ref="rootRef" class="relative flex items-center gap-0.5 overflow-x-auto border-b border-border-1 bg-bg-surface-2/50 px-1.5 py-1 whitespace-nowrap">
+  <div ref="rootRef" class="relative flex items-center gap-1 overflow-x-auto border-b border-border-1 bg-bg-surface-2/50 px-2 py-1.5 whitespace-nowrap">
     <!-- Formatting buttons -->
     <button
       v-for="action in formatActions"
@@ -52,20 +52,20 @@ onUnmounted(() => {
       @click="$emit('format', action.type)"
       :title="action.title"
       :aria-label="action.label"
-      class="rounded p-1.5 text-text-3 transition-standard hover:bg-bg-surface-1 hover:text-text-1 focus-ring"
+      class="flex h-11 w-11 shrink-0 items-center justify-center rounded-r-1 text-text-3 transition-standard hover:bg-bg-surface-1 hover:text-text-1 focus-ring"
     >
       <component :is="action.icon" class="w-4 h-4" />
     </button>
     
     <!-- Divider -->
-    <div class="mx-1 h-5 w-px bg-border-1"></div>
+    <div class="mx-1 h-6 w-px shrink-0 bg-border-1"></div>
     
     <!-- Preview toggle -->
     <button
       @click="$emit('togglePreview')"
       :title="showPreview ? 'Hide preview' : 'Show preview'"
       aria-label="Toggle markdown preview"
-      class="rounded p-1.5 transition-standard focus-ring"
+      class="flex h-11 w-11 shrink-0 items-center justify-center rounded-r-1 transition-standard focus-ring"
       :class="showPreview 
         ? 'bg-brand/10 text-brand'
         : 'text-text-3 hover:bg-bg-surface-1 hover:text-text-1'"
@@ -77,7 +77,7 @@ onUnmounted(() => {
       @click="showHelp = !showHelp"
       title="Formatting help"
       aria-label="Formatting help"
-      class="rounded p-1.5 text-text-3 transition-standard hover:bg-bg-surface-1 hover:text-text-1 focus-ring"
+      class="flex h-11 w-11 shrink-0 items-center justify-center rounded-r-1 text-text-3 transition-standard hover:bg-bg-surface-1 hover:text-text-1 focus-ring"
       :class="showHelp ? 'bg-bg-surface-1 text-text-1' : ''"
     >
       <HelpCircle class="w-4 h-4" />
