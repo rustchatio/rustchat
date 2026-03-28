@@ -14,12 +14,12 @@
 - Treat `frontend/src/stores/presence.ts` as legacy and remove it from the active flow.
 
 ### Implementation Checklist
-- [ ] Keep reaction canonicalization centered in `frontend/src/utils/emoji.ts`, `frontend/src/stores/messages.ts`, and `frontend/src/components/channel/MessageItem.vue`.
-- [ ] Add the shared presence/status presenter and switch touched UI surfaces to use it.
-- [ ] Add one DM/user-summary helper so `ChannelSidebar`, `ChannelInfoPanel`, and `UserProfileModal` do not shape user data independently.
-- [ ] Update `frontend/src/stores/auth.ts` to clear the active feature presence store during logout/session expiry.
-- [ ] Remove or quarantine the legacy presence store so new code cannot accidentally keep using it.
-- [ ] Add regression tests for reaction alias dedupe and session presence cleanup.
+- [x] Keep reaction canonicalization centered in `frontend/src/utils/emoji.ts`, `frontend/src/stores/messages.ts`, and `frontend/src/components/channel/MessageItem.vue`.
+- [x] Add the shared presence/status presenter and switch touched UI surfaces to use it.
+- [x] Add one DM/user-summary helper so `ChannelInfoPanel` and `UserProfileModal` no longer shape user data independently, and centralize DM counterpart resolution in `frontend/src/utils/directMessage.ts`.
+- [x] Update `frontend/src/stores/auth.ts` to clear the active feature presence store during logout/session expiry.
+- [x] Remove or quarantine the legacy presence store so new code cannot accidentally keep using it.
+- [x] Add regression tests for reaction alias dedupe and session presence cleanup.
 
 ### Manual Verification Commands
 1. `cd frontend && npm run build`
@@ -35,6 +35,61 @@
 
 ### Readiness
 - Ready for implementation once the branch follows the locked Option B architecture above.
+
+### Outcome
+- Implemented on branch `ui-improvements-3` and pushed at commit `f4cea640` (`feat: centralize presence status handling`).
+- Automated verification completed:
+  - `cd frontend && npm run test:unit`
+  - `cd frontend && npm run build`
+  - `cd frontend && npm run test:e2e`
+- Result: PASS, `60 passed`.
+- Follow-up gaps remain around cross-user custom status freshness, backend status contract consistency, and deeper reaction/status regression coverage. Those are tracked in the `2026-03-29 Presence/Status Baseline and Contract Closure` section below.
+
+## 2026-03-29 Presence/Status Baseline and Contract Closure
+
+### Task
+- Freeze a baseline for the shipped reaction/presence/status work.
+- Close the remaining UI and backend contract gaps without reopening the broader shell redesign.
+- Make presence and custom status behavior consistent enough that DM surfaces, profile surfaces, and compatible clients stop drifting.
+
+### Shipped Baseline
+- Reaction identity is normalized in `frontend/src/utils/emoji.ts`, `frontend/src/stores/messages.ts`, and `frontend/src/components/channel/MessageItem.vue`.
+- Shared status presentation exists in `frontend/src/features/presence/presencePresentation.ts`.
+- Shared user summary hydration exists in `frontend/src/composables/useUserSummary.ts`.
+- Session cleanup clears active presence state and summary cache in `frontend/src/stores/auth.ts`.
+- Backend presence/status endpoints and websocket `status_change` flow are active in `backend/src/api/v4/status.rs`.
+
+### Remaining Gaps
+- Cross-user custom status text/emoji is not live-updated after initial fetch for DM/profile surfaces.
+- `frontend/src/components/layout/ChannelSidebar.vue` still shapes DM counterpart data separately instead of consuming the shared user-summary path.
+- Backend team-member presence payloads are inconsistent between `/api/v4/teams/{team_id}/members` and `/api/v4/users/.../teams/members`.
+- Custom status expiry semantics need to be explicit and enforced, not just stored.
+- Regression coverage is still missing for message-store reaction merge/remove behavior and backend custom-status propagation/expiry.
+
+### Implementation Checklist
+- [ ] Extend the backend realtime status contract so other-user custom status updates can reach live clients.
+- [x] Decide and implement custom-status expiry semantics server-side, including clear behavior after expiry.
+- [ ] Normalize `frontend/src/components/layout/ChannelSidebar.vue` onto the shared user-summary path for DM identity/status rendering.
+- [ ] Align backend team-member endpoints so presence is consistent across equivalent routes.
+- [ ] Add frontend regression tests for `frontend/src/stores/messages.ts` reaction merge/remove behavior.
+- [ ] Add backend regression tests for custom-status websocket propagation and expiry behavior.
+
+### Manual Verification Commands
+1. `cd /Users/scolak/Projects/rustchat/frontend && npm run dev`
+2. In one session, open a DM with another user. In a second session, change that other user’s custom status text/emoji. Verify the DM sidebar row, channel info panel, and user profile modal all update without a full reload.
+3. Set a timed custom status, wait past the expiry boundary, and verify the status is cleared in both REST reads and websocket-driven UI.
+4. Compare `GET /api/v4/teams/{team_id}/members` with `GET /api/v4/users/me/teams/members` for the same user set and verify presence fields are consistent.
+
+### Parallelization
+- Lane A: backend status/custom-status contract and tests
+- Lane B: frontend DM/sidebar/user-summary unification
+- Lane C: frontend regression coverage for reaction/state behavior, after Lane B contract is fixed
+
+### Readiness
+- Ready for implementation only after the follow-up status contract in `SPEC.md` is approved.
+
+### Progress Notes
+- Custom-status expiry is now enforced two ways: lazily on REST reads and proactively by a backend worker that clears expired rows and broadcasts `status_change` updates to connected clients.
 
 ## 2026-03-28 CI Required-Check Alignment for Frontend-Only PRs
 

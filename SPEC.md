@@ -1468,3 +1468,191 @@ Manual acceptance checks MUST cite AC IDs in test notes.
 ## Approval Gate
 
 Does this plan meet your expectations? Please approve or provide feedback.
+
+# SPEC: Presence/Status Baseline and Contract Closure (2026-03-29)
+
+## Problem Statement
+
+The branch now has a solid first version of shared presence/status UI, but it is not actually the full story yet.
+
+What shipped works for the obvious paths:
+- reaction identity now collapses alias variants into one visible bucket
+- avatar and profile surfaces share one status-presentation rule
+- logout clears the active presence path instead of the dead legacy store
+
+What is still off:
+1. Cross-user custom status text and emoji are fetched once on the frontend, then go stale for the rest of the session.
+2. The DM sidebar still shapes counterpart identity and presence separately instead of using the same shared user-summary path as the DM info panel and profile modal.
+3. Equivalent backend team-member endpoints do not return equivalent presence data.
+4. Timed custom status appears to be stored, but expiry semantics are not clearly enforced end-to-end.
+5. Regression coverage protects helper functions, but still skips several full-behavior paths that are most likely to break again.
+
+That is the kind of branch that looks done in screenshots and then leaks trust in live collaboration.
+
+## Goals
+
+1. Establish a clear baseline for the shipped reaction/presence/status work.
+2. Make other-user custom status behave like live collaboration state, not a one-time profile fetch.
+3. Finish the DM presence/status architecture so all touched DM surfaces use the same source of truth.
+4. Normalize backend presence/status contracts across equivalent routes.
+5. Add regression coverage where the actual behavior can drift: websocket/state merge, custom-status freshness, expiry, and endpoint consistency.
+
+## Non-Goals
+
+1. No broad redesign of the authenticated shell.
+2. No people-directory rewrite.
+3. No new product surface for custom status beyond making existing behavior trustworthy.
+4. No unrelated Mattermost compatibility work outside the status/presence contract touched here.
+
+## Shipped Baseline
+
+The following is already implemented and should be treated as baseline, not re-debated:
+
+1. Reaction identity normalization in:
+   - `frontend/src/utils/emoji.ts`
+   - `frontend/src/stores/messages.ts`
+   - `frontend/src/components/channel/MessageItem.vue`
+2. Shared presence/status presenter in:
+   - `frontend/src/features/presence/presencePresentation.ts`
+3. Shared user-summary hydration in:
+   - `frontend/src/composables/useUserSummary.ts`
+4. Session cleanup on the active presence path in:
+   - `frontend/src/stores/auth.ts`
+5. Presence/status APIs and websocket broadcast path in:
+   - `backend/src/api/v4/status.rs`
+
+## Current Gaps
+
+### Gap 1: Cross-user custom status is not live
+
+Frontend user summaries merge live presence with one-time hydrated profile fields in `frontend/src/composables/useUserSummary.ts`.
+
+That means:
+- availability updates keep moving
+- custom status text/emoji do not
+
+Backend `status_change` currently broadcasts only:
+- `user_id`
+- `status`
+
+It does not broadcast custom status text, emoji, or expiry changes.
+
+### Gap 2: DM sidebar still bypasses the shared summary path
+
+`frontend/src/components/layout/ChannelSidebar.vue` still derives DM display name, avatar, and presence from local team-member reads plus direct presence-store reads.
+
+That means the DM sidebar is still a parallel implementation. Better than before, still not finished.
+
+### Gap 3: Backend equivalent routes are not equivalent
+
+`/api/v4/teams/{team_id}/members` returns presence-enriched team members, while `/api/v4/users/me/teams/members` and `/api/v4/users/{user_id}/teams/members` still return `presence: None`.
+
+Equivalent route family, different output. Bad contract hygiene.
+
+### Gap 4: Timed custom status needs real semantics
+
+The backend stores `status_expires_at`, but this pass must define and verify:
+- whether expired custom statuses are cleared eagerly or lazily
+- what REST should return after expiry
+- whether websocket clients receive a clearing update
+
+Without that, “clear in one hour” is just decorative configuration.
+
+### Gap 5: Test coverage still misses the real failure modes
+
+Current tests are useful, but incomplete:
+- frontend helper tests exist
+- logout cleanup test exists
+- backend status-id and basic custom-status route tests exist
+
+Still missing:
+- direct tests for `messages.ts` reaction merge/remove behavior
+- backend tests that another connected user sees custom-status updates
+- backend tests for expiry/clear behavior
+- cross-surface UI verification that DM sidebar, DM info, and profile all stay consistent
+
+## Architecture Decision
+
+Proceed with a small follow-up, not a redesign.
+
+### Lane A: Backend status contract closure
+
+Target files:
+- `backend/src/api/v4/status.rs`
+- `backend/src/api/v4/websocket.rs`
+- `backend/src/api/v4/users.rs`
+- `backend/tests/api_v4_mobile_presence.rs`
+
+Requirements:
+1. Extend realtime status propagation so clients can observe custom-status changes for other users.
+2. Define and implement timed custom-status expiry semantics.
+3. Align equivalent team-member endpoints so presence fields are consistent.
+
+### Lane B: Frontend DM/source-of-truth closure
+
+Target files:
+- `frontend/src/composables/useUserSummary.ts`
+- `frontend/src/components/layout/ChannelSidebar.vue`
+- `frontend/src/components/channel/ChannelInfoPanel.vue`
+- `frontend/src/components/modals/UserProfileModal.vue`
+
+Requirements:
+1. DM sidebar must consume the same user-summary source as the DM info panel and profile modal.
+2. Cross-surface identity and status semantics must match:
+   - display name
+   - avatar
+   - availability
+   - custom status text/emoji
+
+### Lane C: Regression coverage closure
+
+Target files:
+- `frontend/src/stores/messages.ts`
+- `frontend/src/stores/messages.test.ts` or equivalent
+- `backend/tests/api_v4_mobile_presence.rs`
+- `frontend/e2e/` if one focused browser check is needed
+
+Requirements:
+1. Add direct store-level reaction merge/remove regression coverage.
+2. Add backend coverage for custom-status propagation and expiry.
+3. Add at least one verification path that proves DM sidebar, DM info, and profile stay aligned for the same user.
+
+## Contract Requirements
+
+### FR-STAT-001 Live custom status propagation
+- When a user updates or clears custom status, other connected clients MUST be able to observe the change without a full page reload.
+
+### FR-STAT-002 Expiry semantics
+- When `status_expires_at` passes, server-visible user status MUST converge to the expired-cleared state.
+- Equivalent REST reads after expiry MUST not continue serving stale custom status indefinitely.
+
+### FR-STAT-003 Equivalent route consistency
+- Equivalent team-member routes MUST expose presence with the same semantics unless there is a documented compatibility reason not to.
+
+### FR-STAT-004 DM cross-surface consistency
+- DM sidebar, DM info panel, and user profile modal MUST converge on the same counterpart identity and status semantics for the same user.
+
+## Verification Plan
+
+Automated:
+- `cd frontend && npm run test:unit`
+- `cd frontend && npm run build`
+- `cd frontend && npm run test:e2e`
+- `cd backend && cargo test api_v4_mobile_presence -- --nocapture`
+
+Manual:
+1. Open the same DM in two sessions.
+2. Change the other user’s custom status text/emoji.
+3. Verify the DM sidebar row, DM info panel, and profile modal all update without a full reload.
+4. Set a timed custom status and verify it disappears after expiry in both REST reads and live UI.
+5. Compare presence fields across the team-member routes and confirm they agree.
+
+## Risks
+
+1. Mattermost compatibility may prefer a specific websocket shape for status changes. If upstream behavior differs, document the exact contract before widening payloads.
+2. Expiry implementation can accidentally create polling or cleanup complexity if we overbuild it. Keep it explicit and minimal.
+3. The sidebar path is performance-sensitive, so any summary hydration must avoid turning every render into N+1 fetch noise.
+
+## Approval Gate
+
+Does this follow-up plan meet your expectations? Please approve or provide feedback before implementation starts.

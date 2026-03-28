@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::AppState;
+use crate::api::v4::status as v4_status;
 use crate::auth::policy::permissions;
 use crate::auth::{hash_password, AuthUser};
 use crate::error::{ApiResult, AppError};
@@ -17,17 +18,16 @@ use crate::models::{ChangePassword, UpdateUser, User, UserResponse};
 pub struct UserStatusResponse {
     pub user_id: String,
     pub status: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub presence: Option<String>,
     pub manual: bool,
     pub last_activity_at: i64,
-}
-
-/// Update status request
-#[derive(Debug, Clone, Deserialize)]
-pub struct UpdateStatusRequest {
-    pub status: String,
-    #[allow(dead_code)]
-    #[serde(default)]
-    pub dnd_end_time: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub emoji: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<i64>,
 }
 
 /// Build users routes
@@ -123,6 +123,7 @@ async fn get_user(
     auth: AuthUser,
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<UserResponse>> {
+    let _ = v4_status::clear_expired_custom_status_if_needed(&state, id).await?;
     let user: User = sqlx::query_as("SELECT * FROM users WHERE id = $1 AND deleted_at IS NULL")
         .bind(id)
         .fetch_optional(&state.db)
@@ -291,28 +292,17 @@ async fn get_user_status_by_id(
     state: &AppState,
     user_id: Uuid,
 ) -> ApiResult<Json<UserStatusResponse>> {
-    let result: (String, bool, Option<chrono::DateTime<chrono::Utc>>) = sqlx::query_as(
-        r#"
-        SELECT presence, COALESCE(presence_manual, false), last_login_at
-        FROM users
-        WHERE id = $1
-        "#,
-    )
-    .bind(user_id)
-    .fetch_one(&state.db)
-    .await?;
-
-    let (presence, manual, last_login) = result;
+    let snapshot = v4_status::fetch_user_status_snapshot(state, user_id).await?;
 
     Ok(Json(UserStatusResponse {
         user_id: user_id.to_string(),
-        status: if presence.is_empty() {
-            "offline".to_string()
-        } else {
-            presence
-        },
-        manual,
-        last_activity_at: last_login.map(|t| t.timestamp_millis()).unwrap_or(0),
+        status: snapshot.status.clone(),
+        presence: Some(snapshot.status),
+        manual: snapshot.manual,
+        last_activity_at: snapshot.last_activity_at,
+        text: snapshot.text,
+        emoji: snapshot.emoji,
+        expires_at: snapshot.expires_at,
     }))
 }
 
@@ -321,47 +311,95 @@ async fn get_user_status_by_id(
 async fn update_my_status(
     State(state): State<AppState>,
     auth: AuthUser,
-    Json(body): Json<UpdateStatusRequest>,
+    Json(body): Json<v4_status::UpdateMyStatusRequest>,
 ) -> ApiResult<Json<serde_json::Value>> {
-    // Validate status
-    let valid_statuses = ["online", "away", "dnd", "offline"];
-    if !valid_statuses.contains(&body.status.as_str()) {
-        return Err(AppError::Validation(format!(
-            "Invalid status: {}. Must be one of: online, away, dnd, offline",
-            body.status
-        )));
+    let mut should_broadcast = false;
+
+    if let Some(status) = body.status.clone().or(body.presence.clone()) {
+        let valid_statuses = ["online", "away", "dnd", "offline"];
+        if !valid_statuses.contains(&status.as_str()) {
+            return Err(AppError::Validation(format!(
+                "Invalid status: {}. Must be one of: online, away, dnd, offline",
+                status
+            )));
+        }
+
+        let manual = status != "online";
+        sqlx::query(
+            r#"
+            UPDATE users
+            SET presence = $2, presence_manual = $3
+            WHERE id = $1
+            "#,
+        )
+        .bind(auth.user_id)
+        .bind(&status)
+        .bind(manual)
+        .execute(&state.db)
+        .await?;
+        should_broadcast = true;
     }
 
-    // Determine if this is a manual status
-    let manual = body.status != "online";
+    if v4_status::should_update_custom_status(&body) {
+        let custom_status = v4_status::build_custom_status_from_update_request(&body);
+        let (text, emoji, expires_at, json_status) = if let Some(ref cs) = custom_status {
+            let json = serde_json::json!({
+                "emoji": cs.emoji,
+                "text": cs.text,
+                "duration": cs.duration,
+                "expires_at": cs.expires_at.map(|t| t.to_rfc3339()),
+            });
+            (
+                Some(cs.text.clone()),
+                Some(cs.emoji.clone()),
+                cs.expires_at,
+                json,
+            )
+        } else {
+            (
+                None::<String>,
+                None::<String>,
+                None::<chrono::DateTime<chrono::Utc>>,
+                serde_json::json!(null),
+            )
+        };
 
-    // Update user presence
-    sqlx::query(
-        r#"
-        UPDATE users
-        SET presence = $2, presence_manual = $3
-        WHERE id = $1
-        "#,
-    )
-    .bind(auth.user_id)
-    .bind(&body.status)
-    .bind(manual)
-    .execute(&state.db)
-    .await?;
+        sqlx::query(
+            r#"
+            UPDATE users
+            SET status_text = $2,
+                status_emoji = $3,
+                status_expires_at = $4,
+                custom_status = $5,
+                updated_at = NOW()
+            WHERE id = $1
+            "#,
+        )
+        .bind(auth.user_id)
+        .bind(text)
+        .bind(emoji)
+        .bind(expires_at)
+        .bind(json_status)
+        .execute(&state.db)
+        .await?;
+        should_broadcast = true;
+    }
 
-    // Broadcast status change via WebSocket
-    let event = crate::realtime::events::WsEnvelope::event(
-        crate::realtime::events::EventType::UserPresence,
-        serde_json::json!({
-            "user_id": auth.user_id.to_string(),
-            "status": &body.status,
-            "manual": manual,
-        }),
-        None,
-    );
-    state.ws_hub.broadcast(event).await;
+    if should_broadcast {
+        v4_status::broadcast_status_change(&state, auth.user_id).await?;
+    }
 
-    Ok(Json(serde_json::json!({"status": body.status})))
+    let snapshot = v4_status::fetch_user_status_snapshot(&state, auth.user_id).await?;
+    Ok(Json(serde_json::json!({
+        "user_id": auth.user_id.to_string(),
+        "status": snapshot.status,
+        "presence": snapshot.status,
+        "manual": snapshot.manual,
+        "last_activity_at": snapshot.last_activity_at,
+        "text": snapshot.text,
+        "emoji": snapshot.emoji,
+        "expires_at": snapshot.expires_at,
+    })))
 }
 
 /// Delete/clear my status (custom status text/emoji)
@@ -371,13 +409,25 @@ async fn delete_my_status(
     auth: AuthUser,
 ) -> ApiResult<Json<serde_json::Value>> {
     sqlx::query(
-        "UPDATE users SET status_text = NULL, status_emoji = NULL, status_expires_at = NULL, updated_at = NOW() WHERE id = $1"
+        "UPDATE users SET status_text = NULL, status_emoji = NULL, status_expires_at = NULL, custom_status = 'null'::jsonb, updated_at = NOW() WHERE id = $1"
     )
     .bind(auth.user_id)
     .execute(&state.db)
     .await?;
 
-    Ok(Json(serde_json::json!({"status": "cleared"})))
+    v4_status::broadcast_status_change(&state, auth.user_id).await?;
+
+    let snapshot = v4_status::fetch_user_status_snapshot(&state, auth.user_id).await?;
+    Ok(Json(serde_json::json!({
+        "user_id": auth.user_id.to_string(),
+        "status": snapshot.status,
+        "presence": snapshot.status,
+        "manual": snapshot.manual,
+        "last_activity_at": snapshot.last_activity_at,
+        "text": snapshot.text,
+        "emoji": snapshot.emoji,
+        "expires_at": snapshot.expires_at,
+    })))
 }
 
 /// Get statuses for multiple users

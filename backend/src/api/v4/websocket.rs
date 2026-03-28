@@ -1448,7 +1448,10 @@ fn map_envelope_to_mm(env: &WsEnvelope) -> Option<mm::WebSocketMessage> {
                         "user_id": user_id,
                         "status": status_str,
                         "manual": manual,
-                        "last_activity_at": last_activity_at
+                        "last_activity_at": last_activity_at,
+                        "text": env.data.get("text").cloned().unwrap_or(serde_json::Value::Null),
+                        "emoji": env.data.get("emoji").cloned().unwrap_or(serde_json::Value::Null),
+                        "expires_at": env.data.get("expires_at").cloned().unwrap_or(serde_json::Value::Null)
                     }),
                     broadcast: map_broadcast(env.broadcast.as_ref()),
                 })

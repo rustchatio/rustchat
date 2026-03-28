@@ -1,6 +1,7 @@
 #![allow(clippy::needless_borrows_for_generic_args)]
 use std::time::{Duration, Instant};
 
+use chrono::{Duration as ChronoDuration, Utc};
 use futures_util::StreamExt;
 use reqwest::StatusCode;
 use rustchat::mattermost_compat::id::encode_mm_id;
@@ -303,6 +304,177 @@ async fn custom_status_me_routes_are_supported_and_scoped() {
         .await
         .expect("cross-user custom status should return forbidden");
     assert_eq!(forbidden.status(), StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn custom_status_changes_reach_other_connected_users() {
+    let app = spawn_app().await;
+
+    let org_id = insert_org(&app, "Custom Status Broadcast Org").await;
+    let (token_a, user_a) = register_and_login(
+        &app,
+        org_id,
+        "custom_status_ws_a",
+        "custom_status_ws_a@example.com",
+    )
+    .await;
+    let (token_b, _user_b) = register_and_login(
+        &app,
+        org_id,
+        "custom_status_ws_b",
+        "custom_status_ws_b@example.com",
+    )
+    .await;
+
+    let mut ws_b = connect_ws_v4(&app.address, &token_b).await;
+    let _ = wait_for_event(&mut ws_b, "hello", Duration::from_secs(5)).await;
+
+    let update_status = app
+        .api_client
+        .put(format!("{}/api/v4/users/me/status", app.address))
+        .header("Authorization", format!("Bearer {token_a}"))
+        .json(&serde_json::json!({
+            "user_id": encode_mm_id(user_a),
+            "status": "away",
+            "text": "Focus mode",
+            "emoji": ":coffee:",
+            "duration": "dont_clear"
+        }))
+        .send()
+        .await
+        .expect("status update with custom status should succeed");
+    assert_eq!(update_status.status(), StatusCode::OK);
+
+    let updated = wait_for_status_change_for_user(&mut ws_b, user_a, Duration::from_secs(5)).await;
+    assert_eq!(updated["status"], "away");
+    assert_eq!(updated["text"], "Focus mode");
+    assert_eq!(updated["emoji"], ":coffee:");
+
+    let clear_status = app
+        .api_client
+        .delete(format!(
+            "{}/api/v4/users/{}/status/custom",
+            app.address,
+            encode_mm_id(user_a)
+        ))
+        .header("Authorization", format!("Bearer {token_a}"))
+        .send()
+        .await
+        .expect("custom status clear should succeed");
+    assert_eq!(clear_status.status(), StatusCode::OK);
+
+    let cleared = wait_for_status_change_for_user(&mut ws_b, user_a, Duration::from_secs(5)).await;
+    assert_eq!(cleared["text"], serde_json::Value::Null);
+    assert_eq!(cleared["emoji"], serde_json::Value::Null);
+
+    let _ = ws_b.close(None).await;
+}
+
+#[tokio::test]
+async fn expired_custom_status_is_cleared_on_rest_reads() {
+    let app = spawn_app().await;
+
+    let org_id = insert_org(&app, "Custom Status Expiry Org").await;
+    let (token, user_id) = register_and_login(
+        &app,
+        org_id,
+        "custom_status_expiry",
+        "custom_status_expiry@example.com",
+    )
+    .await;
+
+    let expires_at = (Utc::now() + ChronoDuration::milliseconds(250)).to_rfc3339();
+    let set_status = app
+        .api_client
+        .put(format!(
+            "{}/api/v4/users/{}/status/custom",
+            app.address,
+            encode_mm_id(user_id)
+        ))
+        .header("Authorization", format!("Bearer {token}"))
+        .json(&serde_json::json!({
+            "emoji": ":coffee:",
+            "text": "Short lived",
+            "duration": "date_and_time",
+            "expires_at": expires_at
+        }))
+        .send()
+        .await
+        .expect("timed custom status should succeed");
+    assert_eq!(set_status.status(), StatusCode::OK);
+
+    tokio::time::sleep(Duration::from_millis(450)).await;
+
+    let user = app
+        .api_client
+        .get(format!("{}/api/v1/users/{}", app.address, user_id))
+        .header("Authorization", format!("Bearer {token}"))
+        .send()
+        .await
+        .expect("user read should succeed");
+    assert_eq!(user.status(), StatusCode::OK);
+    let body = user
+        .json::<serde_json::Value>()
+        .await
+        .expect("user payload should be json");
+
+    assert_eq!(body["status_text"], serde_json::Value::Null);
+    assert_eq!(body["status_emoji"], serde_json::Value::Null);
+    assert_eq!(body["custom_status"], serde_json::Value::Null);
+}
+
+#[tokio::test]
+async fn expired_custom_status_is_broadcast_without_rest_reads() {
+    let app = spawn_app().await;
+
+    let org_id = insert_org(&app, "Custom Status Worker Expiry Org").await;
+    let (token_a, user_a) = register_and_login(
+        &app,
+        org_id,
+        "custom_status_worker_a",
+        "custom_status_worker_a@example.com",
+    )
+    .await;
+    let (token_b, _user_b) = register_and_login(
+        &app,
+        org_id,
+        "custom_status_worker_b",
+        "custom_status_worker_b@example.com",
+    )
+    .await;
+
+    let mut ws_b = connect_ws_v4(&app.address, &token_b).await;
+    let _ = wait_for_event(&mut ws_b, "hello", Duration::from_secs(5)).await;
+
+    let expires_at = (Utc::now() + ChronoDuration::milliseconds(250)).to_rfc3339();
+    let set_status = app
+        .api_client
+        .put(format!(
+            "{}/api/v4/users/{}/status/custom",
+            app.address,
+            encode_mm_id(user_a)
+        ))
+        .header("Authorization", format!("Bearer {token_a}"))
+        .json(&serde_json::json!({
+            "text": "Short lived",
+            "emoji": ":coffee:",
+            "duration": "date_and_time",
+            "expires_at": expires_at
+        }))
+        .send()
+        .await
+        .expect("timed custom status update should succeed");
+    assert_eq!(set_status.status(), StatusCode::OK);
+
+    let updated = wait_for_status_change_for_user(&mut ws_b, user_a, Duration::from_secs(5)).await;
+    assert_eq!(updated["text"], "Short lived");
+    assert_eq!(updated["emoji"], ":coffee:");
+
+    let expired = wait_for_status_change_for_user(&mut ws_b, user_a, Duration::from_secs(8)).await;
+    assert_eq!(expired["text"], serde_json::Value::Null);
+    assert_eq!(expired["emoji"], serde_json::Value::Null);
+
+    let _ = ws_b.close(None).await;
 }
 
 #[tokio::test]

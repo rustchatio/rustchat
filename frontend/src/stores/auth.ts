@@ -49,6 +49,7 @@ export const useAuthStore = defineStore('auth', () => {
     const token = useStorage('auth_token', '')
     const user = ref<any>(null)
     let tokenExpiryTimer: ReturnType<typeof setTimeout> | null = null
+    let statusExpiryTimer: ReturnType<typeof setTimeout> | null = null
     let isLoggingOut = false
 
     // Set MMAUTHTOKEN cookie for img/video tags that can't send headers
@@ -65,6 +66,92 @@ export const useAuthStore = defineStore('auth', () => {
             clearTimeout(tokenExpiryTimer)
             tokenExpiryTimer = null
         }
+    }
+
+    function clearStatusExpiryTimer() {
+        if (statusExpiryTimer) {
+            clearTimeout(statusExpiryTimer)
+            statusExpiryTimer = null
+        }
+    }
+
+    function toStatusExpiryMs(value: unknown): number | null {
+        if (typeof value === 'number' && Number.isFinite(value)) {
+            return value > 1_000_000_000_000 ? value : value * 1000
+        }
+
+        if (typeof value === 'string' && value.length > 0) {
+            const numeric = Number(value)
+            if (Number.isFinite(numeric) && numeric > 0) {
+                return numeric > 1_000_000_000_000 ? numeric : numeric * 1000
+            }
+
+            const parsed = Date.parse(value)
+            if (Number.isFinite(parsed)) {
+                return parsed
+            }
+        }
+
+        return null
+    }
+
+    function syncUserStatusSnapshot(snapshot: {
+        status?: string | null
+        presence?: string | null
+        text?: string | null
+        emoji?: string | null
+        expiresAt?: string | number | null
+        expires_at?: string | number | null
+    }) {
+        if (!user.value) {
+            return
+        }
+
+        const nextPresence = snapshot.status ?? snapshot.presence
+        if (nextPresence) {
+            user.value.presence = nextPresence
+        }
+
+        const nextExpiresAt = snapshot.expiresAt ?? snapshot.expires_at ?? null
+        user.value.status_text = snapshot.text ?? null
+        user.value.status_emoji = snapshot.emoji ?? null
+        user.value.status_expires_at = nextExpiresAt
+
+        if (snapshot.text || snapshot.emoji) {
+            user.value.custom_status = {
+                text: snapshot.text ?? null,
+                emoji: snapshot.emoji ?? null,
+                expires_at: nextExpiresAt,
+            }
+        } else {
+            user.value.custom_status = null
+        }
+
+        clearStatusExpiryTimer()
+        const expiryMs = toStatusExpiryMs(nextExpiresAt)
+        if (!expiryMs) {
+            return
+        }
+
+        const remainingMs = expiryMs - Date.now()
+        if (remainingMs <= 0) {
+            user.value.status_text = null
+            user.value.status_emoji = null
+            user.value.status_expires_at = null
+            user.value.custom_status = null
+            return
+        }
+
+        statusExpiryTimer = setTimeout(() => {
+            if (!user.value) {
+                return
+            }
+            user.value.status_text = null
+            user.value.status_emoji = null
+            user.value.status_expires_at = null
+            user.value.custom_status = null
+            statusExpiryTimer = null
+        }, remainingMs)
     }
 
     async function clearSessionState() {
@@ -134,6 +221,12 @@ export const useAuthStore = defineStore('auth', () => {
                 data.status_expires_at = data.custom_status.expires_at
             }
             user.value = data
+            syncUserStatusSnapshot({
+                status: data.presence,
+                text: data.status_text,
+                emoji: data.status_emoji,
+                expires_at: data.status_expires_at,
+            })
             const themeStore = useThemeStore()
             await themeStore.syncFromServer()
         } catch (e) {
@@ -147,6 +240,7 @@ export const useAuthStore = defineStore('auth', () => {
         }
         isLoggingOut = true
         clearTokenExpiryTimer()
+        clearStatusExpiryTimer()
         try {
             token.value = ''
             localStorage.setItem('auth_token', '')
@@ -172,21 +266,13 @@ export const useAuthStore = defineStore('auth', () => {
             delete payload.presence
 
             const { data } = await client.put('/users/me/status', payload)
-            if (user.value) {
-                if (data.status) user.value.presence = data.status
-                user.value.status_text = data.text
-                user.value.status_emoji = data.emoji
-                user.value.status_expires_at = data.expires_at
-
-                // Also update the nested object to stay in sync
-                if (data.text !== undefined || data.emoji !== undefined) {
-                    user.value.custom_status = {
-                        text: data.text,
-                        emoji: data.emoji,
-                        expires_at: data.expires_at
-                    }
-                }
-            }
+            syncUserStatusSnapshot({
+                status: data.status,
+                presence: data.presence,
+                text: data.text,
+                emoji: data.emoji,
+                expiresAt: data.expires_at,
+            })
         } catch (e) {
             console.error('Failed to update status', e)
         }
@@ -209,6 +295,7 @@ export const useAuthStore = defineStore('auth', () => {
         () => {
             if (!token.value) {
                 clearTokenExpiryTimer()
+                clearStatusExpiryTimer()
                 return
             }
             scheduleTokenExpiryLogout()
@@ -216,5 +303,5 @@ export const useAuthStore = defineStore('auth', () => {
         { immediate: true }
     )
 
-    return { token, user, isAuthenticated, login, logout, fetchMe, updateStatus, authPolicy, getAuthPolicy }
+    return { token, user, isAuthenticated, login, logout, fetchMe, updateStatus, authPolicy, getAuthPolicy, syncUserStatusSnapshot }
 })

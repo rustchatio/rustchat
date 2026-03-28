@@ -56,6 +56,20 @@ pub struct UserStatusResponse {
     pub last_activity_at: i64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserStatusSnapshot {
+    pub user_id: String,
+    pub status: String,
+    pub manual: bool,
+    pub last_activity_at: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub text: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub emoji: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<i64>,
+}
+
 /// Custom status duration options (Mattermost-compatible)
 #[derive(Debug, Clone, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
@@ -131,6 +145,61 @@ impl CustomStatus {
     }
 }
 
+pub fn should_update_custom_status(body: &UpdateMyStatusRequest) -> bool {
+    body.text.is_some() || body.emoji.is_some() || body.clear == Some(true)
+}
+
+pub fn build_custom_status_from_update_request(
+    body: &UpdateMyStatusRequest,
+) -> Option<CustomStatus> {
+    if body.clear == Some(true)
+        || (body.text.as_ref().map(|t| t.is_empty()).unwrap_or(false)
+            && body.emoji.as_ref().map(|e| e.is_empty()).unwrap_or(false))
+    {
+        return None;
+    }
+
+    let mut cs = CustomStatus {
+        emoji: body.emoji.clone().unwrap_or_default(),
+        text: body.text.clone().unwrap_or_default(),
+        duration: body.duration.clone().unwrap_or_default(),
+        expires_at: None,
+    };
+
+    let duration_enum = match cs.duration.as_str() {
+        "thirty_minutes" => Some(CustomStatusDuration::ThirtyMinutes),
+        "one_hour" => Some(CustomStatusDuration::OneHour),
+        "four_hours" => Some(CustomStatusDuration::FourHours),
+        "today" => Some(CustomStatusDuration::Today),
+        "this_week" => Some(CustomStatusDuration::ThisWeek),
+        "date_and_time" | "custom_date_time" => Some(CustomStatusDuration::DateAndTime),
+        "" | "dont_clear" => Some(CustomStatusDuration::DontClear),
+        _ => {
+            if let Some(minutes) = body.duration_minutes {
+                match minutes {
+                    30 => Some(CustomStatusDuration::ThirtyMinutes),
+                    60 => Some(CustomStatusDuration::OneHour),
+                    240 => Some(CustomStatusDuration::FourHours),
+                    0 => Some(CustomStatusDuration::Today),
+                    _ => None,
+                }
+            } else {
+                None
+            }
+        }
+    };
+
+    if let Some(dur) = duration_enum {
+        cs.expires_at = dur.to_expires_at(None);
+        if cs.expires_at.is_some() && cs.duration.is_empty() {
+            cs.duration = "date_and_time".to_string();
+        }
+    }
+
+    cs.pre_save();
+    Some(cs)
+}
+
 /// Update status request (for presence status)
 #[derive(Debug, Clone, Deserialize)]
 pub struct UpdateStatusRequest {
@@ -149,6 +218,8 @@ pub struct UpdateMyStatusRequest {
 
     #[serde(default)]
     pub status: Option<String>,
+    #[serde(default)]
+    pub presence: Option<String>,
     #[serde(default)]
     pub text: Option<String>,
     #[serde(default)]
@@ -210,28 +281,13 @@ async fn get_user_status_by_id(
     state: &AppState,
     user_id: Uuid,
 ) -> ApiResult<Json<UserStatusResponse>> {
-    let result: (String, bool, Option<chrono::DateTime<Utc>>) = sqlx::query_as(
-        r#"
-        SELECT presence, COALESCE(presence_manual, false), last_login_at
-        FROM users
-        WHERE id = $1
-        "#,
-    )
-    .bind(user_id)
-    .fetch_one(&state.db)
-    .await?;
-
-    let (presence, manual, last_login) = result;
+    let snapshot = fetch_user_status_snapshot(state, user_id).await?;
 
     Ok(Json(UserStatusResponse {
-        user_id: encode_mm_id(user_id),
-        status: if presence.is_empty() {
-            "offline".to_string()
-        } else {
-            presence
-        },
-        manual,
-        last_activity_at: last_login.map(|t| t.timestamp_millis()).unwrap_or(0),
+        user_id: snapshot.user_id,
+        status: snapshot.status,
+        manual: snapshot.manual,
+        last_activity_at: snapshot.last_activity_at,
     }))
 }
 
@@ -244,87 +300,33 @@ async fn update_my_status(
     body: Bytes,
 ) -> ApiResult<Json<serde_json::Value>> {
     let body: UpdateMyStatusRequest = parse_body(&headers, &body, "Invalid status body")?;
-    // Handle presence status update if provided
-    if let Some(presence) = body.status {
+    let mut should_broadcast = false;
+
+    if let Some(presence) = body.status.clone().or(body.presence.clone()) {
         let dnd_end_time = body.dnd_end_time;
-        let _ = update_user_status_internal(&state, auth.user_id, presence, dnd_end_time).await?;
+        let _ = update_user_status_internal(&state, auth.user_id, presence, dnd_end_time, false)
+            .await?;
+        should_broadcast = true;
     }
 
-    // Handle custom status update if provided
-    if body.text.is_some() || body.emoji.is_some() || body.clear == Some(true) {
-        let custom_status = if body.clear == Some(true)
-            || (body.text.as_ref().map(|t| t.is_empty()).unwrap_or(false)
-                && body.emoji.as_ref().map(|e| e.is_empty()).unwrap_or(false))
-        {
-            None
-        } else {
-            let mut cs = CustomStatus {
-                emoji: body.emoji.unwrap_or_default(),
-                text: body.text.unwrap_or_default(),
-                duration: body.duration.unwrap_or_default(),
-                expires_at: None,
-            };
-
-            // Parse duration and calculate expires_at
-            let duration_enum = match cs.duration.as_str() {
-                "thirty_minutes" => Some(CustomStatusDuration::ThirtyMinutes),
-                "one_hour" => Some(CustomStatusDuration::OneHour),
-                "four_hours" => Some(CustomStatusDuration::FourHours),
-                "today" => Some(CustomStatusDuration::Today),
-                "this_week" => Some(CustomStatusDuration::ThisWeek),
-                "date_and_time" | "custom_date_time" => Some(CustomStatusDuration::DateAndTime),
-                "" | "dont_clear" => Some(CustomStatusDuration::DontClear),
-                _ => {
-                    // Try legacy duration_minutes
-                    if let Some(minutes) = body.duration_minutes {
-                        match minutes {
-                            30 => Some(CustomStatusDuration::ThirtyMinutes),
-                            60 => Some(CustomStatusDuration::OneHour),
-                            240 => Some(CustomStatusDuration::FourHours),
-                            0 => Some(CustomStatusDuration::Today),
-                            _ => None,
-                        }
-                    } else {
-                        None
-                    }
-                }
-            };
-
-            if let Some(dur) = duration_enum {
-                cs.expires_at = dur.to_expires_at(None);
-                if cs.expires_at.is_some() && cs.duration.is_empty() {
-                    cs.duration = "date_and_time".to_string();
-                }
-            }
-
-            cs.pre_save();
-            Some(cs)
-        };
-
-        update_custom_status_internal(&state, auth.user_id, custom_status).await?;
+    if should_update_custom_status(&body) {
+        let custom_status = build_custom_status_from_update_request(&body);
+        update_custom_status_internal(&state, auth.user_id, custom_status, false).await?;
+        should_broadcast = true;
     }
 
-    // Return updated status
-    let user: crate::models::User = sqlx::query_as(
-        r#"
-        SELECT 
-            id, org_id, username, email, password_hash, display_name, avatar_url,
-            first_name, last_name, nickname, position, is_bot, is_active, role,
-            presence, status_text, status_emoji, status_expires_at, custom_status,
-            notify_props, timezone, last_login_at, created_at, updated_at
-        FROM users WHERE id = $1
-        "#,
-    )
-    .bind(auth.user_id)
-    .fetch_one(&state.db)
-    .await?;
+    if should_broadcast {
+        broadcast_status_change(&state, auth.user_id).await?;
+    }
+
+    let snapshot = fetch_user_status_snapshot(&state, auth.user_id).await?;
 
     Ok(Json(serde_json::json!({
-        "user_id": encode_mm_id(auth.user_id),
-        "status": user.presence,
-        "text": user.status_text,
-        "emoji": user.status_emoji,
-        "expires_at": user.status_expires_at.map(|t| t.timestamp_millis()),
+        "user_id": snapshot.user_id,
+        "status": snapshot.status,
+        "text": snapshot.text,
+        "emoji": snapshot.emoji,
+        "expires_at": snapshot.expires_at,
     })))
 }
 
@@ -348,7 +350,7 @@ async fn update_user_status(
     }
 
     let req: UpdateStatusRequest = parse_body(&headers, &body, "Invalid status body")?;
-    update_user_status_internal(&state, target_user_id, req.status, req.dnd_end_time).await
+    update_user_status_internal(&state, target_user_id, req.status, req.dnd_end_time, true).await
 }
 
 /// Internal: Update user presence status
@@ -357,6 +359,7 @@ async fn update_user_status_internal(
     user_id: Uuid,
     status: String,
     _dnd_end_time: Option<i64>,
+    broadcast: bool,
 ) -> ApiResult<Json<serde_json::Value>> {
     // Validate status
     let valid_statuses = ["online", "away", "dnd", "offline"];
@@ -384,17 +387,19 @@ async fn update_user_status_internal(
     .execute(&state.db)
     .await?;
 
-    // Broadcast status change
-    broadcast_status_change(state, user_id, &status).await;
+    if broadcast {
+        broadcast_status_change(state, user_id).await?;
+    }
 
     Ok(Json(serde_json::json!({"status": status})))
 }
 
 /// Internal: Update custom status
-async fn update_custom_status_internal(
+pub async fn update_custom_status_internal(
     state: &AppState,
     user_id: Uuid,
     custom_status: Option<CustomStatus>,
+    broadcast: bool,
 ) -> ApiResult<()> {
     let (text, emoji, expires_at, json_status) = if let Some(ref cs) = custom_status {
         let json = serde_json::json!({
@@ -439,6 +444,10 @@ async fn update_custom_status_internal(
     // Add to recent custom statuses (stored in user preferences)
     if let Some(cs) = custom_status {
         add_to_recent_custom_statuses(state, user_id, &cs).await?;
+    }
+
+    if broadcast {
+        broadcast_status_change(state, user_id).await?;
     }
 
     Ok(())
@@ -530,7 +539,8 @@ async fn update_user_custom_status(
     }
 
     custom_status.pre_save();
-    update_custom_status_internal(&state, target_user_id, Some(custom_status.clone())).await?;
+    update_custom_status_internal(&state, target_user_id, Some(custom_status.clone()), true)
+        .await?;
 
     Ok(Json(serde_json::json!(custom_status)))
 }
@@ -551,7 +561,7 @@ async fn clear_user_custom_status(
         ));
     }
 
-    update_custom_status_internal(&state, target_user_id, None).await?;
+    update_custom_status_internal(&state, target_user_id, None, true).await?;
 
     Ok(Json(serde_json::json!({"status": "OK"})))
 }
@@ -715,21 +725,116 @@ fn parse_body<T: serde::de::DeserializeOwned>(
     }
 }
 
+pub async fn clear_expired_custom_status_if_needed(
+    state: &AppState,
+    user_id: Uuid,
+) -> ApiResult<bool> {
+    let result = sqlx::query(
+        r#"
+        UPDATE users
+        SET status_text = NULL,
+            status_emoji = NULL,
+            status_expires_at = NULL,
+            custom_status = 'null'::jsonb
+        WHERE id = $1
+          AND status_expires_at IS NOT NULL
+          AND status_expires_at <= NOW()
+        "#,
+    )
+    .bind(user_id)
+    .execute(&state.db)
+    .await?;
+
+    Ok(result.rows_affected() > 0)
+}
+
+pub async fn clear_expired_custom_statuses(state: &AppState) -> ApiResult<Vec<Uuid>> {
+    let cleared_rows: Vec<(Uuid,)> = sqlx::query_as(
+        r#"
+        UPDATE users
+        SET status_text = NULL,
+            status_emoji = NULL,
+            status_expires_at = NULL,
+            custom_status = 'null'::jsonb
+        WHERE status_expires_at IS NOT NULL
+          AND status_expires_at <= NOW()
+        RETURNING id
+        "#,
+    )
+    .fetch_all(&state.db)
+    .await?;
+
+    Ok(cleared_rows.into_iter().map(|(user_id,)| user_id).collect())
+}
+
+pub async fn fetch_user_status_snapshot(
+    state: &AppState,
+    user_id: Uuid,
+) -> ApiResult<UserStatusSnapshot> {
+    let _ = clear_expired_custom_status_if_needed(state, user_id).await?;
+
+    let result: (
+        String,
+        bool,
+        Option<chrono::DateTime<Utc>>,
+        Option<String>,
+        Option<String>,
+        Option<chrono::DateTime<Utc>>,
+    ) = sqlx::query_as(
+        r#"
+        SELECT presence,
+               COALESCE(presence_manual, false),
+               last_login_at,
+               status_text,
+               status_emoji,
+               status_expires_at
+        FROM users
+        WHERE id = $1
+        "#,
+    )
+    .bind(user_id)
+    .fetch_one(&state.db)
+    .await?;
+
+    let (presence, manual, last_login, text, emoji, expires_at) = result;
+
+    Ok(UserStatusSnapshot {
+        user_id: encode_mm_id(user_id),
+        status: if presence.is_empty() {
+            "offline".to_string()
+        } else {
+            presence
+        },
+        manual,
+        last_activity_at: last_login.map(|t| t.timestamp_millis()).unwrap_or(0),
+        text,
+        emoji,
+        expires_at: expires_at.map(|t| t.timestamp_millis()),
+    })
+}
+
 /// Broadcast status change via WebSocket
-async fn broadcast_status_change(state: &AppState, user_id: Uuid, status: &str) {
+pub async fn broadcast_status_change(state: &AppState, user_id: Uuid) -> ApiResult<()> {
+    let snapshot = fetch_user_status_snapshot(state, user_id).await?;
     let event = WsEnvelope {
         msg_type: "event".to_string(),
         event: "status_change".to_string(),
         seq: None,
         channel_id: None,
         data: serde_json::json!({
-            "user_id": encode_mm_id(user_id),
-            "status": status,
+            "user_id": snapshot.user_id,
+            "status": snapshot.status,
+            "manual": snapshot.manual,
+            "last_activity_at": snapshot.last_activity_at,
+            "text": snapshot.text,
+            "emoji": snapshot.emoji,
+            "expires_at": snapshot.expires_at,
         }),
         broadcast: None,
     };
 
     state.ws_hub.broadcast(event).await;
+    Ok(())
 }
 
 fn resolve_status_target_user_id(user_id: &str, auth: &MmAuthUser) -> ApiResult<Uuid> {

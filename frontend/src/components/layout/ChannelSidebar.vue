@@ -6,7 +6,6 @@ import {
 import { useTeamStore } from '../../stores/teams';
 import { useChannelStore } from '../../stores/channels';
 import { useAuthStore } from '../../stores/auth';
-import { usePresenceStore } from '../../features/presence';
 import { useUnreadStore } from '../../stores/unreads';
 import { useChannelPreferencesStore } from '../../stores/channelPreferences';
 import CreateChannelModal from '../modals/CreateChannelModal.vue';
@@ -20,11 +19,12 @@ import type { SidebarCategory } from '../../api/channels';
 import { channelRepository } from '../../features/channels/repositories/channelRepository';
 import RcAvatar from '../ui/RcAvatar.vue';
 import { getDirectMessageCounterpartyId } from '../../utils/directMessage';
+import { getPresencePresentation } from '../../features/presence/presencePresentation';
+import { getUserSummarySnapshot, prefetchUserSummaries } from '../../composables/useUserSummary';
 
 const teamStore = useTeamStore();
 const channelStore = useChannelStore();
 const authStore = useAuthStore();
-const presenceStore = usePresenceStore();
 const unreadStore = useUnreadStore();
 const channelPrefsStore = useChannelPreferencesStore();
 
@@ -59,6 +59,18 @@ watch(() => teamStore.currentTeamId, (teamId) => {
   } else {
     channelStore.clearChannels();
   }
+}, { immediate: true });
+
+const directMessageUserIds = computed(() => {
+  return [...new Set(
+    channelStore.directMessages
+      .map((channel) => getDirectMessageCounterpartyId(channel.name, authStore.user?.id))
+      .filter((userId): userId is string => Boolean(userId))
+  )];
+});
+
+watch(directMessageUserIds, (userIds) => {
+  prefetchUserSummaries(userIds);
 }, { immediate: true });
 
 // Helper to deduplicate channels by ID
@@ -126,26 +138,24 @@ function normalizeChannelForDisplay(c: any) {
   let displayName = c.display_name || c.name;
   let otherId = '';
   let status = 'offline';
+  let statusLabel = 'Offline';
+  let statusText = '';
+  let statusEmoji = '';
   let avatarUrl = '';
   let username = '';
   
   // Handle DM channels
   if (c.channel_type === 'direct' || c.name?.startsWith('dm_')) {
     otherId = getDirectMessageCounterpartyId(c.name, authStore.user?.id) || '';
+    const summary = otherId ? getUserSummarySnapshot(otherId) : null;
     const member = otherId ? teamStore.members.find(m => m.user_id === otherId) : null;
-    if (member) {
-      displayName = member.display_name || member.username;
-      avatarUrl = member.avatar_url || '';
-      username = member.username;
-    }
-    
-    // Get presence status
-    const memberPresence = otherId
-      ? teamStore.members.find(m => m.user_id === otherId)?.presence
-      : undefined;
-    status = otherId
-      ? (presenceStore.presenceMap.get(otherId)?.presence || memberPresence || 'offline')
-      : 'offline';
+    displayName = summary?.displayName || member?.display_name || summary?.username || member?.username || displayName;
+    avatarUrl = summary?.avatarUrl || member?.avatar_url || '';
+    username = summary?.username || member?.username || '';
+    status = summary?.presence || member?.presence || 'offline';
+    statusText = summary?.statusText || '';
+    statusEmoji = summary?.statusEmoji || '';
+    statusLabel = getPresencePresentation(status).label;
   }
   
   // Get unread counts from channel store
@@ -165,6 +175,9 @@ function normalizeChannelForDisplay(c: any) {
     userId: otherId,
     type: channelType,
     status: status,
+    statusLabel,
+    statusText,
+    statusEmoji,
     unread: unreadCount,
     mention: mentionCount > 0,
     mentionCount: mentionCount,
@@ -466,16 +479,32 @@ async function handleLeaveTeam() {
                 </span>
                 
                 <!-- Channel Name -->
-                <span 
-                  class="truncate text-sm"
-                  :class="{ 
-                    'text-brand font-semibold': channelStore.currentChannelId === channel.id,
-                    'text-text-1 font-semibold': channelStore.currentChannelId !== channel.id && (channel.unread > 0 || channel.mention),
-                    'text-text-2 font-medium': channel.unread === 0 && !channel.mention && channelStore.currentChannelId !== channel.id,
-                  }"
-                >
-                  {{ channel.name }}
-                </span>
+                <div class="min-w-0">
+                  <span 
+                    class="block truncate text-sm"
+                    :class="{ 
+                      'text-brand font-semibold': channelStore.currentChannelId === channel.id,
+                      'text-text-1 font-semibold': channelStore.currentChannelId !== channel.id && (channel.unread > 0 || channel.mention),
+                      'text-text-2 font-medium': channel.unread === 0 && !channel.mention && channelStore.currentChannelId !== channel.id,
+                    }"
+                  >
+                    {{ channel.name }}
+                  </span>
+                  <span
+                    v-if="channel.type === 'dm'"
+                    class="mt-0.5 block truncate text-[11px]"
+                    :class="channelStore.currentChannelId === channel.id ? 'text-text-2' : 'text-text-3'"
+                  >
+                    <template v-if="channel.statusText || channel.statusEmoji">
+                      <span v-if="channel.statusEmoji">{{ channel.statusEmoji }}</span>
+                      <span v-if="channel.statusEmoji && channel.statusText" class="mx-1">·</span>
+                      {{ channel.statusText || channel.statusLabel }}
+                    </template>
+                    <template v-else>
+                      {{ channel.statusLabel }}
+                    </template>
+                  </span>
+                </div>
               </div>
 
               <!-- Status/Unread Indicators -->

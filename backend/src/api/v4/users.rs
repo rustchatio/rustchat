@@ -23,7 +23,7 @@ use crate::mattermost_compat::{
     models as mm,
 };
 use crate::middleware::rate_limit::{self, RateLimitConfig};
-use crate::models::{channel::Channel, Team, TeamMember, User};
+use crate::models::{channel::Channel, Team, User};
 use crate::services::oauth_token_exchange::{exchange_code_with_sso_verification, ExchangeError};
 
 mod activity;
@@ -654,22 +654,29 @@ async fn my_team_members(
     State(state): State<AppState>,
     auth: MmAuthUser,
 ) -> ApiResult<Json<Vec<mm::TeamMember>>> {
-    let members: Vec<TeamMember> = sqlx::query_as("SELECT * FROM team_members WHERE user_id = $1")
-        .bind(auth.user_id)
-        .fetch_all(&state.db)
-        .await?;
+    let members: Vec<(Uuid, Uuid, String, Option<String>)> = sqlx::query_as(
+        r#"
+        SELECT tm.team_id, tm.user_id, tm.role, u.presence
+        FROM team_members tm
+        JOIN users u ON tm.user_id = u.id
+        WHERE tm.user_id = $1
+        "#,
+    )
+    .bind(auth.user_id)
+    .fetch_all(&state.db)
+    .await?;
 
     let mm_members = members
         .into_iter()
-        .map(|m| mm::TeamMember {
-            team_id: encode_mm_id(m.team_id),
-            user_id: encode_mm_id(m.user_id),
-            roles: crate::mattermost_compat::mappers::map_team_role(&m.role),
+        .map(|(team_id, user_id, role, presence)| mm::TeamMember {
+            team_id: encode_mm_id(team_id),
+            user_id: encode_mm_id(user_id),
+            roles: crate::mattermost_compat::mappers::map_team_role(&role),
             delete_at: 0,
             scheme_guest: false,
             scheme_user: true,
-            scheme_admin: m.role == "admin" || m.role == "team_admin",
-            presence: None,
+            scheme_admin: role == "admin" || role == "team_admin",
+            presence: presence.filter(|value| !value.is_empty()),
         })
         .collect();
 
@@ -682,22 +689,29 @@ async fn get_team_members_for_user(
     Path(user_id): Path<String>,
 ) -> ApiResult<Json<Vec<mm::TeamMember>>> {
     let user_id = resolve_user_id(&user_id, &auth)?;
-    let members: Vec<TeamMember> = sqlx::query_as("SELECT * FROM team_members WHERE user_id = $1")
-        .bind(user_id)
-        .fetch_all(&state.db)
-        .await?;
+    let members: Vec<(Uuid, Uuid, String, Option<String>)> = sqlx::query_as(
+        r#"
+        SELECT tm.team_id, tm.user_id, tm.role, u.presence
+        FROM team_members tm
+        JOIN users u ON tm.user_id = u.id
+        WHERE tm.user_id = $1
+        "#,
+    )
+    .bind(user_id)
+    .fetch_all(&state.db)
+    .await?;
 
     let mm_members = members
         .into_iter()
-        .map(|m| mm::TeamMember {
-            team_id: encode_mm_id(m.team_id),
-            user_id: encode_mm_id(m.user_id),
-            roles: crate::mattermost_compat::mappers::map_team_role(&m.role),
+        .map(|(team_id, user_id, role, presence)| mm::TeamMember {
+            team_id: encode_mm_id(team_id),
+            user_id: encode_mm_id(user_id),
+            roles: crate::mattermost_compat::mappers::map_team_role(&role),
             delete_at: 0,
             scheme_guest: false,
             scheme_user: true,
-            scheme_admin: m.role == "admin" || m.role == "team_admin",
-            presence: None,
+            scheme_admin: role == "admin" || role == "team_admin",
+            presence: presence.filter(|value| !value.is_empty()),
         })
         .collect();
 
