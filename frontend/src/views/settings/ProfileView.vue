@@ -47,6 +47,7 @@ const fontSizes = FONT_SIZE_OPTIONS;
 const fieldLabelClass = 'text-sm font-semibold text-text-2';
 const fieldInputClass = 'w-full rounded-lg border border-border-1 bg-bg-surface-2 px-4 py-2.5 text-text-1 outline-none transition-standard placeholder:text-text-3 focus:border-brand focus:ring-2 focus:ring-brand/15';
 const fieldHintClass = 'text-xs text-text-3';
+const sectionCardClass = 'rounded-r-3 border border-border-1 bg-bg-surface-2 p-6 shadow-1';
 
 function setTheme(theme: Theme) {
     themeStore.setTheme(theme);
@@ -202,93 +203,102 @@ async function removeAvatar() {
                     </div>
 
                     <div class="grid grid-cols-1 gap-6">
-                        <div class="grid grid-cols-2 gap-4">
-                            <div class="space-y-2">
-                                <label :class="fieldLabelClass">First Name</label>
-                                <input 
-                                    v-model="firstName"
-                                    type="text" 
-                                    placeholder="John"
-                                    :class="fieldInputClass"
-                                />
+                        <section :class="sectionCardClass">
+                            <div class="mb-5 border-b border-border-1 pb-4">
+                                <h2 class="text-base font-semibold text-text-1">Identity</h2>
+                                <p class="mt-1 text-sm text-text-3">Update the personal details teammates see in channels, mentions, and profiles.</p>
                             </div>
-                            <div class="space-y-2">
-                                <label :class="fieldLabelClass">Last Name</label>
-                                <input 
-                                    v-model="lastName"
-                                    type="text" 
-                                    placeholder="Doe"
-                                    :class="fieldInputClass"
-                                />
+
+                            <div class="grid grid-cols-1 gap-6">
+                                <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                                    <div class="space-y-2">
+                                        <label :class="fieldLabelClass">First Name</label>
+                                        <input
+                                            v-model="firstName"
+                                            type="text"
+                                            placeholder="John"
+                                            :class="fieldInputClass"
+                                        />
+                                    </div>
+                                    <div class="space-y-2">
+                                        <label :class="fieldLabelClass">Last Name</label>
+                                        <input
+                                            v-model="lastName"
+                                            type="text"
+                                            placeholder="Doe"
+                                            :class="fieldInputClass"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div class="space-y-2">
+                                    <label :class="fieldLabelClass">Nickname</label>
+                                    <input
+                                        v-model="nickname"
+                                        type="text"
+                                        placeholder="Johnny"
+                                        :class="fieldInputClass"
+                                    />
+                                    <p :class="fieldHintClass">How you want to be called.</p>
+                                </div>
+
+                                <div class="space-y-2">
+                                    <label :class="fieldLabelClass">Position</label>
+                                    <input
+                                        v-model="position"
+                                        type="text"
+                                        placeholder="Software Engineer"
+                                        :class="fieldInputClass"
+                                    />
+                                    <p :class="fieldHintClass">Your job title or role.</p>
+                                </div>
+
+                                <div class="space-y-2">
+                                    <label :class="fieldLabelClass">Display Name</label>
+                                    <input
+                                        v-model="displayName"
+                                        type="text"
+                                        placeholder="e.g. John Doe"
+                                        :class="fieldInputClass"
+                                    />
+                                    <p :class="fieldHintClass">This is how you'll appear to others in RustChat.</p>
+                                </div>
+
+                                <div class="space-y-2">
+                                    <label :class="fieldLabelClass">Username</label>
+                                    <div class="relative">
+                                        <span class="absolute left-4 top-1/2 -translate-y-1/2 font-medium text-text-3">@</span>
+                                        <input
+                                            v-model="username"
+                                            type="text"
+                                            :class="`${fieldInputClass} pl-9 pr-4`"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div class="space-y-2 border-t border-border-1 pt-4">
+                                    <label :class="fieldLabelClass">Email Address</label>
+                                    <input
+                                        :value="user?.email"
+                                        type="email"
+                                        disabled
+                                        class="w-full cursor-not-allowed rounded-lg border border-border-1 bg-bg-surface-1 px-4 py-2.5 text-text-3 opacity-80"
+                                    />
+                                    <p :class="fieldHintClass">Email address cannot be changed.</p>
+                                </div>
                             </div>
-                        </div>
+                        </section>
 
-                        <div class="space-y-2">
-                            <label :class="fieldLabelClass">Nickname</label>
-                            <input 
-                                v-model="nickname"
-                                type="text" 
-                                placeholder="Johnny"
-                                :class="fieldInputClass"
-                            />
-                            <p :class="fieldHintClass">How you want to be called.</p>
-                        </div>
-
-                        <div class="space-y-2">
-                            <label :class="fieldLabelClass">Position</label>
-                            <input 
-                                v-model="position"
-                                type="text" 
-                                placeholder="Software Engineer"
-                                :class="fieldInputClass"
-                            />
-                            <p :class="fieldHintClass">Your job title or role.</p>
-                        </div>
-
-                        <div class="space-y-2">
-                            <label :class="fieldLabelClass">Display Name</label>
-                            <input 
-                                v-model="displayName"
-                                type="text" 
-                                placeholder="e.g. John Doe"
-                                :class="fieldInputClass"
-                            />
-                            <p :class="fieldHintClass">This is how you'll appear to others in RustChat.</p>
-                        </div>
-
-                        <div class="space-y-2">
-                            <label :class="fieldLabelClass">Username</label>
-                            <div class="relative">
-                                <span class="absolute left-4 top-1/2 -translate-y-1/2 font-medium text-text-3">@</span>
-                                <input 
-                                    v-model="username"
-                                    type="text" 
-                                    :class="`${fieldInputClass} pl-9 pr-4`"
-                                />
-                            </div>
-                        </div>
-
-                        <div class="space-y-2 pt-4">
-                            <label :class="fieldLabelClass">Email Address</label>
-                            <input 
-                                :value="user?.email"
-                                type="email" 
-                                disabled
-                                class="w-full cursor-not-allowed rounded-lg border border-border-1 bg-bg-surface-2 px-4 py-2.5 text-text-3 opacity-80"
-                            />
-                            <p :class="fieldHintClass">Email address cannot be changed.</p>
-                        </div>
-
-                        <div class="mt-6 space-y-5 border-t border-border-1 pt-6">
-                            <div>
-                                <label :class="fieldLabelClass">Appearance</label>
+                        <section :class="sectionCardClass">
+                            <div class="mb-5 border-b border-border-1 pb-4">
+                                <h2 class="text-base font-semibold text-text-1">Appearance</h2>
                                 <p class="mt-1 text-sm text-text-3">Theme, typography, and sizing all apply live so you can check contrast as you go.</p>
                             </div>
 
                             <div class="space-y-2">
                                 <p class="text-sm font-medium text-text-1">Theme Palette</p>
                                 <p class="text-xs text-text-3">Pick one of 8 color themes.</p>
-                                <div class="grid grid-cols-4 gap-3">
+                                <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
                                     <button
                                         v-for="theme in themes"
                                         :key="theme.id"
@@ -297,7 +307,7 @@ async function removeAvatar() {
                                         class="rounded-lg border p-2 text-left transition-all"
                                         :class="selectedTheme === theme.id
                                             ? 'border-brand bg-brand/5 ring-2 ring-brand/20'
-                                            : 'border-border-1 hover:border-border-2 hover:bg-bg-surface-2'"
+                                            : 'border-border-1 bg-bg-surface-1 hover:border-border-2 hover:bg-bg-surface-2'"
                                     >
                                         <div class="flex items-center gap-1.5">
                                             <span
@@ -317,50 +327,59 @@ async function removeAvatar() {
                                     </button>
                                 </div>
                             </div>
+                        </section>
 
-                            <div class="space-y-2">
-                                <label class="text-sm font-medium text-text-1">Font Preview</label>
-                                <select
-                                    v-model="selectedFont"
-                                    class="w-full rounded-lg border border-border-1 bg-bg-surface-2 px-3 py-2.5 text-text-1 outline-none transition-standard focus:border-brand focus:ring-2 focus:ring-brand/15"
-                                >
-                                    <option
-                                        v-for="font in fonts"
-                                        :key="font.id"
-                                        :value="font.id"
-                                        :style="optionFontStyle(font.cssVar)"
-                                    >
-                                        {{ font.label }}
-                                    </option>
-                                </select>
+                        <section :class="sectionCardClass">
+                            <div class="mb-5 border-b border-border-1 pb-4">
+                                <h2 class="text-base font-semibold text-text-1">Typography</h2>
+                                <p class="mt-1 text-sm text-text-3">Choose the reading tone and density that feels best for long chat sessions.</p>
                             </div>
 
-                            <div class="space-y-2">
-                                <label class="text-sm font-medium text-text-1">Chat Font Size</label>
-                                <div class="grid grid-cols-5 gap-2">
-                                    <label
-                                        v-for="size in fontSizes"
-                                        :key="size"
-                                        class="cursor-pointer"
+                            <div class="space-y-5">
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium text-text-1">Font Preview</label>
+                                    <select
+                                        v-model="selectedFont"
+                                        class="w-full rounded-lg border border-border-1 bg-bg-surface-1 px-3 py-2.5 text-text-1 outline-none transition-standard focus:border-brand focus:ring-2 focus:ring-brand/15"
                                     >
-                                        <input
-                                            v-model="selectedFontSize"
-                                            type="radio"
-                                            class="sr-only"
-                                            :value="size"
-                                        />
-                                        <div
-                                            class="rounded-lg border px-2 py-2 text-center text-xs font-semibold transition-all"
-                                            :class="selectedFontSize === size
-                                                ? 'border-brand bg-brand/10 text-brand'
-                                                : 'border-border-1 text-text-2 hover:border-border-2'"
+                                        <option
+                                            v-for="font in fonts"
+                                            :key="font.id"
+                                            :value="font.id"
+                                            :style="optionFontStyle(font.cssVar)"
                                         >
-                                            {{ size }}px
-                                        </div>
-                                    </label>
+                                            {{ font.label }}
+                                        </option>
+                                    </select>
+                                </div>
+
+                                <div class="space-y-2">
+                                    <label class="text-sm font-medium text-text-1">Chat Font Size</label>
+                                    <div class="grid grid-cols-3 gap-2 sm:grid-cols-5">
+                                        <label
+                                            v-for="size in fontSizes"
+                                            :key="size"
+                                            class="cursor-pointer"
+                                        >
+                                            <input
+                                                v-model="selectedFontSize"
+                                                type="radio"
+                                                class="sr-only"
+                                                :value="size"
+                                            />
+                                            <div
+                                                class="rounded-lg border px-2 py-2 text-center text-xs font-semibold transition-all"
+                                                :class="selectedFontSize === size
+                                                    ? 'border-brand bg-brand/10 text-brand'
+                                                    : 'border-border-1 bg-bg-surface-1 text-text-2 hover:border-border-2'"
+                                            >
+                                                {{ size }}px
+                                            </div>
+                                        </label>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
+                        </section>
                     </div>
 
                     <div class="flex justify-end pt-6">

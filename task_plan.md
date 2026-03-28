@@ -1,5 +1,35 @@
 # Task Plan
 
+## 2026-03-28 Settings, Profile, and Admin Normalization Pass
+
+### Task
+- Normalize the highest-traffic settings, profile, and first admin surfaces to the same design system as the redesigned app shell.
+- Remove remaining hardcoded color drift from theme-sensitive settings views.
+- Improve hierarchy and readability so theme choices remain trustworthy across settings and admin workflows.
+
+### Implementation Status
+- [x] Added stronger personal-context framing in `frontend/src/components/settings/SettingsModal.vue`.
+- [x] Retokenized and restructured `frontend/src/components/settings/notifications/NotificationsTab.vue` with calmer rows, callouts, and action treatment.
+- [x] Normalized `frontend/src/components/settings/profile/ProfileTab.vue` to the shared token system and improved section hierarchy.
+- [x] Aligned the dedicated settings page in `frontend/src/views/settings/ProfileView.vue` with section cards for identity, appearance, and typography.
+- [x] Redesigned `frontend/src/views/admin/AdminDashboard.vue` to use restrained token-driven stat cards and operational health panels.
+
+### Verification Status
+1. `cd frontend && npm run build`
+- Result: PASS
+- Note: existing Vite warning about `frontend/src/stores/calls.ts` being both dynamically and statically imported still appears, but the build completes successfully.
+
+### Manual Verification Commands
+1. `cd frontend && npm run dev`
+2. Open `Settings -> Notifications` and verify expanded rows, badges, callouts, and actions remain readable in `Light`, `Dark`, `Futuristic`, and `High Contrast`.
+3. Open `Settings -> Profile` and confirm the avatar controls, read-only email field, banners, and status section stay visually consistent with the shell.
+4. Open `/settings/profile` and verify the identity, appearance, and typography cards remain readable on both desktop and mobile widths.
+5. Open the admin dashboard and confirm stats, health indicators, and instance panels feel calmer while preserving clear service status cues.
+
+### Readiness
+- Ready for user acceptance testing.
+- Remaining follow-up: broaden the same normalization approach to additional admin/settings surfaces if this direction feels right in live use.
+
 ## 2026-03-28 Design System and App Shell Redesign
 
 ### Task

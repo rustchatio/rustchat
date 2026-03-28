@@ -1,3 +1,164 @@
+# SPEC: Settings, Profile, and Admin Normalization Pass (2026-03-28)
+
+## Problem Statement
+
+The app shell now has a stronger design language, but the rest of the authenticated product still feels split between two visual systems.
+
+The biggest remaining gaps are:
+
+1. Profile and notification surfaces still use large amounts of hardcoded `gray-*`, `blue-*`, `red-*`, and `dark:*` classes instead of the shared theme tokens.
+2. The settings modal frame is improved, but several tab contents still read like older utility forms rather than part of the same “Focused Warm Utility” product.
+3. The admin dashboard is especially behind the new system. It still looks like a generic template with bright stat-card colors and mismatched surface treatment.
+4. Theme choices can still feel less trustworthy on these surfaces because typography, hierarchy, and contrast are not yet consistently driven by the active token system.
+
+This creates a product-level inconsistency: the shell suggests a calm, branded collaboration tool, while settings and admin still suggest a generic internal dashboard.
+
+## Goals
+
+1. Bring the highest-traffic settings and profile surfaces into the same visual system as the redesigned shell.
+2. Remove hardcoded color drift on theme-sensitive surfaces so theme selection remains readable and coherent.
+3. Give settings a clearer hierarchy and calmer, more intentional structure.
+4. Establish the admin dashboard as the first normalized admin surface so future admin work has a concrete reference.
+5. Keep the rollout incremental and low-risk by focusing on a small set of high-leverage authenticated views.
+
+## Non-Goals
+
+1. No backend or API contract changes.
+2. No new preferences, settings behavior, or theme schema changes.
+3. No repo-wide admin redesign in one pass.
+4. No redesign of every settings tab if the value is low.
+5. No changes to unrelated dirty files or previously completed shell work.
+
+## Scope and Contract Impact
+
+In scope:
+- `frontend/src/components/settings/SettingsModal.vue`
+- `frontend/src/components/settings/notifications/NotificationsTab.vue`
+- `frontend/src/components/settings/profile/ProfileTab.vue`
+- `frontend/src/views/settings/ProfileView.vue`
+- `frontend/src/views/admin/AdminDashboard.vue`
+- small supporting shared setting components only if needed for consistency
+
+Contract impact:
+- No server/API contract change.
+- No intended change to notification behavior, profile-save behavior, or admin data behavior.
+- User-visible contract change: settings, profile, and admin surfaces should feel visually aligned with the shell, with better contrast, clearer hierarchy, and more reliable theme readability.
+
+Out of scope for this phase:
+- broad admin section redesign beyond the dashboard
+- calls/settings behavior changes
+- removing legacy files unless they directly block this normalization pass
+
+## Current Implementation Findings
+
+1. `frontend/src/components/settings/SettingsModal.vue` already has the right frame and token usage, but the content hierarchy still depends heavily on each tab implementation. The wrapper is ahead of several child surfaces.
+2. `frontend/src/components/settings/notifications/NotificationsTab.vue` still uses hardcoded white/gray/blue/red surfaces and input styling. It needs retokenization and stronger section hierarchy, especially for expanded rows and permission callouts.
+3. `frontend/src/components/settings/profile/ProfileTab.vue` still uses many hardcoded gray and dark-mode classes in alert banners, section containers, headings, avatar controls, and read-only fields.
+4. `frontend/src/views/settings/ProfileView.vue` is in better shape, but it should be checked alongside the modal profile tab to ensure typography, field styling, and feedback states remain aligned.
+5. `frontend/src/views/admin/AdminDashboard.vue` remains the most visually outdated authenticated surface. Bright per-card colors and generic white/dark cards break the “Focused Warm Utility” system and make admin feel disconnected from the rest of the product.
+
+## Design Translation Principles
+
+Derived from `DESIGN.md` and the first shell pass:
+
+1. **One product, not two**
+   - settings and admin should feel like extensions of the same product shell
+   - utility views should inherit the same calm, trustworthy tone
+
+2. **Token-first theming**
+   - avoid direct Tailwind gray/dark styling on theme-sensitive surfaces
+   - use shared surface, text, border, and semantic tokens so themes stay readable
+
+3. **Calm hierarchy**
+   - section headers should guide, not shout
+   - bright accent colors should be reserved for meaningful state, not default decoration
+
+4. **Operational credibility**
+   - admin should feel structured and trustworthy
+   - collaboration settings should feel approachable without becoming playful
+
+## Implementation Outline
+
+### Phase 1: Settings Modal Consistency
+
+Target files:
+- `frontend/src/components/settings/SettingsModal.vue`
+- `frontend/src/components/settings/notifications/NotificationsTab.vue`
+- `frontend/src/components/settings/profile/ProfileTab.vue`
+
+Work:
+- normalize hardcoded surfaces, borders, and text styles to shared tokens
+- strengthen section framing and row hierarchy inside notifications/profile
+- make permission, success, and error states feel branded and readable across themes
+- improve settings content density so rows feel easier to scan without becoming cramped
+
+Expected outcome:
+- settings feels like one coherent product surface instead of a modern shell wrapping older inner panels
+
+### Phase 2: Profile Surface Alignment
+
+Target files:
+- `frontend/src/components/settings/profile/ProfileTab.vue`
+- `frontend/src/views/settings/ProfileView.vue`
+
+Work:
+- align profile typography, alert treatment, avatar controls, and field framing
+- ensure both profile entry points share the same visual logic for editable vs read-only content
+- verify that theme and font choices still read well on both profile surfaces
+
+Expected outcome:
+- profile feels deliberate and trustworthy whether accessed from the modal or the dedicated settings route
+
+### Phase 3: Admin Dashboard Normalization
+
+Target file:
+- `frontend/src/views/admin/AdminDashboard.vue`
+
+Work:
+- replace bright generic stat-card colors with a restrained, token-driven hierarchy
+- redesign admin cards to feel more structured, monochrome, and operational
+- improve empty/loading/health-state readability without breaking semantic signal
+
+Expected outcome:
+- admin feels like RustChat admin, not a borrowed dashboard template
+
+## Verification Plan
+
+Automated:
+- `cd frontend && npm run build`
+
+Manual:
+- `cd frontend && npm run dev`
+- verify these surfaces in at least `Light`, `Dark`, `Futuristic`, and `High Contrast`:
+  - Settings -> Notifications
+  - Settings -> Profile
+  - `/settings/profile`
+  - `/admin` or the admin dashboard route
+- check these outcomes:
+  - text remains readable across theme changes
+  - alerts and permission callouts keep clear contrast
+  - settings rows feel visually related to the new shell
+  - admin cards and health indicators feel calmer and more intentional without losing status clarity
+
+## Proposed Rollout Order
+
+1. Settings modal internals
+2. Profile alignment
+3. Admin dashboard normalization
+
+This order gives the fastest product-wide consistency win while keeping the admin work contained to one reference surface.
+
+## Expected Result
+
+After this phase, RustChat should feel much less like a redesigned shell wrapped around legacy interiors.
+
+The user should feel:
+- “settings are easier to read and trust”
+- “theme choices still look intentional here”
+- “admin belongs to the same product”
+
+---
+
 # SPEC: App Shell Redesign Plan from DESIGN.md (2026-03-28)
 
 ## Problem Statement

@@ -84,6 +84,11 @@ function handleLogout() {
         <div class="flex-1 min-h-0 flex flex-col sm:flex-row overflow-hidden">
           <!-- Sidebar -->
           <div class="w-full sm:w-64 bg-bg-surface-2 border-b sm:border-b-0 sm:border-r border-border-1 flex flex-col shrink-0 overflow-y-auto">
+            <div class="border-b border-border-1 px-4 py-4">
+              <p class="text-[10px] font-semibold uppercase tracking-[0.2em] text-text-3">Personal settings</p>
+              <p class="mt-2 truncate text-sm font-semibold text-text-1">{{ auth.user?.display_name || auth.user?.username || 'Account' }}</p>
+              <p class="truncate text-xs text-text-3">@{{ auth.user?.username || 'user' }}</p>
+            </div>
             <!-- Main Tabs -->
             <nav class="grid grid-cols-2 gap-2 p-3 sm:flex sm:flex-col sm:gap-0.5 sm:p-2">
               <button

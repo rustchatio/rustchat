@@ -11,11 +11,11 @@ onMounted(() => {
 });
 
 const statCards = [
-    { key: 'total_users', label: 'Total Users', icon: Users, color: 'bg-blue-500' },
-    { key: 'active_users', label: 'Active Users', icon: Activity, color: 'bg-green-500' },
-    { key: 'total_teams', label: 'Teams', icon: Server, color: 'bg-purple-500' },
-    { key: 'messages_24h', label: 'Messages (24h)', icon: MessageSquare, color: 'bg-indigo-500' },
-    { key: 'active_connections', label: 'Simultaneous Connections', icon: Activity, color: 'bg-teal-500' },
+    { key: 'total_users', label: 'Total Users', icon: Users, tone: 'brand' as const },
+    { key: 'active_users', label: 'Active Users', icon: Activity, tone: 'secondary' as const },
+    { key: 'total_teams', label: 'Teams', icon: Server, tone: 'neutral' as const },
+    { key: 'messages_24h', label: 'Messages (24h)', icon: MessageSquare, tone: 'brand' as const },
+    { key: 'active_connections', label: 'Simultaneous Connections', icon: Activity, tone: 'secondary' as const },
 ];
 
 const getStatValue = (key: string) => {
@@ -25,108 +25,128 @@ const getStatValue = (key: string) => {
 
     return adminStore.stats?.[key as keyof typeof adminStore.stats] ?? '—';
 };
+
+function statToneClass(tone: 'brand' | 'secondary' | 'neutral') {
+    if (tone === 'brand') {
+        return 'border-brand/15 bg-brand/10 text-brand';
+    }
+
+    if (tone === 'secondary') {
+        return 'border-secondary/15 bg-secondary/10 text-secondary';
+    }
+
+    return 'border-border-1 bg-bg-surface-2 text-text-2';
+}
+
+function healthToneClass(healthy: boolean) {
+    return healthy
+        ? 'border-success/20 bg-success/10 text-success'
+        : 'border-danger/20 bg-danger/10 text-danger';
+}
 </script>
 
 <template>
     <div class="space-y-8">
         <!-- Header -->
-        <div>
-            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">System Overview</h1>
-            <p class="text-gray-500 dark:text-gray-400 mt-1">Monitor your RustChat instance health and usage</p>
+        <div class="rounded-r-3 border border-border-1 bg-bg-surface-1 p-6 shadow-1">
+            <p class="text-[11px] font-semibold uppercase tracking-[0.24em] text-brand">Operations Console</p>
+            <h1 class="mt-2 text-[30px] font-semibold tracking-[-0.04em] text-text-1">System Overview</h1>
+            <p class="mt-2 max-w-2xl text-sm text-text-3">Monitor your RustChat instance health, usage, and realtime capacity from a calmer operational dashboard.</p>
         </div>
 
         <!-- Stats Grid -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div class="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-5">
             <div 
                 v-for="stat in statCards" 
                 :key="stat.key"
-                class="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-slate-700"
+                class="rounded-r-3 border border-border-1 bg-bg-surface-1 p-5 shadow-1"
             >
-                <div class="flex items-center justify-between">
+                <div class="mb-4 flex items-center justify-between">
                     <div>
-                        <p class="text-sm font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                        <p class="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-3">
                             {{ stat.label }}
                         </p>
-                        <p class="mt-2 text-3xl font-bold text-gray-900 dark:text-white">
+                        <p class="mt-3 text-3xl font-semibold tracking-[-0.03em] text-text-1">
                             {{ getStatValue(stat.key) }}
                         </p>
                     </div>
-                    <div :class="[stat.color, 'w-12 h-12 rounded-lg flex items-center justify-center']">
-                        <component :is="stat.icon" class="w-6 h-6 text-white" />
+                    <div :class="[statToneClass(stat.tone), 'flex h-11 w-11 items-center justify-center rounded-r-2 border']">
+                        <component :is="stat.icon" class="h-5 w-5" />
                     </div>
                 </div>
+                <p class="text-sm text-text-3">Current snapshot of {{ stat.label.toLowerCase() }} across your workspace.</p>
             </div>
         </div>
 
         <!-- Health Status -->
-        <div class="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-slate-700">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">System Health</h2>
+        <div class="rounded-r-3 border border-border-1 bg-bg-surface-1 p-6 shadow-1">
+            <div class="mb-4">
+                <h2 class="text-lg font-semibold text-text-1">System Health</h2>
+                <p class="mt-1 text-sm text-text-3">Critical services should stay readable at a glance without the dashboard shouting at you.</p>
+            </div>
             
-            <div v-if="adminStore.health" class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div v-if="adminStore.health" class="grid grid-cols-1 gap-4 md:grid-cols-3">
                 <!-- Database -->
-                <div class="flex items-center space-x-3">
-                    <div :class="[
-                        'w-10 h-10 rounded-full flex items-center justify-center',
-                        adminStore.health.database.connected ? 'bg-green-100 dark:bg-green-900/30' : 'bg-red-100 dark:bg-red-900/30'
-                    ]">
-                        <CheckCircle v-if="adminStore.health.database.connected" class="w-5 h-5 text-green-600 dark:text-green-400" />
-                        <AlertCircle v-else class="w-5 h-5 text-red-600 dark:text-red-400" />
-                    </div>
-                    <div>
-                        <p class="font-medium text-gray-900 dark:text-white">Database</p>
-                        <p class="text-sm text-gray-500">
-                            {{ adminStore.health.database.connected ? `${adminStore.health.database.latency_ms}ms latency` : 'Disconnected' }}
-                        </p>
+                <div class="rounded-r-2 border border-border-1 bg-bg-surface-2 p-4">
+                    <div class="flex items-center gap-3">
+                        <div :class="[healthToneClass(adminStore.health.database.connected), 'flex h-10 w-10 items-center justify-center rounded-full border']">
+                            <CheckCircle v-if="adminStore.health.database.connected" class="h-5 w-5" />
+                            <AlertCircle v-else class="h-5 w-5" />
+                        </div>
+                        <div>
+                            <p class="font-semibold text-text-1">Database</p>
+                            <p class="text-sm text-text-3">
+                                {{ adminStore.health.database.connected ? `${adminStore.health.database.latency_ms}ms latency` : 'Disconnected' }}
+                            </p>
+                        </div>
                     </div>
                 </div>
 
                 <!-- Storage -->
-                <div class="flex items-center space-x-3">
-                    <div :class="[
-                        'w-10 h-10 rounded-full flex items-center justify-center',
-                        adminStore.health.storage.connected ? 'bg-green-100 dark:bg-green-900/30' : 'bg-red-100 dark:bg-red-900/30'
-                    ]">
-                        <HardDrive :class="[
-                            'w-5 h-5',
-                            adminStore.health.storage.connected ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
-                        ]" />
-                    </div>
-                    <div>
-                        <p class="font-medium text-gray-900 dark:text-white">Storage</p>
-                        <p class="text-sm text-gray-500">{{ adminStore.health.storage.type }}</p>
+                <div class="rounded-r-2 border border-border-1 bg-bg-surface-2 p-4">
+                    <div class="flex items-center gap-3">
+                        <div :class="[healthToneClass(adminStore.health.storage.connected), 'flex h-10 w-10 items-center justify-center rounded-full border']">
+                            <HardDrive class="h-5 w-5" />
+                        </div>
+                        <div>
+                            <p class="font-semibold text-text-1">Storage</p>
+                            <p class="text-sm text-text-3">{{ adminStore.health.storage.type }}</p>
+                        </div>
                     </div>
                 </div>
 
                 <!-- WebSocket -->
-                <div class="flex items-center space-x-3">
-                    <div class="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                        <Activity class="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                    </div>
-                    <div>
-                        <p class="font-medium text-gray-900 dark:text-white">WebSocket</p>
-                        <p class="text-sm text-gray-500">
-                            {{ adminStore.health.websocket.active_connections }} connections
-                        </p>
+                <div class="rounded-r-2 border border-border-1 bg-bg-surface-2 p-4">
+                    <div class="flex items-center gap-3">
+                        <div class="flex h-10 w-10 items-center justify-center rounded-full border border-secondary/15 bg-secondary/10 text-secondary">
+                            <Activity class="h-5 w-5" />
+                        </div>
+                        <div>
+                            <p class="font-semibold text-text-1">WebSocket</p>
+                            <p class="text-sm text-text-3">
+                                {{ adminStore.health.websocket.active_connections }} connections
+                            </p>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <div v-else class="text-center py-8 text-gray-500">
+            <div v-else class="rounded-r-2 border border-border-1 bg-bg-surface-2 py-8 text-center text-text-3">
                 <p>Loading health status...</p>
             </div>
         </div>
 
         <!-- Instance Info -->
-        <div class="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-sm border border-gray-200 dark:border-slate-700">
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Instance Information</h2>
-            <dl class="grid grid-cols-2 gap-4 text-sm">
-                <div>
-                    <dt class="text-gray-500 dark:text-gray-400">Version</dt>
-                    <dd class="font-medium text-gray-900 dark:text-white">{{ adminStore.health?.version || 'v2.0.0' }}</dd>
+        <div class="rounded-r-3 border border-border-1 bg-bg-surface-1 p-6 shadow-1">
+            <h2 class="mb-4 text-lg font-semibold text-text-1">Instance Information</h2>
+            <dl class="grid grid-cols-1 gap-4 text-sm md:grid-cols-2">
+                <div class="rounded-r-2 border border-border-1 bg-bg-surface-2 p-4">
+                    <dt class="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-3">Version</dt>
+                    <dd class="mt-2 font-semibold text-text-1">{{ adminStore.health?.version || 'v2.0.0' }}</dd>
                 </div>
-                <div>
-                    <dt class="text-gray-500 dark:text-gray-400">Uptime</dt>
-                    <dd class="font-medium text-gray-900 dark:text-white">
+                <div class="rounded-r-2 border border-border-1 bg-bg-surface-2 p-4">
+                    <dt class="text-[11px] font-semibold uppercase tracking-[0.18em] text-text-3">Uptime</dt>
+                    <dd class="mt-2 font-semibold text-text-1">
                         {{ adminStore.health?.uptime_seconds ? Math.floor(adminStore.health.uptime_seconds / 3600) + 'h' : '—' }}
                     </dd>
                 </div>

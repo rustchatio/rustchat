@@ -26,6 +26,15 @@ const position = ref('')
 const statusText = ref('')
 const statusEmoji = ref('')
 
+const errorClass = 'rounded-r-2 border border-danger/20 bg-danger/10 p-3 text-sm text-danger'
+const successClass = 'rounded-r-2 border border-success/20 bg-success/10 p-3 text-sm text-success'
+const sectionClass = 'rounded-r-3 border border-border-1 bg-bg-surface-1 p-5 shadow-1'
+const sectionHeaderClass = 'border-b border-border-1 pb-3'
+const sectionTitleClass = 'text-sm font-semibold tracking-[0.01em] text-text-1'
+const sectionBodyClass = 'mt-4 space-y-4'
+const helperTextClass = 'text-xs text-text-3'
+const readOnlyCardClass = 'rounded-r-2 border border-border-1 bg-bg-surface-2 px-3 py-2 text-sm text-text-3 break-all'
+
 // Initialize from auth user
 watch(() => auth.user, (user) => {
   if (user) {
@@ -133,87 +142,93 @@ async function handleSaveStatus() {
 <template>
   <div class="space-y-6">
     <!-- Messages -->
-    <div v-if="error" class="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-600 dark:text-red-400 text-sm">
+    <div v-if="error" :class="errorClass">
       {{ error }}
     </div>
-    <div v-if="success" class="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-green-600 dark:text-green-400 text-sm">
+    <div v-if="success" :class="successClass">
       {{ success }}
     </div>
 
     <!-- Profile Section -->
-    <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-4">
-      <h4 class="text-sm font-semibold text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-2">
-        Profile Information
-      </h4>
-      
-      <!-- Avatar -->
-      <div class="flex items-center space-x-4">
-        <div class="relative group">
-          <div class="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-primary text-xl font-bold text-brand-foreground ring-2 ring-transparent transition-all group-hover:ring-primary/50 sm:h-20 sm:w-20 sm:text-2xl">
-            <img v-if="avatarUrl" :src="avatarUrl" alt="Avatar" class="w-full h-full object-cover" />
-            <span v-else>{{ auth.user?.username?.charAt(0).toUpperCase() || 'U' }}</span>
-          </div>
-          <button 
-            type="button"
-            @click="fileInput?.click()"
-            class="absolute bottom-0 right-0 w-6 h-6 sm:w-7 sm:h-7 bg-gray-800 dark:bg-gray-600 rounded-full flex items-center justify-center border-2 border-white dark:border-gray-800 hover:bg-gray-700 dark:hover:bg-gray-500 transition-colors"
-          >
-            <Camera class="w-3 h-3 sm:w-3.5 sm:h-3.5 text-white" />
-          </button>
-          <input ref="fileInput" type="file" accept="image/*" class="hidden" @change="handleFileUpload" />
-        </div>
-        <div>
-          <p class="text-sm font-medium text-gray-900 dark:text-white">{{ auth.user?.username }}</p>
-          <p class="text-xs text-gray-500">
-            <button type="button" @click="fileInput?.click()" class="text-primary hover:underline">Click to upload</button>
-          </p>
-        </div>
+    <div :class="sectionClass">
+      <div :class="sectionHeaderClass">
+        <h4 :class="sectionTitleClass">Profile Information</h4>
+        <p class="mt-1 text-xs text-text-3">Keep your identity details current so teammates can recognize and trust who is speaking.</p>
       </div>
+      
+      <div :class="sectionBodyClass">
+        <!-- Avatar -->
+        <div class="flex items-center space-x-4">
+          <div class="relative group">
+            <div class="flex h-16 w-16 items-center justify-center overflow-hidden rounded-full bg-brand text-xl font-bold text-brand-foreground ring-2 ring-transparent transition-all group-hover:ring-brand/35 sm:h-20 sm:w-20 sm:text-2xl">
+              <img v-if="avatarUrl" :src="avatarUrl" alt="Avatar" class="h-full w-full object-cover" />
+              <span v-else>{{ auth.user?.username?.charAt(0).toUpperCase() || 'U' }}</span>
+            </div>
+            <button
+              type="button"
+              @click="fileInput?.click()"
+              class="absolute bottom-0 right-0 flex h-7 w-7 items-center justify-center rounded-full border-2 border-bg-surface-1 bg-brand text-brand-foreground shadow-1 transition-standard hover:bg-brand-hover sm:h-8 sm:w-8"
+            >
+              <Camera class="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+            </button>
+            <input ref="fileInput" type="file" accept="image/*" class="hidden" @change="handleFileUpload" />
+          </div>
+          <div>
+            <p class="text-sm font-semibold text-text-1">{{ auth.user?.username }}</p>
+            <p :class="helperTextClass">
+              <button type="button" @click="fileInput?.click()" class="font-medium text-brand transition-standard hover:text-brand-hover">Upload a new photo</button>
+            </p>
+          </div>
+        </div>
 
-      <!-- Form Fields -->
-      <div class="grid grid-cols-1 gap-4">
-        <BaseInput label="Username" v-model="username" placeholder="your_username" :disabled="loading" />
-        <BaseInput label="Display Name" v-model="displayName" placeholder="Your Name" :disabled="loading" />
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <BaseInput label="First Name" v-model="firstName" placeholder="John" :disabled="loading" />
-          <BaseInput label="Last Name" v-model="lastName" placeholder="Doe" :disabled="loading" />
-        </div>
-        <BaseInput label="Nickname" v-model="nickname" placeholder="Johnny" :disabled="loading" />
-        <BaseInput label="Position" v-model="position" placeholder="Software Engineer" :disabled="loading" />
-        <BaseInput label="Avatar URL" v-model="avatarUrl" placeholder="https://example.com/avatar.jpg" :disabled="loading" />
-        <div class="space-y-1">
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Email</label>
-          <div class="px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-gray-600 dark:text-gray-400 text-sm break-all">
-            {{ auth.user?.email }}
+        <!-- Form Fields -->
+        <div class="grid grid-cols-1 gap-4">
+          <BaseInput label="Username" v-model="username" placeholder="your_username" :disabled="loading" />
+          <BaseInput label="Display Name" v-model="displayName" placeholder="Your Name" :disabled="loading" />
+          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <BaseInput label="First Name" v-model="firstName" placeholder="John" :disabled="loading" />
+            <BaseInput label="Last Name" v-model="lastName" placeholder="Doe" :disabled="loading" />
+          </div>
+          <BaseInput label="Nickname" v-model="nickname" placeholder="Johnny" :disabled="loading" />
+          <BaseInput label="Position" v-model="position" placeholder="Software Engineer" :disabled="loading" />
+          <BaseInput label="Avatar URL" v-model="avatarUrl" placeholder="https://example.com/avatar.jpg" :disabled="loading" />
+          <div class="space-y-1">
+            <label class="block text-sm font-medium text-text-2">Email</label>
+            <div :class="readOnlyCardClass">
+              {{ auth.user?.email }}
+            </div>
           </div>
         </div>
-      </div>
       
-      <div class="flex justify-end">
-        <BaseButton @click="handleSaveProfile" :loading="loading">Save Profile</BaseButton>
+        <div class="flex justify-end">
+          <BaseButton @click="handleSaveProfile" :loading="loading">Save Profile</BaseButton>
+        </div>
       </div>
     </div>
 
     <!-- Status Section -->
-    <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-4">
-      <h4 class="text-sm font-semibold text-gray-900 dark:text-white border-b border-gray-200 dark:border-gray-700 pb-2">
-        Custom Status
-      </h4>
-      
-      <div class="space-y-4">
-        <div class="flex space-x-2">
-          <div class="w-12">
-            <BaseInput v-model="statusEmoji" placeholder="😀" class="text-center" :disabled="loading" />
-          </div>
-          <div class="flex-1">
-            <BaseInput v-model="statusText" placeholder="What's your status?" :disabled="loading" />
-          </div>
-        </div>
-        <p class="text-xs text-gray-500">Enter an emoji and a message to describe your status.</p>
+    <div :class="sectionClass">
+      <div :class="sectionHeaderClass">
+        <h4 :class="sectionTitleClass">Custom Status</h4>
+        <p class="mt-1 text-xs text-text-3">Share quick context with teammates when you are heads-down, away, or on call.</p>
       </div>
+      
+      <div :class="sectionBodyClass">
+        <div class="space-y-4">
+          <div class="flex space-x-2">
+            <div class="w-12">
+              <BaseInput v-model="statusEmoji" placeholder="😀" class="text-center" :disabled="loading" />
+            </div>
+            <div class="flex-1">
+              <BaseInput v-model="statusText" placeholder="What's your status?" :disabled="loading" />
+            </div>
+          </div>
+          <p :class="helperTextClass">Enter an emoji and a short message to describe your status.</p>
+        </div>
 
-      <div class="flex justify-end">
-        <BaseButton @click="handleSaveStatus" :loading="loading">Update Status</BaseButton>
+        <div class="flex justify-end">
+          <BaseButton @click="handleSaveStatus" :loading="loading">Update Status</BaseButton>
+        </div>
       </div>
     </div>
   </div>

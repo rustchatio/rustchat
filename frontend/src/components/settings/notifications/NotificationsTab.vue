@@ -81,6 +81,24 @@ const permissionRequired = computed(() => {
   return notificationPermission.value !== 'granted'
 })
 
+const pageEyebrowClass = 'text-[11px] font-semibold uppercase tracking-[0.24em] text-brand'
+const titleClass = 'text-3xl font-semibold tracking-[-0.04em] text-text-1 sm:text-[2rem]'
+const summaryClass = 'mt-2 max-w-2xl text-sm text-text-3'
+const linkClass = 'inline-flex items-center gap-2 rounded-full border border-border-1 bg-bg-surface-1 px-3 py-2 text-sm font-medium text-text-2 transition-standard hover:border-border-2 hover:bg-bg-surface-2 hover:text-text-1'
+const panelClass = 'overflow-hidden rounded-r-3 border border-border-1 bg-bg-surface-1 shadow-1'
+const rowButtonClass = 'flex w-full items-start justify-between gap-4 border-b border-border-1 px-5 py-4 text-left transition-standard hover:bg-bg-surface-2'
+const rowTitleClass = 'text-base font-semibold leading-tight tracking-[-0.01em] text-text-1 sm:text-lg'
+const rowValueClass = 'mt-1 text-sm text-text-3'
+const editChipClass = 'inline-flex items-center gap-1 rounded-full border border-border-1 bg-bg-surface-2 px-2.5 py-1 text-xs font-semibold text-text-2'
+const permissionChipClass = 'inline-flex items-center gap-1 rounded-full border border-secondary/20 bg-secondary/10 px-2.5 py-1 text-xs font-semibold text-secondary'
+const optionCardClass = 'flex items-start gap-3 rounded-r-2 border border-border-1 bg-bg-surface-1 p-3 text-sm text-text-2 transition-standard hover:border-border-2 hover:bg-bg-surface-2'
+const toggleCardClass = 'flex items-center justify-between rounded-r-2 border border-border-1 bg-bg-surface-1 p-3 text-sm text-text-1'
+const fieldLabelClass = 'mb-1 block text-sm font-medium text-text-1'
+const fieldInputClass = 'w-full rounded-r-2 border border-border-1 bg-bg-surface-1 px-3 py-2 text-sm text-text-1 outline-none transition-standard placeholder:text-text-3 focus:border-brand focus:ring-2 focus:ring-brand/15'
+const helperCardClass = 'rounded-r-2 border border-secondary/20 bg-secondary/10 p-4'
+const helperButtonClass = 'mt-3 rounded-r-2 bg-brand px-3 py-2 text-sm font-medium text-brand-foreground transition-standard hover:bg-brand-hover'
+const ghostButtonClass = 'inline-flex items-center gap-1 rounded-r-2 border border-border-1 bg-bg-surface-1 px-4 py-2 text-sm font-medium text-text-2 transition-standard hover:border-border-2 hover:bg-bg-surface-2 hover:text-text-1'
+
 onMounted(async () => {
   if (typeof Notification !== 'undefined') {
     notificationPermission.value = Notification.permission
@@ -271,40 +289,37 @@ function formatKeywordList(keywords: string[]): string {
 </script>
 
 <template>
-  <div class="space-y-1">
-    <div class="mb-1 flex items-center justify-between px-2">
-      <h3 class="text-3xl sm:text-[2rem] font-semibold tracking-tight text-gray-900 dark:text-white">Notifications</h3>
+  <div class="space-y-5">
+    <div class="flex flex-col gap-3 px-1 sm:flex-row sm:items-end sm:justify-between">
+      <div>
+        <p :class="pageEyebrowClass">Delivery Controls</p>
+        <h3 :class="titleClass">Notifications</h3>
+        <p :class="summaryClass">Tune desktop, push, email, and keyword behavior without losing readability across themes.</p>
+      </div>
       <a
         href="https://mattermost.com/pl/about-notifications"
         target="_blank"
         rel="noopener noreferrer"
-        class="inline-flex items-center gap-2 text-sm font-medium text-primary hover:text-primary/80"
+        :class="linkClass"
       >
         <Lightbulb class="h-4 w-4" />
         Learn more about notifications
       </a>
     </div>
 
-    <div class="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+    <div :class="panelClass">
       <div v-if="expandedRow !== 'desktop_mobile'">
-        <button
-          type="button"
-          class="flex w-full items-start justify-between gap-4 border-b border-gray-200 px-4 py-4 text-left hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50"
-          @click="expandRow('desktop_mobile')"
-        >
+        <button type="button" :class="rowButtonClass" @click="expandRow('desktop_mobile')">
           <div class="min-w-0">
-            <div class="text-xl sm:text-2xl font-medium leading-tight text-gray-900 dark:text-white">Desktop and mobile notifications</div>
-            <div class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ desktopAndMobileLabel }}</div>
+            <div :class="rowTitleClass">Desktop and mobile notifications</div>
+            <div :class="rowValueClass">{{ desktopAndMobileLabel }}</div>
           </div>
           <div class="mt-0.5 flex items-center gap-2">
-            <span
-              v-if="permissionRequired"
-              class="inline-flex items-center gap-1 rounded bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-900/30 dark:text-red-300"
-            >
+            <span v-if="permissionRequired" :class="permissionChipClass">
               <AlertTriangle class="h-3.5 w-3.5" />
               Permission required
             </span>
-            <span class="inline-flex items-center gap-1 text-sm font-medium text-primary">
+            <span :class="editChipClass">
               <Pencil class="h-4 w-4" />
               Edit
             </span>
@@ -321,49 +336,45 @@ function formatKeywordList(keywords: string[]): string {
         @cancel="cancelEdit"
       >
         <div class="space-y-5">
-          <div v-if="permissionRequired" class="rounded-md border border-blue-200 bg-blue-50 p-3 dark:border-blue-800/60 dark:bg-blue-900/20">
-            <div class="text-sm font-medium text-blue-900 dark:text-blue-300">Permission required</div>
-            <p class="mt-1 text-xs text-blue-700 dark:text-blue-400">Allow browser notifications to receive desktop alerts.</p>
-            <button
-              type="button"
-              class="mt-2 rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
-              @click="requestNotificationPermission"
-            >
+          <div v-if="permissionRequired" :class="helperCardClass">
+            <div class="text-sm font-semibold text-secondary">Permission required</div>
+            <p class="mt-1 text-xs text-text-2">Allow browser notifications to receive desktop alerts.</p>
+            <button type="button" :class="helperButtonClass" @click="requestNotificationPermission">
               Allow notifications
             </button>
           </div>
 
           <div>
-            <div class="mb-2 text-sm font-semibold text-gray-900 dark:text-white">Desktop</div>
+            <div class="mb-2 text-sm font-semibold text-text-1">Desktop</div>
             <div class="space-y-2">
-              <label class="flex items-start gap-3 rounded-md border border-gray-200 p-3 text-sm hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50">
-                <input v-model="localNotifyDesktop" type="radio" value="all" class="mt-0.5 h-4 w-4" />
+              <label :class="optionCardClass">
+                <input v-model="localNotifyDesktop" type="radio" value="all" class="mt-0.5 h-4 w-4 accent-brand" />
                 <span>For all activity</span>
               </label>
-              <label class="flex items-start gap-3 rounded-md border border-gray-200 p-3 text-sm hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50">
-                <input v-model="localNotifyDesktop" type="radio" value="mentions" class="mt-0.5 h-4 w-4" />
+              <label :class="optionCardClass">
+                <input v-model="localNotifyDesktop" type="radio" value="mentions" class="mt-0.5 h-4 w-4 accent-brand" />
                 <span>For mentions and direct messages</span>
               </label>
-              <label class="flex items-start gap-3 rounded-md border border-gray-200 p-3 text-sm hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50">
-                <input v-model="localNotifyDesktop" type="radio" value="none" class="mt-0.5 h-4 w-4" />
+              <label :class="optionCardClass">
+                <input v-model="localNotifyDesktop" type="radio" value="none" class="mt-0.5 h-4 w-4 accent-brand" />
                 <span>Never</span>
               </label>
             </div>
           </div>
 
           <div>
-            <div class="mb-2 text-sm font-semibold text-gray-900 dark:text-white">Mobile</div>
+            <div class="mb-2 text-sm font-semibold text-text-1">Mobile</div>
             <div class="space-y-2">
-              <label class="flex items-start gap-3 rounded-md border border-gray-200 p-3 text-sm hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50">
-                <input v-model="localNotifyPush" type="radio" value="all" class="mt-0.5 h-4 w-4" />
+              <label :class="optionCardClass">
+                <input v-model="localNotifyPush" type="radio" value="all" class="mt-0.5 h-4 w-4 accent-brand" />
                 <span>For all activity</span>
               </label>
-              <label class="flex items-start gap-3 rounded-md border border-gray-200 p-3 text-sm hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50">
-                <input v-model="localNotifyPush" type="radio" value="mentions" class="mt-0.5 h-4 w-4" />
+              <label :class="optionCardClass">
+                <input v-model="localNotifyPush" type="radio" value="mentions" class="mt-0.5 h-4 w-4 accent-brand" />
                 <span>For mentions and direct messages</span>
               </label>
-              <label class="flex items-start gap-3 rounded-md border border-gray-200 p-3 text-sm hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50">
-                <input v-model="localNotifyPush" type="radio" value="none" class="mt-0.5 h-4 w-4" />
+              <label :class="optionCardClass">
+                <input v-model="localNotifyPush" type="radio" value="none" class="mt-0.5 h-4 w-4 accent-brand" />
                 <span>Never</span>
               </label>
             </div>
@@ -372,16 +383,12 @@ function formatKeywordList(keywords: string[]): string {
       </SettingItemMax>
 
       <div v-if="expandedRow !== 'desktop_sounds'">
-        <button
-          type="button"
-          class="flex w-full items-start justify-between gap-4 border-b border-gray-200 px-4 py-4 text-left hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50"
-          @click="expandRow('desktop_sounds')"
-        >
+        <button type="button" :class="rowButtonClass" @click="expandRow('desktop_sounds')">
           <div class="min-w-0">
-            <div class="text-xl sm:text-2xl font-medium leading-tight text-gray-900 dark:text-white">Desktop notification sounds</div>
-            <div class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ desktopNotificationSoundsLabel }}</div>
+            <div :class="rowTitleClass">Desktop notification sounds</div>
+            <div :class="rowValueClass">{{ desktopNotificationSoundsLabel }}</div>
           </div>
-          <span class="mt-0.5 inline-flex items-center gap-1 text-sm font-medium text-primary">
+          <span :class="editChipClass">
             <Pencil class="h-4 w-4" />
             Edit
           </span>
@@ -397,31 +404,23 @@ function formatKeywordList(keywords: string[]): string {
         @cancel="cancelEdit"
       >
         <div class="space-y-3">
-          <label class="flex items-center justify-between rounded-md border border-gray-200 p-3 text-sm dark:border-gray-700">
+          <label :class="toggleCardClass">
             <span>Enable desktop notification sounds</span>
-            <input v-model="localNotifySounds" type="checkbox" class="h-4 w-4" />
+            <input v-model="localNotifySounds" type="checkbox" class="h-4 w-4 accent-brand" />
           </label>
-          <button
-            type="button"
-            class="rounded border border-primary/30 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/5"
-            @click="testNotificationSound"
-          >
+          <button type="button" :class="ghostButtonClass" @click="testNotificationSound">
             Test sound
           </button>
         </div>
       </SettingItemMax>
 
       <div v-if="expandedRow !== 'email_notifications'">
-        <button
-          type="button"
-          class="flex w-full items-start justify-between gap-4 border-b border-gray-200 px-4 py-4 text-left hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50"
-          @click="expandRow('email_notifications')"
-        >
+        <button type="button" :class="rowButtonClass" @click="expandRow('email_notifications')">
           <div class="min-w-0">
-            <div class="text-xl sm:text-2xl font-medium leading-tight text-gray-900 dark:text-white">Email notifications</div>
-            <div class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ emailNotificationsLabel }}</div>
+            <div :class="rowTitleClass">Email notifications</div>
+            <div :class="rowValueClass">{{ emailNotificationsLabel }}</div>
           </div>
-          <span class="mt-0.5 inline-flex items-center gap-1 text-sm font-medium text-primary">
+          <span :class="editChipClass">
             <Pencil class="h-4 w-4" />
             Edit
           </span>
@@ -436,23 +435,19 @@ function formatKeywordList(keywords: string[]): string {
         @save="saveEmailNotifications"
         @cancel="cancelEdit"
       >
-        <label class="flex items-center justify-between rounded-md border border-gray-200 p-3 text-sm dark:border-gray-700">
+        <label :class="toggleCardClass">
           <span>Send email notifications</span>
-          <input v-model="localNotifyEmail" type="checkbox" class="h-4 w-4" />
+          <input v-model="localNotifyEmail" type="checkbox" class="h-4 w-4 accent-brand" />
         </label>
       </SettingItemMax>
 
       <div v-if="expandedRow !== 'trigger_keywords'">
-        <button
-          type="button"
-          class="flex w-full items-start justify-between gap-4 border-b border-gray-200 px-4 py-4 text-left hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50"
-          @click="expandRow('trigger_keywords')"
-        >
+        <button type="button" :class="rowButtonClass" @click="expandRow('trigger_keywords')">
           <div class="min-w-0">
-            <div class="text-xl sm:text-2xl font-medium leading-tight text-gray-900 dark:text-white">Keywords that trigger notifications</div>
-            <div class="mt-1 text-sm text-gray-500 dark:text-gray-400 break-words">{{ keywordsTriggerLabel }}</div>
+            <div :class="rowTitleClass">Keywords that trigger notifications</div>
+            <div :class="`${rowValueClass} break-words`">{{ keywordsTriggerLabel }}</div>
           </div>
-          <span class="mt-0.5 inline-flex items-center gap-1 text-sm font-medium text-primary">
+          <span :class="editChipClass">
             <Pencil class="h-4 w-4" />
             Edit
           </span>
@@ -468,27 +463,23 @@ function formatKeywordList(keywords: string[]): string {
         @cancel="cancelEdit"
       >
         <div>
-          <label class="mb-1 block text-sm font-medium text-gray-900 dark:text-white">Keywords (comma-separated)</label>
+          <label :class="fieldLabelClass">Keywords (comma-separated)</label>
           <input
             v-model="mentionKeywordsInput"
             type="text"
-            class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900"
+            :class="fieldInputClass"
             placeholder="@username, @channel, @all, @here"
           />
         </div>
       </SettingItemMax>
 
       <div v-if="expandedRow !== 'highlight_keywords'">
-        <button
-          type="button"
-          class="flex w-full items-start justify-between gap-4 border-b border-gray-200 px-4 py-4 text-left hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50"
-          @click="expandRow('highlight_keywords')"
-        >
+        <button type="button" :class="rowButtonClass" @click="expandRow('highlight_keywords')">
           <div class="min-w-0">
-            <div class="text-xl sm:text-2xl font-medium leading-tight text-gray-900 dark:text-white">Keywords that get highlighted (without notifications)</div>
-            <div class="mt-1 text-sm text-gray-500 dark:text-gray-400 break-words">{{ highlightKeywordsLabel }}</div>
+            <div :class="rowTitleClass">Keywords that get highlighted (without notifications)</div>
+            <div :class="`${rowValueClass} break-words`">{{ highlightKeywordsLabel }}</div>
           </div>
-          <span class="mt-0.5 inline-flex items-center gap-1 text-sm font-medium text-primary">
+          <span :class="editChipClass">
             <Pencil class="h-4 w-4" />
             Edit
           </span>
@@ -504,11 +495,11 @@ function formatKeywordList(keywords: string[]): string {
         @cancel="cancelEdit"
       >
         <div>
-          <label class="mb-1 block text-sm font-medium text-gray-900 dark:text-white">Keywords (comma-separated)</label>
+          <label :class="fieldLabelClass">Keywords (comma-separated)</label>
           <input
             v-model="highlightKeywordsInput"
             type="text"
-            class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900"
+            :class="fieldInputClass"
             placeholder="release, incident, urgent"
           />
         </div>
@@ -517,14 +508,14 @@ function formatKeywordList(keywords: string[]): string {
       <div v-if="expandedRow !== 'auto_responder'">
         <button
           type="button"
-          class="flex w-full items-start justify-between gap-4 px-4 py-4 text-left hover:bg-gray-50 dark:hover:bg-gray-800/50"
+          class="flex w-full items-start justify-between gap-4 px-5 py-4 text-left transition-standard hover:bg-bg-surface-2"
           @click="expandRow('auto_responder')"
         >
           <div class="min-w-0">
-            <div class="text-xl sm:text-2xl font-medium leading-tight text-gray-900 dark:text-white">Automatic direct message replies</div>
-            <div class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ autoResponderLabel }}</div>
+            <div :class="rowTitleClass">Automatic direct message replies</div>
+            <div :class="rowValueClass">{{ autoResponderLabel }}</div>
           </div>
-          <span class="mt-0.5 inline-flex items-center gap-1 text-sm font-medium text-primary">
+          <span :class="editChipClass">
             <Pencil class="h-4 w-4" />
             Edit
           </span>
@@ -540,16 +531,16 @@ function formatKeywordList(keywords: string[]): string {
         @cancel="cancelEdit"
       >
         <div class="space-y-3">
-          <label class="flex items-center justify-between rounded-md border border-gray-200 p-3 text-sm dark:border-gray-700">
+          <label :class="toggleCardClass">
             <span>Enable automatic direct message replies</span>
-            <input v-model="localAutoResponderEnabled" type="checkbox" class="h-4 w-4" />
+            <input v-model="localAutoResponderEnabled" type="checkbox" class="h-4 w-4 accent-brand" />
           </label>
           <div>
-            <label class="mb-1 block text-sm font-medium text-gray-900 dark:text-white">Auto-reply message</label>
+            <label :class="fieldLabelClass">Auto-reply message</label>
             <textarea
               v-model="localAutoResponderMessage"
               rows="3"
-              class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm dark:border-gray-600 dark:bg-gray-900"
+              :class="fieldInputClass"
               placeholder="I'm away right now and will reply as soon as possible."
             />
           </div>
@@ -557,28 +548,24 @@ function formatKeywordList(keywords: string[]): string {
       </SettingItemMax>
     </div>
 
-    <div class="mt-6 rounded-lg border border-blue-200 bg-blue-50 p-5 dark:border-blue-800/40 dark:bg-blue-900/15">
+    <div class="rounded-r-3 border border-border-1 bg-bg-surface-2 p-5 shadow-1">
       <div class="flex items-start gap-3">
-        <Lightbulb class="mt-0.5 h-5 w-5 text-blue-600 dark:text-blue-300" />
+        <Lightbulb class="mt-0.5 h-5 w-5 text-secondary" />
         <div class="flex-1">
-          <h4 class="text-base font-semibold text-gray-900 dark:text-white">Troubleshooting notifications</h4>
-          <p class="mt-1 text-sm text-gray-700 dark:text-gray-300">
+          <h4 class="text-base font-semibold text-text-1">Troubleshooting notifications</h4>
+          <p class="mt-1 text-sm text-text-2">
             Not receiving notifications? Start by sending a test notification to all your devices to check if they are working as expected. If issues persist, explore ways to solve them with troubleshooting steps.
           </p>
           <div class="mt-4 flex flex-wrap gap-2">
             <button
               type="button"
-              class="rounded bg-primary px-4 py-2 text-sm font-medium text-brand-foreground hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-60"
+              class="rounded-r-2 bg-brand px-4 py-2 text-sm font-medium text-brand-foreground transition-standard hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-60"
               :disabled="sendingTestNotification"
               @click="sendTestNotification"
             >
               {{ sendingTestNotification ? 'Sending a test notification' : 'Send a test notification' }}
             </button>
-            <button
-              type="button"
-              class="inline-flex items-center gap-1 rounded border border-blue-300 bg-white px-4 py-2 text-sm font-medium text-primary hover:bg-blue-100 dark:border-blue-700 dark:bg-gray-900"
-              @click="openTroubleshootingDocs"
-            >
+            <button type="button" :class="ghostButtonClass" @click="openTroubleshootingDocs">
               Troubleshooting docs
               <ExternalLink class="h-4 w-4" />
             </button>
