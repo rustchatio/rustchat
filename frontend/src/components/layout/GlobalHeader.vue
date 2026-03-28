@@ -173,7 +173,7 @@ function handleQuickSwitcherSelect(item: QuickSwitcherItem) {
       <button
         v-if="isMobile"
         @click="ui.toggleLhs()"
-        class="flex items-center justify-center w-9 h-9 rounded-r-2 hover:bg-bg-surface-2 text-text-2 transition-standard focus-ring"
+        class="flex items-center justify-center w-11 h-11 rounded-r-2 hover:bg-bg-surface-2 text-text-2 transition-standard focus-ring"
         :class="{ 'bg-bg-surface-2 text-brand': ui.isLhsOpen }"
         aria-label="Toggle navigation menu"
         title="Menu"
@@ -223,7 +223,7 @@ function handleQuickSwitcherSelect(item: QuickSwitcherItem) {
       <!-- Mobile Search Button -->
       <button 
         @click="showSearch = true"
-        class="md:hidden flex items-center justify-center w-9 h-9 rounded-r-2 text-text-3 hover:text-text-1 hover:bg-bg-surface-2 transition-standard focus-ring"
+        class="md:hidden flex items-center justify-center w-11 h-11 rounded-r-2 text-text-3 hover:text-text-1 hover:bg-bg-surface-2 transition-standard focus-ring"
         aria-label="Search"
       >
         <Search class="w-5 h-5" />
@@ -231,7 +231,7 @@ function handleQuickSwitcherSelect(item: QuickSwitcherItem) {
 
       <!-- Help Button -->
       <button 
-        class="hidden sm:flex items-center justify-center w-9 h-9 rounded-r-2 text-text-3 hover:text-text-1 hover:bg-bg-surface-2 transition-standard focus-ring"
+        class="hidden sm:flex items-center justify-center w-11 h-11 rounded-r-2 text-text-3 hover:text-text-1 hover:bg-bg-surface-2 transition-standard focus-ring"
         aria-label="Help"
       >
         <HelpCircle class="w-5 h-5" />
@@ -241,7 +241,7 @@ function handleQuickSwitcherSelect(item: QuickSwitcherItem) {
       <div class="relative">
         <button 
           @click="showNotifications = !showNotifications"
-          class="relative flex items-center justify-center w-9 h-9 rounded-r-2 text-text-3 hover:text-text-1 hover:bg-bg-surface-2 transition-standard focus-ring"
+          class="relative flex items-center justify-center w-11 h-11 rounded-r-2 text-text-3 hover:text-text-1 hover:bg-bg-surface-2 transition-standard focus-ring"
           :class="{ 'bg-bg-surface-2 text-text-1': showNotifications }"
           aria-label="Notifications"
         >
@@ -268,7 +268,7 @@ function handleQuickSwitcherSelect(item: QuickSwitcherItem) {
       <!-- Activity Feed button -->
       <div class="relative">
         <button
-          class="p-1.5 rounded hover:bg-bg-surface-2 transition-colors relative"
+          class="relative flex h-11 w-11 items-center justify-center rounded-r-2 hover:bg-bg-surface-2 text-text-3 hover:text-text-1 transition-standard focus-ring"
           title="Activity Feed"
           @click="openActivityFeed"
         >
@@ -287,7 +287,7 @@ function handleQuickSwitcherSelect(item: QuickSwitcherItem) {
         <button
           data-testid="user-menu-trigger"
           @click="showUserMenu = !showUserMenu"
-          class="relative flex items-center gap-2 pl-1 pr-2 py-1 rounded-r-2 hover:bg-bg-surface-2 transition-standard focus-ring"
+          class="relative flex min-h-11 items-center gap-2 pl-1.5 pr-2.5 py-1 rounded-r-2 hover:bg-bg-surface-2 transition-standard focus-ring"
           :class="{ 'bg-bg-surface-2': showUserMenu }"
         >
           <div class="relative">

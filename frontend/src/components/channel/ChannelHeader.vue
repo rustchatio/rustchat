@@ -127,7 +127,7 @@ const handleLeave = async () => {
       <!-- Members Button -->
       <button 
         @click="toggleView('members')"
-        class="flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-r-2 transition-standard focus-ring"
+        class="flex items-center justify-center w-11 h-11 rounded-r-2 transition-standard focus-ring"
         :class="{ 
           'bg-brand text-white': uiStore.rhsView === 'members',
           'hover:bg-bg-surface-2 text-text-2': uiStore.rhsView !== 'members'
@@ -144,7 +144,7 @@ const handleLeave = async () => {
       <button 
         v-if="hasActiveCall && !isInCurrentCall"
         @click="joinExistingCall"
-        class="flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-r-2 bg-success/10 text-success hover:bg-success/20 transition-standard animate-pulse focus-ring"
+        class="flex items-center justify-center w-11 h-11 rounded-r-2 bg-success/10 text-success hover:bg-success/20 transition-standard animate-pulse focus-ring"
         title="Join active call"
         aria-label="Join active call"
       >
@@ -154,7 +154,7 @@ const handleLeave = async () => {
       <button 
         v-else-if="isInCurrentCall"
         @click="callsStore.isExpanded = true"
-        class="flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-r-2 bg-success/10 text-success hover:bg-success/20 transition-standard focus-ring"
+        class="flex items-center justify-center w-11 h-11 rounded-r-2 bg-success/10 text-success hover:bg-success/20 transition-standard focus-ring"
         title="Show call"
         aria-label="Show call"
       >
@@ -164,7 +164,7 @@ const handleLeave = async () => {
       <button 
         v-else
         @click="startNativeCall"
-        class="flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-r-2 hover:bg-success/10 text-success transition-standard focus-ring"
+        class="flex items-center justify-center w-11 h-11 rounded-r-2 hover:bg-success/10 text-success transition-standard focus-ring"
         title="Start audio call"
         aria-label="Start audio call"
       >
@@ -174,7 +174,7 @@ const handleLeave = async () => {
       <!-- Search Button (hidden on smallest screens) -->
       <button 
         @click="toggleView('search')"
-        class="hidden sm:flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-r-2 transition-standard focus-ring"
+        class="hidden sm:flex items-center justify-center w-11 h-11 rounded-r-2 transition-standard focus-ring"
         :class="{ 
           'bg-brand text-white': uiStore.rhsView === 'search',
           'hover:bg-bg-surface-2 text-text-2': uiStore.rhsView !== 'search'
@@ -188,7 +188,7 @@ const handleLeave = async () => {
       <!-- Pinned Items -->
       <button 
         @click="toggleView('pinned')"
-        class="flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-r-2 transition-standard focus-ring"
+        class="flex items-center justify-center w-11 h-11 rounded-r-2 transition-standard focus-ring"
         :class="{ 
           'bg-brand text-white': uiStore.rhsView === 'pinned',
           'hover:bg-bg-surface-2 text-text-2': uiStore.rhsView !== 'pinned'
@@ -202,7 +202,7 @@ const handleLeave = async () => {
       <!-- Saved Items -->
       <button 
         @click="toggleView('saved')"
-        class="flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-r-2 transition-standard focus-ring"
+        class="flex items-center justify-center w-11 h-11 rounded-r-2 transition-standard focus-ring"
         :class="{ 
           'bg-brand text-white': uiStore.rhsView === 'saved',
           'hover:bg-bg-surface-2 text-text-2': uiStore.rhsView !== 'saved'
@@ -217,7 +217,7 @@ const handleLeave = async () => {
       <div class="relative">
         <button 
           @click="showMenu = !showMenu"
-          class="flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 rounded-r-2 hover:bg-bg-surface-2 text-text-2 transition-standard focus-ring"
+          class="flex items-center justify-center w-11 h-11 rounded-r-2 hover:bg-bg-surface-2 text-text-2 transition-standard focus-ring"
           :class="{ 'bg-bg-surface-2': showMenu }"
           title="More options"
           aria-label="More options"
