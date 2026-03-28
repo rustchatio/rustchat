@@ -36,7 +36,7 @@ watch(() => channelStore.currentChannelId, () => {
 </script>
 
 <template>
-  <div class="h-screen flex flex-col overflow-hidden bg-bg-app text-text-1 transition-standard">
+  <div class="flex h-screen flex-col overflow-hidden bg-bg-app text-text-1 transition-standard">
     <!-- Top Header -->
     <GlobalHeader class="shrink-0" />
 
@@ -75,7 +75,7 @@ watch(() => channelStore.currentChannelId, () => {
     </Transition>
 
     <!-- Main Layout -->
-    <div class="flex flex-1 overflow-hidden relative">
+    <div class="relative flex flex-1 overflow-hidden bg-[radial-gradient(circle_at_top,_color-mix(in_srgb,_var(--brand)_5%,transparent),transparent_38%)]">
       <!-- Desktop Team Rail (Leftmost) -->
       <TeamRail 
         v-if="!isMobile" 
@@ -90,7 +90,7 @@ watch(() => channelStore.currentChannelId, () => {
 
       <!-- Main Content (Center) -->
       <main 
-        class="flex-1 flex flex-col min-w-0 bg-bg-surface-1 relative overflow-hidden"
+        class="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-[linear-gradient(180deg,color-mix(in_srgb,var(--bg-surface-1)_94%,transparent),var(--bg-surface-1))]"
         :class="{ 'shadow-2': ui.isRhsOpen && isMobileOrTablet }"
       >
         <slot />

@@ -13,6 +13,7 @@ import RcAvatar from '../ui/RcAvatar.vue';
 import NotificationsDropdown from './NotificationsDropdown.vue';
 import ActivityFeed from '../activity/ActivityFeed.vue';
 import { useConfigStore } from '../../stores/config';
+import { useTeamStore } from '../../stores/teams';
 import { usePresenceStore } from '../../features/presence';
 import { useUnreadStore } from '../../stores/unreads';
 import { useBreakpoints } from '../../composables/useBreakpoints';
@@ -22,6 +23,7 @@ import { useActivityStore } from '../../features/activity/stores/activityStore';
 const auth = useAuthStore();
 const ui = useUIStore();
 const configStore = useConfigStore();
+const teamStore = useTeamStore();
 const presenceStore = usePresenceStore();
 const unreadStore = useUnreadStore();
 const activityStore = useActivityStore();
@@ -152,6 +154,10 @@ const siteInitial = computed(() => {
   return configStore.siteConfig.site_name?.charAt(0).toUpperCase() || 'R';
 });
 
+const currentTeamLabel = computed(() => {
+  return teamStore.currentTeam?.display_name || teamStore.currentTeam?.name || '';
+});
+
 function openActivityFeed() {
   activityService.openFeed();
 }
@@ -165,10 +171,10 @@ function handleQuickSwitcherSelect(item: QuickSwitcherItem) {
 
 <template>
   <header 
-    class="h-[var(--header-height)] bg-bg-surface-1 border-b border-border-1 flex items-center justify-between px-3 sm:px-4 shrink-0 z-30 relative"
+    class="relative z-30 flex h-[var(--header-height)] shrink-0 items-center justify-between border-b border-border-1 bg-bg-surface-1/95 px-3 backdrop-blur-sm sm:px-4"
   >
     <!-- Left: Mobile Menu + Logo -->
-    <div class="flex items-center gap-2 min-w-0">
+    <div class="flex min-w-0 items-center gap-3">
       <!-- Mobile Menu Button -->
       <button
         v-if="isMobile"
@@ -182,11 +188,11 @@ function handleQuickSwitcherSelect(item: QuickSwitcherItem) {
       </button>
 
       <!-- Logo -->
-      <div class="flex items-center gap-2 min-w-0">
+      <div class="flex min-w-0 items-center gap-3">
         <img 
           v-if="configStore.siteConfig.logo_url" 
           :src="configStore.siteConfig.logo_url" 
-          class="w-8 h-8 rounded-lg object-cover shrink-0"
+          class="h-9 w-9 shrink-0 rounded-r-1 object-cover shadow-1"
           alt="Logo" 
         />
         <div 
@@ -195,23 +201,36 @@ function handleQuickSwitcherSelect(item: QuickSwitcherItem) {
         >
           {{ siteInitial }}
         </div>
-        <span class="hidden truncate text-[17px] font-semibold tracking-[-0.03em] text-text-1 sm:block">
-          {{ configStore.siteConfig.site_name }}
-        </span>
+        <div class="hidden min-w-0 sm:block">
+          <div class="truncate text-[17px] font-semibold tracking-[-0.03em] text-text-1">
+            {{ configStore.siteConfig.site_name }}
+          </div>
+          <div class="mt-0.5 flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.18em] text-text-3">
+            <span>Focused Team Chat</span>
+            <span v-if="currentTeamLabel" class="truncate rounded-full border border-border-1 bg-bg-surface-2 px-2 py-0.5 normal-case tracking-normal text-text-2">
+              {{ currentTeamLabel }}
+            </span>
+          </div>
+        </div>
       </div>
     </div>
 
     <!-- Center: Search (hidden on mobile) -->
-    <div class="flex-1 max-w-xl px-4 hidden md:block">
+    <div class="hidden flex-1 px-4 md:block">
       <button
         @click="showSearch = true"
-        class="w-full flex items-center gap-2 px-3 py-2 bg-bg-surface-2 hover:bg-bg-surface-1 border border-border-1 rounded-r-2 text-left transition-standard focus-ring group"
+        class="group mx-auto flex w-full max-w-lg items-center gap-3 rounded-r-3 border border-border-1 bg-bg-surface-2/80 px-3.5 py-2.5 text-left transition-standard hover:border-border-2 hover:bg-bg-surface-1 focus-ring"
       >
-        <Search class="w-4 h-4 text-text-3 group-hover:text-text-2" />
-        <span class="flex-1 text-sm text-text-3 group-hover:text-text-2 truncate">
-          Search {{ configStore.siteConfig.site_name }}
-        </span>
-        <kbd class="hidden lg:flex items-center gap-0.5 text-[10px] font-medium text-text-4">
+        <Search class="h-4 w-4 shrink-0 text-text-3 group-hover:text-text-2" />
+        <div class="min-w-0 flex-1">
+          <div class="truncate text-sm font-medium text-text-2 group-hover:text-text-1">
+            Jump to channels, people, or messages
+          </div>
+          <div class="truncate text-[11px] text-text-3">
+            Search, recent items, and quick navigation in one place
+          </div>
+        </div>
+        <kbd class="hidden items-center gap-0.5 text-[10px] font-medium text-text-4 lg:flex">
           <span class="px-1.5 py-0.5 bg-bg-app border border-border-1 rounded">⌘</span>
           <span class="px-1.5 py-0.5 bg-bg-app border border-border-1 rounded">K</span>
         </kbd>
@@ -219,7 +238,7 @@ function handleQuickSwitcherSelect(item: QuickSwitcherItem) {
     </div>
 
     <!-- Right: Actions -->
-    <div class="flex items-center gap-1 sm:gap-2">
+    <div class="flex items-center gap-1 rounded-r-3 border border-border-1 bg-bg-surface-2/75 p-1 sm:gap-1.5">
       <!-- Mobile Search Button -->
       <button 
         @click="showSearch = true"
@@ -268,7 +287,7 @@ function handleQuickSwitcherSelect(item: QuickSwitcherItem) {
       <!-- Activity Feed button -->
       <div class="relative">
         <button
-          class="relative flex h-11 w-11 items-center justify-center rounded-r-2 hover:bg-bg-surface-2 text-text-3 hover:text-text-1 transition-standard focus-ring"
+          class="relative flex h-11 w-11 items-center justify-center rounded-r-2 text-text-3 transition-standard hover:bg-bg-surface-1 hover:text-text-1 focus-ring"
           title="Activity Feed"
           @click="openActivityFeed"
         >
@@ -287,8 +306,8 @@ function handleQuickSwitcherSelect(item: QuickSwitcherItem) {
         <button
           data-testid="user-menu-trigger"
           @click="showUserMenu = !showUserMenu"
-          class="relative flex min-h-11 items-center gap-2 pl-1.5 pr-2.5 py-1 rounded-r-2 hover:bg-bg-surface-2 transition-standard focus-ring"
-          :class="{ 'bg-bg-surface-2': showUserMenu }"
+          class="relative flex min-h-11 items-center gap-2 rounded-r-2 py-1 pl-1.5 pr-2.5 transition-standard focus-ring hover:bg-bg-surface-1"
+          :class="{ 'bg-bg-surface-1': showUserMenu }"
         >
           <div class="relative">
             <RcAvatar 
@@ -304,7 +323,7 @@ function handleQuickSwitcherSelect(item: QuickSwitcherItem) {
               :class="presenceColor"
             />
           </div>
-          <span class="hidden lg:block text-sm font-medium text-text-1 truncate max-w-[120px]">
+          <span class="hidden max-w-[120px] truncate text-sm font-medium text-text-1 lg:block">
             {{ auth.user?.username }}
           </span>
         </button>

@@ -1,5 +1,42 @@
 # Task Plan
 
+## 2026-03-28 Design System and App Shell Redesign
+
+### Task
+- Analyze RustChat’s current product usability and visual language against the standard set by Slack and Mattermost.
+- Establish a concrete design system and product direction for the web UI.
+- Apply the first implementation pass to the authenticated app shell so the product feels more intentional, more usable, and less like generic SaaS.
+
+### Implementation Status
+- [x] Wrote the product design system and design direction to `DESIGN.md`.
+- [x] Added `CLAUDE.md` guidance so future UI work is expected to follow `DESIGN.md`.
+- [x] Redesigned the app frame and shell layering in `frontend/src/components/layout/AppShell.vue`.
+- [x] Rebalanced brand, search, and user-utility hierarchy in `frontend/src/components/layout/GlobalHeader.vue`.
+- [x] Strengthened team rail and channel sidebar scan hierarchy in `frontend/src/components/layout/TeamRail.vue` and `frontend/src/components/layout/ChannelSidebar.vue`.
+- [x] Improved channel context emphasis in `frontend/src/components/channel/ChannelHeader.vue`.
+- [x] Reworked loading and empty-channel states in `frontend/src/components/channel/MessageList.vue` so quiet channels feel intentional instead of abandoned.
+
+### Verification Status
+1. `cd frontend && npm run build`
+- Result: PASS
+
+### Manual Verification Commands
+1. `cd frontend && npm run dev`
+2. Open the authenticated app shell and verify:
+   - global header brand/context feel stronger than search chrome
+   - team rail and channel sidebar are faster to scan
+   - selected channel state is clear without feeling loud
+   - channel header communicates current context cleanly
+   - empty or quiet channels feel intentional, not broken
+3. Check responsive behavior:
+   - mobile left drawer
+   - desktop shell with RHS open
+   - channel with and without topic text
+
+### Readiness
+- Ready for user acceptance testing.
+- Remaining follow-up: carry the same system into broader settings, modal, and admin surfaces over time.
+
 ## 2026-03-28 Theme Source-of-Truth Fix + Brand/Typography Second Pass
 
 ### Task

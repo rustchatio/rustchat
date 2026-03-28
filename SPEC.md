@@ -1,3 +1,181 @@
+# SPEC: App Shell Redesign Plan from DESIGN.md (2026-03-28)
+
+## Problem Statement
+
+RustChat now has a clear design system in `DESIGN.md`, but the authenticated shell still does not fully express it.
+
+The structure is already correct. The product feels familiar and usable. The problem is that the shell still behaves like a collection of competent components instead of one strong product surface.
+
+The main gaps are:
+
+1. The global header still gives too much visual weight to generic utility chrome, especially search, and not enough to product identity and current working context.
+2. The left-side navigation stack is functional, but the team rail and channel sidebar do not yet feel like a crisp scanning system with deliberate hierarchy.
+3. The center canvas still has weak low-activity and empty-state presence, so the main workspace can feel visually abandoned.
+4. Shell surfaces are more consistent than before, but they still need one end-to-end pass to align with the new “Focused Warm Utility” system in `DESIGN.md`.
+
+## Goals
+
+1. Translate `DESIGN.md` into a concrete implementation plan for the authenticated shell.
+2. Make the first viewport feel more like a product and less like a neutral internal tool.
+3. Improve scan speed and context clarity in the header, left navigation, and message canvas.
+4. Keep the rollout incremental and verifiable, without rewriting the whole UI at once.
+
+## Non-Goals
+
+1. No backend or API changes.
+2. No marketing-site redesign.
+3. No repo-wide reskin of every settings, admin, or modal surface in this phase.
+4. No new information architecture for channels, threads, or right sidebar workflows.
+5. No new persisted preferences or theme schema changes.
+
+## Scope and Contract Impact
+
+In scope:
+- `frontend/src/components/layout/AppShell.vue`
+- `frontend/src/components/layout/GlobalHeader.vue`
+- `frontend/src/components/layout/TeamRail.vue`
+- `frontend/src/components/layout/ChannelSidebar.vue`
+- `frontend/src/components/channel/ChannelHeader.vue`
+- `frontend/src/components/channel/MessageList.vue`
+- small supporting shared pieces only if needed for consistency
+
+Contract impact:
+- No server/API contract change.
+- No intended behavioral change to channel data, calls, settings, or permissions.
+- User-visible contract change: the authenticated shell should have stronger identity, clearer hierarchy, and more intentional empty/loading states.
+
+Out of scope for this phase:
+- broad admin redesign
+- deep modal redesign outside shell-adjacent surfaces
+- removing old files unless directly required for shell correctness
+
+## Current Implementation Findings
+
+1. `frontend/src/components/layout/AppShell.vue` already has the correct structural layout, but it reads visually flat. The frame is functional, not yet distinct.
+2. `frontend/src/components/layout/GlobalHeader.vue` now has a better logo treatment, but search still dominates the center and the header still feels like generic utility chrome first, brand/context second.
+3. `frontend/src/components/layout/ChannelSidebar.vue` has good channel grouping logic, but the visual language is still more “list of rows” than “high-confidence collaboration navigator”.
+4. `frontend/src/components/channel/ChannelHeader.vue` works well functionally, but the current context hierarchy is still light. Channel name, topic, and actions need stronger prioritization.
+5. `frontend/src/components/channel/MessageList.vue` already has date separators and a usable empty state, but the empty/loading states still need more intentional visual anchoring so the center panel does not feel empty by accident.
+
+## Design Translation Principles
+
+Derived directly from `DESIGN.md`:
+
+1. **Slack ease + Mattermost trust**
+   - approachable, low-friction interaction
+   - serious, dependable visual tone
+
+2. **Focused Warm Utility**
+   - warm neutrals
+   - restrained accents
+   - stronger context than decoration
+
+3. **Content-first shell**
+   - users should orient in under a second
+   - brand supports the workspace, it does not fight it
+
+4. **Minimal-functional motion**
+   - transitions help comprehension only
+   - no ornamental flourishes
+
+## Implementation Outline
+
+### Phase 1: Frame and Header
+
+Target files:
+- `frontend/src/components/layout/AppShell.vue`
+- `frontend/src/components/layout/GlobalHeader.vue`
+
+Work:
+- reduce the visual dominance of the search field
+- strengthen brand and workspace presence in the first viewport
+- improve spacing and separation between brand, search, notifications, and user controls
+- make the shell frame feel more deliberate through subtle surface contrast and hierarchy, not heavier decoration
+
+Expected outcome:
+- users immediately understand “where they are” and “what product this is” before utility chrome takes over
+
+### Phase 2: Left Navigation Hierarchy
+
+Target files:
+- `frontend/src/components/layout/TeamRail.vue`
+- `frontend/src/components/layout/ChannelSidebar.vue`
+
+Work:
+- tighten selection, unread, mention, and category hierarchy
+- improve scanning contrast between favorites, standard channels, DMs, and controls
+- make the team rail feel like a compact identity/navigation rail rather than a thin leftover column
+
+Expected outcome:
+- faster navigation scanning
+- stronger sense of structure and activity on the left side of the app
+
+### Phase 3: Current Context Bar
+
+Target file:
+- `frontend/src/components/channel/ChannelHeader.vue`
+
+Work:
+- increase emphasis on channel name and current context
+- de-emphasize secondary actions slightly while keeping them easy to hit
+- make topic handling more intentional, especially when absent or truncated
+
+Expected outcome:
+- clearer context handoff between sidebar selection and center canvas
+
+### Phase 4: Center Canvas Presence
+
+Target file:
+- `frontend/src/components/channel/MessageList.vue`
+
+Work:
+- redesign loading and empty states to feel intentional and branded
+- strengthen the visual anchor of the center column when a channel is quiet
+- preserve message readability and timeline clarity
+
+Expected outcome:
+- the main workspace still feels alive and deliberate even when message volume is low
+
+## Verification Plan
+
+Automated:
+- `cd frontend && npm run build`
+
+Manual:
+- `cd frontend && npm run dev`
+- verify the authenticated shell in these states:
+  - active team with unread channels
+  - active channel with topic
+  - active channel without topic
+  - empty channel / no messages
+  - mobile drawer open
+  - right sidebar open
+- check these outcomes:
+  - header identity and context are clearer than before
+  - left-nav scanning is faster and unread state is easier to parse
+  - center panel no longer feels abandoned in empty or quiet states
+  - no regression in touch targets or mobile shell behavior
+
+## Proposed Rollout Order
+
+1. Header and frame
+2. Left navigation
+3. Channel header
+4. Message canvas states
+
+This order matters because it changes the first impression quickly while keeping the risk low and the verification obvious.
+
+## Expected Result
+
+After this phase, RustChat should still feel familiar to Slack and Mattermost users, but more ownable, warmer, and more intentional.
+
+The user should feel:
+- “this is easy to read”
+- “this feels like a serious collaboration product”
+- “the product has a point of view”
+
+---
+
 # SPEC: Theme Source-of-Truth Fix + Brand/Typography Second Pass (2026-03-28)
 
 ## Problem Statement

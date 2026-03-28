@@ -4,6 +4,7 @@ import { format, isSameYear, isToday, isYesterday } from 'date-fns'
 import { ArrowDown } from 'lucide-vue-next'
 import { useMessageStore } from '../../stores/messages'
 import { useUnreadStore } from '../../stores/unreads'
+import { useChannelStore } from '../../stores/channels'
 import { usePresence, extractUserIds } from '../../composables/usePresence'
 import MessageItem from './MessageItem.vue'
 
@@ -20,6 +21,7 @@ const emit = defineEmits<{
 
 const messageStore = useMessageStore()
 const unreadStore = useUnreadStore()
+const channelStore = useChannelStore()
 const presence = usePresence()
 const containerRef = ref<HTMLElement | null>(null)
 const shouldAutoScroll = ref(true)
@@ -27,6 +29,7 @@ const showNewMessagesBtn = ref(false)
 
 const messages = computed(() => messageStore.messagesByChannel[props.channelId] || [])
 const readState = computed(() => unreadStore.getChannelReadState(props.channelId))
+const currentChannel = computed(() => channelStore.currentChannel)
 
 type TimelineItem =
   | { kind: 'date'; key: string; label: string }
@@ -218,18 +221,35 @@ function handleOpenProfile(userId: string) {
       </Transition>
 
       <!-- Loading State -->
-      <div v-if="messageStore.loading" class="flex flex-col items-center justify-center py-12 text-text-3">
-        <div class="w-8 h-8 border-2 border-brand border-t-transparent rounded-full animate-spin mb-4" />
-        <p class="text-sm">Loading messages...</p>
+      <div v-if="messageStore.loading" class="flex flex-col items-center justify-center py-16 text-text-3">
+        <div class="w-full max-w-lg rounded-r-3 border border-border-1 bg-[radial-gradient(circle_at_top,_color-mix(in_srgb,_var(--brand)_8%,transparent),transparent_55%)] px-6 py-8 text-center shadow-1">
+          <div class="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-r-2 bg-brand/10 text-brand">
+            <div class="h-8 w-8 animate-spin rounded-full border-2 border-current border-t-transparent" />
+          </div>
+          <p class="text-lg font-semibold text-text-1">Syncing conversation</p>
+          <p class="mt-1 text-sm text-text-3">Pulling the latest messages and read state into this channel.</p>
+        </div>
       </div>
 
       <!-- Empty State -->
-      <div v-else-if="messages.length === 0" class="flex flex-col items-center justify-center py-16 text-text-3">
-        <div class="w-16 h-16 rounded-full bg-bg-surface-2 flex items-center justify-center mb-4">
-          <span class="text-3xl">💬</span>
+      <div v-else-if="messages.length === 0" class="flex flex-col items-center justify-center py-20 text-text-3">
+        <div class="w-full max-w-xl rounded-r-3 border border-border-1 bg-[radial-gradient(circle_at_top,_color-mix(in_srgb,_var(--brand)_10%,transparent),transparent_58%)] px-6 py-9 text-center shadow-1">
+          <div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-r-2 bg-brand/10 text-brand shadow-1">
+            <span class="text-3xl">#</span>
+          </div>
+          <p class="text-[11px] font-semibold uppercase tracking-[0.22em] text-text-3">
+            Quiet channel
+          </p>
+          <p class="mt-2 text-xl font-semibold tracking-[-0.03em] text-text-1">
+            Kick off {{ currentChannel?.display_name || currentChannel?.name || 'the conversation' }}
+          </p>
+          <p class="mx-auto mt-2 max-w-md text-sm leading-6 text-text-3">
+            Share the first update, question, or handoff so this space starts carrying real team context instead of staying blank.
+          </p>
+          <div class="mt-5 inline-flex items-center rounded-full border border-border-1 bg-bg-surface-1 px-3 py-1 text-xs font-medium text-text-2">
+            First message wins the tone of the channel
+          </div>
         </div>
-        <p class="text-lg font-medium text-text-1 mb-1">This is the start of the channel.</p>
-        <p class="text-sm">Send a message to start the conversation.</p>
       </div>
 
       <!-- Message List -->

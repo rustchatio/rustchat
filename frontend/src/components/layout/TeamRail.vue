@@ -23,27 +23,31 @@ function getInitials(name: string): string {
 </script>
 
 <template>
-  <aside class="w-[var(--team-rail-width)] bg-bg-surface-2 flex flex-col items-center py-3 z-20 shrink-0 border-r border-border-1">
+  <aside class="z-20 flex w-[var(--team-rail-width)] shrink-0 flex-col items-center border-r border-border-1 bg-bg-surface-2/95 py-3">
+    <div class="mb-3 text-[10px] font-semibold uppercase tracking-[0.22em] text-text-3">
+      Teams
+    </div>
+
     <!-- Teams List -->
-    <div class="flex-1 flex flex-col items-center gap-2 w-full px-2">
+    <div class="flex w-full flex-1 flex-col items-center gap-2 px-2">
       <div 
         v-for="team in teamStore.teams" 
         :key="team.id"
-        class="group relative w-full flex justify-center"
+        class="group relative flex w-full justify-center"
       >
         <!-- Active Indicator -->
         <div 
           v-if="teamStore.currentTeamId === team.id"
-          class="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-8 bg-brand rounded-r-full transition-standard"
+          class="absolute left-0 top-1/2 h-9 w-[4px] -translate-y-1/2 rounded-r-full bg-brand transition-standard"
         ></div>
 
         <!-- Team Button -->
         <button
           @click="selectTeam(team.id)"
-          class="w-10 h-10 rounded-r-2 font-bold text-sm transition-standard relative overflow-hidden flex items-center justify-center"
+          class="relative flex h-11 w-11 items-center justify-center overflow-hidden rounded-r-2 text-sm font-bold transition-standard"
           :class="{ 
             'bg-brand text-brand-foreground shadow-1': teamStore.currentTeamId === team.id,
-            'bg-bg-surface-1 text-text-1 hover:bg-bg-surface-1 hover:text-brand border border-border-1': teamStore.currentTeamId !== team.id
+            'border border-border-1 bg-bg-surface-1 text-text-1 hover:-translate-y-0.5 hover:border-border-2 hover:text-brand hover:shadow-1': teamStore.currentTeamId !== team.id
           }"
           :title="team.display_name || team.name"
         >
@@ -53,7 +57,7 @@ function getInitials(name: string): string {
         <!-- Unread Indicator -->
         <div 
           v-if="unreadStore.getTeamUnreadCount(team.id) > 0 && teamStore.currentTeamId !== team.id"
-          class="absolute -top-0.5 right-1 w-3 h-3 bg-danger rounded-full border-2 border-bg-surface-2 shadow-1"
+          class="absolute right-0.5 top-0 h-3 w-3 rounded-full border-2 border-bg-surface-2 bg-danger shadow-1"
         ></div>
       </div>
 
@@ -64,10 +68,10 @@ function getInitials(name: string): string {
     </div>
 
     <!-- Add Team Button -->
-    <div class="pt-3 border-t border-border-1 mt-auto w-full px-2">
+    <div class="mt-auto w-full border-t border-border-1 px-2 pt-3">
       <button 
         @click="showCreateModal = true"
-        class="w-10 h-10 mx-auto rounded-r-2 bg-bg-surface-1 hover:bg-success hover:text-white transition-standard flex items-center justify-center text-text-3 border border-dashed border-border-2 hover:border-success"
+        class="mx-auto flex h-11 w-11 items-center justify-center rounded-r-2 border border-dashed border-border-2 bg-bg-surface-1 text-text-3 transition-standard hover:border-brand hover:bg-brand/10 hover:text-brand"
         title="Create Team"
       >
         <Plus class="w-5 h-5" />

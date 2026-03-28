@@ -88,10 +88,10 @@ const handleLeave = async () => {
 
 <template>
   <header 
-    class="h-14 flex items-center justify-between px-3 sm:px-4 shrink-0 bg-bg-surface-1/95 backdrop-blur-sm border-b border-border-1 sticky top-0 z-10"
+    class="sticky top-0 z-10 flex h-14 shrink-0 items-center justify-between border-b border-border-1 bg-bg-surface-1/95 px-3 backdrop-blur-sm sm:px-4"
   >
     <!-- Left: Channel Info -->
-    <div class="flex items-center min-w-0 gap-2">
+    <div class="flex min-w-0 items-center gap-2.5">
       <!-- Mobile Menu Toggle -->
       <button
         v-if="isMobile"
@@ -103,27 +103,39 @@ const handleLeave = async () => {
       </button>
 
       <!-- Channel Icon & Name -->
-      <div class="flex items-center min-w-0">
-        <component 
-          :is="channelType === 'private' ? Lock : Hash" 
-          class="w-4 h-4 mr-1.5 shrink-0 text-brand"
-        />
-        <h1 class="font-semibold text-sm sm:text-base text-text-1 truncate">
-          {{ name }}
-        </h1>
+      <div class="flex min-w-0 items-center gap-2">
+        <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-r-1 bg-brand/10 text-brand">
+          <component 
+            :is="channelType === 'private' ? Lock : Hash" 
+            class="h-4 w-4"
+          />
+        </div>
+        <div class="min-w-0">
+          <div class="truncate text-[10px] font-semibold uppercase tracking-[0.18em] text-text-3">
+            {{ channelType === 'private' ? 'Private channel' : 'Channel' }}
+          </div>
+          <h1 class="truncate text-sm font-semibold text-text-1 sm:text-base">
+            {{ name }}
+          </h1>
+        </div>
       </div>
       
       <!-- Topic (hidden on mobile, truncated) -->
-      <p 
-        v-if="topic" 
-        class="hidden md:block text-xs text-text-3 truncate max-w-xs lg:max-w-md ml-2"
-      >
-        {{ topic }}
-      </p>
+      <div class="ml-2 hidden min-w-0 md:block">
+        <p 
+          v-if="topic" 
+          class="truncate text-xs text-text-3 max-w-xs lg:max-w-md"
+        >
+          {{ topic }}
+        </p>
+        <p v-else class="text-xs text-text-4">
+          No topic set yet
+        </p>
+      </div>
     </div>
     
     <!-- Right: Actions -->
-    <div class="flex items-center gap-0.5 sm:gap-1 shrink-0">
+    <div class="flex shrink-0 items-center gap-0.5 rounded-r-3 border border-border-1 bg-bg-surface-2/70 p-1 sm:gap-1">
       <!-- Members Button -->
       <button 
         @click="toggleView('members')"
