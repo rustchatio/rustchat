@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
 import { X, Users, ArrowRight, Check } from 'lucide-vue-next';
 import { useTeamStore } from '../../stores/teams';
 import { useToast } from '../../composables/useToast';
@@ -16,8 +16,10 @@ const teamStore = useTeamStore();
 const toast = useToast();
 const joining = ref<string | null>(null);
 
-onMounted(() => {
-    teamStore.fetchPublicTeams();
+watch(() => props.open, (isOpen) => {
+    if (isOpen) {
+        teamStore.fetchPublicTeams();
+    }
 });
 
 // Teams the user hasn't joined yet
@@ -51,54 +53,59 @@ async function joinTeam(teamId: string) {
     <Teleport to="body">
         <div v-if="open" class="fixed inset-0 z-50 flex items-center justify-center">
             <!-- Backdrop -->
-            <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" @click="emit('close')"></div>
+            <div class="absolute inset-0 bg-bg-app/70 backdrop-blur-sm" @click="emit('close')"></div>
             
             <!-- Modal -->
-            <div class="relative bg-slate-900 rounded-xl shadow-2xl border border-white/10 w-full max-w-lg max-h-[80vh] overflow-hidden">
+            <div class="relative mx-4 max-h-[80vh] w-full max-w-lg overflow-hidden rounded-r-3 border border-border-1 bg-bg-surface-1 shadow-2xl">
                 <!-- Header -->
-                <div class="flex items-center justify-between px-6 py-4 border-b border-white/10">
+                <div class="flex items-center justify-between border-b border-border-1 px-6 py-4">
                     <div class="flex items-center space-x-3">
-                        <Users class="w-5 h-5 text-indigo-400" />
-                        <h2 class="text-lg font-semibold text-white">Browse Teams</h2>
+                        <div class="flex h-10 w-10 items-center justify-center rounded-r-2 bg-brand/10 text-brand">
+                            <Users class="h-5 w-5" />
+                        </div>
+                        <div>
+                            <h2 class="text-lg font-semibold text-brand">Browse Teams</h2>
+                            <p class="text-xs text-text-3">Join another workspace without leaving your current flow.</p>
+                        </div>
                     </div>
-                    <button @click="emit('close')" class="p-1 hover:bg-white/10 rounded-lg transition-colors">
-                        <X class="w-5 h-5 text-gray-400" />
+                    <button @click="emit('close')" class="rounded-r-2 p-1 transition-standard hover:bg-bg-surface-2">
+                        <X class="h-5 w-5 text-text-3" />
                     </button>
                 </div>
 
                 <!-- Content -->
-                <div class="p-6 overflow-y-auto max-h-[60vh]">
-                    <div v-if="teamStore.loading" class="text-center py-8 text-gray-400">
+                <div class="max-h-[60vh] overflow-y-auto p-6">
+                    <div v-if="teamStore.loading" class="py-8 text-center text-text-3">
                         Loading teams...
                     </div>
 
-                    <div v-else-if="availableTeams.length === 0 && myTeams.length === 0" class="text-center py-8 text-gray-400">
-                        <Users class="w-12 h-12 mx-auto mb-4 text-gray-600" />
+                    <div v-else-if="availableTeams.length === 0 && myTeams.length === 0" class="py-8 text-center text-text-3">
+                        <Users class="mx-auto mb-4 h-12 w-12 text-text-4" />
                         <p>No public teams available</p>
                     </div>
 
                     <div v-else class="space-y-6">
                         <!-- Available to join -->
                         <div v-if="availableTeams.length > 0">
-                            <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Available to Join</h3>
+                            <h3 class="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-text-3">Available to Join</h3>
                             <div class="space-y-2">
                                 <div 
                                     v-for="team in availableTeams" 
                                     :key="team.id"
-                                    class="flex items-center justify-between p-4 bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors"
+                                    class="flex items-center justify-between rounded-r-2 border border-border-1 bg-bg-surface-2/70 p-4 transition-standard hover:bg-bg-surface-2"
                                 >
                                     <div class="flex-1 min-w-0">
-                                        <p class="font-medium text-white truncate">
+                                        <p class="truncate font-medium text-text-1">
                                             {{ team.display_name || team.name }}
                                         </p>
-                                        <p v-if="team.description" class="text-sm text-gray-400 truncate">
+                                        <p v-if="team.description" class="truncate text-sm text-text-3">
                                             {{ team.description }}
                                         </p>
                                     </div>
                                     <button
                                         @click="joinTeam(team.id)"
                                         :disabled="joining === team.id"
-                                        class="ml-4 flex items-center px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors"
+                                        class="ml-4 flex items-center rounded-r-2 bg-brand px-3 py-1.5 text-sm font-medium text-brand-foreground transition-standard hover:opacity-90 disabled:opacity-50"
                                     >
                                         <span>{{ joining === team.id ? 'Joining...' : 'Join' }}</span>
                                         <ArrowRight class="w-4 h-4 ml-1" />
@@ -109,20 +116,20 @@ async function joinTeam(teamId: string) {
 
                         <!-- Already a member -->
                         <div v-if="myTeams.length > 0">
-                            <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Already Joined</h3>
+                            <h3 class="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-text-3">Already Joined</h3>
                             <div class="space-y-2">
                                 <div 
                                     v-for="team in myTeams" 
                                     :key="team.id"
-                                    class="flex items-center justify-between p-4 bg-slate-800/50 rounded-lg"
+                                    class="flex items-center justify-between rounded-r-2 border border-border-1 bg-bg-surface-2/45 p-4"
                                 >
                                     <div class="flex-1 min-w-0">
-                                        <p class="font-medium text-white truncate">
+                                        <p class="truncate font-medium text-text-1">
                                             {{ team.display_name || team.name }}
                                         </p>
                                     </div>
-                                    <div class="flex items-center text-green-400 text-sm">
-                                        <Check class="w-4 h-4 mr-1" />
+                                    <div class="flex items-center text-sm text-success">
+                                        <Check class="mr-1 h-4 w-4" />
                                         Member
                                     </div>
                                 </div>

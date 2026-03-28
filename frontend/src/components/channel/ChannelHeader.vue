@@ -111,10 +111,10 @@ const handleLeave = async () => {
           />
         </div>
         <div class="min-w-0">
-          <div class="truncate text-[10px] font-semibold uppercase tracking-[0.18em] text-text-3">
+          <div class="truncate text-[10px] font-semibold uppercase tracking-[0.18em] text-brand/70">
             {{ channelType === 'private' ? 'Private channel' : 'Channel' }}
           </div>
-          <h1 class="truncate text-sm font-semibold text-text-1 sm:text-base">
+          <h1 class="truncate text-sm font-semibold text-brand sm:text-base">
             {{ name }}
           </h1>
         </div>

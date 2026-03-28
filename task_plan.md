@@ -242,6 +242,41 @@ Small compatibility-aligned messaging fixes:
 
 ---
 
+## UIX refinement: reaction identity + shell/status alignment
+
+### Scope completed
+- [x] Normalized reaction identity so alias/name/glyph variants collapse into one reaction bucket (`frontend/src/utils/emoji.ts`, `frontend/src/stores/messages.ts`, `frontend/src/components/channel/MessageItem.vue`).
+- [x] Extended reaction updates to cover loaded thread replies as well as top-level channel messages (`frontend/src/stores/messages.ts`).
+- [x] Compressed the top-left brand lockup and simplified header search to a single clear action (`frontend/src/components/layout/GlobalHeader.vue`).
+- [x] Theme-aligned the channel identity headline so it no longer reads as hard black against the shell (`frontend/src/components/channel/ChannelHeader.vue`).
+- [x] Upgraded DM rows from abstract status dots to avatar-led identity with proper presence badges (`frontend/src/components/layout/ChannelSidebar.vue`, `frontend/src/components/ui/RcAvatar.vue`).
+- [x] Redesigned member list and profile modal presence treatment with explicit status labels/icons and token-safe surfaces (`frontend/src/components/channel/ChannelMembersPanel.vue`, `frontend/src/components/modals/UserProfileModal.vue`).
+- [x] Removed the admin/slate modal theme leak from team, channel, and direct-message pickers so collaboration flows use the same token-driven shell styling (`frontend/src/components/modals/BrowseTeamsModal.vue`, `frontend/src/components/modals/BrowseChannelsModal.vue`, `frontend/src/components/modals/DirectMessageModal.vue`).
+
+### Verification Status
+
+#### Automated
+1. `cd frontend && npm run build`
+- Result: PASS
+- Note: existing Vite warning remains for `frontend/src/stores/calls.ts` being both dynamically and statically imported.
+
+### Manual Verification Commands
+1. `cd /Users/scolak/Projects/rustchat/frontend && npm run dev`
+2. Open a message with existing reactions, add `👍`, and confirm the same visible emoji does not render twice when websocket updates land.
+3. Open a thread reply and repeat the same reaction toggle check there.
+4. Review the authenticated shell header and confirm:
+   - the site title uses the brand accent instead of reading as hard black
+   - the brand block is less crowded
+   - the center search treatment is a single-line “Search” action
+5. Open the members panel and a user profile modal and confirm presence states render with consistent labels/icons for `Online`, `Away`, `Do not disturb`, and `Offline`.
+6. Open `Browse Teams`, `Browse Channels`, and `Direct Messages` and confirm they inherit the regular collaboration theme instead of the old dark/admin palette.
+
+### Readiness
+- The approved UIX spec items for reaction deduplication, header/search compression, and presence/status credibility are implemented in code.
+- Remaining acceptance should come from a quick live browser pass against the authenticated app to confirm the final feel matches the intended shell direction.
+
+---
+
 ## 001-platform-foundation: RustChat Platform Foundation
 
 ### Specification

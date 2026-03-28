@@ -18,6 +18,7 @@ import ChannelContextMenu from '../channels/ChannelContextMenu.vue';
 import AddChannelMembersModal from '../modals/AddChannelMembersModal.vue';
 import type { SidebarCategory } from '../../api/channels';
 import { channelRepository } from '../../features/channels/repositories/channelRepository';
+import RcAvatar from '../ui/RcAvatar.vue';
 
 const teamStore = useTeamStore();
 const channelStore = useChannelStore();
@@ -124,6 +125,8 @@ function normalizeChannelForDisplay(c: any) {
   let displayName = c.display_name || c.name;
   let otherId = '';
   let status = 'offline';
+  let avatarUrl = '';
+  let username = '';
   
   // Handle DM channels
   if (c.channel_type === 'direct' || c.name?.startsWith('dm_')) {
@@ -133,6 +136,8 @@ function normalizeChannelForDisplay(c: any) {
       const member = teamStore.members.find(m => m.user_id === otherId);
       if (member) {
         displayName = member.display_name || member.username;
+        avatarUrl = member.avatar_url || '';
+        username = member.username;
       }
     }
     
@@ -157,6 +162,9 @@ function normalizeChannelForDisplay(c: any) {
   return {
     id: c.id,
     name: displayName,
+    username: username || displayName,
+    avatarUrl,
+    userId: otherId,
     type: channelType,
     status: status,
     unread: unreadCount,
@@ -448,17 +456,14 @@ async function handleLeaveTeam() {
                 >
                   <Hash v-if="channel.type === 'public'" class="w-4 h-4" />
                   <Lock v-else-if="channel.type === 'private'" class="w-3.5 h-3.5" />
-                  <div v-else-if="channel.type === 'dm'" class="relative flex items-center justify-center w-4 h-4">
-                    <div 
-                      class="w-2.5 h-2.5 rounded-full border-2"
-                      :class="{ 
-                        'bg-success border-success': channel.status === 'online',
-                        'bg-transparent border-text-3': channel.status === 'offline',
-                        'bg-warning border-warning': channel.status === 'away',
-                        'bg-danger border-danger': channel.status === 'dnd'
-                      }"
-                    />
-                  </div>
+                  <RcAvatar
+                    v-else-if="channel.type === 'dm'"
+                    :user-id="channel.userId"
+                    :username="channel.username"
+                    :src="channel.avatarUrl"
+                    size="sm"
+                    class="ring-1 ring-border-1/70"
+                  />
                   <MessageCircle v-else class="w-4 h-4" />
                 </span>
                 
@@ -466,7 +471,8 @@ async function handleLeaveTeam() {
                 <span 
                   class="truncate text-sm"
                   :class="{ 
-                    'text-text-1 font-semibold': channelStore.currentChannelId === channel.id || channel.unread > 0 || channel.mention,
+                    'text-brand font-semibold': channelStore.currentChannelId === channel.id,
+                    'text-text-1 font-semibold': channelStore.currentChannelId !== channel.id && (channel.unread > 0 || channel.mention),
                     'text-text-2 font-medium': channel.unread === 0 && !channel.mention && channelStore.currentChannelId !== channel.id,
                   }"
                 >

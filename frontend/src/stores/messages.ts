@@ -6,6 +6,14 @@ import { useUnreadStore } from './unreads'
 import { useAuthStore } from './auth'
 import { useTeamStore } from './teams'
 import { normalizeEntityId } from '../utils/idCompat'
+import { getPreferredEmojiName, getReactionEmojiKey } from '../utils/emoji'
+
+export interface MessageReaction {
+    emoji: string
+    count: number
+    users: string[]
+    apiKey?: string
+}
 
 export interface Message {
     id: string
@@ -16,7 +24,7 @@ export interface Message {
     email?: string
     content: string
     timestamp: string
-    reactions: { emoji: string; count: number; users: string[] }[]
+    reactions: MessageReaction[]
     threadCount?: number
     lastReplyAt?: string
     rootId?: string
@@ -106,6 +114,72 @@ function resolveAuthorDetails(rawPost: Post & { username?: string; avatar_url?: 
     }
 }
 
+function normalizeReactionUsers(users: unknown): string[] {
+    if (!Array.isArray(users)) {
+        return []
+    }
+
+    return Array.from(
+        new Set(
+            users
+                .map((user) => normalizeEntityId(user) ?? user?.toString?.())
+                .filter((user): user is string => typeof user === 'string' && user.length > 0)
+        )
+    )
+}
+
+function mergeReaction(target: MessageReaction, incoming: MessageReaction): MessageReaction {
+    const users = Array.from(new Set([...target.users, ...incoming.users]))
+    return {
+        emoji: target.emoji,
+        apiKey: target.apiKey || incoming.apiKey,
+        users,
+        count: users.length > 0 ? users.length : target.count + incoming.count,
+    }
+}
+
+function normalizeReaction(rawReaction: any): MessageReaction | null {
+    if (!rawReaction || typeof rawReaction !== 'object' || typeof rawReaction.emoji !== 'string') {
+        return null
+    }
+
+    const emoji = getReactionEmojiKey(rawReaction.emoji)
+    const users = normalizeReactionUsers(rawReaction.users)
+    const numericCount = Number(rawReaction.count)
+
+    return {
+        emoji,
+        apiKey: getPreferredEmojiName(rawReaction.emoji),
+        users,
+        count: users.length > 0
+            ? users.length
+            : (Number.isFinite(numericCount) && numericCount > 0 ? numericCount : 1),
+    }
+}
+
+function normalizeReactions(rawReactions: unknown): MessageReaction[] {
+    if (!Array.isArray(rawReactions)) {
+        return []
+    }
+
+    const reactionsByEmoji = new Map<string, MessageReaction>()
+
+    for (const rawReaction of rawReactions) {
+        const reaction = normalizeReaction(rawReaction)
+        if (!reaction) {
+            continue
+        }
+
+        const existing = reactionsByEmoji.get(reaction.emoji)
+        reactionsByEmoji.set(
+            reaction.emoji,
+            existing ? mergeReaction(existing, reaction) : reaction
+        )
+    }
+
+    return Array.from(reactionsByEmoji.values())
+}
+
 export function postToMessage(post: Post): Message {
     const rawPost = post as Post & {
         root_id?: string
@@ -128,11 +202,7 @@ export function postToMessage(post: Post): Message {
         email: author.email,
         content: rawPost.message,
         timestamp: toIsoTimestamp(rawPost.created_at ?? rawPost.create_at),
-        reactions: rawPost.reactions?.map((r: any) => ({
-            emoji: r.emoji,
-            count: r.count,
-            users: r.users.map((u: any) => normalizeEntityId(u) ?? u.toString())
-        })) || [],
+        reactions: normalizeReactions(rawPost.reactions),
         rootId,
         threadCount: rawPost.reply_count || 0,
         lastReplyAt: toOptionalIsoTimestamp(rawPost.last_reply_at),
@@ -161,6 +231,28 @@ export const useMessageStore = defineStore('messages', () => {
     }
 
     const hasMoreOlder = computed(() => (channelId: string) => hasMoreOlderByChannel.value[channelId] ?? true)
+
+    function visitLoadedMessages(visitor: (message: Message, collection: Message[]) => void) {
+        for (const messages of Object.values(messagesByChannel.value)) {
+            if (!messages) {
+                continue
+            }
+
+            for (const message of messages) {
+                visitor(message, messages)
+            }
+        }
+
+        for (const replies of Object.values(repliesByThread.value)) {
+            if (!replies) {
+                continue
+            }
+
+            for (const reply of replies) {
+                visitor(reply, replies)
+            }
+        }
+    }
 
     async function fetchMessages(channelId: string) {
         loading.value = true
@@ -526,70 +618,60 @@ export const useMessageStore = defineStore('messages', () => {
     }
 
     function handleReactionAdded(data: any) {
-        // data: { post_id, user_id, emoji_name, created_at, ... }
-        // We need to find the post. It usually comes via broadcast which has channel_id in envelope context, 
-        // but robustly the event data should contain channel_id OR we search? 
-        // The previous implementation relied on context. 
-        // Let's assume we can pass channelId to this function or it's in data.
-        // My backend broadcast for reaction added DOES include channel_id in the *envelope*, but data itself is just Reaction struct.
-        // Reaction struct doesn't have channelId. 
-        // However, I updated `add_reaction` in backend to broadcast the reaction... wait. 
-        // The `ws` handler passes `envelope.data`. If `envelope.channel_id` is set, `useWebSocket` could pass it.
-        // `useWebSocket` calls `handleReactionAdded(envelope.data)`.
-        // If data doesn't have channel_id, we are stuck unless we search.
-        // Simplification: Search all channels or require channel_id.
-        // I should have injected channel_id into the data payload or use envelope context.
+        const reactionKey = getReactionEmojiKey(data.emoji_name)
+        const apiKey = getPreferredEmojiName(data.emoji_name)
 
-        // Quick fix: loop through loaded channels to find post.
-        for (const cid in messagesByChannel.value) {
-            const messages = messagesByChannel.value[cid];
-            if (!messages) continue;
-
-            const msg = messages.find(m => m.id === data.post_id)
-            if (msg) {
-                // Found message
-                const existingReaction = msg.reactions.find(r => r.emoji === data.emoji_name)
-                if (existingReaction) {
-                    if (!existingReaction.users.includes(data.user_id)) {
-                        existingReaction.users.push(data.user_id)
-                        existingReaction.count++
-                    }
-                } else {
-                    msg.reactions.push({
-                        emoji: data.emoji_name,
-                        count: 1,
-                        users: [data.user_id]
-                    })
-                }
+        visitLoadedMessages((message) => {
+            if (message.id !== data.post_id) {
                 return
             }
-        }
+
+            const existingReaction = message.reactions.find((reaction) => reaction.emoji === reactionKey)
+            if (existingReaction) {
+                if (!existingReaction.users.includes(data.user_id)) {
+                    existingReaction.users.push(data.user_id)
+                }
+                existingReaction.count = existingReaction.users.length || existingReaction.count + 1
+                existingReaction.apiKey = existingReaction.apiKey || apiKey
+            } else {
+                message.reactions.push({
+                    emoji: reactionKey,
+                    apiKey,
+                    count: 1,
+                    users: [data.user_id],
+                })
+            }
+        })
     }
 
     function handleReactionRemoved(data: any) {
-        for (const cid in messagesByChannel.value) {
-            const messages = messagesByChannel.value[cid];
-            if (!messages) continue;
+        const reactionKey = getReactionEmojiKey(data.emoji_name)
 
-            const msg = messages.find(m => m.id === data.post_id)
-            if (msg) {
-                const index = msg.reactions.findIndex(r => r.emoji === data.emoji_name)
-                if (index !== -1) {
-                    const reaction = msg.reactions[index]
-                    if (!reaction) continue;
-
-                    const userIndex = reaction.users.indexOf(data.user_id)
-                    if (userIndex !== -1) {
-                        reaction.users.splice(userIndex, 1)
-                        reaction.count--
-                        if (reaction.count <= 0) {
-                            msg.reactions.splice(index, 1)
-                        }
-                    }
-                }
+        visitLoadedMessages((message) => {
+            if (message.id !== data.post_id) {
                 return
             }
-        }
+
+            const index = message.reactions.findIndex((reaction) => reaction.emoji === reactionKey)
+            if (index === -1) {
+                return
+            }
+
+            const reaction = message.reactions[index]
+            if (!reaction) {
+                return
+            }
+
+            const userIndex = reaction.users.indexOf(data.user_id)
+            if (userIndex !== -1) {
+                reaction.users.splice(userIndex, 1)
+            }
+
+            reaction.count = reaction.users.length > 0 ? reaction.users.length : reaction.count - 1
+            if (reaction.count <= 0) {
+                message.reactions.splice(index, 1)
+            }
+        })
     }
 
     return {

@@ -1,3 +1,215 @@
+# SPEC: Reaction Emoji Deduplication and Shell Refinement Pass (2026-03-28)
+
+## Problem Statement
+
+RustChat’s current shipped UI is much closer to the intended `Focused Warm Utility` direction, but two issues remain visible:
+
+1. Users report that pressing an emoji action can create the same emoji twice.
+2. The authenticated shell still undershoots the design intent in `DESIGN.md` on a few high-value surfaces, especially header balance, message-canvas presence, and composer clarity.
+
+Live review findings from [https://app.rustchat.io](https://app.rustchat.io) with the provided test account:
+
+1. The main composer emoji button inserts a single emoji correctly in the primary composer flow.
+2. That makes the duplicate-emoji report more likely to be a reaction-identity bug than a generic picker bug.
+3. The most likely source is reaction normalization drift:
+   - optimistic UI can store a Unicode glyph like `👍`
+   - websocket and backend payloads can use canonical short names like `+1` or `thumbsup`
+   - the store currently keys reaction merge/removal by raw string equality, which can allow visually identical reactions to exist twice
+4. Visually, the shell is improved but still has a few gaps versus `DESIGN.md`:
+   - global search still dominates the top bar more than brand and current-context signals
+   - the message canvas still feels too vacant in low-activity channels
+   - the composer reads as serviceable but slightly over-separated and icon-heavy rather than one confident interaction block
+   - left-rail quick-action/utility zones remain weaker than the primary collaboration hierarchy
+5. Additional screenshot-specific issues:
+   - the active channel headline can read as hard black instead of theme-aligned foreground, which breaks the token system and looks wrong under different themes
+   - the top-left brand lockup is too tall and crowded, especially the secondary branding line
+   - the search slab is over-explained, with both a large prompt and a second helper line competing for attention
+   - presence and status indicators for other users are not visually trustworthy enough for a Slack/Mattermost competitor, especially in avatars and direct-message contexts
+
+## Goals
+
+1. Fix the duplicate emoji behavior at the reaction/state level so one logical reaction cannot render twice under different internal keys.
+2. Keep emoji identity consistent across optimistic UI, REST payloads, fetched post payloads, and websocket events.
+3. Do a focused refinement pass on the authenticated shell so it tracks more closely with the existing `DESIGN.md` direction.
+4. Fix theme-sensitive text and hierarchy problems in the shell header and channel header.
+5. Redesign user presence/status presentation so other users’ state is legible, trustworthy, and competitive with Slack and Mattermost.
+6. Keep the scope high-signal: fix the reaction bug and improve the first-view shell/composer experience without reopening unrelated product areas.
+
+## Non-Goals
+
+1. No backend schema or API contract changes unless absolutely required for consistency.
+2. No broad redesign of settings/admin surfaces in this pass.
+3. No custom emoji feature work.
+4. No full navigation or information-architecture rewrite.
+5. No speculative visual experimentation outside the existing “Focused Warm Utility” system.
+
+## Scope and Contract Impact
+
+In scope:
+- reaction identity normalization in frontend message/realtime handling
+- shell/composer refinement aligned to `DESIGN.md`
+- live verification against the current authenticated app
+
+Primary target files:
+- `frontend/src/components/channel/MessageItem.vue`
+- `frontend/src/stores/messages.ts`
+- `frontend/src/composables/useWebSocket.ts`
+- `frontend/src/utils/emoji.ts`
+- `frontend/src/components/layout/GlobalHeader.vue`
+- `frontend/src/components/layout/ChannelSidebar.vue`
+- `frontend/src/components/channel/ChannelHeader.vue`
+- `frontend/src/components/channel/MessageList.vue`
+- `frontend/src/components/composer/MessageComposer.vue`
+- `frontend/src/components/ui/RcAvatar.vue`
+- `frontend/src/components/channel/ChannelMembersPanel.vue`
+- `frontend/src/components/modals/UserProfileModal.vue`
+
+Contract impact:
+- No intended server/API contract change.
+- User-visible behavior change:
+  - reacting with an emoji should produce one reaction, not two visually identical entries
+  - the authenticated shell should feel more intentional and better aligned with the current design system
+
+Out of scope:
+- settings/admin redesign beyond incidental token consistency if touched locally
+- calls UI redesign
+- Mattermost parity changes unrelated to reaction identity normalization
+
+## Current Implementation Findings
+
+### Reaction Bug
+
+1. `frontend/src/components/channel/MessageItem.vue` sends reactions using the value it has on hand, which can be either a glyph or an emoji-name string depending on source.
+2. `frontend/src/stores/messages.ts` merges reaction updates by exact `emoji_name` string equality in `handleReactionAdded` and `handleReactionRemoved`.
+3. `frontend/src/composables/useWebSocket.ts` normalizes websocket reaction payload shape, but not reaction identity to one canonical key.
+4. `frontend/src/utils/emoji.ts` already has enough mapping data to canonicalize multiple names to the same glyph, including values like `+1` and `thumbsup`.
+5. Result: the same visible emoji can exist twice if optimistic state and websocket/fetched state use different internal representations.
+
+### Live Shell Review
+
+1. The shell has better rhythm than before, but search still visually reads as the dominant hero in the header.
+2. Brand/current-team context is improved, yet still not authoritative enough compared with the search slab and utility chrome.
+3. Quiet channels still feel slightly underdesigned; the empty/low-activity center canvas needs more intentional structure and warmth.
+4. The main composer works, but the toolbar/footer treatment still feels like adjacent strips instead of one cohesive send surface.
+5. The sidebar hierarchy is readable, but the lowest-priority utility zones remain more washed out than the rest of the shell.
+6. `frontend/src/components/channel/ChannelHeader.vue` already uses token classes, but the live screenshot shows we should explicitly audit all headline/channel-title text so no black default text slips through themed surfaces.
+7. `frontend/src/components/layout/GlobalHeader.vue` currently spends too much vertical and cognitive space on:
+   - the secondary branding line
+   - the team chip
+   - the two-line search prompt and helper copy
+8. `frontend/src/components/layout/ChannelSidebar.vue` and `frontend/src/components/ui/RcAvatar.vue` still present other-user status mostly as small colored dots. That is too weak and, in some places, visually wrong for a serious collaboration product.
+9. The other-user status system needs one coherent product rule:
+   - availability state
+   - custom status
+   - avatar badge/icon treatment
+   - DM/sidebar/member-list representation
+   should all agree with each other.
+
+## Implementation Outline
+
+### Phase 1: Canonicalize Reaction Identity
+
+Target files:
+- `frontend/src/utils/emoji.ts`
+- `frontend/src/stores/messages.ts`
+- `frontend/src/composables/useWebSocket.ts`
+- `frontend/src/components/channel/MessageItem.vue`
+
+Work:
+- introduce one shared frontend canonicalization helper for reaction keys
+- normalize reaction identity before optimistic add/remove and before websocket merge/remove
+- ensure fetched post reactions and live reaction updates collapse onto the same internal key
+
+Expected outcome:
+- one visible emoji maps to one stored reaction bucket
+- the same reaction cannot appear twice under `👍` and `+1`/`thumbsup`
+
+### Phase 2: Tighten Message Reaction UX
+
+Target files:
+- `frontend/src/components/channel/MessageItem.vue`
+- possibly `frontend/src/components/thread/ThreadReplyItem.vue` if reaction rendering needs the same normalization logic
+
+Work:
+- confirm reaction toggles and rendered counts remain stable after normalization
+- ensure add/remove behavior still works for both existing name-based reactions and glyph-based picker interactions
+
+Expected outcome:
+- reactions feel reliable and visually singular
+
+### Phase 3: Focused Shell and Composer Refinement
+
+Target files:
+- `frontend/src/components/layout/GlobalHeader.vue`
+- `frontend/src/components/layout/ChannelSidebar.vue`
+- `frontend/src/components/channel/ChannelHeader.vue`
+- `frontend/src/components/channel/MessageList.vue`
+- `frontend/src/components/composer/MessageComposer.vue`
+
+Work:
+- reduce search dominance slightly and strengthen workspace/channel context hierarchy
+- make low-activity canvas states feel more intentional instead of just empty
+- unify the composer into a more confident single interaction block
+- improve weak utility zones so they support, rather than dilute, the core shell hierarchy
+- remove over-explanatory search helper copy and compress the search treatment toward one clear action
+- reduce brand-lockup crowding so the product feels calmer and more premium
+- verify channel/context headlines inherit theme-aware foreground tokens instead of reading as hard black
+
+Expected outcome:
+- the shell tracks more closely with the existing `Focused Warm Utility` spec
+- first-view product quality feels less generic and more deliberate
+
+### Phase 4: Presence and Status System Refinement
+
+Target files:
+- `frontend/src/components/ui/RcAvatar.vue`
+- `frontend/src/components/layout/ChannelSidebar.vue`
+- `frontend/src/components/channel/ChannelMembersPanel.vue`
+- `frontend/src/components/modals/UserProfileModal.vue`
+- `frontend/src/components/layout/GlobalHeader.vue`
+
+Work:
+- define one visual system for other-user availability states that is credible at Slack/Mattermost quality
+- replace ambiguous or weak presence dots where necessary with clearer badge/icon treatment
+- distinguish availability from custom status so users do not have to infer one from the other
+- ensure DM rows, member lists, avatars, and profile surfaces all show consistent status semantics
+
+Expected outcome:
+- other users’ state is readable at a glance
+- avatar/status treatment feels deliberate, not improvised
+- RustChat looks more like a serious collaboration product and less like a generic chat clone
+
+## Verification Plan
+
+Automated:
+- `cd frontend && npm run build`
+
+Manual:
+- `cd frontend && npm run dev`
+- main shell:
+  - verify header balance, sidebar scanability, and quiet-channel presence
+  - verify the active channel title and related headlines remain theme-aligned and never drift to hard black
+- reaction flow:
+  - add a reaction from the emoji picker to a message that already has reactions
+  - confirm only one visual reaction bucket appears for the selected emoji
+  - toggle the same reaction off and back on
+- composer:
+  - confirm main composer emoji insertion still inserts exactly once
+- presence/status:
+  - verify DM rows, member lists, avatars, and user profile surfaces show consistent availability semantics
+  - verify online, away, do-not-disturb, and offline states are visually distinct and theme-safe
+- live spot-check:
+  - re-login to [https://app.rustchat.io](https://app.rustchat.io) and compare the updated shell against the current screenshots
+
+## Expected Result
+
+After this pass:
+- the duplicate emoji behavior is gone because reaction identity is normalized
+- the authenticated shell better expresses the design system already defined in `DESIGN.md`
+- the product feels more trustworthy both functionally and visually
+
+---
+
 # SPEC: CI Required-Check Alignment for Frontend-Only PRs (2026-03-28)
 
 ## Problem Statement

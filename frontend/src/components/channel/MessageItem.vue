@@ -13,7 +13,7 @@ import EmojiPicker from '../atomic/EmojiPicker.vue'
 import FilePreview from '../atomic/FilePreview.vue'
 import RcAvatar from '../ui/RcAvatar.vue'
 import ImageGallery from '../atomic/ImageGallery.vue'
-import { getEmojiChar } from '../../utils/emoji'
+import { getEmojiChar, getPreferredEmojiName, getReactionEmojiKey } from '../../utils/emoji'
 import type { FileUploadResponse } from '../../api/files'
 import { renderMarkdown } from '../../utils/markdown'
 
@@ -235,16 +235,13 @@ function handleEmojiPickerClose() {
 }
 
 async function toggleReaction(emoji: string) {
-  const reaction = props.message.reactions?.find((r) => {
-    const rendered = getEmojiChar(r.emoji)
-    const selected = getEmojiChar(emoji)
-    return r.emoji === emoji || rendered === emoji || rendered === selected
-  })
+  const reactionKey = getReactionEmojiKey(emoji)
+  const reaction = props.message.reactions?.find((r) => getReactionEmojiKey(r.emoji) === reactionKey)
   const me = authStore.user?.id
   if (!me) return
 
   const hasReacted = reaction?.users.includes(me)
-  const emojiKey = reaction?.emoji || emoji
+  const emojiKey = reaction?.apiKey || getPreferredEmojiName(emoji)
 
   try {
     if (hasReacted) {
