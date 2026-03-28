@@ -24,7 +24,7 @@ const form = ref({
     custom_description_text: '',
     service_environment: 'production',
     max_file_size_mb: 50,
-    max_simultaneous_connections: 5,
+    max_simultaneous_connections: 20,
     enable_file: true,
     enable_user_statuses: true,
     enable_custom_emoji: true,

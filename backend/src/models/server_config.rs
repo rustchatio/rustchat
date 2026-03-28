@@ -104,7 +104,7 @@ fn default_max_file_size() -> i32 {
     50
 }
 fn default_max_simultaneous_connections() -> i32 {
-    5
+    20
 }
 fn default_about_link() -> String {
     "https://docs.mattermost.com/about/product.html/".to_string()

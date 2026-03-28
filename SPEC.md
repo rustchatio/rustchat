@@ -1,3 +1,116 @@
+# SPEC: Theme Source-of-Truth Fix + Brand/Typography Second Pass (2026-03-28)
+
+## Problem Statement
+
+The first design pass fixed control density and mobile settings navigation, but Rustchat still reads as generic SaaS. The main reasons are:
+
+1. The product still defaults to Inter plus indigo-heavy tokens, which gives the shell a starter-template feel.
+2. The theme system is split across two implementations:
+   - active app wiring in `frontend/src/stores/theme.ts`
+   - newer parallel implementation in `frontend/src/features/theme/*`
+3. Many surfaces still use hardcoded `gray-*`, `dark:*`, and direct Tailwind color classes instead of the app tokens from `frontend/src/style.css`.
+
+That split makes theme behavior unreliable. Theme selection can update some surfaces while other text and surfaces keep old assumptions, which risks unreadable font colors or washed-out hierarchy on certain theme choices.
+
+## Goals
+
+1. Move the app out of the “generic SaaS” band with a more intentional default typography/brand direction.
+2. Make theme application predictable by using one theme source of truth for runtime appearance.
+3. Audit and fix font/text color usage on key authenticated surfaces so theme changes do not lose readability.
+4. Preserve the existing theme options and user-facing theme picker behavior.
+5. Keep changes focused on the app shell and settings surfaces first, not a repo-wide redesign.
+
+## Non-Goals
+
+1. No backend API contract changes.
+2. No new theme picker UX or new persisted preference schema.
+3. No full migration of every legacy component in one pass.
+4. No marketing-site redesign. This is app UI work.
+
+## Scope and Contract Impact
+
+In scope:
+- `frontend/src/stores/theme.ts`
+- `frontend/src/main.ts`
+- `frontend/src/style.css`
+- authenticated surfaces with strong theme/brand impact, especially:
+  - `frontend/src/components/layout/GlobalHeader.vue`
+  - `frontend/src/components/settings/SettingsModal.vue`
+  - `frontend/src/components/settings/display/DisplayTab.vue`
+  - `frontend/src/views/settings/ProfileView.vue`
+  - shared setting-row components if needed
+
+Contract impact:
+- No server/API contract change expected.
+- Persisted local/server appearance preferences should keep the same stored values (`theme`, `font`, `font_size`).
+- User-visible contract change: theme selection should consistently update shell/text colors, and the default appearance should feel more intentional.
+
+Out of scope:
+- Removing `frontend/src/features/theme/*` unless that becomes necessary for correctness.
+- Restyling every admin page or every old legacy view in this pass.
+
+## Current Implementation Findings
+
+1. `frontend/src/main.ts` boots the legacy store via `useThemeStore(pinia).applyAppearance()`.
+2. Settings/profile/theme controls also use the legacy store in `frontend/src/stores/theme.ts`.
+3. A second theme stack exists in `frontend/src/features/theme/services/themeService.ts` and `frontend/src/features/theme/stores/themeStore.ts`, but it is not the active entrypoint.
+4. `frontend/src/stores/theme.ts` writes extra legacy variables like `--theme-sidebar-bg`, `--theme-center-channel-color`, etc., while the actual app token mapping in `frontend/src/style.css` is driven by `--theme-*` core tokens and `data-theme`.
+5. Several UI surfaces, especially `frontend/src/views/settings/ProfileView.vue`, still use direct `bg-gray-*`, `text-gray-*`, and `dark:*` classes rather than tokenized theme colors, which makes theme coverage incomplete.
+
+## Implementation Outline
+
+1. Establish one runtime theme source of truth.
+   - Keep the currently active legacy store path for this task.
+   - Treat `frontend/src/stores/theme.ts` as the canonical runtime controller.
+   - Avoid mixing writes from `frontend/src/features/theme/*` during this pass.
+
+2. Tighten theme token usage.
+   - Audit key authenticated surfaces for hardcoded gray/dark classes.
+   - Replace them with app tokens (`bg-bg-*`, `text-text-*`, `border-border-*`, `brand`, etc.) where appropriate.
+   - Prioritize settings/profile/display surfaces and shell hierarchy first.
+
+3. Improve typography/brand baseline.
+   - Change the default app font away from Inter to a more intentional existing font option already defined in `frontend/src/style.css`.
+   - Rebalance shell hierarchy so product identity and context feel stronger than utility chrome.
+   - Keep the app calm and functional, not decorative.
+
+4. Normalize theme color behavior for text contrast.
+   - Review each shipped theme in `frontend/src/style.css` for text/body/subtle text pairings.
+   - Adjust token values where necessary so primary text, muted text, and brand accents remain legible.
+   - Specifically validate dark, futuristic, dynamic, and high-contrast themes, where failure risk is highest.
+
+5. Verify end-to-end appearance behavior.
+   - Confirm theme switches update the app shell, settings surfaces, and profile/preferences screens consistently.
+   - Confirm font and font-size selections still apply correctly after the cleanup.
+
+## Verification Plan
+
+Automated:
+- `cd frontend && npm run build`
+- `cd frontend && npm run test:e2e:settings-parity` (update or re-baseline only after intentional visual review)
+
+Manual:
+- Run the app and switch through at least: `light`, `dark`, `modern`, `dynamic`, `futuristic`, `high-contrast`.
+- Verify these screens after each switch:
+  - main channel view
+  - settings modal: notifications, display, profile
+  - profile/settings page if still reachable separately
+- Verify:
+  - primary text remains clearly readable
+  - muted/helper text is still readable and not washed out
+  - brand/action buttons remain distinct from background
+  - font choice updates globally
+  - font size updates globally
+
+Concrete manual verification command:
+- `cd frontend && npm run dev`
+
+Expected result after implementation:
+- Rustchat should feel less like a default template.
+- Theme selection should no longer leave key text colors stranded on the wrong contrast assumptions.
+
+---
+
 # SPEC: WebSocket Auth Expiry Enforcement (2026-03-13)
 
 > **📁 MOVED TO SUPERPOWERS STRUCTURE**
