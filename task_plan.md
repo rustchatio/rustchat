@@ -220,6 +220,46 @@ secondary identity text
 - Ready for QA and review.
 - Follow-up work can widen this same harness to team settings, create-channel affordances, and any remaining permission-sensitive menus if we want a broader permission sweep.
 
+### Expansion Status
+- Expanded on `2026-03-29` to cover team settings and create-channel flows.
+- Added team-management capability helpers and sidebar gating for `Team Settings`.
+- Added create-channel capability helpers and sidebar/modal gating for standard channel creation.
+- Added backend enforcement for:
+  - `DELETE /api/v1/teams/{id}` using the same team-admin / `TEAM_MANAGE` rule as team update
+  - `POST /api/v1/channels` standard channel creation using `CHANNEL_CREATE` with `CHANNEL_MANAGE` override for admins
+- Added regression coverage for:
+  - unauthorized team delete
+  - authorized team-admin delete
+  - unauthorized standard channel create
+  - authorized member standard channel create
+  - team settings visibility / lock state
+  - create-channel visibility / lock state
+
+### Expanded Verification Status
+1. `cd /Users/scolak/Projects/rustchat/frontend && npm exec vitest run src/features/permissions/capabilities.test.ts src/features/permissions/permissionsUi.test.ts`
+- Result: PASS, `16 passed`
+2. `cd /Users/scolak/Projects/rustchat/frontend && npm run test:unit`
+- Result: PASS, `31 passed`
+3. `cd /Users/scolak/Projects/rustchat/frontend && npm run build`
+- Result: PASS
+- Note: existing Vite warning about `frontend/src/stores/calls.ts` being both dynamically and statically imported still appears, but the build completes successfully.
+4. `cd /Users/scolak/Projects/rustchat/backend && cargo test --test api_permissions -- --nocapture`
+- Result: PASS, `8 passed`
+- Note: local test bootstrap still logs the known S3 credential warning noise.
+
+### Expanded Manual Verification Commands
+1. `cd /Users/scolak/Projects/rustchat/frontend && npm run dev`
+2. Log in as a regular member or guest and verify the current-team menu does not show `Team Settings`, and the sidebar does not show standard-channel create affordances.
+3. Open the team settings modal indirectly as an unauthorized user and verify it shows a locked/access-denied state instead of editable controls.
+4. Open the create-channel modal indirectly as an unauthorized user and verify it shows a locked/access-denied state instead of the creation form.
+5. With a low-privilege token, run:
+   `curl -i -X DELETE http://127.0.0.1:3000/api/v1/teams/<team-id> -H "Authorization: Bearer $TOKEN"`
+   Expect `403 Forbidden`.
+6. With a token lacking `CHANNEL_CREATE`, run:
+   `curl -i -X POST http://127.0.0.1:3000/api/v1/channels -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{"team_id":"<team-id>","name":"blocked-channel","display_name":"Blocked Channel","channel_type":"public"}'`
+   Expect `403 Forbidden`.
+7. With a team admin or authorized member token, verify team settings and standard channel creation still succeed.
+
 ## 2026-03-28 CI Required-Check Alignment for Frontend-Only PRs
 
 ### Task

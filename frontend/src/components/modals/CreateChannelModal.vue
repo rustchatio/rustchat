@@ -3,6 +3,8 @@ import { ref, computed } from 'vue';
 import { X } from 'lucide-vue-next';
 import { useTeamStore } from '../../stores/teams';
 import { useChannelStore } from '../../stores/channels';
+import { useAuthStore } from '../../stores/auth';
+import { canCreateChannel as canCreateChannelForRole } from '../../features/permissions/capabilities';
 import BaseButton from '../atomic/BaseButton.vue';
 import BaseInput from '../atomic/BaseInput.vue';
 
@@ -16,6 +18,7 @@ const emit = defineEmits<{
 
 const teamStore = useTeamStore();
 const channelStore = useChannelStore();
+const authStore = useAuthStore();
 
 const name = ref('');
 const displayName = ref('');
@@ -25,8 +28,14 @@ const loading = ref(false);
 const error = ref('');
 
 const currentTeam = computed(() => teamStore.currentTeam);
+const canCreateStandardChannel = computed(() => canCreateChannelForRole(authStore.user?.role));
 
 async function handleSubmit() {
+    if (!canCreateStandardChannel.value) {
+        error.value = 'You do not have permission to create channels';
+        return;
+    }
+
     if (!name.value.trim()) {
         error.value = 'Channel name is required';
         return;
@@ -88,8 +97,20 @@ function handleClose() {
           </button>
         </div>
 
+        <div v-if="!canCreateStandardChannel" class="p-6 space-y-4">
+          <div class="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
+            You do not have permission to create channels.
+          </div>
+
+          <div class="flex justify-end pt-2">
+            <BaseButton variant="secondary" @click="handleClose">
+              Close
+            </BaseButton>
+          </div>
+        </div>
+
         <!-- Form -->
-        <form @submit.prevent="handleSubmit" class="p-6 space-y-4">
+        <form v-else @submit.prevent="handleSubmit" class="p-6 space-y-4">
           <!-- No Team Warning -->
           <div v-if="!currentTeam" class="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg text-yellow-600 dark:text-yellow-400 text-sm">
             Please create or select a team first.

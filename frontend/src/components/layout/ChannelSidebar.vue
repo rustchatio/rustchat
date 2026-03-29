@@ -21,6 +21,10 @@ import RcAvatar from '../ui/RcAvatar.vue';
 import { getDirectMessageCounterpartyId } from '../../utils/directMessage';
 import { getPresencePresentation } from '../../features/presence/presencePresentation';
 import { getUserSummarySnapshot, prefetchUserSummaries } from '../../composables/useUserSummary';
+import {
+  canCreateChannel as canCreateChannelForRole,
+  useCurrentTeamManagementPermission,
+} from '../../features/permissions/capabilities';
 
 const teamStore = useTeamStore();
 const channelStore = useChannelStore();
@@ -51,6 +55,12 @@ const contextMenuTrigger = ref<HTMLElement | null>(null);
 const showMoveToModal = ref(false);
 const moveToCategories = ref<SidebarCategory[]>([]);
 const moveToChannelId = ref('');
+const { canManageTeam: canManageCurrentTeam } = useCurrentTeamManagementPermission(
+  () => teamStore.currentTeamId,
+)
+const canCreateChannelsInCurrentTeam = computed(() =>
+  !!teamStore.currentTeamId && canCreateChannelForRole(authStore.user?.role),
+)
 
 // Reload channels when team changes
 watch(() => teamStore.currentTeamId, (teamId) => {
@@ -311,6 +321,9 @@ function handleAddCategory(catId: string) {
   if (catId === 'dms') {
     showDirectMessageModal.value = true;
   } else {
+    if (!canCreateChannelsInCurrentTeam.value) {
+      return;
+    }
     showCreateModal.value = true;
   }
 }
@@ -378,6 +391,7 @@ async function handleLeaveTeam() {
           Browse Teams
         </button>
         <button
+          v-if="canManageCurrentTeam"
           @click="showTeamSettings = true; showTeamMenu = false"
           class="w-full flex items-center gap-3 px-4 py-2 text-sm text-text-2 hover:bg-bg-surface-2 transition-standard"
         >
@@ -429,6 +443,7 @@ async function handleLeaveTeam() {
                 {{ cat.channels.length }}
               </span>
               <button 
+                v-if="cat.id === 'dms' || canCreateChannelsInCurrentTeam"
                 @click.stop="handleAddCategory(cat.id)"
                 class="rounded p-1 opacity-0 transition-standard hover:bg-bg-surface-1 group-hover:opacity-100"
                 :title="cat.id === 'dms' ? 'New direct message' : 'Create channel'"
@@ -597,6 +612,7 @@ async function handleLeaveTeam() {
         <span>Browse channels</span>
       </button>
       <button 
+        v-if="canCreateChannelsInCurrentTeam"
         @click="showCreateModal = true"
         class="flex w-full items-center gap-3 rounded-r-1 px-2 py-1.5 text-left text-xs text-text-3 transition-standard hover:bg-bg-surface-1 hover:text-text-1"
       >

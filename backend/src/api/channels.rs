@@ -303,6 +303,14 @@ async fn create_channel(
         ));
     }
 
+    if !auth.has_permission(&permissions::CHANNEL_CREATE)
+        && !auth.has_permission(&permissions::CHANNEL_MANAGE)
+    {
+        return Err(AppError::Forbidden(
+            "Missing permission to create channels".to_string(),
+        ));
+    }
+
     // Check if team exists and user is member
     let member = sqlx::query("SELECT 1 FROM team_members WHERE team_id = $1 AND user_id = $2")
         .bind(input.team_id)

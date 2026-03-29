@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
         loading: false,
         currentTeamId: 'team-1',
         fetchTeams: vi.fn(),
+        fetchMembers: vi.fn(),
         selectTeam: vi.fn(),
         members: [],
     },
@@ -25,12 +26,23 @@ const mocks = vi.hoisted(() => ({
     },
     channelStore: {
         updateChannel: vi.fn(),
+        channels: [],
+        currentChannelId: null,
+        publicChannels: [],
+        privateChannels: [],
+        directMessages: [],
+        fetchChannels: vi.fn(),
+        selectChannel: vi.fn(),
+        clearChannels: vi.fn(),
+        removeChannel: vi.fn(),
+        clearCounts: vi.fn(),
     },
     channelPrefsStore: {
         isFavorite: vi.fn(() => false),
         isMuted: vi.fn(() => false),
         toggleFavorite: vi.fn(),
         toggleMute: vi.fn(),
+        fetchPreferences: vi.fn(),
     },
     channelRepository: {
         getCategories: vi.fn(async () => []),
@@ -50,6 +62,7 @@ const mocks = vi.hoisted(() => ({
         success: vi.fn(),
         error: vi.fn(),
     },
+    canManageTeam: { value: false, __v_isRef: true },
     canManageChannel: { value: false, __v_isRef: true },
     isLoading: { value: false, __v_isRef: true },
 }))
@@ -93,6 +106,12 @@ vi.mock('../../composables/useToast', () => ({
 vi.mock('./capabilities', () => ({
     canCreateTeam: (role?: string | null) =>
         ['system_admin', 'org_admin', 'team_admin', 'admin'].includes(role ?? ''),
+    canCreateChannel: (role?: string | null) =>
+        ['system_admin', 'org_admin', 'team_admin', 'admin', 'member'].includes(role ?? ''),
+    useCurrentTeamManagementPermission: () => ({
+        canManageTeam: mocks.canManageTeam,
+        currentTeamMembershipRole: { value: null, __v_isRef: true },
+    }),
     useChannelManagementPermission: () => ({
         canManageChannel: mocks.canManageChannel,
         isLoading: mocks.isLoading,
@@ -107,6 +126,13 @@ describe('permission UI guardrails', () => {
             id: 'user-1',
             role: 'member',
         }
+        mocks.teamStore.currentTeamId = 'team-1'
+        mocks.teamStore.currentTeam = {
+            id: 'team-1',
+            name: 'team-1',
+            display_name: 'Team 1',
+        }
+        mocks.canManageTeam.value = false
         mocks.canManageChannel.value = false
         mocks.isLoading.value = false
     })
@@ -142,6 +168,98 @@ describe('permission UI guardrails', () => {
         })
 
         expect(wrapper.find('button[title="Create Team"]').exists()).toBe(true)
+    })
+
+    it('hides the team settings entry for users who cannot manage the current team', async () => {
+        const ChannelSidebar = (await import('../../components/layout/ChannelSidebar.vue')).default
+
+        const wrapper = mount(ChannelSidebar, {
+            global: {
+                stubs: {
+                    CreateChannelModal: true,
+                    DirectMessageModal: true,
+                    TeamSettingsModal: true,
+                    BrowseTeamsModal: true,
+                    BrowseChannelsModal: true,
+                    AddChannelMembersModal: true,
+                    ChannelContextMenu: true,
+                    RcAvatar: true,
+                    teleport: true,
+                },
+                mocks: {
+                    $router: {
+                        push: vi.fn(),
+                    },
+                },
+            },
+        })
+
+        await wrapper.find('.group').trigger('click')
+
+        expect(wrapper.text()).not.toContain('Team Settings')
+    })
+
+    it('shows the team settings entry for team managers', async () => {
+        mocks.canManageTeam.value = true
+
+        const ChannelSidebar = (await import('../../components/layout/ChannelSidebar.vue')).default
+
+        const wrapper = mount(ChannelSidebar, {
+            global: {
+                stubs: {
+                    CreateChannelModal: true,
+                    DirectMessageModal: true,
+                    TeamSettingsModal: true,
+                    BrowseTeamsModal: true,
+                    BrowseChannelsModal: true,
+                    AddChannelMembersModal: true,
+                    ChannelContextMenu: true,
+                    RcAvatar: true,
+                    teleport: true,
+                },
+                mocks: {
+                    $router: {
+                        push: vi.fn(),
+                    },
+                },
+            },
+        })
+
+        await wrapper.find('.group').trigger('click')
+
+        expect(wrapper.text()).toContain('Team Settings')
+    })
+
+    it('hides create channel affordances for guests', async () => {
+        mocks.authStore.user = {
+            id: 'user-1',
+            role: 'guest',
+        }
+
+        const ChannelSidebar = (await import('../../components/layout/ChannelSidebar.vue')).default
+
+        const wrapper = mount(ChannelSidebar, {
+            global: {
+                stubs: {
+                    CreateChannelModal: true,
+                    DirectMessageModal: true,
+                    TeamSettingsModal: true,
+                    BrowseTeamsModal: true,
+                    BrowseChannelsModal: true,
+                    AddChannelMembersModal: true,
+                    ChannelContextMenu: true,
+                    RcAvatar: true,
+                    teleport: true,
+                },
+                mocks: {
+                    $router: {
+                        push: vi.fn(),
+                    },
+                },
+            },
+        })
+
+        expect(wrapper.text()).not.toContain('Create channel')
     })
 
     it('hides add-members actions in the channel context menu for unauthorized members', async () => {
@@ -192,5 +310,70 @@ describe('permission UI guardrails', () => {
         expect(wrapper.text()).toContain('You do not have permission to manage this channel.')
         expect(wrapper.text()).not.toContain('Save Changes')
         expect(wrapper.text()).not.toContain('Add Member')
+    })
+
+    it('shows a locked state in team settings for unauthorized members', async () => {
+        const TeamSettingsModal = (await import('../../components/modals/TeamSettingsModal.vue')).default
+
+        const wrapper = mount(TeamSettingsModal, {
+            props: {
+                isOpen: true,
+                team: {
+                    id: 'team-1',
+                    name: 'team-1',
+                    display_name: 'Team 1',
+                    description: null,
+                    invite_id: null,
+                    is_public: true,
+                    allow_open_invite: true,
+                    created_at: new Date().toISOString(),
+                },
+            },
+            global: {
+                stubs: {
+                    teleport: true,
+                    BaseButton: {
+                        template: '<button><slot /></button>',
+                    },
+                    BaseInput: {
+                        template: '<input />',
+                    },
+                },
+            },
+        })
+
+        expect(wrapper.text()).toContain('You do not have permission to manage this team.')
+        expect(wrapper.text()).not.toContain('Save Changes')
+        expect(wrapper.text()).not.toContain('Add Member')
+    })
+
+    it('shows a locked state in create channel modal for unauthorized users', async () => {
+        mocks.authStore.user = {
+            id: 'user-1',
+            role: 'guest',
+        }
+
+        const CreateChannelModal = (await import('../../components/modals/CreateChannelModal.vue')).default
+
+        const wrapper = mount(CreateChannelModal, {
+            props: {
+                show: true,
+            },
+            global: {
+                stubs: {
+                    teleport: true,
+                    BaseButton: {
+                        template: '<button><slot /></button>',
+                    },
+                    BaseInput: {
+                        template: '<input />',
+                    },
+                },
+            },
+        })
+
+        expect(wrapper.text()).toContain('You do not have permission to create channels.')
+        expect(wrapper.text()).not.toContain('Channel Type')
+        expect(wrapper.text()).not.toContain('Channel Name')
     })
 })

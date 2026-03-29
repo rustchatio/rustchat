@@ -1,6 +1,7 @@
 import { computed, ref, watchEffect } from 'vue'
 import { channelsApi } from '../../api/channels'
 import { useAuthStore } from '../../stores/auth'
+import { useTeamStore } from '../../stores/teams'
 
 const TEAM_MANAGER_ROLES = new Set([
     'system_admin',
@@ -14,6 +15,19 @@ const CHANNEL_MANAGER_ROLES = new Set([
     'org_admin',
     'team_admin',
     'admin',
+])
+
+const CHANNEL_CREATOR_ROLES = new Set([
+    'system_admin',
+    'org_admin',
+    'team_admin',
+    'admin',
+    'member',
+])
+
+const TEAM_ADMIN_MEMBERSHIP_ROLES = new Set([
+    'admin',
+    'owner',
 ])
 
 interface ChannelPermissionSnapshot {
@@ -39,6 +53,26 @@ export function canCreateTeam(role?: string | null) {
     return canManageTeams(role)
 }
 
+export function canCreateChannel(role?: string | null) {
+    return !!(role && CHANNEL_CREATOR_ROLES.has(role))
+}
+
+export function canManageTeam(options: {
+    currentUserRole?: string | null
+    currentTeamMembershipRole?: string | null
+}) {
+    const { currentUserRole, currentTeamMembershipRole } = options
+
+    if (canManageTeams(currentUserRole)) {
+        return true
+    }
+
+    return !!(
+        currentTeamMembershipRole &&
+        TEAM_ADMIN_MEMBERSHIP_ROLES.has(currentTeamMembershipRole)
+    )
+}
+
 export function canManageChannel(options: {
     currentUserRole?: string | null
     currentUserId?: string | null
@@ -60,6 +94,37 @@ export function canManageChannel(options: {
 
 export function clearChannelPermissionCache() {
     channelPermissionCache.value = {}
+}
+
+export function useCurrentTeamManagementPermission(
+    teamIdSource: () => string | null | undefined,
+) {
+    const authStore = useAuthStore()
+    const teamStore = useTeamStore()
+
+    const currentTeamMembershipRole = computed(() => {
+        const teamId = teamIdSource()
+        if (!teamId || teamStore.currentTeamId !== teamId || !authStore.user?.id) {
+            return null
+        }
+
+        const membership = teamStore.members.find(
+            (member) => member.user_id === authStore.user?.id,
+        )
+        return membership?.role ?? null
+    })
+
+    const canManageCurrentTeam = computed(() =>
+        canManageTeam({
+            currentUserRole: authStore.user?.role,
+            currentTeamMembershipRole: currentTeamMembershipRole.value,
+        }),
+    )
+
+    return {
+        canManageTeam: canManageCurrentTeam,
+        currentTeamMembershipRole,
+    }
 }
 
 async function ensureChannelPermissionLoaded(channelId: string, userId: string) {

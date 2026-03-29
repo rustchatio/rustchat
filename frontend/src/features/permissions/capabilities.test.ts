@@ -10,6 +10,11 @@ const authStore = {
     } as { id: string; role: string } | null,
 }
 
+const teamStore = {
+    currentTeamId: 'team-1',
+    members: [] as Array<{ user_id: string; role: string }>,
+}
+
 vi.mock('../../api/channels', () => ({
     channelsApi: {
         getMembers: getMembersMock,
@@ -18,6 +23,10 @@ vi.mock('../../api/channels', () => ({
 
 vi.mock('../../stores/auth', () => ({
     useAuthStore: () => authStore,
+}))
+
+vi.mock('../../stores/teams', () => ({
+    useTeamStore: () => teamStore,
 }))
 
 async function flushPromises() {
@@ -33,6 +42,8 @@ describe('permission capabilities', () => {
             id: 'user-1',
             role: 'member',
         }
+        teamStore.currentTeamId = 'team-1'
+        teamStore.members = []
 
         const module = await import('./capabilities')
         module.clearChannelPermissionCache()
@@ -45,6 +56,54 @@ describe('permission capabilities', () => {
         expect(canCreateTeam('guest')).toBe(false)
         expect(canCreateTeam('org_admin')).toBe(true)
         expect(canCreateTeam('system_admin')).toBe(true)
+    })
+
+    it('allows channel creation for members and admins but not guests', async () => {
+        const { canCreateChannel } = await import('./capabilities')
+
+        expect(canCreateChannel('guest')).toBe(false)
+        expect(canCreateChannel('member')).toBe(true)
+        expect(canCreateChannel('org_admin')).toBe(true)
+    })
+
+    it('allows team management for team admins through membership role', async () => {
+        const { canManageTeam, useCurrentTeamManagementPermission } = await import('./capabilities')
+
+        expect(
+            canManageTeam({
+                currentUserRole: 'member',
+                currentTeamMembershipRole: 'admin',
+            }),
+        ).toBe(true)
+
+        teamStore.members = [
+            { user_id: 'user-1', role: 'admin' },
+            { user_id: 'user-2', role: 'member' },
+        ]
+
+        const { canManageTeam: canManageCurrentTeam } = useCurrentTeamManagementPermission(
+            () => 'team-1',
+        )
+
+        await flushPromises()
+
+        expect(canManageCurrentTeam.value).toBe(true)
+    })
+
+    it('keeps team management disabled for regular team members', async () => {
+        const { useCurrentTeamManagementPermission } = await import('./capabilities')
+
+        teamStore.members = [
+            { user_id: 'user-1', role: 'member' },
+        ]
+
+        const { canManageTeam: canManageCurrentTeam } = useCurrentTeamManagementPermission(
+            () => 'team-1',
+        )
+
+        await flushPromises()
+
+        expect(canManageCurrentTeam.value).toBe(false)
     })
 
     it('allows channel management for the channel creator without fetching members', async () => {
