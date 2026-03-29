@@ -67,12 +67,12 @@
 - Regression coverage is still missing for message-store reaction merge/remove behavior and backend custom-status propagation/expiry.
 
 ### Implementation Checklist
-- [ ] Extend the backend realtime status contract so other-user custom status updates can reach live clients.
+- [x] Extend the backend realtime status contract so other-user custom status updates can reach live clients.
 - [x] Decide and implement custom-status expiry semantics server-side, including clear behavior after expiry.
-- [ ] Normalize `frontend/src/components/layout/ChannelSidebar.vue` onto the shared user-summary path for DM identity/status rendering.
-- [ ] Align backend team-member endpoints so presence is consistent across equivalent routes.
-- [ ] Add frontend regression tests for `frontend/src/stores/messages.ts` reaction merge/remove behavior.
-- [ ] Add backend regression tests for custom-status websocket propagation and expiry behavior.
+- [x] Normalize `frontend/src/components/layout/ChannelSidebar.vue` onto the shared user-summary path for DM identity/status rendering.
+- [x] Align backend team-member endpoints so presence is consistent across equivalent routes.
+- [x] Add frontend regression tests for `frontend/src/stores/messages.ts` reaction merge/remove behavior.
+- [x] Add backend regression tests for custom-status websocket propagation and expiry behavior.
 
 ### Manual Verification Commands
 1. `cd /Users/scolak/Projects/rustchat/frontend && npm run dev`
@@ -90,6 +90,20 @@
 
 ### Progress Notes
 - Custom-status expiry is now enforced two ways: lazily on REST reads and proactively by a backend worker that clears expired rows and broadcasts `status_change` updates to connected clients.
+- The expiry worker poll interval is configurable via `RUSTCHAT_STATUS_EXPIRY_POLL_INTERVAL_SECONDS`; default is `5` seconds.
+
+### Verification Status
+1. `cd /Users/scolak/Projects/rustchat/frontend && npm run test:unit`
+- Result: PASS
+
+2. `cd /Users/scolak/Projects/rustchat/frontend && npm run build`
+- Result: PASS
+
+3. `cd /Users/scolak/Projects/rustchat/backend && cargo test --test api_v4_mobile_presence -- --nocapture`
+- Result: PASS
+
+4. `cd /Users/scolak/Projects/rustchat/frontend && npm run test:e2e`
+- Result: PASS (`60 passed`)
 
 ## 2026-03-28 CI Required-Check Alignment for Frontend-Only PRs
 

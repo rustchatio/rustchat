@@ -11,11 +11,14 @@ use crate::api::v4::status;
 use crate::api::AppState;
 use crate::error::ApiResult;
 
-const STATUS_EXPIRY_POLL_INTERVAL_SECS: u64 = 5;
-
 pub fn spawn_custom_status_expiry_worker(state: Arc<AppState>) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
-        let mut ticker = interval(Duration::from_secs(STATUS_EXPIRY_POLL_INTERVAL_SECS));
+        let interval_secs = state
+            .config
+            .messaging
+            .status_expiry_poll_interval_seconds
+            .max(1);
+        let mut ticker = interval(Duration::from_secs(interval_secs));
         ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
 
         loop {

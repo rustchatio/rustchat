@@ -275,10 +275,21 @@ impl Default for KeycloakSyncConfig {
 }
 
 /// Messaging policy configuration
-#[derive(Debug, Clone, Deserialize, Default)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct MessagingConfig {
     #[serde(default)]
     pub dm_acl_enabled: bool,
+    #[serde(default = "default_status_expiry_poll_interval_seconds")]
+    pub status_expiry_poll_interval_seconds: u64,
+}
+
+impl Default for MessagingConfig {
+    fn default() -> Self {
+        Self {
+            dm_acl_enabled: false,
+            status_expiry_poll_interval_seconds: default_status_expiry_poll_interval_seconds(),
+        }
+    }
 }
 
 /// Compatibility feature flags.
@@ -372,6 +383,10 @@ fn default_keycloak_interval_seconds() -> u64 {
 
 fn default_keycloak_mapping_mode() -> String {
     "attributes_only".to_string()
+}
+
+fn default_status_expiry_poll_interval_seconds() -> u64 {
+    5
 }
 
 /// Database connection pool configuration
@@ -693,6 +708,10 @@ impl Config {
         if let Ok(raw) = std::env::var("RUSTCHAT_MESSAGING_DM_ACL_ENABLED") {
             self.messaging.dm_acl_enabled =
                 parse_bool_env("RUSTCHAT_MESSAGING_DM_ACL_ENABLED", &raw)?;
+        }
+        if let Ok(raw) = std::env::var("RUSTCHAT_STATUS_EXPIRY_POLL_INTERVAL_SECONDS") {
+            self.messaging.status_expiry_poll_interval_seconds =
+                parse_u64_env("RUSTCHAT_STATUS_EXPIRY_POLL_INTERVAL_SECONDS", &raw)?;
         }
         Ok(())
     }

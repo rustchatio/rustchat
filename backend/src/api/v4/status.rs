@@ -70,6 +70,16 @@ pub struct UserStatusSnapshot {
     pub expires_at: Option<i64>,
 }
 
+#[derive(Debug, sqlx::FromRow)]
+struct UserStatusSnapshotRow {
+    presence: String,
+    manual: bool,
+    last_login_at: Option<DateTime<Utc>>,
+    text: Option<String>,
+    emoji: Option<String>,
+    expires_at: Option<DateTime<Utc>>,
+}
+
 /// Custom status duration options (Mattermost-compatible)
 #[derive(Debug, Clone, Deserialize, Default)]
 #[serde(rename_all = "snake_case")]
@@ -773,21 +783,14 @@ pub async fn fetch_user_status_snapshot(
 ) -> ApiResult<UserStatusSnapshot> {
     let _ = clear_expired_custom_status_if_needed(state, user_id).await?;
 
-    let result: (
-        String,
-        bool,
-        Option<chrono::DateTime<Utc>>,
-        Option<String>,
-        Option<String>,
-        Option<chrono::DateTime<Utc>>,
-    ) = sqlx::query_as(
+    let result: UserStatusSnapshotRow = sqlx::query_as(
         r#"
         SELECT presence,
-               COALESCE(presence_manual, false),
+               COALESCE(presence_manual, false) AS manual,
                last_login_at,
-               status_text,
-               status_emoji,
-               status_expires_at
+               status_text AS text,
+               status_emoji AS emoji,
+               status_expires_at AS expires_at
         FROM users
         WHERE id = $1
         "#,
@@ -796,20 +799,21 @@ pub async fn fetch_user_status_snapshot(
     .fetch_one(&state.db)
     .await?;
 
-    let (presence, manual, last_login, text, emoji, expires_at) = result;
-
     Ok(UserStatusSnapshot {
         user_id: encode_mm_id(user_id),
-        status: if presence.is_empty() {
+        status: if result.presence.is_empty() {
             "offline".to_string()
         } else {
-            presence
+            result.presence
         },
-        manual,
-        last_activity_at: last_login.map(|t| t.timestamp_millis()).unwrap_or(0),
-        text,
-        emoji,
-        expires_at: expires_at.map(|t| t.timestamp_millis()),
+        manual: result.manual,
+        last_activity_at: result
+            .last_login_at
+            .map(|t| t.timestamp_millis())
+            .unwrap_or(0),
+        text: result.text,
+        emoji: result.emoji,
+        expires_at: result.expires_at.map(|t| t.timestamp_millis()),
     })
 }
 
