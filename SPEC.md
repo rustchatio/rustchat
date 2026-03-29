@@ -1,76 +1,73 @@
-# SPEC: Team Creation Permission Regression Blocking Categories Tests (2026-03-29)
+# SPEC: Categories Test Fix Without Relaxing Team Creation Permissions (2026-03-29)
 
 ## Problem Statement
 
-`backend/tests/api_categories.rs` now fails before any sidebar-category logic runs.
-
-The failure is on `POST /api/v1/teams`, which returns `403 Forbidden` for a freshly registered user:
+`backend/tests/api_categories.rs` fails before any sidebar-category logic runs because the test setup tries to create a team through `POST /api/v1/teams` as a normal `member` user:
 - [backend/tests/api_categories.rs:69](/Users/scolak/Projects/rustchat/backend/tests/api_categories.rs:69)
 - [backend/tests/api_categories.rs:257](/Users/scolak/Projects/rustchat/backend/tests/api_categories.rs:257)
 
-Current root cause:
-- [backend/src/api/auth.rs](/Users/scolak/Projects/rustchat/backend/src/api/auth.rs) registers public users with role `member`
-- [backend/src/api/teams.rs](/Users/scolak/Projects/rustchat/backend/src/api/teams.rs) gates team creation on `TEAM_MANAGE`
-- [backend/src/auth/policy.rs](/Users/scolak/Projects/rustchat/backend/src/auth/policy.rs) defines `TEAM_CREATE`, but the create-team handler does not use it, and the `member` role does not currently grant it
+But the product rule is that regular `member` users should **not** be allowed to create teams. Team creation is intentionally restricted.
 
-That means the API currently blocks the exact flow the integration tests rely on: register, log in, create a personal team, then continue with team-scoped category operations.
+So the correct fix is not to relax backend permissions. The correct fix is to change the failing tests and any contradictory regression coverage so they set up teams using an allowed path.
 
 ## Goals
 
-1. Restore the expected ability for a normal registered user to create a team through `POST /api/v1/teams`.
-2. Align the permission check with the explicit `TEAM_CREATE` capability instead of overloading `TEAM_MANAGE`.
-3. Add regression coverage so this does not silently break category and other team-setup tests again.
+1. Preserve the existing restriction that `member` users cannot create teams.
+2. Fix the category integration tests so they no longer rely on forbidden behavior.
+3. Restore regression coverage so it matches the intended permission model.
 
 ## Non-Goals
 
-1. No broader RBAC redesign.
-2. No change to team deletion, update, or member-management permissions in this pass.
-3. No frontend permission-affordance sweep.
-4. No change to sidebar category behavior itself unless the team-creation unblock reveals a second bug.
+1. No change to the live team-creation permission contract.
+2. No RBAC redesign.
+3. No change to sidebar category behavior unless test setup reveals a second real bug.
+4. No frontend permission work in this pass.
 
 ## Scope and Contract Impact
 
 ### In Scope
 
-1. Update the native v1 team creation permission gate in [backend/src/api/teams.rs](/Users/scolak/Projects/rustchat/backend/src/api/teams.rs).
-2. Decide and encode the intended permission source in [backend/src/auth/policy.rs](/Users/scolak/Projects/rustchat/backend/src/auth/policy.rs).
-3. Add or update backend regression tests for allowed and forbidden team creation flows.
-4. Re-run the focused failing suite:
-   - `cargo test --test api_categories -- --nocapture`
+1. Revert the local permission relaxation in:
+   - [backend/src/api/teams.rs](/Users/scolak/Projects/rustchat/backend/src/api/teams.rs)
+   - [backend/src/auth/policy.rs](/Users/scolak/Projects/rustchat/backend/src/auth/policy.rs)
+2. Update [backend/tests/api_categories.rs](/Users/scolak/Projects/rustchat/backend/tests/api_categories.rs) to create teams via an allowed path.
+3. Update [backend/tests/api_permissions.rs](/Users/scolak/Projects/rustchat/backend/tests/api_permissions.rs) so it asserts that members are blocked from team creation.
 
 ### Contract Impact
 
-1. `POST /api/v1/teams` should succeed for the supported self-serve creator role.
-2. Users without the intended create-team permission should still get `403 Forbidden`.
-3. Existing team-management operations should remain unchanged.
+1. `POST /api/v1/teams` remains forbidden for `member`.
+2. `POST /api/v1/teams` remains allowed only for the intended elevated role path.
+3. Category tests stop depending on a forbidden bootstrap flow.
 
 ## Implementation Outline
 
-1. Change the create-team handler to validate against `TEAM_CREATE`, not `TEAM_MANAGE`.
-2. Grant `TEAM_CREATE` to the normal self-serve role if that is the intended product rule for newly registered users.
-3. Add a regression test that proves:
-   - a normal registered user can create a team
-   - a role without `TEAM_CREATE` is rejected
-4. Re-run `api_categories` and focused permission tests.
+1. Revert the local change that switched team creation from `TEAM_MANAGE` to `TEAM_CREATE`.
+2. Revert the local `TEAM_CREATE` grants added to `member` and the related policy assertions.
+3. Change category-test setup to one of these allowed paths:
+   - register/login as `org_admin` when the test needs to create a team via API, or
+   - insert the team and membership directly in the test database
+4. Restore permission regression tests so:
+   - `member` cannot create team
+   - elevated role can create team
+5. Re-run the focused suites.
 
 ## Verification Plan
 
 Automated:
 1. `cd /Users/scolak/Projects/rustchat/backend && cargo test --test api_categories -- --nocapture`
 2. `cd /Users/scolak/Projects/rustchat/backend && cargo test --test api_permissions -- --nocapture`
-3. `cd /Users/scolak/Projects/rustchat/backend && cargo clippy --all-targets --all-features -- -D warnings`
+3. `cd /Users/scolak/Projects/rustchat/backend && cargo check`
+4. `cd /Users/scolak/Projects/rustchat/backend && cargo clippy --all-targets --all-features -- -D warnings`
 
 Manual:
-1. Register a new user.
-2. Log in with that user.
-3. `curl -i -X POST http://127.0.0.1:3000/api/v1/teams -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{"name":"self-serve-team","display_name":"Self Serve Team","description":"Permission regression check"}'`
-4. Expect `200 OK` for the allowed creator role.
+1. Attempt `POST /api/v1/teams` with a `member` token and confirm `403 Forbidden`.
+2. Attempt the same with an elevated allowed role and confirm success.
 
 ## Risks and Notes
 
-1. If the recent permission tightening was intentional product policy, the right fix may be the tests, not the handler. Current evidence points the other way because the category integration flow assumes self-serve team creation as a baseline capability.
-2. `TEAM_CREATE` currently exists but appears partially wired. This regression likely came from tightening the handler without finishing the permission model.
-3. If other tests rely on the same flow, fixing this once should unblock more than `api_categories`.
+1. The current local workspace contains an uncommitted permission relaxation that should be reverted before this lands.
+2. If many tests assume self-serve team creation, we may need a shared admin bootstrap helper to keep future tests honest.
+3. Direct DB setup is acceptable for integration-test scaffolding if it keeps the API contract strict and the test intent focused.
 
 # SPEC: Permission Guardrails Expansion for Team Settings and Create-Channel Flows (2026-03-29)
 

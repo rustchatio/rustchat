@@ -117,6 +117,7 @@ impl Role {
         use permissions::*;
         let mut permissions = HashSet::new();
 
+        permissions.insert(TEAM_CREATE);
         permissions.insert(TEAM_MANAGE);
         permissions.insert(CHANNEL_MANAGE);
         permissions.insert(USER_READ);
@@ -135,6 +136,7 @@ impl Role {
         use permissions::*;
         let mut permissions = HashSet::new();
 
+        permissions.insert(TEAM_CREATE);
         permissions.insert(TEAM_MANAGE);
         permissions.insert(CHANNEL_MANAGE);
         permissions.insert(USER_MANAGE);
@@ -154,6 +156,7 @@ impl Role {
         // Basic permissions for regular users
         permissions.insert(USER_READ);
         permissions.insert(USER_UPDATE); // Own profile only
+        permissions.insert(TEAM_CREATE);
         permissions.insert(TEAM_READ);
         permissions.insert(CHANNEL_READ);
         permissions.insert(CHANNEL_CREATE); // Can create channels
@@ -313,6 +316,7 @@ mod tests {
     fn test_member_limited_permissions() {
         let member = Role::member();
 
+        assert!(member.has_permission(&TEAM_CREATE));
         assert!(member.has_permission(&POST_CREATE));
         assert!(member.has_permission(&CHANNEL_READ));
         assert!(!member.has_permission(&USER_MANAGE));
@@ -337,6 +341,11 @@ mod tests {
 
         assert_eq!(
             PolicyEngine::check_permission("member", &POST_CREATE),
+            AuthzResult::Allow
+        );
+
+        assert_eq!(
+            PolicyEngine::check_permission("member", &TEAM_CREATE),
             AuthzResult::Allow
         );
 

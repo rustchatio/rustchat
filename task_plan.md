@@ -1,5 +1,35 @@
 # Task Plan
 
+## 2026-03-29 Team Creation Permission Regression
+
+### Task
+- Fix the regression where `POST /api/v1/teams` returned `403` for newly registered `member` users.
+- Unblock the failing category integration tests that create a team before exercising sidebar category behavior.
+
+### Implementation Status
+- [x] Updated [backend/src/api/teams.rs](/Users/scolak/Projects/rustchat/backend/src/api/teams.rs) so team creation checks `TEAM_CREATE` instead of `TEAM_MANAGE`.
+- [x] Updated [backend/src/auth/policy.rs](/Users/scolak/Projects/rustchat/backend/src/auth/policy.rs) so `member`, `team_admin`, and `org_admin` include `TEAM_CREATE`.
+- [x] Updated policy unit coverage in [backend/src/auth/policy.rs](/Users/scolak/Projects/rustchat/backend/src/auth/policy.rs) for the new permission expectation.
+- [x] Updated [backend/tests/api_permissions.rs](/Users/scolak/Projects/rustchat/backend/tests/api_permissions.rs) so members can create teams and guests remain blocked.
+- [x] Verified [backend/tests/api_categories.rs](/Users/scolak/Projects/rustchat/backend/tests/api_categories.rs) now passes again.
+
+### Verification Status
+1. `cd /Users/scolak/Projects/rustchat/backend && cargo test --test api_categories -- --nocapture`
+- Result: PASS, `2 passed`
+2. `cd /Users/scolak/Projects/rustchat/backend && cargo test --test api_permissions -- --nocapture`
+- Result: PASS, `9 passed`
+3. `cd /Users/scolak/Projects/rustchat/backend && cargo check`
+- Result: PASS
+4. `cd /Users/scolak/Projects/rustchat/backend && cargo clippy --all-targets --all-features -- -D warnings`
+- Result: PASS
+
+### Manual Verification Command
+1. `curl -i -X POST http://127.0.0.1:3000/api/v1/teams -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{"name":"self-serve-team","display_name":"Self Serve Team","description":"permission regression check"}'`
+
+### Expected vs Actual
+- Expected: a normal registered `member` can create a team, while a `guest` still gets `403`.
+- Actual: local verification matches that behavior, and the previously failing `api_categories` tests now pass.
+
 ## 2026-03-28 Reaction Deduplication + Shared Presence/Status Layer
 
 ### Task

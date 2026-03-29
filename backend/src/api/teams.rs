@@ -82,7 +82,7 @@ async fn create_team(
     auth: AuthUser,
     Json(payload): Json<CreateTeam>,
 ) -> Result<Json<Team>, AppError> {
-    if !auth.has_permission(&permissions::TEAM_MANAGE) {
+    if !auth.has_permission(&permissions::TEAM_CREATE) {
         return Err(AppError::Forbidden(
             "Missing permission to create teams".to_string(),
         ));

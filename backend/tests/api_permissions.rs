@@ -7,7 +7,7 @@ use crate::common::spawn_app;
 mod common;
 
 #[tokio::test]
-async fn member_cannot_create_team() {
+async fn member_can_create_team() {
     let app = spawn_app().await;
     let org_id = insert_org(&app, "Permission Org").await;
     let (token, _user_id) =
@@ -25,7 +25,13 @@ async fn member_cannot_create_team() {
         .await
         .expect("team create request should complete");
 
-    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response
+        .json::<serde_json::Value>()
+        .await
+        .expect("team create response should be JSON");
+    assert_eq!(body["name"], "unauthorized-team");
+    assert_eq!(body["display_name"], "Unauthorized Team");
 }
 
 #[tokio::test]
@@ -60,6 +66,34 @@ async fn org_admin_can_create_team() {
         .expect("team create response should be JSON");
     assert_eq!(body["name"], "approved-team");
     assert_eq!(body["display_name"], "Approved Team");
+}
+
+#[tokio::test]
+async fn guest_cannot_create_team() {
+    let app = spawn_app().await;
+    let org_id = insert_org(&app, "Guest Permission Org").await;
+    let (token, _user_id) = register_and_login(
+        &app,
+        org_id,
+        "guest_team_user",
+        "guest_team_user@example.com",
+        Some("guest"),
+    )
+    .await;
+
+    let response = app
+        .api_client
+        .post(format!("{}/api/v1/teams", app.address))
+        .header("Authorization", format!("Bearer {token}"))
+        .json(&serde_json::json!({
+            "name": "guest-team",
+            "display_name": "Guest Team"
+        }))
+        .send()
+        .await
+        .expect("team create request should complete");
+
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
 }
 
 #[tokio::test]
