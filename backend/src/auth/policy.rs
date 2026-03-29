@@ -156,7 +156,6 @@ impl Role {
         // Basic permissions for regular users
         permissions.insert(USER_READ);
         permissions.insert(USER_UPDATE); // Own profile only
-        permissions.insert(TEAM_CREATE);
         permissions.insert(TEAM_READ);
         permissions.insert(CHANNEL_READ);
         permissions.insert(CHANNEL_CREATE); // Can create channels
@@ -316,7 +315,7 @@ mod tests {
     fn test_member_limited_permissions() {
         let member = Role::member();
 
-        assert!(member.has_permission(&TEAM_CREATE));
+        assert!(!member.has_permission(&TEAM_CREATE));
         assert!(member.has_permission(&POST_CREATE));
         assert!(member.has_permission(&CHANNEL_READ));
         assert!(!member.has_permission(&USER_MANAGE));
@@ -346,7 +345,7 @@ mod tests {
 
         assert_eq!(
             PolicyEngine::check_permission("member", &TEAM_CREATE),
-            AuthzResult::Allow
+            AuthzResult::Deny("Permission denied")
         );
 
         assert!(matches!(
