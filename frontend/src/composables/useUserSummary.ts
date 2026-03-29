@@ -1,7 +1,8 @@
 import { computed, ref, watchEffect } from 'vue'
-import { usersApi } from '../api/users'
+import { type User, usersApi } from '../api/users'
 import { usePresenceStore } from '../features/presence'
 import { normalizePresenceStatus } from '../features/presence/presencePresentation'
+import { clearStatusExpiryTimer, parseStatusExpiryMs, scheduleStatusExpiry } from '../features/presence/statusExpiry'
 import { useTeamStore } from '../stores/teams'
 
 export interface UserSummary {
@@ -50,34 +51,6 @@ const pendingUsers = ref<Record<string, boolean>>({})
 const userErrors = ref<Record<string, string | undefined>>({})
 const expiryTimers = new Map<string, ReturnType<typeof setTimeout>>()
 
-function toExpiryMs(value: unknown): number | undefined {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return value > 1_000_000_000_000 ? value : value * 1000
-  }
-
-  if (typeof value === 'string' && value.length > 0) {
-    const numeric = Number(value)
-    if (Number.isFinite(numeric) && numeric > 0) {
-      return numeric > 1_000_000_000_000 ? numeric : numeric * 1000
-    }
-
-    const parsed = Date.parse(value)
-    if (Number.isFinite(parsed)) {
-      return parsed
-    }
-  }
-
-  return undefined
-}
-
-function clearExpiryTimer(userId: string) {
-  const timer = expiryTimers.get(userId)
-  if (timer) {
-    clearTimeout(timer)
-    expiryTimers.delete(userId)
-  }
-}
-
 function clearExpiredCustomStatus(userId: string) {
   const existing = hydratedUsers.value[userId]
   if (!existing) {
@@ -96,26 +69,9 @@ function clearExpiredCustomStatus(userId: string) {
 }
 
 function scheduleExpiry(userId: string, expiresAt: unknown) {
-  clearExpiryTimer(userId)
-
-  const expiresAtMs = toExpiryMs(expiresAt)
-  if (!expiresAtMs) {
-    return
-  }
-
-  const remainingMs = expiresAtMs - Date.now()
-  if (remainingMs <= 0) {
+  scheduleStatusExpiry(expiryTimers, userId, expiresAt, () => {
     clearExpiredCustomStatus(userId)
-    return
-  }
-
-  expiryTimers.set(
-    userId,
-    setTimeout(() => {
-      clearExpiredCustomStatus(userId)
-      expiryTimers.delete(userId)
-    }, remainingMs),
-  )
+  })
 }
 
 function upsertHydratedUser(userId: string, partial: Partial<HydratedUserRecord>) {
@@ -140,7 +96,7 @@ function mergeUserSummary(userId: string, teamStore = useTeamStore(), presenceSt
   const hydrated = hydratedUsers.value[userId]
   const livePresence = presenceStore.getUserPresence(userId).value?.presence
   const presence = normalizePresenceStatus(livePresence || hydrated?.presence || teamMember?.presence)
-  const statusExpiresAt = toExpiryMs(hydrated?.status_expires_at)
+  const statusExpiresAt = parseStatusExpiryMs(hydrated?.status_expires_at)
   const statusExpired = Boolean(statusExpiresAt && statusExpiresAt <= Date.now())
 
   if (!teamMember && !hydrated) {
@@ -160,7 +116,7 @@ function mergeUserSummary(userId: string, teamStore = useTeamStore(), presenceSt
     presence,
     statusText: statusExpired ? undefined : hydrated?.status_text || undefined,
     statusEmoji: statusExpired ? undefined : hydrated?.status_emoji || undefined,
-    statusExpiresAt: statusExpired ? undefined : statusExpiresAt,
+    statusExpiresAt: statusExpired || statusExpiresAt == null ? undefined : statusExpiresAt,
   }
 }
 
@@ -179,15 +135,15 @@ async function ensureUserSummary(userId: string) {
       username: data.username,
       display_name: data.display_name,
       email: data.email,
-      nickname: (data as any).nickname,
-      first_name: (data as any).first_name,
-      last_name: (data as any).last_name,
-      position: (data as any).position,
+      nickname: data.nickname ?? null,
+      first_name: data.first_name ?? null,
+      last_name: data.last_name ?? null,
+      position: data.position ?? null,
       avatar_url: data.avatar_url,
       presence: data.presence,
-      status_text: (data as any).status_text,
-      status_emoji: (data as any).status_emoji,
-      status_expires_at: (data as any).status_expires_at,
+      status_text: data.status_text ?? null,
+      status_emoji: data.status_emoji ?? null,
+      status_expires_at: data.status_expires_at ?? null,
       fully_hydrated: true,
     })
     userErrors.value = { ...userErrors.value, [userId]: undefined }
@@ -201,15 +157,85 @@ async function ensureUserSummary(userId: string) {
   }
 }
 
+function markPendingUsers(userIds: string[], pending: boolean) {
+  const next = { ...pendingUsers.value }
+  userIds.forEach((userId) => {
+    next[userId] = pending
+  })
+  pendingUsers.value = next
+}
+
+function mapHydratedUser(user: User): HydratedUserRecord {
+  return {
+    id: user.id,
+    username: user.username,
+    display_name: user.display_name,
+    email: user.email,
+    nickname: user.nickname ?? null,
+    first_name: user.first_name ?? null,
+    last_name: user.last_name ?? null,
+    position: user.position ?? null,
+    avatar_url: user.avatar_url ?? null,
+    presence: user.presence ?? null,
+    status_text: user.status_text ?? null,
+    status_emoji: user.status_emoji ?? null,
+    status_expires_at: user.status_expires_at ?? null,
+    fully_hydrated: true,
+  }
+}
+
+function upsertUsers(users: HydratedUserRecord[]) {
+  const nextErrors = { ...userErrors.value }
+  users.forEach((user) => {
+    upsertHydratedUser(user.id, user)
+    nextErrors[user.id] = undefined
+  })
+  userErrors.value = nextErrors
+}
+
 export function getUserSummarySnapshot(userId: string) {
   return mergeUserSummary(userId)
 }
 
 export function prefetchUserSummaries(userIds: string[]) {
   const uniqueIds = [...new Set(userIds.filter(Boolean))]
-  uniqueIds.forEach((userId) => {
-    void ensureUserSummary(userId)
+  const missingIds = uniqueIds.filter((userId) => {
+    const existing = hydratedUsers.value[userId]
+    return !pendingUsers.value[userId] && !existing?.fully_hydrated
   })
+
+  if (missingIds.length === 0) {
+    return
+  }
+
+  markPendingUsers(missingIds, true)
+
+  void usersApi.getByIds(missingIds)
+    .then(({ data }) => {
+      const users = data.map(mapHydratedUser)
+      upsertUsers(users)
+
+      const returnedIds = new Set(users.map((user) => user.id))
+      missingIds.forEach((userId) => {
+        if (!returnedIds.has(userId)) {
+          userErrors.value = {
+            ...userErrors.value,
+            [userId]: 'Failed to load user profile',
+          }
+        }
+      })
+    })
+    .catch((err: any) => {
+      const message = err?.response?.data?.message || 'Failed to load user profile'
+      const nextErrors = { ...userErrors.value }
+      missingIds.forEach((userId) => {
+        nextErrors[userId] = message
+      })
+      userErrors.value = nextErrors
+    })
+    .finally(() => {
+      markPendingUsers(missingIds, false)
+    })
 }
 
 export function applyUserStatusSnapshot(update: LiveUserStatusUpdate) {
@@ -235,7 +261,7 @@ export function clearUserSummaryCache() {
   hydratedUsers.value = {}
   pendingUsers.value = {}
   userErrors.value = {}
-  expiryTimers.forEach((timer) => clearTimeout(timer))
+  expiryTimers.forEach((_, userId) => clearStatusExpiryTimer(expiryTimers, userId))
   expiryTimers.clear()
 }
 

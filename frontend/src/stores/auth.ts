@@ -4,6 +4,10 @@ import { useStorage } from '@vueuse/core'
 import client from '../api/client'
 import { clearUserSummaryCache } from '../composables/useUserSummary'
 import { usePresenceStore } from '../features/presence'
+import {
+    clearStatusExpiryTimer as clearSharedStatusExpiryTimer,
+    scheduleStatusExpiry,
+} from '../features/presence/statusExpiry'
 import { useThemeStore } from './theme'
 import { useMessageStore } from './messages'
 import { useChannelStore } from './channels'
@@ -49,7 +53,7 @@ export const useAuthStore = defineStore('auth', () => {
     const token = useStorage('auth_token', '')
     const user = ref<any>(null)
     let tokenExpiryTimer: ReturnType<typeof setTimeout> | null = null
-    let statusExpiryTimer: ReturnType<typeof setTimeout> | null = null
+    const statusExpiryTimers = new Map<string, ReturnType<typeof setTimeout>>()
     let isLoggingOut = false
 
     // Set MMAUTHTOKEN cookie for img/video tags that can't send headers
@@ -68,31 +72,8 @@ export const useAuthStore = defineStore('auth', () => {
         }
     }
 
-    function clearStatusExpiryTimer() {
-        if (statusExpiryTimer) {
-            clearTimeout(statusExpiryTimer)
-            statusExpiryTimer = null
-        }
-    }
-
-    function toStatusExpiryMs(value: unknown): number | null {
-        if (typeof value === 'number' && Number.isFinite(value)) {
-            return value > 1_000_000_000_000 ? value : value * 1000
-        }
-
-        if (typeof value === 'string' && value.length > 0) {
-            const numeric = Number(value)
-            if (Number.isFinite(numeric) && numeric > 0) {
-                return numeric > 1_000_000_000_000 ? numeric : numeric * 1000
-            }
-
-            const parsed = Date.parse(value)
-            if (Number.isFinite(parsed)) {
-                return parsed
-            }
-        }
-
-        return null
+    function clearSelfStatusExpiryTimer() {
+        clearSharedStatusExpiryTimer(statusExpiryTimers, 'self')
     }
 
     function syncUserStatusSnapshot(snapshot: {
@@ -127,22 +108,8 @@ export const useAuthStore = defineStore('auth', () => {
             user.value.custom_status = null
         }
 
-        clearStatusExpiryTimer()
-        const expiryMs = toStatusExpiryMs(nextExpiresAt)
-        if (!expiryMs) {
-            return
-        }
-
-        const remainingMs = expiryMs - Date.now()
-        if (remainingMs <= 0) {
-            user.value.status_text = null
-            user.value.status_emoji = null
-            user.value.status_expires_at = null
-            user.value.custom_status = null
-            return
-        }
-
-        statusExpiryTimer = setTimeout(() => {
+        clearSelfStatusExpiryTimer()
+        const expiryMs = scheduleStatusExpiry(statusExpiryTimers, 'self', nextExpiresAt, () => {
             if (!user.value) {
                 return
             }
@@ -150,8 +117,10 @@ export const useAuthStore = defineStore('auth', () => {
             user.value.status_emoji = null
             user.value.status_expires_at = null
             user.value.custom_status = null
-            statusExpiryTimer = null
-        }, remainingMs)
+        })
+        if (!expiryMs) {
+            return
+        }
     }
 
     async function clearSessionState() {
@@ -240,7 +209,7 @@ export const useAuthStore = defineStore('auth', () => {
         }
         isLoggingOut = true
         clearTokenExpiryTimer()
-        clearStatusExpiryTimer()
+        clearSelfStatusExpiryTimer()
         try {
             token.value = ''
             localStorage.setItem('auth_token', '')
@@ -295,7 +264,7 @@ export const useAuthStore = defineStore('auth', () => {
         () => {
             if (!token.value) {
                 clearTokenExpiryTimer()
-                clearStatusExpiryTimer()
+                clearSelfStatusExpiryTimer()
                 return
             }
             scheduleTokenExpiryLogout()

@@ -2,7 +2,7 @@
 use std::time::{Duration, Instant};
 
 use chrono::{Duration as ChronoDuration, Utc};
-use futures_util::StreamExt;
+use futures_util::{SinkExt, StreamExt};
 use reqwest::StatusCode;
 use rustchat::mattermost_compat::id::encode_mm_id;
 use tokio_tungstenite::{
@@ -371,6 +371,87 @@ async fn custom_status_changes_reach_other_connected_users() {
 }
 
 #[tokio::test]
+async fn reconnect_snapshot_includes_rich_custom_status_fields() {
+    let app = spawn_app().await;
+
+    let org_id = insert_org(&app, "Reconnect Snapshot Status Org").await;
+    let (token_a, user_a) = register_and_login(
+        &app,
+        org_id,
+        "reconnect_status_a",
+        "reconnect_status_a@example.com",
+    )
+    .await;
+    let (token_b, user_b) = register_and_login(
+        &app,
+        org_id,
+        "reconnect_status_b",
+        "reconnect_status_b@example.com",
+    )
+    .await;
+    ensure_team_membership(&app, org_id, &[user_a, user_b]).await;
+
+    let direct_channel = app
+        .api_client
+        .post(format!("{}/api/v4/channels/direct", app.address))
+        .header("Authorization", format!("Bearer {token_b}"))
+        .json(&serde_json::json!({
+            "user_ids": [encode_mm_id(user_b), encode_mm_id(user_a)]
+        }))
+        .send()
+        .await
+        .expect("direct channel creation should succeed");
+    assert_eq!(direct_channel.status(), StatusCode::OK);
+
+    let set_status = app
+        .api_client
+        .put(format!("{}/api/v4/users/me/status", app.address))
+        .header("Authorization", format!("Bearer {token_a}"))
+        .json(&serde_json::json!({
+            "user_id": encode_mm_id(user_a),
+            "status": "away",
+            "text": "Heads down",
+            "emoji": ":coffee:",
+            "duration": "dont_clear"
+        }))
+        .send()
+        .await
+        .expect("status update with custom status should succeed");
+    assert_eq!(set_status.status(), StatusCode::OK);
+
+    let mut ws_b = connect_ws_v4(&app.address, &token_b).await;
+    let _ = wait_for_event(&mut ws_b, "hello", Duration::from_secs(5)).await;
+
+    ws_b.send(Message::Text(
+        serde_json::json!({
+            "action": "reconnect",
+            "seq": 1,
+            "data": {}
+        })
+        .to_string()
+        .into(),
+    ))
+    .await
+    .expect("reconnect action should be sent");
+
+    let initial_load = wait_for_event(&mut ws_b, "initial_load", Duration::from_secs(5)).await;
+    let statuses = initial_load["statuses"]
+        .as_array()
+        .expect("initial_load statuses should be an array");
+    let user_status = statuses
+        .iter()
+        .find(|item| item["user_id"] == encode_mm_id(user_a))
+        .expect("reconnect snapshot should include target user");
+
+    assert_eq!(user_status["status"], "away");
+    assert_eq!(user_status["text"], "Heads down");
+    assert_eq!(user_status["emoji"], ":coffee:");
+    assert!(user_status["expires_at"].is_null());
+
+    let _ = ws_b.close(None).await;
+}
+
+#[tokio::test]
 async fn expired_custom_status_is_cleared_on_rest_reads() {
     let app = spawn_app().await;
 
@@ -421,6 +502,59 @@ async fn expired_custom_status_is_cleared_on_rest_reads() {
     assert_eq!(body["status_text"], serde_json::Value::Null);
     assert_eq!(body["status_emoji"], serde_json::Value::Null);
     assert_eq!(body["custom_status"], serde_json::Value::Null);
+}
+
+#[tokio::test]
+async fn users_ids_v1_returns_rich_presence_and_custom_status_fields() {
+    let app = spawn_app().await;
+
+    let org_id = insert_org(&app, "Users IDs Rich Status Org").await;
+    let (token_a, user_a) =
+        register_and_login(&app, org_id, "users_ids_a", "users_ids_a@example.com").await;
+    let (token_b, user_b) =
+        register_and_login(&app, org_id, "users_ids_b", "users_ids_b@example.com").await;
+
+    let set_status = app
+        .api_client
+        .put(format!("{}/api/v4/users/me/status", app.address))
+        .header("Authorization", format!("Bearer {token_b}"))
+        .json(&serde_json::json!({
+            "user_id": encode_mm_id(user_b),
+            "status": "away",
+            "text": "Heads down",
+            "emoji": ":coffee:",
+            "duration": "dont_clear"
+        }))
+        .send()
+        .await
+        .expect("status update should succeed");
+    assert_eq!(set_status.status(), StatusCode::OK);
+
+    let users = app
+        .api_client
+        .post(format!("{}/api/v1/users/ids", app.address))
+        .header("Authorization", format!("Bearer {token_a}"))
+        .json(&serde_json::json!([user_a.to_string(), user_b.to_string()]))
+        .send()
+        .await
+        .expect("users ids request should succeed");
+    assert_eq!(users.status(), StatusCode::OK);
+    let body = users
+        .json::<serde_json::Value>()
+        .await
+        .expect("users ids payload should be json");
+    let items = body
+        .as_array()
+        .expect("users ids response should be an array");
+    let rich_user = items
+        .iter()
+        .find(|item| item["id"] == user_b.to_string())
+        .expect("response should include the updated user");
+
+    assert_eq!(rich_user["presence"], "away");
+    assert_eq!(rich_user["status_text"], "Heads down");
+    assert_eq!(rich_user["status_emoji"], ":coffee:");
+    assert!(rich_user.get("status_expires_at").is_some());
 }
 
 #[tokio::test]
@@ -747,4 +881,29 @@ async fn register_and_login(
         .expect("user id should parse");
 
     (token, user_id)
+}
+
+async fn ensure_team_membership(app: &common::TestApp, org_id: Uuid, user_ids: &[Uuid]) {
+    let team_id = Uuid::new_v4();
+    let team_name = format!("presence-team-{}", &team_id.to_string()[..8]);
+
+    sqlx::query(
+        "INSERT INTO teams (id, org_id, name, display_name, allow_open_invite) VALUES ($1, $2, $3, $4, true)",
+    )
+    .bind(team_id)
+    .bind(org_id)
+    .bind(&team_name)
+    .bind("Presence Team")
+    .execute(&app.db_pool)
+    .await
+    .expect("failed to create team");
+
+    for user_id in user_ids {
+        sqlx::query("INSERT INTO team_members (team_id, user_id, role) VALUES ($1, $2, 'member')")
+            .bind(team_id)
+            .bind(*user_id)
+            .execute(&app.db_pool)
+            .await
+            .expect("failed to create team membership");
+    }
 }

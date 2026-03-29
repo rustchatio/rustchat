@@ -49,8 +49,8 @@
 
 ### Task
 - Freeze a baseline for the shipped reaction/presence/status work.
-- Close the remaining UI and backend contract gaps without reopening the broader shell redesign.
-- Make presence and custom status behavior consistent enough that DM surfaces, profile surfaces, and compatible clients stop drifting.
+- Close the remaining **Lake 1** UI and realtime gaps without reopening the broader shell redesign.
+- Make DM surfaces, profile surfaces, and reconnect behavior consistent enough that users trust the same person-state everywhere they see it.
 
 ### Shipped Baseline
 - Reaction identity is normalized in `frontend/src/utils/emoji.ts`, `frontend/src/stores/messages.ts`, and `frontend/src/components/channel/MessageItem.vue`.
@@ -59,51 +59,125 @@
 - Session cleanup clears active presence state and summary cache in `frontend/src/stores/auth.ts`.
 - Backend presence/status endpoints and websocket `status_change` flow are active in `backend/src/api/v4/status.rs`.
 
+### Lake 1 Scope Locked
+- Live custom-status propagation for other users across the DM sidebar, channel info panel, and profile modal.
+- Reconnect correctness so websocket recovery restores rich status, not just plain presence.
+- Shared summary batching through the existing `/api/v4/users/ids` path for visible DM users.
+- One shared frontend expiry helper used by both auth-self state and shared-summary state.
+- Regression coverage for summary batching, rich reconnect hydration, and cross-surface realtime behavior.
+
 ### Remaining Gaps
 - Cross-user custom status text/emoji is not live-updated after initial fetch for DM/profile surfaces.
-- `frontend/src/components/layout/ChannelSidebar.vue` still shapes DM counterpart data separately instead of consuming the shared user-summary path.
-- Backend team-member presence payloads are inconsistent between `/api/v4/teams/{team_id}/members` and `/api/v4/users/.../teams/members`.
-- Custom status expiry semantics need to be explicit and enforced, not just stored.
-- Regression coverage is still missing for message-store reaction merge/remove behavior and backend custom-status propagation/expiry.
+- `frontend/src/components/layout/ChannelSidebar.vue` still shapes DM counterpart data locally instead of consuming the final shared-summary path.
+- Websocket reconnect currently restores basic presence, but the plan must treat rich custom-status recovery as part of the user-visible contract.
+- The plan still lacks explicit visual hierarchy, interaction states, responsive behavior, and density rules for the 3 person-status surfaces.
+- Regression coverage is still missing for summary batching, reconnect hydration, token-expiry cleanup, and cross-surface UI consistency.
 
 ### Implementation Checklist
-- [x] Extend the backend realtime status contract so other-user custom status updates can reach live clients.
-- [x] Decide and implement custom-status expiry semantics server-side, including clear behavior after expiry.
-- [x] Normalize `frontend/src/components/layout/ChannelSidebar.vue` onto the shared user-summary path for DM identity/status rendering.
-- [x] Align backend team-member endpoints so presence is consistent across equivalent routes.
-- [x] Add frontend regression tests for `frontend/src/stores/messages.ts` reaction merge/remove behavior.
-- [x] Add backend regression tests for custom-status websocket propagation and expiry behavior.
+- [ ] Extend websocket reconnect snapshots so visible user status includes `text`, `emoji`, and `expires_at`, not only plain presence.
+- [ ] Batch shared-summary prefetch for visible DM users through `/api/v4/users/ids`, while keeping single-user fallback for profile/detail surfaces.
+- [ ] Move auth-self expiry and shared-summary expiry onto one shared frontend helper.
+- [ ] Normalize `frontend/src/components/layout/ChannelSidebar.vue` onto the shared summary path for DM identity/status rendering.
+- [ ] Add frontend regression tests for summary batching, reconnect hydration, shared expiry handling, and token-expiry-driven cleanup.
+- [ ] Add one focused Playwright flow for DM sidebar + channel info + profile modal consistency, including live update and reconnect recovery.
+
+### Design Decisions Locked In
+1. **Cross-surface hierarchy**
+   - Identity first.
+   - Availability second.
+   - Custom status third.
+2. **Surface rules**
+   - Sidebar row: avatar badge is the primary dense-surface signal; name stays strongest; custom status is one muted truncated line and never competes with the person’s identity.
+   - Channel info panel: avatar + identity block first, then one availability chip, then one passive custom-status chip below it.
+   - Profile modal: identity stays neutral-first and complete; availability remains secondary; full custom status may wrap and act as supporting metadata rather than a hero element.
+3. **Anti-slop rules**
+   - No equal-weight double-pill treatment in dense surfaces.
+   - No centered social-card energy for core collaboration identity.
+   - No decorative color treatment that outranks status truth.
+   - No generic badge soup or repeated card patterns just because status data exists.
+4. **Design-system mapping**
+   - Neutral text hierarchy first, semantic color reserved for availability truth.
+   - Custom status chip is passive metadata, not an action or CTA.
+   - Avatar badge is the primary compact status affordance.
+   - Motion is minimal-functional and only clarifies state changes.
+5. **Density rules**
+   - Sidebar: max one muted ellipsized status line.
+   - Info panel: one wrapped line or two-line clamp.
+   - Profile modal: full custom status unless absurdly long, then graceful wrapping.
+
+### UI Structure
+```text
+DM SIDEBAR ROW
+[Avatar + presence badge]  Name
+                           muted custom status (optional, 1 line)
+
+CHANNEL INFO PANEL
+[Avatar]
+Name
+@username
+[Availability chip]
+[Custom status chip]
+[Role / contact details]
+
+PROFILE MODAL
+[Large avatar]
+Name
+secondary identity text
+[Availability chip]
+[Custom status block]
+[Email / position / details]
+```
+
+### Interaction State Coverage
+
+| Feature | Loading | Partial | Error | Success | Reconnect Recovering |
+|--------|---------|---------|-------|---------|----------------------|
+| DM sidebar row | Show existing avatar/name shell with no spinner clutter; reserve status space | Show identity from team/member fallback, suppress custom status until trusted | Fall back to avatar + identity only; no scary inline error copy in the list | Name + badge + muted status line | Keep identity visible, clear stale custom status until rich snapshot lands |
+| Channel info panel | Skeleton avatar, 2 text lines, 1 muted pill placeholder | Show identity and availability first, delay custom status chip | Replace detail body with calm inline error copy and retryable close/reopen path | Identity block, availability chip, passive custom-status chip | Preserve panel structure, show availability first, never flash stale status text |
+| Profile modal | Centered loading shell with avatar circle and text skeletons | Show profile identity and availability; delay richer fields/status text | Full-panel error state with plain-language recovery copy | Complete identity, availability chip, wrapped custom-status metadata, details list | Keep modal open, preserve identity, refresh status fields without layout jump |
+
+### User Journey & Emotional Arc
+
+| Step | User Does | User Feels | Plan Must Support |
+|------|-----------|------------|-------------------|
+| 1 | Scans DM sidebar | "I can tell who is around" | Fast identity-first row, presence truth visible at a glance |
+| 2 | Opens DM info panel | "This matches what I just saw" | Same person, same availability semantics, more context not more noise |
+| 3 | Opens profile modal | "This looks complete and trustworthy" | Full identity, richer details, calm hierarchy, no decorative drift |
+| 4 | Sees live status update | "The app is current" | Smooth status update without stale text or hierarchy jumps |
+| 5 | Survives reconnect | "The app recovered cleanly" | Identity remains stable, stale custom status cleared or restored correctly |
+
+### Responsive & Accessibility Rules
+- Mobile sidebar rows keep identity on the first line and status on a second muted line only when space allows.
+- Channel info panel may collapse into a sheet/drawer on smaller widths, but must preserve the same identity > availability > custom-status order.
+- Profile modal becomes a fullscreen sheet on narrow mobile widths, not a cramped centered card.
+- Presence must never be color-only: avatar badge gets accessible labels/tooltips and text equivalents wherever status is called out.
+- Keyboard focus order must reach the DM row, info panel actions, and profile modal close / message CTA predictably.
+- Touch targets stay at `44px` minimum.
+
+### What Already Exists
+- `DESIGN.md` already defines the `Focused Warm Utility` system, warm-neutral tokens, and calm collaboration hierarchy.
+- `frontend/src/features/presence/presencePresentation.ts` already provides the shared presence vocabulary and should remain the single semantic source.
+- `frontend/src/components/ui/RcAvatar.vue` already provides the shared avatar shell and should own the compact badge treatment.
+- `frontend/src/composables/useUserSummary.ts` already provides the shared identity/status merge point and should absorb batching behavior.
+
+### NOT in Scope
+- Backend team-member endpoint parity. This is deferred to Lake 2 because it is contract work, not immediate UI trust work.
+- Server-side expiry-worker semantics and passive-client expiry guarantees. Deferred to Lake 2 to keep Lake 1 reviewable.
+- Broader shell redesign beyond the 3 person-status surfaces touched here.
 
 ### Manual Verification Commands
 1. `cd /Users/scolak/Projects/rustchat/frontend && npm run dev`
 2. In one session, open a DM with another user. In a second session, change that other user’s custom status text/emoji. Verify the DM sidebar row, channel info panel, and user profile modal all update without a full reload.
-3. Set a timed custom status, wait past the expiry boundary, and verify the status is cleared in both REST reads and websocket-driven UI.
-4. Compare `GET /api/v4/teams/{team_id}/members` with `GET /api/v4/users/me/teams/members` for the same user set and verify presence fields are consistent.
+3. Force a websocket reconnect while the DM is visible and verify identity remains stable while rich custom status is restored without stale text.
+4. Check a narrow mobile viewport and verify the sidebar row, info panel sheet, and profile sheet preserve the same hierarchy and accessible status labels.
 
 ### Parallelization
-- Lane A: backend status/custom-status contract and tests
-- Lane B: frontend DM/sidebar/user-summary unification
-- Lane C: frontend regression coverage for reaction/state behavior, after Lane B contract is fixed
+- Lane A: websocket reconnect snapshot + backend test coverage
+- Lane B: frontend DM/sidebar/shared-summary unification + shared expiry helper
+- Lane C: Playwright / regression coverage after Lanes A and B are stable
 
 ### Readiness
-- Ready for implementation only after the follow-up status contract in `SPEC.md` is approved.
-
-### Progress Notes
-- Custom-status expiry is now enforced two ways: lazily on REST reads and proactively by a backend worker that clears expired rows and broadcasts `status_change` updates to connected clients.
-- The expiry worker poll interval is configurable via `RUSTCHAT_STATUS_EXPIRY_POLL_INTERVAL_SECONDS`; default is `5` seconds.
-
-### Verification Status
-1. `cd /Users/scolak/Projects/rustchat/frontend && npm run test:unit`
-- Result: PASS
-
-2. `cd /Users/scolak/Projects/rustchat/frontend && npm run build`
-- Result: PASS
-
-3. `cd /Users/scolak/Projects/rustchat/backend && cargo test --test api_v4_mobile_presence -- --nocapture`
-- Result: PASS
-
-4. `cd /Users/scolak/Projects/rustchat/frontend && npm run test:e2e`
-- Result: PASS (`60 passed`)
+- Ready for implementation once the branch follows the locked Lake 1 scope above and keeps Lake 2 work deferred.
 
 ## 2026-03-28 CI Required-Check Alignment for Frontend-Only PRs
 
@@ -470,8 +544,8 @@ Small compatibility-aligned messaging fixes:
 |--------|---------|-----|------|--------|----------|
 | CEO Review | `/plan-ceo-review` | Scope & strategy | 0 | — | — |
 | Codex Review | `/codex review` | Independent 2nd opinion | 0 | — | — |
-| Eng Review | `/plan-eng-review` | Architecture & tests (required) | 1 | ISSUES OPEN | 16 issues, 2 critical gaps |
-| Design Review | `/plan-design-review` | UI/UX gaps | 0 | — | — |
+| Eng Review | `/plan-eng-review` | Architecture & tests (required) | 3 | CLEAR | 22 issues, 0 critical gaps |
+| Design Review | `/plan-design-review` | UI/UX gaps | 1 | CLEAR | score: 6/10 → 9/10, 7 decisions |
 
-**UNRESOLVED:** 2
-**VERDICT:** ENG REVIEW NOT CLEAR — eng review required before implementation continues
+**UNRESOLVED:** 0
+**VERDICT:** ENG + DESIGN CLEARED — ready to implement

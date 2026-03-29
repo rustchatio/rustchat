@@ -1,9 +1,10 @@
 use axum::{
     extract::{Path, Query, State},
-    routing::get,
+    routing::{get, post},
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use uuid::Uuid;
 
 use super::AppState;
@@ -34,6 +35,7 @@ pub struct UserStatusResponse {
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/", get(list_users))
+        .route("/ids", post(get_users_by_ids))
         .route("/{id}", get(get_user).put(update_user))
         .route("/{id}/password", axum::routing::post(change_password))
         .route(
@@ -57,6 +59,13 @@ pub struct ListUsersQuery {
     pub per_page: Option<u32>,
     pub _org_id: Option<Uuid>,
     pub q: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum UsersByIdsRequest {
+    Ids(Vec<Uuid>),
+    Wrapped { user_ids: Vec<Uuid> },
 }
 
 /// List users (requires admin or same org)
@@ -140,6 +149,51 @@ async fn get_user(
     }
 
     Ok(Json(UserResponse::from(user)))
+}
+
+async fn get_users_by_ids(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Json(body): Json<UsersByIdsRequest>,
+) -> ApiResult<Json<Vec<UserResponse>>> {
+    let user_ids = match body {
+        UsersByIdsRequest::Ids(ids) => ids,
+        UsersByIdsRequest::Wrapped { user_ids } => user_ids,
+    };
+
+    if user_ids.is_empty() {
+        return Ok(Json(vec![]));
+    }
+
+    for user_id in &user_ids {
+        let _ = v4_status::clear_expired_custom_status_if_needed(&state, *user_id).await?;
+    }
+
+    let users: Vec<User> =
+        sqlx::query_as("SELECT * FROM users WHERE id = ANY($1) AND deleted_at IS NULL")
+            .bind(&user_ids)
+            .fetch_all(&state.db)
+            .await?;
+
+    let can_view = |user: &User| {
+        auth.user_id == user.id
+            || auth.has_permission(&permissions::ADMIN_FULL)
+            || (auth.org_id.is_some() && auth.org_id == user.org_id)
+    };
+
+    let mut users_by_id: HashMap<Uuid, User> = users
+        .into_iter()
+        .filter(can_view)
+        .map(|user| (user.id, user))
+        .collect();
+
+    let ordered_users = user_ids
+        .into_iter()
+        .filter_map(|user_id| users_by_id.remove(&user_id))
+        .map(UserResponse::from)
+        .collect();
+
+    Ok(Json(ordered_users))
 }
 
 /// Update a user profile

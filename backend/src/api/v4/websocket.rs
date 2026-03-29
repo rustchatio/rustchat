@@ -968,16 +968,27 @@ async fn build_reconnect_snapshot(
         )
         .collect();
 
-    let statuses: Vec<mm::Status> = if channel_ids.is_empty() {
+    let statuses: Vec<serde_json::Value> = if channel_ids.is_empty() {
         Vec::new()
     } else {
-        let rows: Vec<(Uuid, String, bool, Option<DateTime<Utc>>)> = sqlx::query_as(
+        let rows: Vec<(
+            Uuid,
+            String,
+            bool,
+            Option<DateTime<Utc>>,
+            Option<String>,
+            Option<String>,
+            Option<DateTime<Utc>>,
+        )> = sqlx::query_as(
             r#"
             SELECT DISTINCT
                 u.id,
                 u.presence,
                 COALESCE(u.presence_manual, false),
-                u.last_login_at
+                u.last_login_at,
+                u.status_text,
+                u.status_emoji,
+                u.status_expires_at
             FROM users u
             JOIN channel_members cm ON cm.user_id = u.id
             WHERE cm.channel_id = ANY($1)
@@ -988,15 +999,16 @@ async fn build_reconnect_snapshot(
         .await?;
 
         rows.into_iter()
-            .map(|(id, presence, manual, last_login_at)| mm::Status {
-                user_id: encode_mm_id(id),
-                status: if presence.is_empty() {
-                    "offline".to_string()
-                } else {
-                    presence
-                },
-                manual,
-                last_activity_at: last_login_at.map(|t| t.timestamp_millis()).unwrap_or(0),
+            .map(|(id, presence, manual, last_login_at, text, emoji, expires_at)| {
+                json!({
+                    "user_id": encode_mm_id(id),
+                    "status": if presence.is_empty() { "offline".to_string() } else { presence },
+                    "manual": manual,
+                    "last_activity_at": last_login_at.map(|t| t.timestamp_millis()).unwrap_or(0),
+                    "text": text,
+                    "emoji": emoji,
+                    "expires_at": expires_at.map(|t| t.timestamp_millis()),
+                })
             })
             .collect()
     };

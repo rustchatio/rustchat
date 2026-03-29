@@ -6,8 +6,15 @@ export interface User {
     email: string
     display_name?: string
     avatar_url?: string
+    nickname?: string
+    first_name?: string
+    last_name?: string
+    position?: string
     role: string
     presence: 'online' | 'away' | 'dnd' | 'offline'
+    status_text?: string | null
+    status_emoji?: string | null
+    status_expires_at?: string | number | null
     created_at: string
 }
 
@@ -76,4 +83,5 @@ export const usersApi = {
     updateStatus: (data: UpdateStatusRequest) => api.put<UserStatus>('/users/me/status', data),
     clearStatus: () => api.delete<UserStatus>('/users/me/status'),
     getStatusesByIds: (userIds: string[]) => api.post<UserStatusResponse[]>('/users/status/ids', userIds),
+    getByIds: (userIds: string[]) => api.post<User[]>('/users/ids', userIds),
 }
