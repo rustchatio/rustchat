@@ -3,6 +3,7 @@ import { ref, computed, watch } from 'vue'
 import { useStorage } from '@vueuse/core'
 import client from '../api/client'
 import { clearUserSummaryCache } from '../composables/useUserSummary'
+import { clearChannelPermissionCache } from '../features/permissions/capabilities'
 import { usePresenceStore } from '../features/presence'
 import {
     clearStatusExpiryTimer as clearSharedStatusExpiryTimer,
@@ -128,6 +129,7 @@ export const useAuthStore = defineStore('auth', () => {
         useChannelStore().clearChannels()
         useUnreadStore().clearAllState()
         usePresenceStore().clear()
+        clearChannelPermissionCache()
         clearUserSummaryCache()
         useTeamStore().clear()
         useChannelPreferencesStore().clearState()

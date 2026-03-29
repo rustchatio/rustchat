@@ -45,6 +45,7 @@ const contextMenuChannel = ref<{
   type: 'public' | 'private' | 'dm' | 'group';
   unread: number;
   isOwner: boolean;
+  creatorId: string | null;
 } | null>(null);
 const contextMenuTrigger = ref<HTMLElement | null>(null);
 const showMoveToModal = ref(false);
@@ -234,7 +235,8 @@ function openContextMenu(channel: any, event: MouseEvent) {
     name: channel.name,
     type: channelType,
     unread: channel.unread,
-    isOwner: isChannelOwner(channel)
+    isOwner: isChannelOwner(channel),
+    creatorId: channel.creator_id ?? null,
   };
   contextMenuTrigger.value = event.currentTarget as HTMLElement;
 }
@@ -551,6 +553,7 @@ async function handleLeaveTeam() {
                     :channel-id="contextMenuChannel!.id"
                     :channel-name="contextMenuChannel!.name"
                     :channel-type="contextMenuChannel!.type"
+                    :creator-id="contextMenuChannel!.creatorId"
                     :is-owner="contextMenuChannel!.isOwner"
                     :is-admin="isUserAdmin()"
                     :unread-count="channel.unread"

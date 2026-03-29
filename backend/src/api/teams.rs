@@ -82,6 +82,12 @@ async fn create_team(
     auth: AuthUser,
     Json(payload): Json<CreateTeam>,
 ) -> Result<Json<Team>, AppError> {
+    if !auth.has_permission(&permissions::TEAM_MANAGE) {
+        return Err(AppError::Forbidden(
+            "Missing permission to create teams".to_string(),
+        ));
+    }
+
     let team_id = Uuid::new_v4();
 
     // Get user's org_id

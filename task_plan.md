@@ -179,6 +179,47 @@ secondary identity text
 ### Readiness
 - Ready for implementation once the branch follows the locked Lake 1 scope above and keeps Lake 2 work deferred.
 
+## 2026-03-29 Permission Guardrails and Regression Harness
+
+### Task
+- Close the permission drift where low-privilege members could still create teams or see channel-management affordances they could not actually use.
+- Add a repeatable regression harness so permission leaks become test failures instead of QA surprises.
+
+### Implementation Status
+- [x] Added backend enforcement for team creation in [backend/src/api/teams.rs](/Users/scolak/Projects/rustchat/backend/src/api/teams.rs) using the existing `TEAM_MANAGE` permission path.
+- [x] Added a shared frontend capability layer in [frontend/src/features/permissions/capabilities.ts](/Users/scolak/Projects/rustchat/frontend/src/features/permissions/capabilities.ts) for team creation and channel-management affordances.
+- [x] Hid unauthorized team/channel-management affordances in [frontend/src/components/layout/TeamRail.vue](/Users/scolak/Projects/rustchat/frontend/src/components/layout/TeamRail.vue), [frontend/src/components/modals/CreateTeamModal.vue](/Users/scolak/Projects/rustchat/frontend/src/components/modals/CreateTeamModal.vue), [frontend/src/components/channel/ChannelInfoPanel.vue](/Users/scolak/Projects/rustchat/frontend/src/components/channel/ChannelInfoPanel.vue), [frontend/src/components/modals/ChannelSettingsModal.vue](/Users/scolak/Projects/rustchat/frontend/src/components/modals/ChannelSettingsModal.vue), and [frontend/src/components/channels/ChannelContextMenu.vue](/Users/scolak/Projects/rustchat/frontend/src/components/channels/ChannelContextMenu.vue).
+- [x] Cleared cached channel capability state on logout/session reset in [frontend/src/stores/auth.ts](/Users/scolak/Projects/rustchat/frontend/src/stores/auth.ts).
+- [x] Added backend permission regression tests in [backend/tests/api_permissions.rs](/Users/scolak/Projects/rustchat/backend/tests/api_permissions.rs).
+- [x] Added frontend permission helper and UI affordance tests in [frontend/src/features/permissions/capabilities.test.ts](/Users/scolak/Projects/rustchat/frontend/src/features/permissions/capabilities.test.ts) and [frontend/src/features/permissions/permissionsUi.test.ts](/Users/scolak/Projects/rustchat/frontend/src/features/permissions/permissionsUi.test.ts).
+
+### Verification Status
+1. `cd /Users/scolak/Projects/rustchat/frontend && npm run test:unit`
+- Result: PASS, `23 passed`
+2. `cd /Users/scolak/Projects/rustchat/frontend && npm run build`
+- Result: PASS
+- Note: existing Vite warning about `frontend/src/stores/calls.ts` being both dynamically and statically imported still appears, but the build completes successfully.
+3. `cd /Users/scolak/Projects/rustchat/backend && cargo test --test api_permissions -- --nocapture`
+- Result: PASS, `4 passed`
+- Note: local test bootstrap still logs the known S3 credential warning noise.
+
+### Manual Verification Commands
+1. `cd /Users/scolak/Projects/rustchat/frontend && npm run dev`
+2. Log in as a regular member and verify the team rail no longer shows `Create Team`.
+3. Open a channel info panel as a regular member and verify there is no `Edit` action; if the settings modal is opened indirectly, it should show a locked message instead of editable controls.
+4. Open a channel context menu as a regular member and verify `Add Members` is not offered.
+5. Log in as an org admin and verify team creation still succeeds.
+6. With a member token, run:
+   `curl -i -X POST http://127.0.0.1:3000/api/v1/teams -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{"name":"blocked-team","display_name":"Blocked Team"}'`
+   Expect `403 Forbidden`.
+7. With a non-admin channel member token, run:
+   `curl -i -X PUT http://127.0.0.1:3000/api/v1/channels/<channel-id> -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{"display_name":"Unauthorized Rename"}'`
+   Expect `403 Forbidden`.
+
+### Readiness
+- Ready for QA and review.
+- Follow-up work can widen this same harness to team settings, create-channel affordances, and any remaining permission-sensitive menus if we want a broader permission sweep.
+
 ## 2026-03-28 CI Required-Check Alignment for Frontend-Only PRs
 
 ### Task

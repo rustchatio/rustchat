@@ -25,6 +25,7 @@ import RcAvatar from '../ui/RcAvatar.vue'
 import { getPresencePresentation } from '../../features/presence/presencePresentation'
 import { useUserSummary } from '../../composables/useUserSummary'
 import { getDirectMessageCounterpartyId } from '../../utils/directMessage'
+import { useChannelManagementPermission } from '../../features/permissions/capabilities'
 
 const props = defineProps<{
   channelId: string
@@ -86,6 +87,10 @@ const directContactName = computed(() => {
 const directContactPresenceMeta = computed(() => getPresencePresentation(directContact.value?.presence || directContactMember.value?.presence))
 
 const showDirectMessageProfile = computed(() => channel.value?.channel_type === 'direct' && !!directContactId.value)
+const { canManageChannel: canManageCurrentChannel } = useChannelManagementPermission(
+  () => props.channelId,
+  () => channel.value?.creator_id ?? null,
+)
 
 const channelIcon = computed(() => {
   if (!channel.value) return Hash
@@ -280,7 +285,8 @@ watch(() => props.channelId, async () => {
           <span class="text-[10px] font-medium">{{ isMuted ? 'Muted' : 'Mute' }}</span>
         </button>
         
-        <button 
+        <button
+          v-if="canManageCurrentChannel"
           @click="emit('openSettings')"
           class="flex flex-col items-center p-3 rounded-xl hover:bg-surface-2 text-text-2 transition-all"
           title="Edit channel settings"

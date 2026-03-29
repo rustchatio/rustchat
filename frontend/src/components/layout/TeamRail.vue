@@ -1,13 +1,17 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { Plus } from 'lucide-vue-next';
 import { useTeamStore } from '../../stores/teams';
 import { useUnreadStore } from '../../stores/unreads';
+import { useAuthStore } from '../../stores/auth';
+import { canCreateTeam as canCreateTeamForRole } from '../../features/permissions/capabilities';
 import CreateTeamModal from '../modals/CreateTeamModal.vue';
 
 const teamStore = useTeamStore();
 const unreadStore = useUnreadStore();
+const authStore = useAuthStore();
 const showCreateModal = ref(false);
+const canCreateTeam = computed(() => canCreateTeamForRole(authStore.user?.role));
 
 onMounted(() => {
   teamStore.fetchTeams();
@@ -68,7 +72,7 @@ function getInitials(name: string): string {
     </div>
 
     <!-- Add Team Button -->
-    <div class="mt-auto w-full border-t border-border-1 px-2 pt-3">
+    <div v-if="canCreateTeam" class="mt-auto w-full border-t border-border-1 px-2 pt-3">
       <button 
         @click="showCreateModal = true"
         class="mx-auto flex h-11 w-11 items-center justify-center rounded-r-2 border border-dashed border-border-2 bg-bg-surface-1 text-text-3 transition-standard hover:border-brand hover:bg-brand/10 hover:text-brand"
@@ -79,6 +83,6 @@ function getInitials(name: string): string {
     </div>
 
     <!-- Create Team Modal -->
-    <CreateTeamModal :show="showCreateModal" @close="showCreateModal = false" />
+    <CreateTeamModal v-if="canCreateTeam" :show="showCreateModal" @close="showCreateModal = false" />
   </aside>
 </template>

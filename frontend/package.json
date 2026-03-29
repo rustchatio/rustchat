@@ -10,7 +10,7 @@
     "dev": "vite",
     "build": "vue-tsc -b && vite build",
     "preview": "vite preview",
-    "test:unit": "vitest run src/utils/emoji.test.ts src/utils/directMessage.test.ts src/stores/auth.test.ts src/stores/messages.test.ts src/composables/useUserSummary.test.ts src/features/presence/statusExpiry.test.ts",
+    "test:unit": "vitest run src/utils/emoji.test.ts src/utils/directMessage.test.ts src/stores/auth.test.ts src/stores/messages.test.ts src/composables/useUserSummary.test.ts src/features/presence/statusExpiry.test.ts src/features/permissions/capabilities.test.ts src/features/permissions/permissionsUi.test.ts",
     "test:e2e": "PLAYWRIGHT_BASE_URL=http://127.0.0.1:4173 PLAYWRIGHT_WEB_SERVER=1 playwright test",
     "test:e2e:settings-parity": "PLAYWRIGHT_BASE_URL=http://127.0.0.1:4173 PLAYWRIGHT_WEB_SERVER=1 playwright test e2e/settings_parity.spec.ts --project=chromium",
     "test:e2e:settings-parity:update": "PLAYWRIGHT_BASE_URL=http://127.0.0.1:4173 PLAYWRIGHT_WEB_SERVER=1 playwright test e2e/settings_parity.spec.ts --project=chromium --update-snapshots"
@@ -46,7 +46,9 @@
     "@types/marked": "^5.0.2",
     "@types/node": "^24.10.1",
     "@vitejs/plugin-vue": "^6.0.1",
+    "@vue/test-utils": "^2.4.6",
     "@vue/tsconfig": "^0.8.1",
+    "jsdom": "^29.0.1",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.18",
     "typescript": "~5.9.3",

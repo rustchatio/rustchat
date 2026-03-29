@@ -8,6 +8,7 @@ import { useChannelStore } from '../../stores/channels'
 import { useTeamStore } from '../../stores/teams'
 import { useAuthStore } from '../../stores/auth'
 import { useToast } from '../../composables/useToast'
+import { useChannelManagementPermission } from '../../features/permissions/capabilities'
 
 const props = defineProps<{
   isOpen: boolean
@@ -24,6 +25,10 @@ const channelStore = useChannelStore()
 const teamStore = useTeamStore()
 const authStore = useAuthStore()
 const toast = useToast()
+const { canManageChannel: canManageCurrentChannel } = useChannelManagementPermission(
+  () => props.channel?.id ?? null,
+  () => props.channel?.creator_id ?? null,
+)
 
 const activeTab = ref('general')
 const loading = ref(false)
@@ -58,13 +63,13 @@ watch(() => props.isOpen, (isOpen) => {
 })
 
 watch(activeTab, (tab) => {
-  if (tab === 'members' && props.channel) {
+  if (tab === 'members' && props.channel && canManageCurrentChannel.value) {
     fetchMembers()
   }
 })
 
 async function fetchMembers() {
-  if (!props.channel) return
+  if (!props.channel || !canManageCurrentChannel.value) return
   membersLoading.value = true
   try {
     const response = await channelsApi.getMembers(props.channel.id)
@@ -96,7 +101,7 @@ const searchResults = computed(() => {
 })
 
 async function addMember(userId: string) {
-  if (!props.channel) return
+  if (!props.channel || !canManageCurrentChannel.value) return
   
   addingMember.value = userId
   try {
@@ -112,7 +117,7 @@ async function addMember(userId: string) {
 }
 
 async function removeMember(userId: string) {
-  if (!props.channel) return
+  if (!props.channel || !canManageCurrentChannel.value) return
   if (!confirm('Are you sure you want to remove this member?')) return
   
   removingMember.value = userId
@@ -128,7 +133,7 @@ async function removeMember(userId: string) {
 }
 
 async function handleSave() {
-  if (!props.channel) return
+  if (!props.channel || !canManageCurrentChannel.value) return
   
   loading.value = true
   try {
@@ -152,7 +157,7 @@ async function handleSave() {
 }
 
 async function handleDelete() {
-  if (!props.channel) return
+  if (!props.channel || !canManageCurrentChannel.value) return
   if (!confirm(`Are you sure you want to delete #${props.channel.name}? This cannot be undone.`)) return
   
   deleting.value = true
@@ -189,7 +194,10 @@ async function handleDelete() {
         </div>
         
         <!-- Tabs -->
-        <div class="flex border-b border-gray-200 dark:border-gray-700 px-6 shrink-0">
+        <div
+          v-if="canManageCurrentChannel"
+          class="flex border-b border-gray-200 dark:border-gray-700 px-6 shrink-0"
+        >
           <button
             v-for="tab in tabs"
             :key="tab.id"
@@ -206,8 +214,15 @@ async function handleDelete() {
         
         <!-- Content -->
         <div class="flex-1 overflow-y-auto p-6">
+          <div
+            v-if="!canManageCurrentChannel"
+            class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300"
+          >
+            You do not have permission to manage this channel.
+          </div>
+
           <!-- General Tab -->
-          <div v-if="activeTab === 'general'" class="space-y-5">
+          <div v-else-if="activeTab === 'general'" class="space-y-5">
             <div>
               <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Channel Name</label>
               <div class="px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-gray-600 dark:text-gray-400 text-sm">
@@ -354,7 +369,7 @@ async function handleDelete() {
         <!-- Footer -->
         <div class="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end space-x-3 shrink-0">
           <BaseButton variant="secondary" @click="$emit('close')">Cancel</BaseButton>
-          <BaseButton @click="handleSave" :loading="loading">Save Changes</BaseButton>
+          <BaseButton v-if="canManageCurrentChannel" @click="handleSave" :loading="loading">Save Changes</BaseButton>
         </div>
       </div>
     </div>
