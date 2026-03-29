@@ -428,8 +428,7 @@ async fn reconnect_snapshot_includes_rich_custom_status_fields() {
             "seq": 1,
             "data": {}
         })
-        .to_string()
-        .into(),
+        .to_string(),
     ))
     .await
     .expect("reconnect action should be sent");

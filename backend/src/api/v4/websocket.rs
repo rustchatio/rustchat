@@ -743,6 +743,17 @@ struct ChannelUnreadSnapshot {
     last_viewed_at: i64,
 }
 
+#[derive(Debug, sqlx::FromRow)]
+struct ReconnectStatusRow {
+    id: Uuid,
+    presence: String,
+    presence_manual: bool,
+    last_login_at: Option<DateTime<Utc>>,
+    status_text: Option<String>,
+    status_emoji: Option<String>,
+    status_expires_at: Option<DateTime<Utc>>,
+}
+
 fn should_send_reconnect_snapshot(
     requested_connection_id: Option<&str>,
     sequence_number: Option<i64>,
@@ -971,20 +982,12 @@ async fn build_reconnect_snapshot(
     let statuses: Vec<serde_json::Value> = if channel_ids.is_empty() {
         Vec::new()
     } else {
-        let rows: Vec<(
-            Uuid,
-            String,
-            bool,
-            Option<DateTime<Utc>>,
-            Option<String>,
-            Option<String>,
-            Option<DateTime<Utc>>,
-        )> = sqlx::query_as(
+        let rows: Vec<ReconnectStatusRow> = sqlx::query_as(
             r#"
             SELECT DISTINCT
                 u.id,
                 u.presence,
-                COALESCE(u.presence_manual, false),
+                COALESCE(u.presence_manual, false) AS presence_manual,
                 u.last_login_at,
                 u.status_text,
                 u.status_emoji,
@@ -999,15 +1002,15 @@ async fn build_reconnect_snapshot(
         .await?;
 
         rows.into_iter()
-            .map(|(id, presence, manual, last_login_at, text, emoji, expires_at)| {
+            .map(|row| {
                 json!({
-                    "user_id": encode_mm_id(id),
-                    "status": if presence.is_empty() { "offline".to_string() } else { presence },
-                    "manual": manual,
-                    "last_activity_at": last_login_at.map(|t| t.timestamp_millis()).unwrap_or(0),
-                    "text": text,
-                    "emoji": emoji,
-                    "expires_at": expires_at.map(|t| t.timestamp_millis()),
+                    "user_id": encode_mm_id(row.id),
+                    "status": if row.presence.is_empty() { "offline".to_string() } else { row.presence },
+                    "manual": row.presence_manual,
+                    "last_activity_at": row.last_login_at.map(|t| t.timestamp_millis()).unwrap_or(0),
+                    "text": row.status_text,
+                    "emoji": row.status_emoji,
+                    "expires_at": row.status_expires_at.map(|t| t.timestamp_millis()),
                 })
             })
             .collect()
