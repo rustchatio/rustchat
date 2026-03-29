@@ -40,6 +40,13 @@ async fn test_sidebar_categories() {
         .expect("Failed to login");
 
     assert_eq!(200, login_res.status().as_u16());
+    let token = login_res
+        .headers()
+        .get("Token")
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .to_string();
     let user_info: serde_json::Value = login_res.json().await.unwrap();
     let user_id = user_info["id"].as_str().unwrap();
 
@@ -50,23 +57,6 @@ async fn test_sidebar_categories() {
         .execute(&app.db_pool)
         .await
         .expect("Failed to update user role");
-
-    // Re-login to get a fresh token with the new role
-    let login_res = app
-        .api_client
-        .post(&format!("{}/api/v4/users/login", &app.address))
-        .json(&login_data)
-        .send()
-        .await
-        .expect("Failed to re-login");
-    assert_eq!(200, login_res.status().as_u16());
-    let token = login_res
-        .headers()
-        .get("Token")
-        .unwrap()
-        .to_str()
-        .unwrap()
-        .to_string();
 
     // 2. Create a team (v1)
     let team_data = json!({
@@ -248,6 +238,13 @@ async fn get_categories_backfills_orphaned_channels() {
         .expect("Failed to login");
 
     assert_eq!(200, login_res.status().as_u16());
+    let token = login_res
+        .headers()
+        .get("Token")
+        .expect("missing auth token")
+        .to_str()
+        .expect("invalid token header")
+        .to_string();
     let user_info: serde_json::Value = login_res.json().await.expect("invalid login body");
     let user_id = user_info["id"].as_str().expect("missing user id");
     let user_uuid = parse_mm_or_uuid(user_id).expect("invalid mm user id");
@@ -258,23 +255,6 @@ async fn get_categories_backfills_orphaned_channels() {
         .execute(&app.db_pool)
         .await
         .expect("Failed to update user role");
-
-    // Re-login to get a fresh token with the new role
-    let login_res = app
-        .api_client
-        .post(format!("{}/api/v4/users/login", &app.address))
-        .json(&login_data)
-        .send()
-        .await
-        .expect("Failed to re-login");
-    assert_eq!(200, login_res.status().as_u16());
-    let token = login_res
-        .headers()
-        .get("Token")
-        .expect("missing auth token")
-        .to_str()
-        .expect("invalid token header")
-        .to_string();
 
     let team_data = json!({
         "name": "cat-orphan-team",
