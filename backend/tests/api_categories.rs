@@ -48,7 +48,15 @@ async fn test_sidebar_categories() {
         .unwrap()
         .to_string();
     let user_info: serde_json::Value = login_res.json().await.unwrap();
-    let _user_id = user_info["id"].as_str().unwrap();
+    let user_id = user_info["id"].as_str().unwrap();
+
+    // Update user role to org_admin to allow team creation
+    let user_uuid = parse_mm_or_uuid(user_id).expect("invalid mm user id");
+    sqlx::query("UPDATE users SET role = 'org_admin' WHERE id = $1")
+        .bind(user_uuid)
+        .execute(&app.db_pool)
+        .await
+        .expect("Failed to update user role");
 
     // 2. Create a team (v1)
     let team_data = json!({
@@ -240,6 +248,13 @@ async fn get_categories_backfills_orphaned_channels() {
     let user_info: serde_json::Value = login_res.json().await.expect("invalid login body");
     let user_id = user_info["id"].as_str().expect("missing user id");
     let user_uuid = parse_mm_or_uuid(user_id).expect("invalid mm user id");
+
+    // Update user role to org_admin to allow team creation
+    sqlx::query("UPDATE users SET role = 'org_admin' WHERE id = $1")
+        .bind(user_uuid)
+        .execute(&app.db_pool)
+        .await
+        .expect("Failed to update user role");
 
     let team_data = json!({
         "name": "cat-orphan-team",
