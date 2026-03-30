@@ -11,7 +11,7 @@ mod common;
 async fn test_sidebar_categories() {
     let app = spawn_app().await;
 
-    // 1. Register and Login
+    // 1. Register
     let user_data = json!({
         "username": "catuser",
         "email": "cat@example.com",
@@ -19,23 +19,25 @@ async fn test_sidebar_categories() {
         "display_name": "Category User"
     });
 
-    app.api_client
+    let reg_res = app.api_client
         .post(&format!("{}/api/v1/auth/register", &app.address))
         .json(&user_data)
         .send()
         .await
         .expect("Failed to register");
+    assert_eq!(200, reg_res.status().as_u16());
 
+    // Update user role to system_admin immediately after registration
+    sqlx::query("UPDATE users SET role = 'system_admin' WHERE username = 'catuser'")
+        .execute(&app.db_pool)
+        .await
+        .expect("Failed to update user role");
+
+    // Login to get a token with the system_admin role
     let login_data = json!({
         "login_id": "catuser",
         "password": "Password123!"
     });
-
-    // Update user role to org_admin to allow team creation BEFORE login to avoid stale token
-    sqlx::query("UPDATE users SET role = 'org_admin' WHERE username = 'catuser'")
-        .execute(&app.db_pool)
-        .await
-        .expect("Failed to update user role");
 
     let login_res = app
         .api_client
@@ -46,10 +48,13 @@ async fn test_sidebar_categories() {
         .expect("Failed to login");
 
     assert_eq!(200, login_res.status().as_u16());
+    let login_body: serde_json::Value = login_res.json().await.expect("invalid login body");
+    assert_eq!(login_body["roles"], "system_user system_admin");
+
     let token = login_res
         .headers()
         .get("Token")
-        .unwrap()
+        .expect("missing Token header")
         .to_str()
         .unwrap()
         .to_string();
@@ -206,6 +211,7 @@ async fn test_sidebar_categories() {
 async fn get_categories_backfills_orphaned_channels() {
     let app = spawn_app().await;
 
+    // 1. Register
     let user_data = json!({
         "username": "catorphan",
         "email": "catorphan@example.com",
@@ -213,23 +219,25 @@ async fn get_categories_backfills_orphaned_channels() {
         "display_name": "Category Orphan"
     });
 
-    app.api_client
+    let reg_res = app.api_client
         .post(format!("{}/api/v1/auth/register", &app.address))
         .json(&user_data)
         .send()
         .await
         .expect("Failed to register");
+    assert_eq!(200, reg_res.status().as_u16());
 
+    // Update user role to system_admin immediately after registration
+    sqlx::query("UPDATE users SET role = 'system_admin' WHERE username = 'catorphan'")
+        .execute(&app.db_pool)
+        .await
+        .expect("Failed to update user role");
+
+    // Login to get a token with the system_admin role
     let login_data = json!({
         "login_id": "catorphan",
         "password": "Password123!"
     });
-
-    // Update user role to org_admin to allow team creation BEFORE login to avoid stale token
-    sqlx::query("UPDATE users SET role = 'org_admin' WHERE username = 'catorphan'")
-        .execute(&app.db_pool)
-        .await
-        .expect("Failed to update user role");
 
     let login_res = app
         .api_client
@@ -240,15 +248,18 @@ async fn get_categories_backfills_orphaned_channels() {
         .expect("Failed to login");
 
     assert_eq!(200, login_res.status().as_u16());
+    let login_body: serde_json::Value = login_res.json().await.expect("invalid login body");
+    assert_eq!(login_body["roles"], "system_user system_admin");
+
     let token = login_res
         .headers()
         .get("Token")
-        .expect("missing auth token")
+        .expect("missing Token header")
         .to_str()
         .expect("invalid token header")
         .to_string();
-    let user_info: serde_json::Value = login_res.json().await.expect("invalid login body");
-    let user_id = user_info["id"].as_str().expect("missing user id");
+
+    let user_id = login_body["id"].as_str().expect("missing user id");
     let user_uuid = parse_mm_or_uuid(user_id).expect("invalid mm user id");
 
     let team_data = json!({
