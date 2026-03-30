@@ -13,6 +13,7 @@ use std::collections::HashMap;
 use uuid::Uuid;
 
 use super::extractors::MmAuthUser;
+use super::status;
 use crate::api::AppState;
 use crate::auth::extractors::PolymorphicAuth;
 use crate::auth::policy::permissions;
@@ -541,10 +542,13 @@ async fn enforce_password_login_allowed(state: &AppState, user_email: &str) -> A
 /// - JWT token (for human users via browser/mobile)
 /// - API key (for agents, services, and CI systems)
 async fn me(State(state): State<AppState>, auth: PolymorphicAuth) -> ApiResult<Json<mm::User>> {
-    let user: User = sqlx::query_as("SELECT * FROM users WHERE id = $1")
+    let mut user: User = sqlx::query_as("SELECT * FROM users WHERE id = $1")
         .bind(auth.user_id)
         .fetch_one(&state.db)
         .await?;
+
+    let _ = status::clear_expired_custom_status_if_needed(&state, auth.user_id).await?;
+    user.clear_custom_status_if_expired();
 
     Ok(Json(user.into()))
 }
@@ -563,11 +567,14 @@ async fn get_user_by_id(
             .ok_or_else(|| AppError::BadRequest("Invalid user_id".to_string()))?
     };
 
-    let user: User = sqlx::query_as("SELECT * FROM users WHERE id = $1")
+    let mut user: User = sqlx::query_as("SELECT * FROM users WHERE id = $1")
         .bind(user_uuid)
         .fetch_optional(&state.db)
         .await?
         .ok_or_else(|| AppError::NotFound("User not found".to_string()))?;
+
+    let _ = status::clear_expired_custom_status_if_needed(&state, user_uuid).await?;
+    user.clear_custom_status_if_expired();
 
     Ok(Json(user.into()))
 }
@@ -1932,7 +1939,15 @@ async fn get_users_by_ids(
     .fetch_all(&state.db)
     .await?;
 
-    let mm_users: Vec<mm::User> = users.into_iter().map(|u| u.into()).collect();
+    let _ = status::clear_expired_custom_statuses_for_users(&state, &uuids).await?;
+
+    let mm_users: Vec<mm::User> = users
+        .into_iter()
+        .map(|mut u| {
+            u.clear_custom_status_if_expired();
+            u.into()
+        })
+        .collect();
     Ok(Json(mm_users))
 }
 

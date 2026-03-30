@@ -148,6 +148,8 @@ async fn get_user(
     }
 
     let _ = v4_status::clear_expired_custom_status_if_needed(&state, id).await?;
+    let mut user = user;
+    user.clear_custom_status_if_expired();
     Ok(Json(UserResponse::from(user)))
 }
 
@@ -185,7 +187,10 @@ async fn get_users_by_ids(
 
     let mut users_by_id: HashMap<Uuid, User> = authorized_users
         .into_iter()
-        .map(|user| (user.id, user))
+        .map(|mut user| {
+            user.clear_custom_status_if_expired();
+            (user.id, user)
+        })
         .collect();
 
     let ordered_users = user_ids

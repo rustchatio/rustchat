@@ -150,6 +150,19 @@ impl User {
     pub fn requires_api_key(&self) -> bool {
         self.is_non_human()
     }
+
+    /// Clear custom status in-memory if it has expired.
+    /// This should be called before converting to UserResponse or mm::User.
+    pub fn clear_custom_status_if_expired(&mut self) {
+        if let Some(expires_at) = self.status_expires_at {
+            if expires_at <= Utc::now() {
+                self.status_text = None;
+                self.status_emoji = None;
+                self.status_expires_at = None;
+                self.custom_status = None;
+            }
+        }
+    }
 }
 
 impl From<User> for UserResponse {
