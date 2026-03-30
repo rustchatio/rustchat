@@ -177,12 +177,16 @@ async fn get_users_by_ids(
             || (auth.org_id.is_some() && auth.org_id == user.org_id)
     };
 
-    let mut users_by_id: HashMap<Uuid, User> = HashMap::new();
-    for user in users.into_iter().filter(can_view) {
-        // Only clear status for users we are authorized to see
-        let _ = v4_status::clear_expired_custom_status_if_needed(&state, user.id).await?;
-        users_by_id.insert(user.id, user);
-    }
+    let authorized_users: Vec<User> = users.into_iter().filter(can_view).collect();
+    let authorized_ids: Vec<Uuid> = authorized_users.iter().map(|u| u.id).collect();
+
+    // Only clear status for users we are authorized to see (bulk update)
+    let _ = v4_status::clear_expired_custom_statuses_for_users(&state, &authorized_ids).await?;
+
+    let mut users_by_id: HashMap<Uuid, User> = authorized_users
+        .into_iter()
+        .map(|user| (user.id, user))
+        .collect();
 
     let ordered_users = user_ids
         .into_iter()
