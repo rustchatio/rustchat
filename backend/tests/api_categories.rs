@@ -31,6 +31,12 @@ async fn test_sidebar_categories() {
         "password": "Password123!"
     });
 
+    // Update user role to org_admin to allow team creation BEFORE login to avoid stale token
+    sqlx::query("UPDATE users SET role = 'org_admin' WHERE username = 'catuser'")
+        .execute(&app.db_pool)
+        .await
+        .expect("Failed to update user role");
+
     let login_res = app
         .api_client
         .post(&format!("{}/api/v4/users/login", &app.address))
@@ -47,16 +53,6 @@ async fn test_sidebar_categories() {
         .to_str()
         .unwrap()
         .to_string();
-    let user_info: serde_json::Value = login_res.json().await.unwrap();
-    let user_id = user_info["id"].as_str().unwrap();
-
-    // Update user role to org_admin to allow team creation
-    let user_uuid = parse_mm_or_uuid(user_id).expect("invalid mm user id");
-    sqlx::query("UPDATE users SET role = 'org_admin' WHERE id = $1")
-        .bind(user_uuid)
-        .execute(&app.db_pool)
-        .await
-        .expect("Failed to update user role");
 
     // 2. Create a team (v1)
     let team_data = json!({
@@ -229,6 +225,12 @@ async fn get_categories_backfills_orphaned_channels() {
         "password": "Password123!"
     });
 
+    // Update user role to org_admin to allow team creation BEFORE login to avoid stale token
+    sqlx::query("UPDATE users SET role = 'org_admin' WHERE username = 'catorphan'")
+        .execute(&app.db_pool)
+        .await
+        .expect("Failed to update user role");
+
     let login_res = app
         .api_client
         .post(format!("{}/api/v4/users/login", &app.address))
@@ -248,13 +250,6 @@ async fn get_categories_backfills_orphaned_channels() {
     let user_info: serde_json::Value = login_res.json().await.expect("invalid login body");
     let user_id = user_info["id"].as_str().expect("missing user id");
     let user_uuid = parse_mm_or_uuid(user_id).expect("invalid mm user id");
-
-    // Update user role to org_admin to allow team creation
-    sqlx::query("UPDATE users SET role = 'org_admin' WHERE id = $1")
-        .bind(user_uuid)
-        .execute(&app.db_pool)
-        .await
-        .expect("Failed to update user role");
 
     let team_data = json!({
         "name": "cat-orphan-team",
