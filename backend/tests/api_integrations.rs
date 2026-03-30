@@ -46,6 +46,23 @@ async fn test_slash_command_lifecycle() {
         .expect("Missing auth token")
         .to_string();
 
+    // Elevate user to org_admin to allow team creation
+    sqlx::query("UPDATE users SET role = 'org_admin' WHERE email = 'cmd@example.com'")
+        .execute(&app.db_pool)
+        .await
+        .expect("Failed to update user role");
+
+    // Re-login to get a fresh token
+    let login_res_2 = app
+        .api_client
+        .post(&format!("{}/api/v1/auth/login", &app.address))
+        .json(&login_data)
+        .send()
+        .await
+        .expect("Failed to re-login");
+    let login_body_2: serde_json::Value = login_res_2.json().await.expect("Failed to parse re-login response");
+    let token = login_body_2["token"].as_str().expect("Missing fresh auth token").to_string();
+
     // 2. Create Team
     let team_data = serde_json::json!({
         "name": "cmdteam",
