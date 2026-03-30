@@ -48,7 +48,10 @@ async fn test_sidebar_categories() {
 
     assert_eq!(200, login_res.status().as_u16());
     let login_body: serde_json::Value = login_res.json().await.unwrap();
-    let token = login_body["token"].as_str().expect("missing token").to_string();
+    let token = login_body["token"]
+        .as_str()
+        .expect("missing token")
+        .to_string();
     let _user_id = login_body["user"]["id"].as_str().expect("missing user id");
     assert_eq!(login_body["user"]["role"], "org_admin");
 
@@ -241,7 +244,10 @@ async fn get_categories_backfills_orphaned_channels() {
 
     assert_eq!(200, login_res.status().as_u16());
     let login_body: serde_json::Value = login_res.json().await.expect("invalid login body");
-    let token = login_body["token"].as_str().expect("missing token").to_string();
+    let token = login_body["token"]
+        .as_str()
+        .expect("missing token")
+        .to_string();
     let user_id = login_body["user"]["id"].as_str().expect("missing user id");
     let user_uuid = parse_mm_or_uuid(user_id).expect("invalid user id");
 

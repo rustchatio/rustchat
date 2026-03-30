@@ -7,12 +7,16 @@ export function getDirectMessageCounterpartyId(channelName?: string | null, curr
   if (channelName.includes('__')) {
     const parts = channelName.split('__')
     if (parts.length !== 2) return null
-    return parts[0] === currentUserId ? parts[1] : parts[1] === currentUserId ? parts[0] : null
+    const [id1, id2] = parts
+    if (!id1 || !id2) return null
+    return id1 === currentUserId ? id2 : id2 === currentUserId ? id1 : null
   }
 
   const parts = channelName.split('_')
   if (parts.length === 3 && parts[0] === 'dm') {
-    return parts[1] === currentUserId ? parts[2] : parts[2] === currentUserId ? parts[1] : null
+    const [, id1, id2] = parts
+    if (!id1 || !id2) return null
+    return id1 === currentUserId ? id2 : id2 === currentUserId ? id1 : null
   }
 
   return null
