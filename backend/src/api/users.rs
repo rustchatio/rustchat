@@ -132,7 +132,6 @@ async fn get_user(
     auth: AuthUser,
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<UserResponse>> {
-    let _ = v4_status::clear_expired_custom_status_if_needed(&state, id).await?;
     let user: User = sqlx::query_as("SELECT * FROM users WHERE id = $1 AND deleted_at IS NULL")
         .bind(id)
         .fetch_optional(&state.db)
@@ -148,6 +147,7 @@ async fn get_user(
         return Err(AppError::Forbidden("Cannot view this user".to_string()));
     }
 
+    let _ = v4_status::clear_expired_custom_status_if_needed(&state, id).await?;
     Ok(Json(UserResponse::from(user)))
 }
 
@@ -165,10 +165,6 @@ async fn get_users_by_ids(
         return Ok(Json(vec![]));
     }
 
-    for user_id in &user_ids {
-        let _ = v4_status::clear_expired_custom_status_if_needed(&state, *user_id).await?;
-    }
-
     let users: Vec<User> =
         sqlx::query_as("SELECT * FROM users WHERE id = ANY($1) AND deleted_at IS NULL")
             .bind(&user_ids)
@@ -181,9 +177,14 @@ async fn get_users_by_ids(
             || (auth.org_id.is_some() && auth.org_id == user.org_id)
     };
 
-    let mut users_by_id: HashMap<Uuid, User> = users
+    let authorized_users: Vec<User> = users.into_iter().filter(can_view).collect();
+    let authorized_ids: Vec<Uuid> = authorized_users.iter().map(|u| u.id).collect();
+
+    // Only clear status for users we are authorized to see (bulk update)
+    let _ = v4_status::clear_expired_custom_statuses_for_users(&state, &authorized_ids).await?;
+
+    let mut users_by_id: HashMap<Uuid, User> = authorized_users
         .into_iter()
-        .filter(can_view)
         .map(|user| (user.id, user))
         .collect();
 

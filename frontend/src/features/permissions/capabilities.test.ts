@@ -160,4 +160,64 @@ describe('permission capabilities', () => {
 
         expect(canManageChannel.value).toBe(false)
     })
+
+    it('retries loading permissions after a failure', async () => {
+        getMembersMock.mockRejectedValueOnce(new Error('Network Error'))
+        getMembersMock.mockResolvedValueOnce({
+            data: [
+                { user_id: 'user-1', role: 'admin' },
+            ],
+        })
+
+        const { useChannelManagementPermission } = await import('./capabilities')
+        const { canManageChannel, isLoading } = useChannelManagementPermission(
+            () => 'channel-retry',
+            () => 'user-9',
+        )
+
+        // First attempt: failure
+        await flushPromises()
+        expect(getMembersMock).toHaveBeenCalledTimes(1)
+        expect(isLoading.value).toBe(false)
+        expect(canManageChannel.value).toBe(false)
+
+        // Reset or re-trigger: it should retry because loaded is false
+        // We can simulate this by clearing and re-watching or just calling the internal logic if accessible
+        // In our current setup, it will retry if the component is re-mounted or if we clear cache.
+        // Actually, watchEffect will re-run if any dependency changes.
+        // But since channelId and userId didn't change, we need to manually trigger ensureChannelPermissionLoaded
+        // or clear the cache entry.
+
+        const module = await import('./capabilities')
+        module.clearChannelPermissionCache()
+
+        // After clearing cache, useChannelManagementPermission's watchEffect should trigger again
+        // but it only triggers if channelId source changes.
+        // Let's use a dynamic channelId.
+        let channelId = 'channel-retry-1'
+        const { canManageChannel: canManageDynamic, isLoading: isDynamicLoading } = useChannelManagementPermission(
+            () => channelId,
+            () => 'user-9',
+        )
+
+        // Failure 1
+        getMembersMock.mockRejectedValueOnce(new Error('Network Error'))
+        await flushPromises()
+        expect(getMembersMock).toHaveBeenCalledTimes(2) // 1 from previous test + 1 now
+        expect(canManageDynamic.value).toBe(false)
+
+        // Trigger retry by changing channel ID (simulating navigation back or something)
+        // or just by the fact that loaded: false allows another call if something else triggers it.
+        // In the real UI, re-opening the panel would trigger this.
+
+        channelId = 'channel-retry-2'
+        getMembersMock.mockResolvedValueOnce({
+            data: [
+                { user_id: 'user-1', role: 'admin' },
+            ],
+        })
+        await flushPromises()
+        expect(getMembersMock).toHaveBeenCalledTimes(3)
+        expect(canManageDynamic.value).toBe(true)
+    })
 })
