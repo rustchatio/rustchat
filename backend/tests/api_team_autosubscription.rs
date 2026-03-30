@@ -69,17 +69,13 @@ async fn add_team_member_succeeds_when_default_channel_autojoin_fails() {
     )
     .await;
 
-    let owner_token_initial = login_token(&app, "owner_user@example.com", "Password123!").await;
-
-    // Elevate owner to org_admin
+    // Promote to org_admin BEFORE login
     sqlx::query("UPDATE users SET role = 'org_admin' WHERE email = 'owner_user@example.com'")
         .execute(&app.db_pool)
         .await
         .expect("failed to elevate owner");
 
-    // Re-login
     let owner_token = login_token(&app, "owner_user@example.com", "Password123!").await;
-
     let member_id: Uuid = sqlx::query_scalar("SELECT id FROM users WHERE email = $1")
         .bind("member_user@example.com")
         .fetch_one(&app.db_pool)
@@ -186,17 +182,13 @@ async fn v4_add_team_member_succeeds_when_default_channel_autojoin_fails() {
     )
     .await;
 
-    let owner_token_initial = login_token(&app, "owner_user_v4@example.com", "Password123!").await;
-
-    // Elevate owner to org_admin
+    // Promote to org_admin BEFORE login
     sqlx::query("UPDATE users SET role = 'org_admin' WHERE email = 'owner_user_v4@example.com'")
         .execute(&app.db_pool)
         .await
         .expect("failed to elevate owner");
 
-    // Re-login
     let owner_token = login_token(&app, "owner_user_v4@example.com", "Password123!").await;
-
     let member_id: Uuid = sqlx::query_scalar("SELECT id FROM users WHERE email = $1")
         .bind("member_user_v4@example.com")
         .fetch_one(&app.db_pool)
@@ -302,15 +294,12 @@ async fn v4_add_team_member_by_invite_succeeds_when_default_channel_autojoin_fai
     )
     .await;
 
-    let owner_token_initial = login_token(&app, "owner_user_v4_invite@example.com", "Password123!").await;
-
-    // Elevate owner to org_admin
+    // Promote to org_admin BEFORE login
     sqlx::query("UPDATE users SET role = 'org_admin' WHERE email = 'owner_user_v4_invite@example.com'")
         .execute(&app.db_pool)
         .await
         .expect("failed to elevate owner");
 
-    // Re-login
     let owner_token = login_token(&app, "owner_user_v4_invite@example.com", "Password123!").await;
     let member_token = login_token(&app, "member_user_v4_invite@example.com", "Password123!").await;
 
@@ -423,15 +412,12 @@ async fn v4_add_team_member_by_token_uses_one_time_token() {
     )
     .await;
 
-    let owner_token_initial = login_token(&app, "owner_user_v4_token@example.com", "Password123!").await;
-
-    // Elevate owner to org_admin
+    // Promote to org_admin BEFORE login
     sqlx::query("UPDATE users SET role = 'org_admin' WHERE email = 'owner_user_v4_token@example.com'")
         .execute(&app.db_pool)
         .await
         .expect("failed to elevate owner");
 
-    // Re-login
     let owner_token = login_token(&app, "owner_user_v4_token@example.com", "Password123!").await;
     let member_token = login_token(&app, "member_user_v4_token@example.com", "Password123!").await;
 
@@ -545,15 +531,13 @@ async fn create_team_bootstraps_fallback_default_channels_and_joins_creator() {
         "Password123!",
     )
     .await;
-    let owner_token_initial = login_token(&app, "owner_user_bootstrap@example.com", "Password123!").await;
 
-    // Elevate owner to org_admin
+    // Promote to org_admin BEFORE login
     sqlx::query("UPDATE users SET role = 'org_admin' WHERE email = 'owner_user_bootstrap@example.com'")
         .execute(&app.db_pool)
         .await
         .expect("failed to elevate owner");
 
-    // Re-login
     let owner_token = login_token(&app, "owner_user_bootstrap@example.com", "Password123!").await;
     let owner_id: Uuid = sqlx::query_scalar("SELECT id FROM users WHERE email = $1")
         .bind("owner_user_bootstrap@example.com")
@@ -642,20 +626,13 @@ async fn create_team_bootstraps_configured_default_channels_and_joins_creator() 
         "Password123!",
     )
     .await;
-    let owner_token_initial = login_token(
-        &app,
-        "owner_user_custom_defaults@example.com",
-        "Password123!",
-    )
-    .await;
 
-    // Elevate owner to org_admin
+    // Promote to org_admin BEFORE login
     sqlx::query("UPDATE users SET role = 'org_admin' WHERE email = 'owner_user_custom_defaults@example.com'")
         .execute(&app.db_pool)
         .await
         .expect("failed to elevate owner");
 
-    // Re-login
     let owner_token = login_token(
         &app,
         "owner_user_custom_defaults@example.com",

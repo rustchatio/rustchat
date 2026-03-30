@@ -9,7 +9,7 @@ mod common;
 async fn test_slash_command_lifecycle() {
     let app = spawn_app().await;
 
-    // 1. Register and Login
+    // 1. Register
     let user_data = serde_json::json!({
         "username": "cmduser",
         "email": "cmd@example.com",
@@ -24,6 +24,13 @@ async fn test_slash_command_lifecycle() {
         .await
         .expect("Failed to register");
 
+    // 2. Promote to org_admin BEFORE login
+    sqlx::query("UPDATE users SET role = 'org_admin' WHERE username = 'cmduser'")
+        .execute(&app.db_pool)
+        .await
+        .expect("Failed to update user role");
+
+    // 3. Login
     let login_data = serde_json::json!({
         "email": "cmd@example.com",
         "password": "Password123!"
@@ -45,25 +52,9 @@ async fn test_slash_command_lifecycle() {
         .as_str()
         .expect("Missing auth token")
         .to_string();
+    assert_eq!(login_body["user"]["role"], "org_admin");
 
-    // Elevate user to org_admin to allow team creation
-    sqlx::query("UPDATE users SET role = 'org_admin' WHERE email = 'cmd@example.com'")
-        .execute(&app.db_pool)
-        .await
-        .expect("Failed to update user role");
-
-    // Re-login to get a fresh token
-    let login_res_2 = app
-        .api_client
-        .post(&format!("{}/api/v1/auth/login", &app.address))
-        .json(&login_data)
-        .send()
-        .await
-        .expect("Failed to re-login");
-    let login_body_2: serde_json::Value = login_res_2.json().await.expect("Failed to parse re-login response");
-    let token = login_body_2["token"].as_str().expect("Missing fresh auth token").to_string();
-
-    // 2. Create Team
+    // 4. Create Team
     let team_data = serde_json::json!({
         "name": "cmdteam",
         "display_name": "Command Team",
@@ -82,7 +73,7 @@ async fn test_slash_command_lifecycle() {
     assert_eq!(200, team_res.status().as_u16());
     let team: Team = team_res.json().await.expect("Failed to parse team");
 
-    // 3. Get Channels to find a channel ID
+    // 5. Get Channels to find a channel ID
     let channels_res = app
         .api_client
         .get(&format!(
@@ -94,10 +85,6 @@ async fn test_slash_command_lifecycle() {
         .await
         .expect("Failed to list channels");
 
-    // Note: create_team might not create default channels in the current implementation,
-    // but usually there's a General channel or similar.
-    // If not, we might need to create one.
-    // Let's check if channels are returned.
     let channels: Vec<Value> = channels_res.json().await.expect("Failed to parse channels");
 
     let channel_id = if channels.is_empty() {
@@ -124,7 +111,7 @@ async fn test_slash_command_lifecycle() {
 
     let channel_uuid = uuid::Uuid::parse_str(&channel_id).unwrap();
 
-    // 4. Test Built-in Command (/echo)
+    // 6. Test Built-in Command (/echo)
     let echo_cmd = ExecuteCommand {
         command: "/echo Hello World".to_string(),
         channel_id: channel_uuid,
@@ -147,7 +134,7 @@ async fn test_slash_command_lifecycle() {
         .expect("Failed to parse echo response");
     assert_eq!(echo_body.text, "Echo: Hello World");
 
-    // 5. Create Custom Slash Command
+    // 7. Create Custom Slash Command
     let new_cmd = CreateSlashCommand {
         trigger: "/custom".to_string(),
         url: "http://localhost:12345/hook".to_string(),
@@ -176,9 +163,7 @@ async fn test_slash_command_lifecycle() {
         .expect("Failed to parse created command");
     assert_eq!(created_cmd.trigger, "custom");
 
-    // 6. Execute Custom Command
-    // This is expected to fail (internal error) because the URL is unreachable,
-    // but we verify that it attempts to execute it (i.e. not "Command not found").
+    // 8. Execute Custom Command
     let custom_exec = ExecuteCommand {
         command: "/custom some args".to_string(),
         channel_id: channel_uuid,
@@ -194,8 +179,5 @@ async fn test_slash_command_lifecycle() {
         .await
         .expect("Failed to execute custom command");
 
-    // Since reqwest error mapping in backend returns 500 on connection error
-    // check if we got a response (could be 500 or 200 with error text depending on implementation)
-    // api/integrations.rs: map_err(|e| AppError::Internal(...)) -> 500
     assert_eq!(500, exec_res.status().as_u16());
 }
