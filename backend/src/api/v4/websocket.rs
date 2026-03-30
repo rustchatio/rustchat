@@ -989,9 +989,9 @@ async fn build_reconnect_snapshot(
                 u.presence,
                 COALESCE(u.presence_manual, false) AS presence_manual,
                 u.last_login_at,
-                CASE WHEN u.status_expires_at IS NOT NULL AND u.status_expires_at <= NOW() THEN NULL ELSE u.status_text END AS status_text,
-                CASE WHEN u.status_expires_at IS NOT NULL AND u.status_expires_at <= NOW() THEN NULL ELSE u.status_emoji END AS status_emoji,
-                CASE WHEN u.status_expires_at IS NOT NULL AND u.status_expires_at <= NOW() THEN NULL ELSE u.status_expires_at END AS status_expires_at
+                CASE WHEN u.status_expires_at IS NOT NULL AND u.status_expires_at < NOW() THEN NULL ELSE u.status_text END AS status_text,
+                CASE WHEN u.status_expires_at IS NOT NULL AND u.status_expires_at < NOW() THEN NULL ELSE u.status_emoji END AS status_emoji,
+                CASE WHEN u.status_expires_at IS NOT NULL AND u.status_expires_at < NOW() THEN NULL ELSE u.status_expires_at END AS status_expires_at
             FROM users u
             JOIN channel_members cm ON cm.user_id = u.id
             WHERE cm.channel_id = ANY($1)

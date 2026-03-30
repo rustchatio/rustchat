@@ -294,7 +294,7 @@ export function useWebSocket() {
 
                     if (userId === authStore.user?.id) {
                         authStore.syncUserStatusSnapshot({
-                            status,
+                            status: status,
                             text: rawStatus.text ?? null,
                             emoji: rawStatus.emoji ?? null,
                             expiresAt: rawStatus.expires_at ?? null,

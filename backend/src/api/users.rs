@@ -132,7 +132,7 @@ async fn get_user(
     auth: AuthUser,
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<UserResponse>> {
-    let mut user: User = sqlx::query_as("SELECT * FROM users WHERE id = $1 AND deleted_at IS NULL")
+    let user: User = sqlx::query_as("SELECT * FROM users WHERE id = $1 AND deleted_at IS NULL")
         .bind(id)
         .fetch_optional(&state.db)
         .await?
@@ -147,17 +147,7 @@ async fn get_user(
         return Err(AppError::Forbidden("Cannot view this user".to_string()));
     }
 
-    // Only clear and potentially broadcast if the user was actually authorized to see this data
-    if v4_status::clear_expired_custom_status_if_needed(&state, id).await? {
-        // Refresh user record after clearing status to ensure we return fresh data
-        user = sqlx::query_as("SELECT * FROM users WHERE id = $1")
-            .bind(id)
-            .fetch_one(&state.db)
-            .await?;
-        // Broadcast the change so other clients stay in sync
-        let _ = v4_status::broadcast_status_change(&state, id).await;
-    }
-
+    let _ = v4_status::clear_expired_custom_status_if_needed(&state, id).await?;
     Ok(Json(UserResponse::from(user)))
 }
 
@@ -166,19 +156,18 @@ async fn get_users_by_ids(
     auth: AuthUser,
     Json(body): Json<UsersByIdsRequest>,
 ) -> ApiResult<Json<Vec<UserResponse>>> {
-    let requested_ids = match body {
+    let user_ids = match body {
         UsersByIdsRequest::Ids(ids) => ids,
         UsersByIdsRequest::Wrapped { user_ids } => user_ids,
     };
 
-    if requested_ids.is_empty() {
+    if user_ids.is_empty() {
         return Ok(Json(vec![]));
     }
 
-    // 1. Fetch user records first so we can check authorization
-    let mut users: Vec<User> =
+    let users: Vec<User> =
         sqlx::query_as("SELECT * FROM users WHERE id = ANY($1) AND deleted_at IS NULL")
-            .bind(&requested_ids)
+            .bind(&user_ids)
             .fetch_all(&state.db)
             .await?;
 
@@ -188,60 +177,14 @@ async fn get_users_by_ids(
             || (auth.org_id.is_some() && auth.org_id == user.org_id)
     };
 
-    // 2. Filter to authorized users BEFORE performing any side effects (like clearing status)
-    let authorized_user_ids: Vec<Uuid> = users
-        .iter()
-        .filter(|u| can_view(u))
-        .map(|u| u.id)
-        .collect();
-
-    if !authorized_user_ids.is_empty() {
-        // 3. Bulk clear expired statuses only for users the caller is authorized to see
-        let cleared_ids = sqlx::query_as::<_, (Uuid,)>(
-            r#"
-            UPDATE users
-            SET status_text = NULL,
-                status_emoji = NULL,
-                status_expires_at = NULL,
-                custom_status = 'null'::jsonb
-            WHERE id = ANY($1)
-              AND status_expires_at IS NOT NULL
-              AND status_expires_at <= NOW()
-            RETURNING id
-            "#,
-        )
-        .bind(&authorized_user_ids)
-        .fetch_all(&state.db)
-        .await?;
-
-        if !cleared_ids.is_empty() {
-            // 4. If any were cleared, re-fetch the affected user records
-            let cleared_uuids: Vec<Uuid> = cleared_ids.into_iter().map(|(id,)| id).collect();
-            let updated_users: Vec<User> =
-                sqlx::query_as("SELECT * FROM users WHERE id = ANY($1)")
-                    .bind(&cleared_uuids)
-                    .fetch_all(&state.db)
-                    .await?;
-
-            for updated in updated_users {
-                let user_id = updated.id;
-                if let Some(pos) = users.iter().position(|u| u.id == user_id) {
-                    users[pos] = updated;
-                }
-                // Best-effort broadcast for each cleared user
-                let _ = v4_status::broadcast_status_change(&state, user_id).await;
-            }
-        }
+    let mut users_by_id: HashMap<Uuid, User> = HashMap::new();
+    for user in users.into_iter().filter(can_view) {
+        // Only clear status for users we are authorized to see
+        let _ = v4_status::clear_expired_custom_status_if_needed(&state, user.id).await?;
+        users_by_id.insert(user.id, user);
     }
 
-    // 5. Build response map from authorized users only
-    let mut users_by_id: HashMap<Uuid, User> = users
-        .into_iter()
-        .filter(can_view)
-        .map(|user| (user.id, user))
-        .collect();
-
-    let ordered_users = requested_ids
+    let ordered_users = user_ids
         .into_iter()
         .filter_map(|user_id| users_by_id.remove(&user_id))
         .map(UserResponse::from)
