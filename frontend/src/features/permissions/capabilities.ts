@@ -152,7 +152,7 @@ async function ensureChannelPermissionLoaded(channelId: string, userId: string) 
     } catch {
         setChannelPermissionSnapshot(channelId, {
             membershipRole: null,
-            loaded: true,
+            loaded: false,
             loading: false,
         })
     }

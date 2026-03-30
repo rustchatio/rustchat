@@ -758,6 +758,33 @@ pub async fn clear_expired_custom_status_if_needed(
     Ok(result.rows_affected() > 0)
 }
 
+pub async fn clear_expired_custom_statuses_for_users(
+    state: &AppState,
+    user_ids: &[Uuid],
+) -> ApiResult<i64> {
+    if user_ids.is_empty() {
+        return Ok(0);
+    }
+
+    let result = sqlx::query(
+        r#"
+        UPDATE users
+        SET status_text = NULL,
+            status_emoji = NULL,
+            status_expires_at = NULL,
+            custom_status = 'null'::jsonb
+        WHERE id = ANY($1)
+          AND status_expires_at IS NOT NULL
+          AND status_expires_at <= NOW()
+        "#,
+    )
+    .bind(user_ids)
+    .execute(&state.db)
+    .await?;
+
+    Ok(result.rows_affected() as i64)
+}
+
 pub async fn clear_expired_custom_statuses(state: &AppState) -> ApiResult<Vec<Uuid>> {
     let cleared_rows: Vec<(Uuid,)> = sqlx::query_as(
         r#"

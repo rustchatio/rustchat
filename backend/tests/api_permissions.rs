@@ -7,7 +7,7 @@ use crate::common::spawn_app;
 mod common;
 
 #[tokio::test]
-async fn member_can_create_team() {
+async fn member_cannot_create_team() {
     let app = spawn_app().await;
     let org_id = insert_org(&app, "Permission Org").await;
     let (token, _user_id) =
@@ -25,13 +25,7 @@ async fn member_can_create_team() {
         .await
         .expect("team create request should complete");
 
-    assert_eq!(response.status(), StatusCode::OK);
-    let body = response
-        .json::<serde_json::Value>()
-        .await
-        .expect("team create response should be JSON");
-    assert_eq!(body["name"], "unauthorized-team");
-    assert_eq!(body["display_name"], "Unauthorized Team");
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
 }
 
 #[tokio::test]
