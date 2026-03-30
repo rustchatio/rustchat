@@ -1,7 +1,9 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { X } from 'lucide-vue-next';
 import { useTeamStore } from '../../stores/teams';
+import { useAuthStore } from '../../stores/auth';
+import { canCreateTeam as canCreateTeamForRole } from '../../features/permissions/capabilities';
 import BaseButton from '../atomic/BaseButton.vue';
 import BaseInput from '../atomic/BaseInput.vue';
 
@@ -14,14 +16,21 @@ const emit = defineEmits<{
 }>();
 
 const teamStore = useTeamStore();
+const authStore = useAuthStore();
 
 const name = ref('');
 const displayName = ref('');
 const description = ref('');
 const loading = ref(false);
 const error = ref('');
+const canCreateTeam = computed(() => canCreateTeamForRole(authStore.user?.role));
 
 async function handleSubmit() {
+    if (!canCreateTeam.value) {
+        error.value = 'You do not have permission to create teams';
+        return;
+    }
+
     if (!name.value.trim()) {
         error.value = 'Team name is required';
         return;
@@ -74,8 +83,20 @@ function handleClose() {
           </button>
         </div>
 
+        <div v-if="!canCreateTeam" class="p-6 space-y-4">
+          <div class="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
+            You do not have permission to create teams.
+          </div>
+
+          <div class="flex justify-end pt-2">
+            <BaseButton variant="secondary" @click="handleClose">
+              Close
+            </BaseButton>
+          </div>
+        </div>
+
         <!-- Form -->
-        <form @submit.prevent="handleSubmit" class="p-6 space-y-4">
+        <form v-else @submit.prevent="handleSubmit" class="p-6 space-y-4">
           <!-- Error -->
           <div v-if="error" class="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-600 dark:text-red-400 text-sm">
             {{ error }}

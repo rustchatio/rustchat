@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
 import { usePresenceStore } from '../../features/presence';
+import { getPresencePresentation, normalizePresenceStatus } from '../../features/presence/presencePresentation';
 import { useTeamStore } from '../../stores/teams';
 import type { PresenceStatus } from '../../core/entities/User';
 
@@ -33,7 +34,7 @@ const fallbackTeamPresence = computed<PresenceStatus | null>(() => {
 });
 
 const currentPresence = computed<PresenceStatus>(() => {
-  return (userPresence.value?.presence?.toLowerCase() as PresenceStatus) || fallbackTeamPresence.value || 'offline';
+  return normalizePresenceStatus(userPresence.value?.presence || fallbackTeamPresence.value);
 });
 
 const initials = computed(() => {
@@ -108,25 +109,39 @@ function handleImageError() {
 const presenceSizeClass = computed(() => {
   const size = props.size;
   if (typeof size === 'number') {
-    return size > 40 ? 'w-3.5 h-3.5 border-2' : 'w-2.5 h-2.5 border-2';
+    return size > 40 ? 'w-4 h-4 border-2' : 'w-3 h-3 border-2';
   }
   switch (size) {
     case 'xs': return 'w-1.5 h-1.5 border';
-    case 'sm': return 'w-2 h-2 border';
-    case 'md': return 'w-3 h-3 border-2';
+    case 'sm': return 'w-3 h-3 border-2';
+    case 'md': return 'w-3.5 h-3.5 border-2';
     case 'lg': return 'w-4 h-4 border-2';
     case 'xl': return 'w-7 h-7 border-4';
-    default: return 'w-3 h-3 border-2';
+    default: return 'w-3.5 h-3.5 border-2';
   }
 });
 
-const presenceColorClass = computed(() => {
-  switch (currentPresence.value) {
-    case 'online': return 'bg-green-500';
-    case 'away': return 'bg-amber-500';
-    case 'dnd': return 'bg-red-500';
-    case 'offline': return 'bg-gray-400';
-    default: return 'bg-gray-400';
+const presenceMeta = computed(() => getPresencePresentation(currentPresence.value));
+
+const showPresenceIcon = computed(() => {
+  const size = props.size;
+  if (typeof size === 'number') {
+    return size >= 24;
+  }
+  return size !== 'xs';
+});
+
+const presenceIconClass = computed(() => {
+  const size = props.size;
+  if (typeof size === 'number') {
+    return size >= 40 ? 'w-2 h-2' : 'w-1.5 h-1.5';
+  }
+  switch (size) {
+    case 'sm': return 'w-1.5 h-1.5';
+    case 'md': return 'w-2 h-2';
+    case 'lg': return 'w-2 h-2';
+    case 'xl': return 'w-3.5 h-3.5';
+    default: return 'w-2 h-2';
   }
 });
 </script>
@@ -155,9 +170,16 @@ const presenceColorClass = computed(() => {
     <!-- Presence Dot -->
     <div 
       v-if="showPresence"
-      class="absolute bottom-0 right-0 rounded-full border-white dark:border-gray-900"
-      :class="[presenceSizeClass, presenceColorClass]"
-      title="Presence status"
-    ></div>
+      class="absolute bottom-0 right-0 flex items-center justify-center rounded-full shadow-sm"
+      :class="[presenceSizeClass, presenceMeta.badgeClass]"
+      :title="presenceMeta.label"
+    >
+      <component
+        :is="presenceMeta.icon"
+        v-if="presenceMeta.icon && showPresenceIcon"
+        :class="presenceIconClass"
+        stroke-width="2.5"
+      />
+    </div>
   </div>
 </template>

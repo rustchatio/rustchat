@@ -6,7 +6,6 @@ import {
 import { useTeamStore } from '../../stores/teams';
 import { useChannelStore } from '../../stores/channels';
 import { useAuthStore } from '../../stores/auth';
-import { usePresenceStore } from '../../features/presence';
 import { useUnreadStore } from '../../stores/unreads';
 import { useChannelPreferencesStore } from '../../stores/channelPreferences';
 import CreateChannelModal from '../modals/CreateChannelModal.vue';
@@ -18,11 +17,18 @@ import ChannelContextMenu from '../channels/ChannelContextMenu.vue';
 import AddChannelMembersModal from '../modals/AddChannelMembersModal.vue';
 import type { SidebarCategory } from '../../api/channels';
 import { channelRepository } from '../../features/channels/repositories/channelRepository';
+import RcAvatar from '../ui/RcAvatar.vue';
+import { getDirectMessageCounterpartyId } from '../../utils/directMessage';
+import { getPresencePresentation } from '../../features/presence/presencePresentation';
+import { getUserSummarySnapshot, prefetchUserSummaries } from '../../composables/useUserSummary';
+import {
+  canCreateChannel as canCreateChannelForRole,
+  useCurrentTeamManagementPermission,
+} from '../../features/permissions/capabilities';
 
 const teamStore = useTeamStore();
 const channelStore = useChannelStore();
 const authStore = useAuthStore();
-const presenceStore = usePresenceStore();
 const unreadStore = useUnreadStore();
 const channelPrefsStore = useChannelPreferencesStore();
 
@@ -43,11 +49,18 @@ const contextMenuChannel = ref<{
   type: 'public' | 'private' | 'dm' | 'group';
   unread: number;
   isOwner: boolean;
+  creatorId: string | null;
 } | null>(null);
 const contextMenuTrigger = ref<HTMLElement | null>(null);
 const showMoveToModal = ref(false);
 const moveToCategories = ref<SidebarCategory[]>([]);
 const moveToChannelId = ref('');
+const { canManageTeam: canManageCurrentTeam } = useCurrentTeamManagementPermission(
+  () => teamStore.currentTeamId,
+)
+const canCreateChannelsInCurrentTeam = computed(() =>
+  !!teamStore.currentTeamId && canCreateChannelForRole(authStore.user?.role),
+)
 
 // Reload channels when team changes
 watch(() => teamStore.currentTeamId, (teamId) => {
@@ -57,6 +70,18 @@ watch(() => teamStore.currentTeamId, (teamId) => {
   } else {
     channelStore.clearChannels();
   }
+}, { immediate: true });
+
+const directMessageUserIds = computed(() => {
+  return [...new Set(
+    channelStore.directMessages
+      .map((channel) => getDirectMessageCounterpartyId(channel.name, authStore.user?.id))
+      .filter((userId): userId is string => Boolean(userId))
+  )];
+});
+
+watch(directMessageUserIds, (userIds) => {
+  prefetchUserSummaries(userIds);
 }, { immediate: true });
 
 // Helper to deduplicate channels by ID
@@ -124,25 +149,24 @@ function normalizeChannelForDisplay(c: any) {
   let displayName = c.display_name || c.name;
   let otherId = '';
   let status = 'offline';
+  let statusLabel = 'Offline';
+  let statusText = '';
+  let statusEmoji = '';
+  let avatarUrl = '';
+  let username = '';
   
   // Handle DM channels
   if (c.channel_type === 'direct' || c.name?.startsWith('dm_')) {
-    const parts = c.name.split('_');
-    if (parts.length === 3) {
-      otherId = parts[1] === authStore.user?.id ? parts[2] : parts[1];
-      const member = teamStore.members.find(m => m.user_id === otherId);
-      if (member) {
-        displayName = member.display_name || member.username;
-      }
-    }
-    
-    // Get presence status
-    const memberPresence = otherId
-      ? teamStore.members.find(m => m.user_id === otherId)?.presence
-      : undefined;
-    status = otherId
-      ? (presenceStore.presenceMap.get(otherId)?.presence || memberPresence || 'offline')
-      : 'offline';
+    otherId = getDirectMessageCounterpartyId(c.name, authStore.user?.id) || '';
+    const summary = otherId ? getUserSummarySnapshot(otherId) : null;
+    const member = otherId ? teamStore.members.find(m => m.user_id === otherId) : null;
+    displayName = summary?.displayName || member?.display_name || summary?.username || member?.username || displayName;
+    avatarUrl = summary?.avatarUrl || member?.avatar_url || '';
+    username = summary?.username || member?.username || '';
+    status = summary?.presence || member?.presence || 'offline';
+    statusText = summary?.statusText || '';
+    statusEmoji = summary?.statusEmoji || '';
+    statusLabel = getPresencePresentation(status).label;
   }
   
   // Get unread counts from channel store
@@ -157,8 +181,14 @@ function normalizeChannelForDisplay(c: any) {
   return {
     id: c.id,
     name: displayName,
+    username: username || displayName,
+    avatarUrl,
+    userId: otherId,
     type: channelType,
     status: status,
+    statusLabel,
+    statusText,
+    statusEmoji,
     unread: unreadCount,
     mention: mentionCount > 0,
     mentionCount: mentionCount,
@@ -215,7 +245,8 @@ function openContextMenu(channel: any, event: MouseEvent) {
     name: channel.name,
     type: channelType,
     unread: channel.unread,
-    isOwner: isChannelOwner(channel)
+    isOwner: isChannelOwner(channel),
+    creatorId: channel.creator_id ?? null,
   };
   contextMenuTrigger.value = event.currentTarget as HTMLElement;
 }
@@ -290,6 +321,9 @@ function handleAddCategory(catId: string) {
   if (catId === 'dms') {
     showDirectMessageModal.value = true;
   } else {
+    if (!canCreateChannelsInCurrentTeam.value) {
+      return;
+    }
     showCreateModal.value = true;
   }
 }
@@ -357,6 +391,7 @@ async function handleLeaveTeam() {
           Browse Teams
         </button>
         <button
+          v-if="canManageCurrentTeam"
           @click="showTeamSettings = true; showTeamMenu = false"
           class="w-full flex items-center gap-3 px-4 py-2 text-sm text-text-2 hover:bg-bg-surface-2 transition-standard"
         >
@@ -408,6 +443,7 @@ async function handleLeaveTeam() {
                 {{ cat.channels.length }}
               </span>
               <button 
+                v-if="cat.id === 'dms' || canCreateChannelsInCurrentTeam"
                 @click.stop="handleAddCategory(cat.id)"
                 class="rounded p-1 opacity-0 transition-standard hover:bg-bg-surface-1 group-hover:opacity-100"
                 :title="cat.id === 'dms' ? 'New direct message' : 'Create channel'"
@@ -448,30 +484,44 @@ async function handleLeaveTeam() {
                 >
                   <Hash v-if="channel.type === 'public'" class="w-4 h-4" />
                   <Lock v-else-if="channel.type === 'private'" class="w-3.5 h-3.5" />
-                  <div v-else-if="channel.type === 'dm'" class="relative flex items-center justify-center w-4 h-4">
-                    <div 
-                      class="w-2.5 h-2.5 rounded-full border-2"
-                      :class="{ 
-                        'bg-success border-success': channel.status === 'online',
-                        'bg-transparent border-text-3': channel.status === 'offline',
-                        'bg-warning border-warning': channel.status === 'away',
-                        'bg-danger border-danger': channel.status === 'dnd'
-                      }"
-                    />
-                  </div>
+                  <RcAvatar
+                    v-else-if="channel.type === 'dm'"
+                    :user-id="channel.userId"
+                    :username="channel.username"
+                    :src="channel.avatarUrl"
+                    size="sm"
+                    class="ring-1 ring-border-1/70"
+                  />
                   <MessageCircle v-else class="w-4 h-4" />
                 </span>
                 
                 <!-- Channel Name -->
-                <span 
-                  class="truncate text-sm"
-                  :class="{ 
-                    'text-text-1 font-semibold': channelStore.currentChannelId === channel.id || channel.unread > 0 || channel.mention,
-                    'text-text-2 font-medium': channel.unread === 0 && !channel.mention && channelStore.currentChannelId !== channel.id,
-                  }"
-                >
-                  {{ channel.name }}
-                </span>
+                <div class="min-w-0">
+                  <span 
+                    class="block truncate text-sm"
+                    :class="{ 
+                      'text-brand font-semibold': channelStore.currentChannelId === channel.id,
+                      'text-text-1 font-semibold': channelStore.currentChannelId !== channel.id && (channel.unread > 0 || channel.mention),
+                      'text-text-2 font-medium': channel.unread === 0 && !channel.mention && channelStore.currentChannelId !== channel.id,
+                    }"
+                  >
+                    {{ channel.name }}
+                  </span>
+                  <span
+                    v-if="channel.type === 'dm'"
+                    class="mt-0.5 block truncate text-[11px]"
+                    :class="channelStore.currentChannelId === channel.id ? 'text-text-2' : 'text-text-3'"
+                  >
+                    <template v-if="channel.statusText || channel.statusEmoji">
+                      <span v-if="channel.statusEmoji">{{ channel.statusEmoji }}</span>
+                      <span v-if="channel.statusEmoji && channel.statusText" class="mx-1">·</span>
+                      {{ channel.statusText || channel.statusLabel }}
+                    </template>
+                    <template v-else>
+                      {{ channel.statusLabel }}
+                    </template>
+                  </span>
+                </div>
               </div>
 
               <!-- Status/Unread Indicators -->
@@ -518,6 +568,7 @@ async function handleLeaveTeam() {
                     :channel-id="contextMenuChannel!.id"
                     :channel-name="contextMenuChannel!.name"
                     :channel-type="contextMenuChannel!.type"
+                    :creator-id="contextMenuChannel!.creatorId"
                     :is-owner="contextMenuChannel!.isOwner"
                     :is-admin="isUserAdmin()"
                     :unread-count="channel.unread"
@@ -561,6 +612,7 @@ async function handleLeaveTeam() {
         <span>Browse channels</span>
       </button>
       <button 
+        v-if="canCreateChannelsInCurrentTeam"
         @click="showCreateModal = true"
         class="flex w-full items-center gap-3 rounded-r-1 px-2 py-1.5 text-left text-xs text-text-3 transition-standard hover:bg-bg-surface-1 hover:text-text-1"
       >

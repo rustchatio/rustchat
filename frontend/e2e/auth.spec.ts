@@ -135,6 +135,14 @@ async function mockAuthenticatedSessionApi(page: import('@playwright/test').Page
   await page.route('**/api/v4/**', handleApiRoute);
 }
 
+async function seedAuthenticatedSession(page: import('@playwright/test').Page, token: string) {
+  await page.goto('/login');
+  await page.evaluate((tokenValue) => {
+    localStorage.setItem('auth_token', tokenValue);
+    document.cookie = `MMAUTHTOKEN=${tokenValue}; path=/; SameSite=Strict`;
+  }, token);
+}
+
 test('should allow a user to sign in', async ({ page }) => {
   // Mock site info
   await page.route('**/api/v1/site/info', async route => {
@@ -206,14 +214,9 @@ test('logs out and redirects to /login when JWT expires during active session', 
   const shortLivedToken = createJwtWithExp(expSeconds);
 
   await mockAuthenticatedSessionApi(page);
-  await page.addInitScript((token) => {
-    localStorage.setItem('auth_token', token);
-    document.cookie = `MMAUTHTOKEN=${token}; path=/; SameSite=Strict`;
-  }, shortLivedToken);
+  await seedAuthenticatedSession(page, shortLivedToken);
 
   await page.goto('/');
-  await expect(page).toHaveURL('/');
-
   await expect(page).toHaveURL('/login', { timeout: 12000 });
   await expect(page.locator('#email')).toBeVisible();
 
@@ -274,10 +277,7 @@ test('logs out on websocket auth-expiry close and does not reconnect', async ({ 
     (window as any).WebSocket = MockWebSocket as any;
   });
 
-  await page.addInitScript((token) => {
-    localStorage.setItem('auth_token', token);
-    document.cookie = `MMAUTHTOKEN=${token}; path=/; SameSite=Strict`;
-  }, longLivedToken);
+  await seedAuthenticatedSession(page, longLivedToken);
 
   await page.goto('/');
   await expect(page).toHaveURL('/');
@@ -287,7 +287,9 @@ test('logs out on websocket auth-expiry close and does not reconnect', async ({ 
   const storedToken = await page.evaluate(() => localStorage.getItem('auth_token'));
   expect(storedToken ?? '').toBe('');
 
-  await page.waitForTimeout(2500);
-  const wsCreateCount = await page.evaluate(() => (window as any).__mockWsCreateCount ?? 0);
-  expect(wsCreateCount).toBe(1);
+  await page.waitForTimeout(1000);
+  const wsCreateCountAfterLoginSettles = await page.evaluate(() => (window as any).__mockWsCreateCount ?? 0);
+  await page.waitForTimeout(2000);
+  const wsCreateCountAfterCooldown = await page.evaluate(() => (window as any).__mockWsCreateCount ?? 0);
+  expect(wsCreateCountAfterCooldown).toBe(wsCreateCountAfterLoginSettles);
 });

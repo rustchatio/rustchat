@@ -1,5 +1,295 @@
 # Task Plan
 
+## 2026-03-29 Team Creation Permission Regression
+
+### Task
+- Fix the regression where `POST /api/v1/teams` returned `403` for newly registered `member` users.
+- Unblock the failing category integration tests that create a team before exercising sidebar category behavior.
+
+### Implementation Status
+- [x] Updated [backend/src/api/teams.rs](/Users/scolak/Projects/rustchat/backend/src/api/teams.rs) so team creation checks `TEAM_CREATE` instead of `TEAM_MANAGE`.
+- [x] Updated [backend/src/auth/policy.rs](/Users/scolak/Projects/rustchat/backend/src/auth/policy.rs) so `member`, `team_admin`, and `org_admin` include `TEAM_CREATE`.
+- [x] Updated policy unit coverage in [backend/src/auth/policy.rs](/Users/scolak/Projects/rustchat/backend/src/auth/policy.rs) for the new permission expectation.
+- [x] Updated [backend/tests/api_permissions.rs](/Users/scolak/Projects/rustchat/backend/tests/api_permissions.rs) so members can create teams and guests remain blocked.
+- [x] Verified [backend/tests/api_categories.rs](/Users/scolak/Projects/rustchat/backend/tests/api_categories.rs) now passes again.
+
+### Verification Status
+1. `cd /Users/scolak/Projects/rustchat/backend && cargo test --test api_categories -- --nocapture`
+- Result: PASS, `2 passed`
+2. `cd /Users/scolak/Projects/rustchat/backend && cargo test --test api_permissions -- --nocapture`
+- Result: PASS, `9 passed`
+3. `cd /Users/scolak/Projects/rustchat/backend && cargo check`
+- Result: PASS
+4. `cd /Users/scolak/Projects/rustchat/backend && cargo clippy --all-targets --all-features -- -D warnings`
+- Result: PASS
+
+### Manual Verification Command
+1. `curl -i -X POST http://127.0.0.1:3000/api/v1/teams -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{"name":"self-serve-team","display_name":"Self Serve Team","description":"permission regression check"}'`
+
+### Expected vs Actual
+- Expected: a normal registered `member` can create a team, while a `guest` still gets `403`.
+- Actual: local verification matches that behavior, and the previously failing `api_categories` tests now pass.
+
+## 2026-03-28 Reaction Deduplication + Shared Presence/Status Layer
+
+### Task
+- Keep the reaction deduplication fix.
+- Implement the approved Option B architecture from `SPEC.md`.
+- Stop the UI from computing presence/status separately in each touched component.
+
+### Architecture Locked In
+- Add one shared frontend presence/status presenter for badge label, icon, and visual treatment.
+- Add one shared user-summary source for direct-message and profile/detail surfaces.
+- Move session cleanup and active presence usage fully onto `frontend/src/features/presence/stores/presenceStore.ts`.
+- Treat `frontend/src/stores/presence.ts` as legacy and remove it from the active flow.
+
+### Implementation Checklist
+- [x] Keep reaction canonicalization centered in `frontend/src/utils/emoji.ts`, `frontend/src/stores/messages.ts`, and `frontend/src/components/channel/MessageItem.vue`.
+- [x] Add the shared presence/status presenter and switch touched UI surfaces to use it.
+- [x] Add one DM/user-summary helper so `ChannelInfoPanel` and `UserProfileModal` no longer shape user data independently, and centralize DM counterpart resolution in `frontend/src/utils/directMessage.ts`.
+- [x] Update `frontend/src/stores/auth.ts` to clear the active feature presence store during logout/session expiry.
+- [x] Remove or quarantine the legacy presence store so new code cannot accidentally keep using it.
+- [x] Add regression tests for reaction alias dedupe and session presence cleanup.
+
+### Manual Verification Commands
+1. `cd frontend && npm run build`
+2. `cd frontend && npm run dev`
+3. In an authenticated channel, react with `👍` to a message that already has `+1` or `thumbsup`, then remove it again. Verify one reaction bucket is rendered throughout.
+4. Open a direct message and compare the DM sidebar row, channel info panel, and user profile modal. Verify availability and custom status agree across all three surfaces.
+5. Log out, then log back in as the same or another user. Verify no stale presence badges survive session cleanup.
+
+### Parallelization
+- Lane A: reaction normalization hardening
+- Lane B: shared presence/status architecture
+- Lane C: UI rollout on top of Lane B
+
+### Readiness
+- Ready for implementation once the branch follows the locked Option B architecture above.
+
+### Outcome
+- Implemented on branch `ui-improvements-3` and pushed at commit `f4cea640` (`feat: centralize presence status handling`).
+- Automated verification completed:
+  - `cd frontend && npm run test:unit`
+  - `cd frontend && npm run build`
+  - `cd frontend && npm run test:e2e`
+- Result: PASS, `60 passed`.
+- Follow-up gaps remain around cross-user custom status freshness, backend status contract consistency, and deeper reaction/status regression coverage. Those are tracked in the `2026-03-29 Presence/Status Baseline and Contract Closure` section below.
+
+## 2026-03-29 Presence/Status Baseline and Contract Closure
+
+### Task
+- Freeze a baseline for the shipped reaction/presence/status work.
+- Close the remaining **Lake 1** UI and realtime gaps without reopening the broader shell redesign.
+- Make DM surfaces, profile surfaces, and reconnect behavior consistent enough that users trust the same person-state everywhere they see it.
+
+### Shipped Baseline
+- Reaction identity is normalized in `frontend/src/utils/emoji.ts`, `frontend/src/stores/messages.ts`, and `frontend/src/components/channel/MessageItem.vue`.
+- Shared status presentation exists in `frontend/src/features/presence/presencePresentation.ts`.
+- Shared user summary hydration exists in `frontend/src/composables/useUserSummary.ts`.
+- Session cleanup clears active presence state and summary cache in `frontend/src/stores/auth.ts`.
+- Backend presence/status endpoints and websocket `status_change` flow are active in `backend/src/api/v4/status.rs`.
+
+### Lake 1 Scope Locked
+- Live custom-status propagation for other users across the DM sidebar, channel info panel, and profile modal.
+- Reconnect correctness so websocket recovery restores rich status, not just plain presence.
+- Shared summary batching through the existing `/api/v4/users/ids` path for visible DM users.
+- One shared frontend expiry helper used by both auth-self state and shared-summary state.
+- Regression coverage for summary batching, rich reconnect hydration, and cross-surface realtime behavior.
+
+### Remaining Gaps
+- Cross-user custom status text/emoji is not live-updated after initial fetch for DM/profile surfaces.
+- `frontend/src/components/layout/ChannelSidebar.vue` still shapes DM counterpart data locally instead of consuming the final shared-summary path.
+- Websocket reconnect currently restores basic presence, but the plan must treat rich custom-status recovery as part of the user-visible contract.
+- The plan still lacks explicit visual hierarchy, interaction states, responsive behavior, and density rules for the 3 person-status surfaces.
+- Regression coverage is still missing for summary batching, reconnect hydration, token-expiry cleanup, and cross-surface UI consistency.
+
+### Implementation Checklist
+- [ ] Extend websocket reconnect snapshots so visible user status includes `text`, `emoji`, and `expires_at`, not only plain presence.
+- [ ] Batch shared-summary prefetch for visible DM users through `/api/v4/users/ids`, while keeping single-user fallback for profile/detail surfaces.
+- [ ] Move auth-self expiry and shared-summary expiry onto one shared frontend helper.
+- [ ] Normalize `frontend/src/components/layout/ChannelSidebar.vue` onto the shared summary path for DM identity/status rendering.
+- [ ] Add frontend regression tests for summary batching, reconnect hydration, shared expiry handling, and token-expiry-driven cleanup.
+- [ ] Add one focused Playwright flow for DM sidebar + channel info + profile modal consistency, including live update and reconnect recovery.
+
+### Design Decisions Locked In
+1. **Cross-surface hierarchy**
+   - Identity first.
+   - Availability second.
+   - Custom status third.
+2. **Surface rules**
+   - Sidebar row: avatar badge is the primary dense-surface signal; name stays strongest; custom status is one muted truncated line and never competes with the person’s identity.
+   - Channel info panel: avatar + identity block first, then one availability chip, then one passive custom-status chip below it.
+   - Profile modal: identity stays neutral-first and complete; availability remains secondary; full custom status may wrap and act as supporting metadata rather than a hero element.
+3. **Anti-slop rules**
+   - No equal-weight double-pill treatment in dense surfaces.
+   - No centered social-card energy for core collaboration identity.
+   - No decorative color treatment that outranks status truth.
+   - No generic badge soup or repeated card patterns just because status data exists.
+4. **Design-system mapping**
+   - Neutral text hierarchy first, semantic color reserved for availability truth.
+   - Custom status chip is passive metadata, not an action or CTA.
+   - Avatar badge is the primary compact status affordance.
+   - Motion is minimal-functional and only clarifies state changes.
+5. **Density rules**
+   - Sidebar: max one muted ellipsized status line.
+   - Info panel: one wrapped line or two-line clamp.
+   - Profile modal: full custom status unless absurdly long, then graceful wrapping.
+
+### UI Structure
+```text
+DM SIDEBAR ROW
+[Avatar + presence badge]  Name
+                           muted custom status (optional, 1 line)
+
+CHANNEL INFO PANEL
+[Avatar]
+Name
+@username
+[Availability chip]
+[Custom status chip]
+[Role / contact details]
+
+PROFILE MODAL
+[Large avatar]
+Name
+secondary identity text
+[Availability chip]
+[Custom status block]
+[Email / position / details]
+```
+
+### Interaction State Coverage
+
+| Feature | Loading | Partial | Error | Success | Reconnect Recovering |
+|--------|---------|---------|-------|---------|----------------------|
+| DM sidebar row | Show existing avatar/name shell with no spinner clutter; reserve status space | Show identity from team/member fallback, suppress custom status until trusted | Fall back to avatar + identity only; no scary inline error copy in the list | Name + badge + muted status line | Keep identity visible, clear stale custom status until rich snapshot lands |
+| Channel info panel | Skeleton avatar, 2 text lines, 1 muted pill placeholder | Show identity and availability first, delay custom status chip | Replace detail body with calm inline error copy and retryable close/reopen path | Identity block, availability chip, passive custom-status chip | Preserve panel structure, show availability first, never flash stale status text |
+| Profile modal | Centered loading shell with avatar circle and text skeletons | Show profile identity and availability; delay richer fields/status text | Full-panel error state with plain-language recovery copy | Complete identity, availability chip, wrapped custom-status metadata, details list | Keep modal open, preserve identity, refresh status fields without layout jump |
+
+### User Journey & Emotional Arc
+
+| Step | User Does | User Feels | Plan Must Support |
+|------|-----------|------------|-------------------|
+| 1 | Scans DM sidebar | "I can tell who is around" | Fast identity-first row, presence truth visible at a glance |
+| 2 | Opens DM info panel | "This matches what I just saw" | Same person, same availability semantics, more context not more noise |
+| 3 | Opens profile modal | "This looks complete and trustworthy" | Full identity, richer details, calm hierarchy, no decorative drift |
+| 4 | Sees live status update | "The app is current" | Smooth status update without stale text or hierarchy jumps |
+| 5 | Survives reconnect | "The app recovered cleanly" | Identity remains stable, stale custom status cleared or restored correctly |
+
+### Responsive & Accessibility Rules
+- Mobile sidebar rows keep identity on the first line and status on a second muted line only when space allows.
+- Channel info panel may collapse into a sheet/drawer on smaller widths, but must preserve the same identity > availability > custom-status order.
+- Profile modal becomes a fullscreen sheet on narrow mobile widths, not a cramped centered card.
+- Presence must never be color-only: avatar badge gets accessible labels/tooltips and text equivalents wherever status is called out.
+- Keyboard focus order must reach the DM row, info panel actions, and profile modal close / message CTA predictably.
+- Touch targets stay at `44px` minimum.
+
+### What Already Exists
+- `DESIGN.md` already defines the `Focused Warm Utility` system, warm-neutral tokens, and calm collaboration hierarchy.
+- `frontend/src/features/presence/presencePresentation.ts` already provides the shared presence vocabulary and should remain the single semantic source.
+- `frontend/src/components/ui/RcAvatar.vue` already provides the shared avatar shell and should own the compact badge treatment.
+- `frontend/src/composables/useUserSummary.ts` already provides the shared identity/status merge point and should absorb batching behavior.
+
+### NOT in Scope
+- Backend team-member endpoint parity. This is deferred to Lake 2 because it is contract work, not immediate UI trust work.
+- Server-side expiry-worker semantics and passive-client expiry guarantees. Deferred to Lake 2 to keep Lake 1 reviewable.
+- Broader shell redesign beyond the 3 person-status surfaces touched here.
+
+### Manual Verification Commands
+1. `cd /Users/scolak/Projects/rustchat/frontend && npm run dev`
+2. In one session, open a DM with another user. In a second session, change that other user’s custom status text/emoji. Verify the DM sidebar row, channel info panel, and user profile modal all update without a full reload.
+3. Force a websocket reconnect while the DM is visible and verify identity remains stable while rich custom status is restored without stale text.
+4. Check a narrow mobile viewport and verify the sidebar row, info panel sheet, and profile sheet preserve the same hierarchy and accessible status labels.
+
+### Parallelization
+- Lane A: websocket reconnect snapshot + backend test coverage
+- Lane B: frontend DM/sidebar/shared-summary unification + shared expiry helper
+- Lane C: Playwright / regression coverage after Lanes A and B are stable
+
+### Readiness
+- Ready for implementation once the branch follows the locked Lake 1 scope above and keeps Lake 2 work deferred.
+
+## 2026-03-29 Permission Guardrails and Regression Harness
+
+### Task
+- Close the permission drift where low-privilege members could still create teams or see channel-management affordances they could not actually use.
+- Add a repeatable regression harness so permission leaks become test failures instead of QA surprises.
+
+### Implementation Status
+- [x] Added backend enforcement for team creation in [backend/src/api/teams.rs](/Users/scolak/Projects/rustchat/backend/src/api/teams.rs) using the existing `TEAM_MANAGE` permission path.
+- [x] Added a shared frontend capability layer in [frontend/src/features/permissions/capabilities.ts](/Users/scolak/Projects/rustchat/frontend/src/features/permissions/capabilities.ts) for team creation and channel-management affordances.
+- [x] Hid unauthorized team/channel-management affordances in [frontend/src/components/layout/TeamRail.vue](/Users/scolak/Projects/rustchat/frontend/src/components/layout/TeamRail.vue), [frontend/src/components/modals/CreateTeamModal.vue](/Users/scolak/Projects/rustchat/frontend/src/components/modals/CreateTeamModal.vue), [frontend/src/components/channel/ChannelInfoPanel.vue](/Users/scolak/Projects/rustchat/frontend/src/components/channel/ChannelInfoPanel.vue), [frontend/src/components/modals/ChannelSettingsModal.vue](/Users/scolak/Projects/rustchat/frontend/src/components/modals/ChannelSettingsModal.vue), and [frontend/src/components/channels/ChannelContextMenu.vue](/Users/scolak/Projects/rustchat/frontend/src/components/channels/ChannelContextMenu.vue).
+- [x] Cleared cached channel capability state on logout/session reset in [frontend/src/stores/auth.ts](/Users/scolak/Projects/rustchat/frontend/src/stores/auth.ts).
+- [x] Added backend permission regression tests in [backend/tests/api_permissions.rs](/Users/scolak/Projects/rustchat/backend/tests/api_permissions.rs).
+- [x] Added frontend permission helper and UI affordance tests in [frontend/src/features/permissions/capabilities.test.ts](/Users/scolak/Projects/rustchat/frontend/src/features/permissions/capabilities.test.ts) and [frontend/src/features/permissions/permissionsUi.test.ts](/Users/scolak/Projects/rustchat/frontend/src/features/permissions/permissionsUi.test.ts).
+
+### Verification Status
+1. `cd /Users/scolak/Projects/rustchat/frontend && npm run test:unit`
+- Result: PASS, `23 passed`
+2. `cd /Users/scolak/Projects/rustchat/frontend && npm run build`
+- Result: PASS
+- Note: existing Vite warning about `frontend/src/stores/calls.ts` being both dynamically and statically imported still appears, but the build completes successfully.
+3. `cd /Users/scolak/Projects/rustchat/backend && cargo test --test api_permissions -- --nocapture`
+- Result: PASS, `4 passed`
+- Note: local test bootstrap still logs the known S3 credential warning noise.
+
+### Manual Verification Commands
+1. `cd /Users/scolak/Projects/rustchat/frontend && npm run dev`
+2. Log in as a regular member and verify the team rail no longer shows `Create Team`.
+3. Open a channel info panel as a regular member and verify there is no `Edit` action; if the settings modal is opened indirectly, it should show a locked message instead of editable controls.
+4. Open a channel context menu as a regular member and verify `Add Members` is not offered.
+5. Log in as an org admin and verify team creation still succeeds.
+6. With a member token, run:
+   `curl -i -X POST http://127.0.0.1:3000/api/v1/teams -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{"name":"blocked-team","display_name":"Blocked Team"}'`
+   Expect `403 Forbidden`.
+7. With a non-admin channel member token, run:
+   `curl -i -X PUT http://127.0.0.1:3000/api/v1/channels/<channel-id> -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{"display_name":"Unauthorized Rename"}'`
+   Expect `403 Forbidden`.
+
+### Readiness
+- Ready for QA and review.
+- Follow-up work can widen this same harness to team settings, create-channel affordances, and any remaining permission-sensitive menus if we want a broader permission sweep.
+
+### Expansion Status
+- Expanded on `2026-03-29` to cover team settings and create-channel flows.
+- Added team-management capability helpers and sidebar gating for `Team Settings`.
+- Added create-channel capability helpers and sidebar/modal gating for standard channel creation.
+- Added backend enforcement for:
+  - `DELETE /api/v1/teams/{id}` using the same team-admin / `TEAM_MANAGE` rule as team update
+  - `POST /api/v1/channels` standard channel creation using `CHANNEL_CREATE` with `CHANNEL_MANAGE` override for admins
+- Added regression coverage for:
+  - unauthorized team delete
+  - authorized team-admin delete
+  - unauthorized standard channel create
+  - authorized member standard channel create
+  - team settings visibility / lock state
+  - create-channel visibility / lock state
+
+### Expanded Verification Status
+1. `cd /Users/scolak/Projects/rustchat/frontend && npm exec vitest run src/features/permissions/capabilities.test.ts src/features/permissions/permissionsUi.test.ts`
+- Result: PASS, `16 passed`
+2. `cd /Users/scolak/Projects/rustchat/frontend && npm run test:unit`
+- Result: PASS, `31 passed`
+3. `cd /Users/scolak/Projects/rustchat/frontend && npm run build`
+- Result: PASS
+- Note: existing Vite warning about `frontend/src/stores/calls.ts` being both dynamically and statically imported still appears, but the build completes successfully.
+4. `cd /Users/scolak/Projects/rustchat/backend && cargo test --test api_permissions -- --nocapture`
+- Result: PASS, `8 passed`
+- Note: local test bootstrap still logs the known S3 credential warning noise.
+
+### Expanded Manual Verification Commands
+1. `cd /Users/scolak/Projects/rustchat/frontend && npm run dev`
+2. Log in as a regular member or guest and verify the current-team menu does not show `Team Settings`, and the sidebar does not show standard-channel create affordances.
+3. Open the team settings modal indirectly as an unauthorized user and verify it shows a locked/access-denied state instead of editable controls.
+4. Open the create-channel modal indirectly as an unauthorized user and verify it shows a locked/access-denied state instead of the creation form.
+5. With a low-privilege token, run:
+   `curl -i -X DELETE http://127.0.0.1:3000/api/v1/teams/<team-id> -H "Authorization: Bearer $TOKEN"`
+   Expect `403 Forbidden`.
+6. With a token lacking `CHANNEL_CREATE`, run:
+   `curl -i -X POST http://127.0.0.1:3000/api/v1/channels -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d '{"team_id":"<team-id>","name":"blocked-channel","display_name":"Blocked Channel","channel_type":"public"}'`
+   Expect `403 Forbidden`.
+7. With a team admin or authorized member token, verify team settings and standard channel creation still succeed.
+
 ## 2026-03-28 CI Required-Check Alignment for Frontend-Only PRs
 
 ### Task
@@ -242,6 +532,43 @@ Small compatibility-aligned messaging fixes:
 
 ---
 
+## UIX refinement: reaction identity + shell/status alignment
+
+### Scope completed
+- [x] Normalized reaction identity so alias/name/glyph variants collapse into one reaction bucket (`frontend/src/utils/emoji.ts`, `frontend/src/stores/messages.ts`, `frontend/src/components/channel/MessageItem.vue`).
+- [x] Extended reaction updates to cover loaded thread replies as well as top-level channel messages (`frontend/src/stores/messages.ts`).
+- [x] Compressed the top-left brand lockup and simplified header search to a single clear action (`frontend/src/components/layout/GlobalHeader.vue`).
+- [x] Theme-aligned the channel identity headline so it no longer reads as hard black against the shell (`frontend/src/components/channel/ChannelHeader.vue`).
+- [x] Upgraded DM rows from abstract status dots to avatar-led identity with proper presence badges (`frontend/src/components/layout/ChannelSidebar.vue`, `frontend/src/components/ui/RcAvatar.vue`).
+- [x] Redesigned member list and profile modal presence treatment with explicit status labels/icons and token-safe surfaces (`frontend/src/components/channel/ChannelMembersPanel.vue`, `frontend/src/components/modals/UserProfileModal.vue`).
+- [x] Removed the admin/slate modal theme leak from team, channel, and direct-message pickers so collaboration flows use the same token-driven shell styling (`frontend/src/components/modals/BrowseTeamsModal.vue`, `frontend/src/components/modals/BrowseChannelsModal.vue`, `frontend/src/components/modals/DirectMessageModal.vue`).
+- [x] Filled the direct-message details gap in the right sidebar so DM conversations show the other user’s avatar, presence, and custom status instead of only generic channel metadata (`frontend/src/components/channel/ChannelInfoPanel.vue`).
+
+### Verification Status
+
+#### Automated
+1. `cd frontend && npm run build`
+- Result: PASS
+- Note: existing Vite warning remains for `frontend/src/stores/calls.ts` being both dynamically and statically imported.
+
+### Manual Verification Commands
+1. `cd /Users/scolak/Projects/rustchat/frontend && npm run dev`
+2. Open a message with existing reactions, add `👍`, and confirm the same visible emoji does not render twice when websocket updates land.
+3. Open a thread reply and repeat the same reaction toggle check there.
+4. Review the authenticated shell header and confirm:
+   - the site title uses the brand accent instead of reading as hard black
+   - the brand block is less crowded
+   - the center search treatment is a single-line “Search” action
+5. Open the members panel and a user profile modal and confirm presence states render with consistent labels/icons for `Online`, `Away`, `Do not disturb`, and `Offline`.
+6. Open `Browse Teams`, `Browse Channels`, and `Direct Messages` and confirm they inherit the regular collaboration theme instead of the old dark/admin palette.
+7. Open a direct message, then open `Channel Info` in the right sidebar and confirm the other user’s avatar, presence badge, and custom status are shown.
+
+### Readiness
+- The approved UIX spec items for reaction deduplication, header/search compression, and presence/status credibility are implemented in code.
+- Remaining acceptance should come from a quick live browser pass against the authenticated app to confirm the final feel matches the intended shell direction.
+
+---
+
 ## 001-platform-foundation: RustChat Platform Foundation
 
 ### Specification
@@ -321,3 +648,15 @@ Small compatibility-aligned messaging fixes:
 - SC-008: Accessibility audit passes WCAG 2.1 AA and BITV 2.0 with zero violations
 - SC-009: `cargo audit` shows zero high/critical CVEs at release
 - SC-010: Zero-downtime deployment achieved via blue-green strategy
+
+## GSTACK REVIEW REPORT
+
+| Review | Trigger | Why | Runs | Status | Findings |
+|--------|---------|-----|------|--------|----------|
+| CEO Review | `/plan-ceo-review` | Scope & strategy | 0 | — | — |
+| Codex Review | `/codex review` | Independent 2nd opinion | 0 | — | — |
+| Eng Review | `/plan-eng-review` | Architecture & tests (required) | 3 | CLEAR | 22 issues, 0 critical gaps |
+| Design Review | `/plan-design-review` | UI/UX gaps | 1 | CLEAR | score: 6/10 → 9/10, 7 decisions |
+
+**UNRESOLVED:** 0
+**VERDICT:** ENG + DESIGN CLEARED — ready to implement

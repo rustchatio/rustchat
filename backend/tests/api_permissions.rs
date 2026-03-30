@@ -1,0 +1,446 @@
+#![allow(clippy::needless_borrows_for_generic_args)]
+use reqwest::StatusCode;
+use uuid::Uuid;
+
+use crate::common::spawn_app;
+
+mod common;
+
+#[tokio::test]
+async fn member_cannot_create_team() {
+    let app = spawn_app().await;
+    let org_id = insert_org(&app, "Permission Org").await;
+    let (token, _user_id) =
+        register_and_login(&app, org_id, "team_member", "team_member@example.com", None).await;
+
+    let response = app
+        .api_client
+        .post(format!("{}/api/v1/teams", app.address))
+        .header("Authorization", format!("Bearer {token}"))
+        .json(&serde_json::json!({
+            "name": "unauthorized-team",
+            "display_name": "Unauthorized Team"
+        }))
+        .send()
+        .await
+        .expect("team create request should complete");
+
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn org_admin_can_create_team() {
+    let app = spawn_app().await;
+    let org_id = insert_org(&app, "Permission Admin Org").await;
+    let (token, _user_id) = register_and_login(
+        &app,
+        org_id,
+        "team_admin_user",
+        "team_admin_user@example.com",
+        Some("org_admin"),
+    )
+    .await;
+
+    let response = app
+        .api_client
+        .post(format!("{}/api/v1/teams", app.address))
+        .header("Authorization", format!("Bearer {token}"))
+        .json(&serde_json::json!({
+            "name": "approved-team",
+            "display_name": "Approved Team"
+        }))
+        .send()
+        .await
+        .expect("team create request should complete");
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response
+        .json::<serde_json::Value>()
+        .await
+        .expect("team create response should be JSON");
+    assert_eq!(body["name"], "approved-team");
+    assert_eq!(body["display_name"], "Approved Team");
+}
+
+#[tokio::test]
+async fn guest_cannot_create_team() {
+    let app = spawn_app().await;
+    let org_id = insert_org(&app, "Guest Permission Org").await;
+    let (token, _user_id) = register_and_login(
+        &app,
+        org_id,
+        "guest_team_user",
+        "guest_team_user@example.com",
+        Some("guest"),
+    )
+    .await;
+
+    let response = app
+        .api_client
+        .post(format!("{}/api/v1/teams", app.address))
+        .header("Authorization", format!("Bearer {token}"))
+        .json(&serde_json::json!({
+            "name": "guest-team",
+            "display_name": "Guest Team"
+        }))
+        .send()
+        .await
+        .expect("team create request should complete");
+
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn member_cannot_delete_team() {
+    let app = spawn_app().await;
+    let org_id = insert_org(&app, "Team Delete Org").await;
+    let (token, user_id) = register_and_login(
+        &app,
+        org_id,
+        "team_delete_member",
+        "team_delete_member@example.com",
+        None,
+    )
+    .await;
+
+    let team_id = insert_team(&app, org_id, "delete-guarded-team").await;
+    add_team_member(&app, team_id, user_id, "member").await;
+
+    let response = app
+        .api_client
+        .delete(format!("{}/api/v1/teams/{}", app.address, team_id))
+        .header("Authorization", format!("Bearer {token}"))
+        .send()
+        .await
+        .expect("team delete request should complete");
+
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn team_admin_can_delete_team() {
+    let app = spawn_app().await;
+    let org_id = insert_org(&app, "Team Delete Success Org").await;
+    let (token, user_id) = register_and_login(
+        &app,
+        org_id,
+        "team_delete_admin",
+        "team_delete_admin@example.com",
+        None,
+    )
+    .await;
+
+    let team_id = insert_team(&app, org_id, "delete-allowed-team").await;
+    add_team_member(&app, team_id, user_id, "admin").await;
+
+    let response = app
+        .api_client
+        .delete(format!("{}/api/v1/teams/{}", app.address, team_id))
+        .header("Authorization", format!("Bearer {token}"))
+        .send()
+        .await
+        .expect("team delete request should complete");
+
+    assert!(response.status().is_success());
+
+    let still_exists: Option<Uuid> = sqlx::query_scalar("SELECT id FROM teams WHERE id = $1")
+        .bind(team_id)
+        .fetch_optional(&app.db_pool)
+        .await
+        .expect("team lookup should succeed");
+    assert!(still_exists.is_none());
+}
+
+#[tokio::test]
+async fn member_cannot_update_channel_settings() {
+    let app = spawn_app().await;
+    let org_id = insert_org(&app, "Channel Permission Org").await;
+    let (_creator_token, creator_id) = register_and_login(
+        &app,
+        org_id,
+        "channel_creator",
+        "channel_creator@example.com",
+        None,
+    )
+    .await;
+    let (member_token, member_id) = register_and_login(
+        &app,
+        org_id,
+        "channel_member",
+        "channel_member@example.com",
+        None,
+    )
+    .await;
+
+    let team_id = insert_team(&app, org_id, "permissions-team").await;
+    add_team_member(&app, team_id, creator_id, "member").await;
+    add_team_member(&app, team_id, member_id, "member").await;
+
+    let channel_id = insert_channel(&app, team_id, creator_id, "permissions-channel").await;
+    add_channel_member(&app, channel_id, creator_id, "admin").await;
+    add_channel_member(&app, channel_id, member_id, "member").await;
+
+    let response = app
+        .api_client
+        .put(format!("{}/api/v1/channels/{}", app.address, channel_id))
+        .header("Authorization", format!("Bearer {member_token}"))
+        .json(&serde_json::json!({
+            "display_name": "Unauthorized Rename"
+        }))
+        .send()
+        .await
+        .expect("channel update request should complete");
+
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn guest_cannot_create_standard_channel() {
+    let app = spawn_app().await;
+    let org_id = insert_org(&app, "Guest Channel Org").await;
+    let (token, user_id) = register_and_login(
+        &app,
+        org_id,
+        "guest_channel_user",
+        "guest_channel_user@example.com",
+        Some("guest"),
+    )
+    .await;
+
+    let team_id = insert_team(&app, org_id, "guest-channel-team").await;
+    add_team_member(&app, team_id, user_id, "member").await;
+
+    let response = app
+        .api_client
+        .post(format!("{}/api/v1/channels", app.address))
+        .header("Authorization", format!("Bearer {token}"))
+        .json(&serde_json::json!({
+            "team_id": team_id,
+            "name": "guest-blocked-channel",
+            "display_name": "Guest Blocked Channel",
+            "channel_type": "public"
+        }))
+        .send()
+        .await
+        .expect("channel create request should complete");
+
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn member_can_create_standard_channel() {
+    let app = spawn_app().await;
+    let org_id = insert_org(&app, "Member Channel Org").await;
+    let (token, user_id) = register_and_login(
+        &app,
+        org_id,
+        "member_channel_user",
+        "member_channel_user@example.com",
+        None,
+    )
+    .await;
+
+    let team_id = insert_team(&app, org_id, "member-channel-team").await;
+    add_team_member(&app, team_id, user_id, "member").await;
+
+    let response = app
+        .api_client
+        .post(format!("{}/api/v1/channels", app.address))
+        .header("Authorization", format!("Bearer {token}"))
+        .json(&serde_json::json!({
+            "team_id": team_id,
+            "name": "member-created-channel",
+            "display_name": "Member Created Channel",
+            "channel_type": "public"
+        }))
+        .send()
+        .await
+        .expect("channel create request should complete");
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response
+        .json::<serde_json::Value>()
+        .await
+        .expect("channel create response should be JSON");
+    assert_eq!(body["name"], "member-created-channel");
+    assert_eq!(body["display_name"], "Member Created Channel");
+}
+
+#[tokio::test]
+async fn channel_admin_can_update_channel_settings() {
+    let app = spawn_app().await;
+    let org_id = insert_org(&app, "Channel Permission Success Org").await;
+    let (_creator_token, creator_id) = register_and_login(
+        &app,
+        org_id,
+        "channel_admin_creator",
+        "channel_admin_creator@example.com",
+        None,
+    )
+    .await;
+    let (admin_token, admin_id) = register_and_login(
+        &app,
+        org_id,
+        "channel_admin_member",
+        "channel_admin_member@example.com",
+        None,
+    )
+    .await;
+
+    let team_id = insert_team(&app, org_id, "permissions-team-success").await;
+    add_team_member(&app, team_id, creator_id, "member").await;
+    add_team_member(&app, team_id, admin_id, "member").await;
+
+    let channel_id = insert_channel(&app, team_id, creator_id, "permissions-admin-channel").await;
+    add_channel_member(&app, channel_id, creator_id, "admin").await;
+    add_channel_member(&app, channel_id, admin_id, "admin").await;
+
+    let response = app
+        .api_client
+        .put(format!("{}/api/v1/channels/{}", app.address, channel_id))
+        .header("Authorization", format!("Bearer {admin_token}"))
+        .json(&serde_json::json!({
+            "display_name": "Updated By Admin",
+            "purpose": "Managed safely"
+        }))
+        .send()
+        .await
+        .expect("channel update request should complete");
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = response
+        .json::<serde_json::Value>()
+        .await
+        .expect("channel update response should be JSON");
+    assert_eq!(body["display_name"], "Updated By Admin");
+    assert_eq!(body["purpose"], "Managed safely");
+}
+
+async fn insert_org(app: &common::TestApp, name: &str) -> Uuid {
+    let org_id = Uuid::new_v4();
+    sqlx::query("INSERT INTO organizations (id, name) VALUES ($1, $2)")
+        .bind(org_id)
+        .bind(name)
+        .execute(&app.db_pool)
+        .await
+        .expect("failed to create organization");
+    org_id
+}
+
+async fn register_and_login(
+    app: &common::TestApp,
+    org_id: Uuid,
+    username: &str,
+    email: &str,
+    role: Option<&str>,
+) -> (String, Uuid) {
+    app.api_client
+        .post(format!("{}/api/v1/auth/register", app.address))
+        .json(&serde_json::json!({
+            "username": username,
+            "email": email,
+            "password": "Password123!",
+            "display_name": username,
+            "org_id": org_id,
+        }))
+        .send()
+        .await
+        .expect("register request failed")
+        .error_for_status()
+        .expect("register should succeed");
+
+    let user_id: Uuid = sqlx::query_scalar("SELECT id FROM users WHERE email = $1")
+        .bind(email)
+        .fetch_one(&app.db_pool)
+        .await
+        .expect("registered user should exist");
+
+    if let Some(role) = role {
+        sqlx::query("UPDATE users SET role = $1 WHERE id = $2")
+            .bind(role)
+            .bind(user_id)
+            .execute(&app.db_pool)
+            .await
+            .expect("failed to update user role");
+    }
+
+    let login = app
+        .api_client
+        .post(format!("{}/api/v4/users/login", app.address))
+        .json(&serde_json::json!({
+            "login_id": email,
+            "password": "Password123!",
+        }))
+        .send()
+        .await
+        .expect("login request failed")
+        .error_for_status()
+        .expect("login should succeed");
+
+    let token = login
+        .headers()
+        .get("Token")
+        .and_then(|value| value.to_str().ok())
+        .expect("token header missing")
+        .to_string();
+
+    (token, user_id)
+}
+
+async fn insert_team(app: &common::TestApp, org_id: Uuid, name: &str) -> Uuid {
+    let team_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO teams (id, org_id, name, display_name, allow_open_invite) VALUES ($1, $2, $3, $4, true)",
+    )
+    .bind(team_id)
+    .bind(org_id)
+    .bind(name)
+    .bind(name)
+    .execute(&app.db_pool)
+    .await
+    .expect("failed to create team");
+    team_id
+}
+
+async fn add_team_member(app: &common::TestApp, team_id: Uuid, user_id: Uuid, role: &str) {
+    sqlx::query("INSERT INTO team_members (team_id, user_id, role) VALUES ($1, $2, $3)")
+        .bind(team_id)
+        .bind(user_id)
+        .bind(role)
+        .execute(&app.db_pool)
+        .await
+        .expect("failed to add team member");
+}
+
+async fn insert_channel(
+    app: &common::TestApp,
+    team_id: Uuid,
+    creator_id: Uuid,
+    name: &str,
+) -> Uuid {
+    let channel_id = Uuid::new_v4();
+    sqlx::query(
+        "INSERT INTO channels (id, team_id, name, display_name, type, creator_id) VALUES ($1, $2, $3, $4, 'public', $5)",
+    )
+    .bind(channel_id)
+    .bind(team_id)
+    .bind(name)
+    .bind(name)
+    .bind(creator_id)
+    .execute(&app.db_pool)
+    .await
+    .expect("failed to create channel");
+    channel_id
+}
+
+async fn add_channel_member(app: &common::TestApp, channel_id: Uuid, user_id: Uuid, role: &str) {
+    sqlx::query(
+        "INSERT INTO channel_members (channel_id, user_id, role, notify_props) VALUES ($1, $2, $3, '{}'::jsonb)",
+    )
+    .bind(channel_id)
+    .bind(user_id)
+    .bind(role)
+    .execute(&app.db_pool)
+    .await
+    .expect("failed to add channel member");
+}

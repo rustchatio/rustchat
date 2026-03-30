@@ -17,6 +17,7 @@ import { useAuthStore } from '../../stores/auth';
 import { channelRepository } from '../../features/channels/repositories/channelRepository';
 import type { SidebarCategory } from '../../api/channels';
 import { postsApi } from '../../api/posts';
+import { useChannelManagementPermission } from '../../features/permissions/capabilities';
 
 interface ChannelMenuItem {
     id: string
@@ -32,6 +33,7 @@ const props = defineProps<{
     channelId: string
     channelName: string
     channelType: 'public' | 'private' | 'dm' | 'group'
+    creatorId?: string | null
     isOwner?: boolean
     isAdmin?: boolean
     unreadCount?: number
@@ -49,6 +51,10 @@ const channelPrefsStore = useChannelPreferencesStore()
 const unreadStore = useUnreadStore()
 const teamStore = useTeamStore()
 const authStore = useAuthStore()
+const { canManageChannel: canManageCurrentChannel } = useChannelManagementPermission(
+    () => props.channelId,
+    () => props.creatorId ?? null,
+)
 
 const menuRef = ref<HTMLElement | null>(null)
 const categories = ref<SidebarCategory[]>([])
@@ -268,7 +274,11 @@ const menuItems = computed<ChannelMenuItem[]>(() => {
     })
 
     // 6. Add Members (not for DMs)
-    if (props.channelType !== 'dm' && props.channelType !== 'group') {
+    if (
+        props.channelType !== 'dm' &&
+        props.channelType !== 'group' &&
+        canManageCurrentChannel.value
+    ) {
         items.push({
             id: 'add-members',
             label: 'Add Members',

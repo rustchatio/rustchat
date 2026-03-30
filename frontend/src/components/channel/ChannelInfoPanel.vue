@@ -10,16 +10,22 @@ import {
   Star, 
   LogOut,
   Edit3,
-  Check,
-  Copy
+  Copy,
+  Mail,
+  Briefcase
 } from 'lucide-vue-next'
 import { format } from 'date-fns'
 import { useChannelStore } from '../../stores/channels'
 import { useAuthStore } from '../../stores/auth'
 import { useMessageStore } from '../../stores/messages'
 import { useUIStore } from '../../stores/ui'
+import { useTeamStore } from '../../stores/teams'
 import api from '../../api/client'
 import RcAvatar from '../ui/RcAvatar.vue'
+import { getPresencePresentation } from '../../features/presence/presencePresentation'
+import { useUserSummary } from '../../composables/useUserSummary'
+import { getDirectMessageCounterpartyId } from '../../utils/directMessage'
+import { useChannelManagementPermission } from '../../features/permissions/capabilities'
 
 const props = defineProps<{
   channelId: string
@@ -34,6 +40,7 @@ const channelStore = useChannelStore()
 const authStore = useAuthStore()
 const messageStore = useMessageStore()
 const uiStore = useUIStore()
+const teamStore = useTeamStore()
 
 const loading = ref(false)
 const memberCount = ref(0)
@@ -50,7 +57,40 @@ const isCreator = computed(() =>
   channel.value?.creator_id === authStore.user?.id
 )
 
+const directContactId = computed(() => {
+  if (channel.value?.channel_type !== 'direct') {
+    return null
+  }
+  return getDirectMessageCounterpartyId(channel.value.name, authStore.user?.id)
+})
 
+const { userSummary: directContact, isLoading: directContactLoading } = useUserSummary(() => directContactId.value)
+
+const directContactMember = computed(() => {
+  if (!directContactId.value) {
+    return null
+  }
+  return teamStore.members.find((member) => member.user_id === directContactId.value) || null
+})
+
+const directContactName = computed(() => {
+  return (
+    directContact.value?.displayName ||
+    directContactMember.value?.display_name ||
+    directContact.value?.username ||
+    directContactMember.value?.username ||
+    channel.value?.display_name ||
+    'Direct Message'
+  )
+})
+
+const directContactPresenceMeta = computed(() => getPresencePresentation(directContact.value?.presence || directContactMember.value?.presence))
+
+const showDirectMessageProfile = computed(() => channel.value?.channel_type === 'direct' && !!directContactId.value)
+const { canManageChannel: canManageCurrentChannel } = useChannelManagementPermission(
+  () => props.channelId,
+  () => channel.value?.creator_id ?? null,
+)
 
 const channelIcon = computed(() => {
   if (!channel.value) return Hash
@@ -160,7 +200,9 @@ function copyChannelLink() {
   setTimeout(() => showCopiedToast.value = false, 2000)
 }
 
-watch(() => props.channelId, loadStats, { immediate: true })
+watch(() => props.channelId, async () => {
+  await loadStats()
+}, { immediate: true })
 </script>
 
 <template>
@@ -168,7 +210,16 @@ watch(() => props.channelId, loadStats, { immediate: true })
     <!-- Channel Header Card -->
     <div class="p-5 border-b border-border-1 bg-bg-surface-2/30">
       <div class="flex items-start space-x-3">
+        <RcAvatar
+          v-if="showDirectMessageProfile"
+          :userId="directContactId || undefined"
+          :username="directContact?.username || directContactMember?.username || directContactName"
+          :src="directContact?.avatarUrl || directContactMember?.avatar_url"
+          size="lg"
+          class="shrink-0"
+        />
         <div 
+          v-else
           class="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
           :class="channel?.channel_type === 'private' ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'"
         >
@@ -176,19 +227,36 @@ watch(() => props.channelId, loadStats, { immediate: true })
         </div>
         <div class="flex-1 min-w-0">
           <h3 class="font-bold text-lg text-text-1 truncate">
-            {{ channel?.display_name || channel?.name }}
+            {{ showDirectMessageProfile ? directContactName : (channel?.display_name || channel?.name) }}
           </h3>
-          <p class="text-xs text-text-3 font-medium">{{ channelTypeLabel }}</p>
+          <p class="text-xs text-text-3 font-medium">
+            {{ showDirectMessageProfile ? `@${directContact?.username || directContactMember?.username || ''}` : channelTypeLabel }}
+          </p>
         </div>
+      </div>
+
+      <div v-if="showDirectMessageProfile" class="mt-3 flex flex-wrap items-center gap-2">
+        <span class="inline-flex items-center gap-1 rounded-full border px-3 py-1 text-sm font-medium" :class="directContactPresenceMeta.badgeClass">
+          <component :is="directContactPresenceMeta.icon" class="h-3.5 w-3.5" />
+          {{ directContactPresenceMeta.label }}
+        </span>
+        <span
+          v-if="directContact?.statusText"
+          class="inline-flex max-w-full items-center gap-1 rounded-full border border-border-1 bg-bg-surface-1 px-3 py-1 text-sm text-text-2"
+        >
+          <span v-if="directContact?.statusEmoji">{{ directContact.statusEmoji }}</span>
+          <span class="truncate">{{ directContact.statusText }}</span>
+        </span>
+        <span v-else-if="directContactLoading" class="text-xs text-text-3">Loading profile details...</span>
       </div>
       
       <!-- Purpose -->
-      <p v-if="channel?.purpose" class="mt-3 text-sm text-text-2 leading-relaxed">
+      <p v-if="channel?.purpose && !showDirectMessageProfile" class="mt-3 text-sm text-text-2 leading-relaxed">
         {{ channel.purpose }}
       </p>
       
       <!-- Header/Topic -->
-      <div v-if="channel?.header" class="mt-3 p-3 bg-bg-surface-1 rounded-lg border border-border-1">
+      <div v-if="channel?.header && !showDirectMessageProfile" class="mt-3 p-3 bg-bg-surface-1 rounded-lg border border-border-1">
         <p class="text-xs text-text-3 uppercase font-bold tracking-wider mb-1">Topic</p>
         <p class="text-sm text-text-2">{{ channel.header }}</p>
       </div>
@@ -217,7 +285,8 @@ watch(() => props.channelId, loadStats, { immediate: true })
           <span class="text-[10px] font-medium">{{ isMuted ? 'Muted' : 'Mute' }}</span>
         </button>
         
-        <button 
+        <button
+          v-if="canManageCurrentChannel"
           @click="emit('openSettings')"
           class="flex flex-col items-center p-3 rounded-xl hover:bg-surface-2 text-text-2 transition-all"
           title="Edit channel settings"
@@ -260,9 +329,29 @@ watch(() => props.channelId, loadStats, { immediate: true })
 
     <!-- Channel Details -->
     <div class="flex-1 overflow-y-auto p-4 space-y-4">
+      <template v-if="showDirectMessageProfile">
+        <div v-if="directContact?.email">
+          <label class="text-[11px] font-bold text-text-3 uppercase tracking-wider mb-2 block">Email</label>
+          <div class="flex items-center space-x-2 text-text-2">
+            <Mail class="w-4 h-4 text-text-3" />
+            <span class="text-sm">{{ directContact.email }}</span>
+          </div>
+        </div>
+
+        <div v-if="directContact?.position">
+          <label class="text-[11px] font-bold text-text-3 uppercase tracking-wider mb-2 block">Position</label>
+          <div class="flex items-center space-x-2 text-text-2">
+            <Briefcase class="w-4 h-4 text-text-3" />
+            <span class="text-sm">{{ directContact.position }}</span>
+          </div>
+        </div>
+      </template>
+
       <!-- Channel ID / Link -->
       <div>
-        <label class="text-[11px] font-bold text-text-3 uppercase tracking-wider mb-2 block">Channel Link</label>
+        <label class="text-[11px] font-bold text-text-3 uppercase tracking-wider mb-2 block">
+          {{ showDirectMessageProfile ? 'Conversation Link' : 'Channel Link' }}
+        </label>
         <div class="flex items-center space-x-2">
           <code class="flex-1 px-3 py-2 bg-bg-surface-2 rounded-lg text-xs text-text-2 font-mono truncate">
             {{ channel?.name }}
@@ -287,7 +376,7 @@ watch(() => props.channelId, loadStats, { immediate: true })
       </div>
 
       <!-- Creator -->
-      <div v-if="channel?.creator_id">
+      <div v-if="channel?.creator_id && !showDirectMessageProfile">
         <label class="text-[11px] font-bold text-text-3 uppercase tracking-wider mb-2 block">Created By</label>
         <div class="flex items-center space-x-2">
           <RcAvatar 

@@ -9,6 +9,7 @@ import { useToast } from './useToast'
 import { postsApi, type ChannelUnreadAt, type Post } from '../api/posts'
 import type { Channel } from '../api/channels'
 import { normalizeEntityId, normalizeIdsDeep } from '../utils/idCompat'
+import { applyUserStatusSnapshot } from './useUserSummary'
 
 // Server -> Client
 export interface WsEnvelope {
@@ -283,6 +284,22 @@ export function useWebSocket() {
                 const status = normalizeWsPresence(rawStatus.status)
                 if (typeof userId === 'string' && userId) {
                     presenceStore.updatePresenceFromEvent(userId, status)
+                    applyUserStatusSnapshot({
+                        userId,
+                        presence: status,
+                        statusText: rawStatus.text ?? null,
+                        statusEmoji: rawStatus.emoji ?? null,
+                        statusExpiresAt: rawStatus.expires_at ?? null,
+                    })
+
+                    if (userId === authStore.user?.id) {
+                        authStore.syncUserStatusSnapshot({
+                            status: status,
+                            text: rawStatus.text ?? null,
+                            emoji: rawStatus.emoji ?? null,
+                            expiresAt: rawStatus.expires_at ?? null,
+                        })
+                    }
                 }
             })
         }
@@ -523,6 +540,22 @@ export function useWebSocket() {
                         envelope.data.user_id,
                         envelope.data.status || 'online'
                     )
+                    applyUserStatusSnapshot({
+                        userId: envelope.data.user_id,
+                        presence: envelope.data.status,
+                        statusText: envelope.data.text ?? null,
+                        statusEmoji: envelope.data.emoji ?? null,
+                        statusExpiresAt: envelope.data.expires_at ?? null,
+                    })
+
+                    if (envelope.data.user_id === authStore.user?.id) {
+                        authStore.syncUserStatusSnapshot({
+                            status: envelope.data.status,
+                            text: envelope.data.text ?? null,
+                            emoji: envelope.data.emoji ?? null,
+                            expiresAt: envelope.data.expires_at ?? null,
+                        })
+                    }
                 }
                 break
 

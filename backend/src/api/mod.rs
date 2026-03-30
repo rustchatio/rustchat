@@ -233,6 +233,9 @@ pub fn router(
         ));
     }
 
+    let _custom_status_expiry_handle =
+        crate::jobs::spawn_custom_status_expiry_worker(Arc::new(state.clone()));
+
     // CORS configuration
     let cors = build_cors_layer(&state.config);
 

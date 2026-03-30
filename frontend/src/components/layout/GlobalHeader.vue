@@ -132,16 +132,6 @@ const userPresence = computed(() => {
   return presenceStore.self?.presence || 'online';
 });
 
-const presenceColor = computed(() => {
-  const colors: Record<string, string> = {
-    online: 'bg-success',
-    away: 'bg-warning',
-    dnd: 'bg-danger',
-    offline: 'bg-text-4'
-  };
-  return colors[userPresence.value] || 'bg-text-4';
-});
-
 const dndDurations = [
   { label: '30 minutes', value: 'thirty_minutes' },
   { label: '1 hour', value: 'one_hour' },
@@ -202,14 +192,11 @@ function handleQuickSwitcherSelect(item: QuickSwitcherItem) {
           {{ siteInitial }}
         </div>
         <div class="hidden min-w-0 sm:block">
-          <div class="truncate text-[17px] font-semibold tracking-[-0.03em] text-text-1">
+          <div class="truncate text-base font-semibold tracking-[-0.03em] text-brand">
             {{ configStore.siteConfig.site_name }}
           </div>
-          <div class="mt-0.5 flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.18em] text-text-3">
-            <span>Focused Team Chat</span>
-            <span v-if="currentTeamLabel" class="truncate rounded-full border border-border-1 bg-bg-surface-2 px-2 py-0.5 normal-case tracking-normal text-text-2">
-              {{ currentTeamLabel }}
-            </span>
+          <div class="mt-0.5 truncate text-[11px] font-medium tracking-[0.12em] text-text-3">
+            {{ currentTeamLabel || 'Team workspace' }}
           </div>
         </div>
       </div>
@@ -219,17 +206,12 @@ function handleQuickSwitcherSelect(item: QuickSwitcherItem) {
     <div class="hidden flex-1 px-4 md:block">
       <button
         @click="showSearch = true"
-        class="group mx-auto flex w-full max-w-lg items-center gap-3 rounded-r-3 border border-border-1 bg-bg-surface-2/80 px-3.5 py-2.5 text-left transition-standard hover:border-border-2 hover:bg-bg-surface-1 focus-ring"
+        class="group mx-auto flex w-full max-w-md items-center gap-3 rounded-r-3 border border-border-1 bg-bg-surface-2/75 px-3.5 py-2.5 text-left transition-standard hover:border-border-2 hover:bg-bg-surface-1 focus-ring"
       >
         <Search class="h-4 w-4 shrink-0 text-text-3 group-hover:text-text-2" />
-        <div class="min-w-0 flex-1">
-          <div class="truncate text-sm font-medium text-text-2 group-hover:text-text-1">
-            Jump to channels, people, or messages
-          </div>
-          <div class="truncate text-[11px] text-text-3">
-            Search, recent items, and quick navigation in one place
-          </div>
-        </div>
+        <span class="min-w-0 flex-1 truncate text-sm font-medium text-text-2 group-hover:text-text-1">
+          Search
+        </span>
         <kbd class="hidden items-center gap-0.5 text-[10px] font-medium text-text-4 lg:flex">
           <span class="px-1.5 py-0.5 bg-bg-app border border-border-1 rounded">⌘</span>
           <span class="px-1.5 py-0.5 bg-bg-app border border-border-1 rounded">K</span>
@@ -309,20 +291,13 @@ function handleQuickSwitcherSelect(item: QuickSwitcherItem) {
           class="relative flex min-h-11 items-center gap-2 rounded-r-2 py-1 pl-1.5 pr-2.5 transition-standard focus-ring hover:bg-bg-surface-1"
           :class="{ 'bg-bg-surface-1': showUserMenu }"
         >
-          <div class="relative">
-            <RcAvatar 
-              :userId="auth.user?.id"
-              :src="auth.user?.avatar_url" 
-              :username="auth.user?.username" 
-              size="sm"
-              class="w-7 h-7"
-            />
-            <!-- Presence dot -->
-            <span 
-              class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-bg-surface-1"
-              :class="presenceColor"
-            />
-          </div>
+          <RcAvatar 
+            :userId="auth.user?.id"
+            :src="auth.user?.avatar_url" 
+            :username="auth.user?.username" 
+            size="sm"
+            class="w-7 h-7"
+          />
           <span class="hidden max-w-[120px] truncate text-sm font-medium text-text-1 lg:block">
             {{ auth.user?.username }}
           </span>

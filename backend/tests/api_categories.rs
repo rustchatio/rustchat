@@ -11,7 +11,7 @@ mod common;
 async fn test_sidebar_categories() {
     let app = spawn_app().await;
 
-    // 1. Register and Login
+    // 1. Register
     let user_data = json!({
         "username": "catuser",
         "email": "cat@example.com",
@@ -26,31 +26,36 @@ async fn test_sidebar_categories() {
         .await
         .expect("Failed to register");
 
+    // 2. Update user role to org_admin to allow team creation
+    sqlx::query("UPDATE users SET role = 'org_admin' WHERE username = 'catuser'")
+        .execute(&app.db_pool)
+        .await
+        .expect("Failed to update user role");
+
+    // 3. Login (v1)
     let login_data = json!({
-        "login_id": "catuser",
+        "email": "cat@example.com",
         "password": "Password123!"
     });
 
     let login_res = app
         .api_client
-        .post(&format!("{}/api/v4/users/login", &app.address))
+        .post(&format!("{}/api/v1/auth/login", &app.address))
         .json(&login_data)
         .send()
         .await
         .expect("Failed to login");
 
     assert_eq!(200, login_res.status().as_u16());
-    let token = login_res
-        .headers()
-        .get("Token")
-        .unwrap()
-        .to_str()
-        .unwrap()
+    let login_body: serde_json::Value = login_res.json().await.unwrap();
+    let token = login_body["token"]
+        .as_str()
+        .expect("missing token")
         .to_string();
-    let user_info: serde_json::Value = login_res.json().await.unwrap();
-    let _user_id = user_info["id"].as_str().unwrap();
+    let _user_id = login_body["user"]["id"].as_str().expect("missing user id");
+    assert_eq!(login_body["user"]["role"], "org_admin");
 
-    // 2. Create a team (v1)
+    // 4. Create a team (v1)
     let team_data = json!({
         "name": "cat-team",
         "display_name": "Category Team",
@@ -70,7 +75,7 @@ async fn test_sidebar_categories() {
     let team: serde_json::Value = team_res.json().await.unwrap();
     let team_id = team["id"].as_str().unwrap();
 
-    // 3. Get categories (Default)
+    // 5. Get categories (Default)
     let get_res = app
         .api_client
         .get(&format!(
@@ -87,7 +92,7 @@ async fn test_sidebar_categories() {
     assert!(!categories["categories"].as_array().unwrap().is_empty());
     assert_eq!(categories["categories"][0]["display_name"], "Channels");
 
-    // 4. Create a category
+    // 6. Create a category
     let create_cat_data = json!({
         "display_name": "My Custom Category",
         "type": "custom"
@@ -110,7 +115,7 @@ async fn test_sidebar_categories() {
     assert_eq!(new_cat["display_name"], "My Custom Category");
     let cat_id = new_cat["id"].as_str().unwrap();
 
-    // 5. Update categories (assign a channel)
+    // 7. Update categories (assign a channel)
     // Create a channel (v1)
     let channel_data = json!({
         "name": "cat-channel",
@@ -167,7 +172,7 @@ async fn test_sidebar_categories() {
         .unwrap();
     assert_eq!(200, wrapped_update_res.status().as_u16());
 
-    // 6. Update category order
+    // 8. Update category order
     let order_data = json!([cat_id]);
     let order_res = app
         .api_client
@@ -202,6 +207,7 @@ async fn test_sidebar_categories() {
 async fn get_categories_backfills_orphaned_channels() {
     let app = spawn_app().await;
 
+    // 1. Register
     let user_data = json!({
         "username": "catorphan",
         "email": "catorphan@example.com",
@@ -216,31 +222,36 @@ async fn get_categories_backfills_orphaned_channels() {
         .await
         .expect("Failed to register");
 
+    // 2. Update user role to org_admin
+    sqlx::query("UPDATE users SET role = 'org_admin' WHERE username = 'catorphan'")
+        .execute(&app.db_pool)
+        .await
+        .expect("Failed to update user role");
+
+    // 3. Login
     let login_data = json!({
-        "login_id": "catorphan",
+        "email": "catorphan@example.com",
         "password": "Password123!"
     });
 
     let login_res = app
         .api_client
-        .post(format!("{}/api/v4/users/login", &app.address))
+        .post(format!("{}/api/v1/auth/login", &app.address))
         .json(&login_data)
         .send()
         .await
         .expect("Failed to login");
 
     assert_eq!(200, login_res.status().as_u16());
-    let token = login_res
-        .headers()
-        .get("Token")
-        .expect("missing auth token")
-        .to_str()
-        .expect("invalid token header")
+    let login_body: serde_json::Value = login_res.json().await.expect("invalid login body");
+    let token = login_body["token"]
+        .as_str()
+        .expect("missing token")
         .to_string();
-    let user_info: serde_json::Value = login_res.json().await.expect("invalid login body");
-    let user_id = user_info["id"].as_str().expect("missing user id");
-    let user_uuid = parse_mm_or_uuid(user_id).expect("invalid mm user id");
+    let user_id = login_body["user"]["id"].as_str().expect("missing user id");
+    let user_uuid = parse_mm_or_uuid(user_id).expect("invalid user id");
 
+    // 4. Create Team
     let team_data = json!({
         "name": "cat-orphan-team",
         "display_name": "Category Orphan Team",
@@ -259,6 +270,7 @@ async fn get_categories_backfills_orphaned_channels() {
     let team_id = team["id"].as_str().expect("missing team id");
     let team_uuid = parse_mm_or_uuid(team_id).expect("invalid team id");
 
+    // 5. Create Channel
     let channel_data = json!({
         "name": "cat-orphan-channel",
         "display_name": "Category Orphan Channel",
@@ -278,7 +290,7 @@ async fn get_categories_backfills_orphaned_channels() {
     let channel_id = channel["id"].as_str().expect("missing channel id");
     let channel_mm_id = encode_mm_id(Uuid::parse_str(channel_id).expect("invalid raw channel id"));
 
-    // Persist a broken category row with no channel mappings.
+    // 6. Persist a broken category row
     let category_id = Uuid::new_v4();
     let now = Utc::now().timestamp_millis();
     sqlx::query(
@@ -296,6 +308,7 @@ async fn get_categories_backfills_orphaned_channels() {
     .await
     .expect("Failed to insert category");
 
+    // 7. Verify backfill
     let get_res = app
         .api_client
         .get(format!(

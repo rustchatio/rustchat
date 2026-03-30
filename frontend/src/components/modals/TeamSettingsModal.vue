@@ -8,6 +8,7 @@ import { usersApi, type User } from '../../api/users'
 import { useTeamStore } from '../../stores/teams'
 import { useToast } from '../../composables/useToast'
 import { useAuthStore } from '../../stores/auth'
+import { useCurrentTeamManagementPermission } from '../../features/permissions/capabilities'
 
 const props = defineProps<{
   isOpen: boolean
@@ -23,6 +24,9 @@ const emit = defineEmits<{
 const teamStore = useTeamStore()
 const authStore = useAuthStore()
 const toast = useToast()
+const { canManageTeam: canManageCurrentTeam } = useCurrentTeamManagementPermission(
+  () => props.team?.id ?? null,
+)
 
 const activeTab = ref('general')
 const loading = ref(false)
@@ -63,7 +67,7 @@ watch(() => props.isOpen, (isOpen) => {
 })
 
 watch(activeTab, (tab) => {
-  if (tab === 'members' && props.team) {
+  if (tab === 'members' && props.team && canManageCurrentTeam.value) {
     teamStore.fetchMembers(props.team.id)
   }
 })
@@ -74,7 +78,7 @@ const inviteLink = computed(() => {
 })
 
 async function handleSave() {
-  if (!props.team) return
+  if (!props.team || !canManageCurrentTeam.value) return
   
   loading.value = true
   try {
@@ -97,7 +101,7 @@ async function handleSave() {
 }
 
 async function handleDelete() {
-  if (!props.team) return
+  if (!props.team || !canManageCurrentTeam.value) return
   if (!confirm(`Are you sure you want to delete "${props.team.display_name || props.team.name}"? This will delete all channels and messages. This cannot be undone.`)) return
   
   deleting.value = true
@@ -137,6 +141,11 @@ function copyInviteLink() {
 }
 
 async function handleSearch() {
+  if (!canManageCurrentTeam.value) {
+    searchResults.value = []
+    return
+  }
+
   if (!searchQuery.value.trim()) {
     searchResults.value = []
     return
@@ -163,7 +172,7 @@ function onSearchInput() {
 }
 
 async function addMember(user: User) {
-  if (!props.team) return
+  if (!props.team || !canManageCurrentTeam.value) return
   
   addingMember.value = user.id
   try {
@@ -180,7 +189,7 @@ async function addMember(user: User) {
 }
 
 async function removeMember(userId: string) {
-  if (!props.team) return
+  if (!props.team || !canManageCurrentTeam.value) return
   if (!confirm('Are you sure you want to remove this member?')) return
   
   removingMember.value = userId
@@ -223,7 +232,10 @@ async function removeMember(userId: string) {
         </div>
         
         <!-- Tabs -->
-        <div class="flex border-b border-gray-200 dark:border-gray-700 px-6 shrink-0">
+        <div
+          v-if="canManageCurrentTeam"
+          class="flex border-b border-gray-200 dark:border-gray-700 px-6 shrink-0"
+        >
           <button
             v-for="tab in tabs"
             :key="tab.id"
@@ -240,8 +252,15 @@ async function removeMember(userId: string) {
         
         <!-- Content -->
         <div class="flex-1 overflow-y-auto p-6">
+          <div
+            v-if="!canManageCurrentTeam"
+            class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300"
+          >
+            You do not have permission to manage this team.
+          </div>
+
           <!-- General Tab -->
-          <div v-if="activeTab === 'general'" class="space-y-5">
+          <div v-else-if="activeTab === 'general'" class="space-y-5">
             <!-- Team Icon -->
             <div class="flex items-center space-x-4">
               <div class="relative">
@@ -340,7 +359,7 @@ async function removeMember(userId: string) {
                 </button>
 
                 <button
-                  v-if="authStore.user?.role === 'system_admin' || authStore.user?.role === 'org_admin'"
+                  v-if="canManageCurrentTeam"
                   @click="handleDelete"
                   :disabled="deleting || leaving"
                   class="flex items-center px-4 py-2 text-sm font-medium text-red-600 dark:text-red-400 border border-red-300 dark:border-red-800 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50"
@@ -454,7 +473,7 @@ async function removeMember(userId: string) {
         <!-- Footer -->
         <div class="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end space-x-3 shrink-0">
           <BaseButton variant="secondary" @click="$emit('close')">Cancel</BaseButton>
-          <BaseButton @click="handleSave" :loading="loading">Save Changes</BaseButton>
+          <BaseButton v-if="canManageCurrentTeam" @click="handleSave" :loading="loading">Save Changes</BaseButton>
         </div>
       </div>
     </div>

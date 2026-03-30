@@ -760,6 +760,23 @@ export const emojiMap: Record<string, string> = {
     'boomerang2': '🪃',
 }
 
+const preferredEmojiNames: Record<string, string> = {
+    '👍': '+1',
+    '👎': '-1',
+    '❤️': 'heart',
+    '😄': 'smile',
+    '😃': 'smiley',
+    '😀': 'grinning',
+    '😆': 'laughing',
+}
+
+const emojiNameByChar = Object.entries(emojiMap).reduce<Record<string, string>>((acc, [name, char]) => {
+    if (!acc[char]) {
+        acc[char] = preferredEmojiNames[char] || name
+    }
+    return acc
+}, {})
+
 /**
  * Search emojis by query string
  * Returns array of {name, char} matching the query
@@ -811,6 +828,38 @@ export function getEmojiChar(name: string): string {
     // Strip colons if present: ":heart:" -> "heart"
     const cleanName = name.replace(/^:|:$/g, '').toLowerCase();
     return emojiMap[cleanName] || name;
+}
+
+/**
+ * Returns a stable key for reaction comparisons.
+ * Known aliases normalize to the same rendered emoji so ":+1:", "thumbsup", and "👍" collapse together.
+ */
+export function getReactionEmojiKey(value: string): string {
+    const cleanValue = value.replace(/^:|:$/g, '').trim()
+    if (!cleanValue) {
+        return value
+    }
+
+    const lowerValue = cleanValue.toLowerCase()
+    return emojiMap[lowerValue] || cleanValue
+}
+
+/**
+ * Returns the preferred API name for an emoji.
+ * Keeps server requests consistent even when the UI is using rendered glyphs.
+ */
+export function getPreferredEmojiName(value: string): string {
+    const cleanValue = value.replace(/^:|:$/g, '').trim()
+    if (!cleanValue) {
+        return value
+    }
+
+    const lowerValue = cleanValue.toLowerCase()
+    if (emojiMap[lowerValue]) {
+        return preferredEmojiNames[emojiMap[lowerValue]] || lowerValue
+    }
+
+    return emojiNameByChar[cleanValue] || cleanValue
 }
 
 /**

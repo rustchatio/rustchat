@@ -82,6 +82,12 @@ async fn create_team(
     auth: AuthUser,
     Json(payload): Json<CreateTeam>,
 ) -> Result<Json<Team>, AppError> {
+    if !auth.has_permission(&permissions::TEAM_MANAGE) {
+        return Err(AppError::Forbidden(
+            "Missing permission to create teams".to_string(),
+        ));
+    }
+
     let team_id = Uuid::new_v4();
 
     // Get user's org_id
@@ -168,12 +174,38 @@ async fn get_team(
     Ok(Json(team))
 }
 
+async fn ensure_team_management_access(
+    state: &AppState,
+    auth: &AuthUser,
+    team_id: Uuid,
+) -> Result<(), AppError> {
+    if auth.has_permission(&permissions::TEAM_MANAGE) {
+        return Ok(());
+    }
+
+    let member: Option<TeamMember> =
+        sqlx::query_as("SELECT * FROM team_members WHERE team_id = $1 AND user_id = $2")
+            .bind(team_id)
+            .bind(auth.user_id)
+            .fetch_optional(&state.db)
+            .await?;
+
+    match member {
+        Some(member) if member.role == "admin" || member.role == "owner" => Ok(()),
+        _ => Err(AppError::Forbidden(
+            "Only team admins can update team settings".into(),
+        )),
+    }
+}
+
 /// Delete a team
 async fn delete_team(
     State(state): State<AppState>,
-    _auth: AuthUser,
+    auth: AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<(), AppError> {
+    ensure_team_management_access(&state, &auth, id).await?;
+
     sqlx::query("DELETE FROM teams WHERE id = $1")
         .bind(id)
         .execute(&state.db)
@@ -444,26 +476,7 @@ async fn update_team(
     Path(id): Path<Uuid>,
     Json(payload): Json<UpdateTeam>,
 ) -> Result<Json<Team>, AppError> {
-    let can_manage_team = auth.has_permission(&permissions::TEAM_MANAGE);
-
-    // Check if user is admin of the team
-    if !can_manage_team {
-        let member: Option<TeamMember> =
-            sqlx::query_as("SELECT * FROM team_members WHERE team_id = $1 AND user_id = $2")
-                .bind(id)
-                .bind(auth.user_id)
-                .fetch_optional(&state.db)
-                .await?;
-
-        match member {
-            Some(m) if m.role == "admin" || m.role == "owner" => {}
-            _ => {
-                return Err(AppError::Forbidden(
-                    "Only team admins can update team settings".into(),
-                ))
-            }
-        }
-    }
+    ensure_team_management_access(&state, &auth, id).await?;
 
     let team = sqlx::query_as::<_, Team>(
         r#"
