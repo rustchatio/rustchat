@@ -132,8 +132,7 @@ async fn get_user(
     auth: AuthUser,
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<UserResponse>> {
-    let _ = v4_status::clear_expired_custom_status_if_needed(&state, id).await?;
-    let user: User = sqlx::query_as("SELECT * FROM users WHERE id = $1 AND deleted_at IS NULL")
+    let mut user: User = sqlx::query_as("SELECT * FROM users WHERE id = $1 AND deleted_at IS NULL")
         .bind(id)
         .fetch_optional(&state.db)
         .await?
@@ -146,6 +145,17 @@ async fn get_user(
 
     if !can_view {
         return Err(AppError::Forbidden("Cannot view this user".to_string()));
+    }
+
+    // Only clear and potentially broadcast if the user was actually authorized to see this data
+    if v4_status::clear_expired_custom_status_if_needed(&state, id).await? {
+        // Refresh user record after clearing status to ensure we return fresh data
+        user = sqlx::query_as("SELECT * FROM users WHERE id = $1")
+            .bind(id)
+            .fetch_one(&state.db)
+            .await?;
+        // Broadcast the change so other clients stay in sync
+        let _ = v4_status::broadcast_status_change(&state, id).await;
     }
 
     Ok(Json(UserResponse::from(user)))
@@ -165,11 +175,7 @@ async fn get_users_by_ids(
         return Ok(Json(vec![]));
     }
 
-    for user_id in &user_ids {
-        let _ = v4_status::clear_expired_custom_status_if_needed(&state, *user_id).await?;
-    }
-
-    let users: Vec<User> =
+    let mut users: Vec<User> =
         sqlx::query_as("SELECT * FROM users WHERE id = ANY($1) AND deleted_at IS NULL")
             .bind(&user_ids)
             .fetch_all(&state.db)
@@ -180,6 +186,52 @@ async fn get_users_by_ids(
             || auth.has_permission(&permissions::ADMIN_FULL)
             || (auth.org_id.is_some() && auth.org_id == user.org_id)
     };
+
+    // Filter to authorized users first. We only clear expired status for users the caller can see.
+    let authorized_users: Vec<Uuid> = users
+        .iter()
+        .filter(|u| can_view(u))
+        .map(|u| u.id)
+        .collect();
+
+    if !authorized_users.is_empty() {
+        // Bulk clear expired statuses for all visible users
+        let cleared_ids = sqlx::query_as::<_, (Uuid,)>(
+            r#"
+            UPDATE users
+            SET status_text = NULL,
+                status_emoji = NULL,
+                status_expires_at = NULL,
+                custom_status = 'null'::jsonb
+            WHERE id = ANY($1)
+              AND status_expires_at IS NOT NULL
+              AND status_expires_at <= NOW()
+            RETURNING id
+            "#,
+        )
+        .bind(&authorized_users)
+        .fetch_all(&state.db)
+        .await?;
+
+        if !cleared_ids.is_empty() {
+            // If any were cleared, re-fetch the affected user records
+            let cleared_uuids: Vec<Uuid> = cleared_ids.into_iter().map(|(id,)| id).collect();
+            let updated_users: Vec<User> =
+                sqlx::query_as("SELECT * FROM users WHERE id = ANY($1)")
+                    .bind(&cleared_uuids)
+                    .fetch_all(&state.db)
+                    .await?;
+
+            for updated in updated_users {
+                let user_id = updated.id;
+                if let Some(pos) = users.iter().position(|u| u.id == user_id) {
+                    users[pos] = updated;
+                }
+                // Best-effort broadcast for each cleared user
+                let _ = v4_status::broadcast_status_change(&state, user_id).await;
+            }
+        }
+    }
 
     let mut users_by_id: HashMap<Uuid, User> = users
         .into_iter()
