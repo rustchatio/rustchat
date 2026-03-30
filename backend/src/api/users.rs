@@ -166,18 +166,19 @@ async fn get_users_by_ids(
     auth: AuthUser,
     Json(body): Json<UsersByIdsRequest>,
 ) -> ApiResult<Json<Vec<UserResponse>>> {
-    let user_ids = match body {
+    let requested_ids = match body {
         UsersByIdsRequest::Ids(ids) => ids,
         UsersByIdsRequest::Wrapped { user_ids } => user_ids,
     };
 
-    if user_ids.is_empty() {
+    if requested_ids.is_empty() {
         return Ok(Json(vec![]));
     }
 
+    // 1. Fetch user records first so we can check authorization
     let mut users: Vec<User> =
         sqlx::query_as("SELECT * FROM users WHERE id = ANY($1) AND deleted_at IS NULL")
-            .bind(&user_ids)
+            .bind(&requested_ids)
             .fetch_all(&state.db)
             .await?;
 
@@ -187,15 +188,15 @@ async fn get_users_by_ids(
             || (auth.org_id.is_some() && auth.org_id == user.org_id)
     };
 
-    // Filter to authorized users first. We only clear expired status for users the caller can see.
-    let authorized_users: Vec<Uuid> = users
+    // 2. Filter to authorized users BEFORE performing any side effects (like clearing status)
+    let authorized_user_ids: Vec<Uuid> = users
         .iter()
         .filter(|u| can_view(u))
         .map(|u| u.id)
         .collect();
 
-    if !authorized_users.is_empty() {
-        // Bulk clear expired statuses for all visible users
+    if !authorized_user_ids.is_empty() {
+        // 3. Bulk clear expired statuses only for users the caller is authorized to see
         let cleared_ids = sqlx::query_as::<_, (Uuid,)>(
             r#"
             UPDATE users
@@ -209,12 +210,12 @@ async fn get_users_by_ids(
             RETURNING id
             "#,
         )
-        .bind(&authorized_users)
+        .bind(&authorized_user_ids)
         .fetch_all(&state.db)
         .await?;
 
         if !cleared_ids.is_empty() {
-            // If any were cleared, re-fetch the affected user records
+            // 4. If any were cleared, re-fetch the affected user records
             let cleared_uuids: Vec<Uuid> = cleared_ids.into_iter().map(|(id,)| id).collect();
             let updated_users: Vec<User> =
                 sqlx::query_as("SELECT * FROM users WHERE id = ANY($1)")
@@ -233,13 +234,14 @@ async fn get_users_by_ids(
         }
     }
 
+    // 5. Build response map from authorized users only
     let mut users_by_id: HashMap<Uuid, User> = users
         .into_iter()
         .filter(can_view)
         .map(|user| (user.id, user))
         .collect();
 
-    let ordered_users = user_ids
+    let ordered_users = requested_ids
         .into_iter()
         .filter_map(|user_id| users_by_id.remove(&user_id))
         .map(UserResponse::from)
