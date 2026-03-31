@@ -1,44 +1,48 @@
-import axios from 'axios'
+import { HttpClient } from './http/HttpClient'
 import { useAuthStore } from '../stores/auth'
 import { normalizeIdsDeep, shouldNormalizeHttpPayload } from '../utils/idCompat'
 
-const client = axios.create({
+/**
+ * Main API client for v1 endpoints
+ * Replaces Axios with native Fetch-based HttpClient
+ */
+const client = new HttpClient({
     baseURL: import.meta.env.VITE_API_URL || '/api/v1',
-})
+    requestInterceptor: (config) => {
+        const authStore = useAuthStore()
 
-client.interceptors.request.use(config => {
-    const authStore = useAuthStore()
-    if (authStore.token) {
-        config.headers.Authorization = `Bearer ${authStore.token}`
-    }
+        // Add auth header if token exists
+        if (authStore.token) {
+            config.headers = {
+                ...config.headers,
+                Authorization: `Bearer ${authStore.token}`,
+            }
+        }
 
-    if (shouldNormalizeHttpPayload(config.params)) {
-        config.params = normalizeIdsDeep(config.params)
-    }
-    if (shouldNormalizeHttpPayload(config.data)) {
-        config.data = normalizeIdsDeep(config.data)
-    }
+        // Normalize IDs in params and body
+        if (shouldNormalizeHttpPayload(config.params)) {
+            config.params = normalizeIdsDeep(config.params)
+        }
+        if (shouldNormalizeHttpPayload(config.data)) {
+            config.data = normalizeIdsDeep(config.data)
+        }
 
-    return config
-})
-
-client.interceptors.response.use(
-    response => {
+        return config
+    },
+    responseInterceptor: (response) => {
+        // Normalize IDs in response data
         if (shouldNormalizeHttpPayload(response.data)) {
             response.data = normalizeIdsDeep(response.data)
         }
-        return response
-    },
-    error => {
-        if (error.response?.data && shouldNormalizeHttpPayload(error.response.data)) {
-            error.response.data = normalizeIdsDeep(error.response.data)
-        }
-        if (error.response?.status === 401) {
+
+        // Handle 401 - logout
+        if (response.status === 401) {
             const authStore = useAuthStore()
             authStore.logout()
         }
-        return Promise.reject(error)
-    }
-)
+
+        return response
+    },
+})
 
 export default client

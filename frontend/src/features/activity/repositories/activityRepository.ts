@@ -2,23 +2,24 @@
  * Activity Repository - API layer for activity feed
  */
 
-import axios from 'axios'
+import { HttpClient } from '../../../api/http/HttpClient'
 import { useAuthStore } from '../../../stores/auth'
 import type { Activity, ActivityFeedResponse, ActivityQueryParams } from '../types'
 import { ActivityType } from '../types'
 
-// Create a dedicated axios instance for v4 API (activity endpoints are under /api/v4)
-const v4Client = axios.create({
+// Create HttpClient for v4 API (activity endpoints are under /api/v4)
+const v4Client = new HttpClient({
   baseURL: '/api/v4',
-})
-
-// Add auth interceptor - mirrors pattern from api/calls.ts
-v4Client.interceptors.request.use(config => {
-  const authStore = useAuthStore()
-  if (authStore.token) {
-    config.headers.Authorization = `Bearer ${authStore.token}`
-  }
-  return config
+  requestInterceptor: (config) => {
+    const authStore = useAuthStore()
+    if (authStore.token) {
+      config.headers = {
+        ...config.headers,
+        Authorization: `Bearer ${authStore.token}`,
+      }
+    }
+    return config
+  },
 })
 
 function transformActivity(apiActivity: Record<string, unknown>): Activity {
