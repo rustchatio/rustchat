@@ -1,22 +1,23 @@
 // Mattermost Calls Plugin API Client
 // Routes are mounted under /api/v4/plugins/com.mattermost.calls
 
-import axios from 'axios'
+import { HttpClient } from './http/HttpClient'
 import { useAuthStore } from '../stores/auth'
 
-// Create a separate axios instance for v4 API calls
+// Create HttpClient for v4 API calls
 // (the default client uses /api/v1 as base)
-const apiClient = axios.create({
+const apiClient = new HttpClient({
     baseURL: '/api/v4',
-})
-
-// Add auth interceptor
-apiClient.interceptors.request.use(config => {
-    const authStore = useAuthStore()
-    if (authStore.token) {
-        config.headers.Authorization = `Bearer ${authStore.token}`
-    }
-    return config
+    requestInterceptor: (config) => {
+        const authStore = useAuthStore()
+        if (authStore.token) {
+            config.headers = {
+                ...config.headers,
+                Authorization: `Bearer ${authStore.token}`,
+            }
+        }
+        return config
+    },
 })
 
 // Types from Mattermost Calls
