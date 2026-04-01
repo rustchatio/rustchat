@@ -15,6 +15,7 @@ use crate::auth::AuthUser;
 use crate::error::{ApiResult, AppError};
 use crate::mattermost_compat::id::encode_mm_id;
 use crate::middleware::reliability::{send_reqwest_with_retry, RetryCondition, RetryConfig};
+use crate::services::webhooks::is_valid_callback_url;
 use crate::models::{
     Bot, BotToken, CommandResponse, CreateBot, CreateIncomingWebhook, CreateOutgoingWebhook,
     CreateSlashCommand, ExecuteCommand, IncomingWebhook, OutgoingWebhook, OutgoingWebhookPayload,
@@ -1023,6 +1024,18 @@ pub async fn execute_command_internal(
                 .fetch_one(&state.db)
                 .await
                 .unwrap_or_else(|_| "unknown".to_string());
+
+        // Validate slash command URL to prevent SSRF
+        if !is_valid_callback_url(&cmd.url) {
+            return Ok(CommandResponse {
+                response_type: "ephemeral".to_string(),
+                text: "Command URL is not valid or points to an internal address".to_string(),
+                username: None,
+                icon_url: None,
+                goto_location: None,
+                attachments: None,
+            });
+        }
 
         // Execute external command (HTTP POST)
         let client = reqwest::Client::new();
