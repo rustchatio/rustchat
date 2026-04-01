@@ -353,22 +353,22 @@ onMounted(() => {
 
 <template>
     <div class="space-y-6">
-        <div class="rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5">
+        <div class="rounded-xl border border-border-1 bg-bg-surface-1 p-5">
             <div class="flex items-center justify-between gap-3">
                 <div>
-                    <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Email Workflows & Templates</h2>
-                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Manage providers, workflow routing, templates, outbox, and event history.</p>
+                    <h2 class="text-lg font-semibold text-text-1">Email Workflows & Templates</h2>
+                    <p class="text-sm text-text-3 mt-1">Manage providers, workflow routing, templates, outbox, and event history.</p>
                 </div>
-                <button @click="refreshAll" :disabled="loading" class="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-sm text-gray-700 dark:text-gray-200">
+                <button @click="refreshAll" :disabled="loading" class="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-border-2 text-sm text-text-2">
                     <RefreshCw class="w-4 h-4" :class="{ 'animate-spin': loading }" />
                     {{ loading ? 'Refreshing...' : 'Refresh' }}
                 </button>
             </div>
 
-            <div v-if="error" class="mt-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-900/40 dark:bg-rose-900/20 dark:text-rose-300">
+            <div v-if="error" class="mt-4 rounded-lg border border-danger/20 bg-danger/10 px-3 py-2 text-sm text-danger">
                 {{ error }}
             </div>
-            <div v-else-if="notice" class="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-900/20 dark:text-emerald-300">
+            <div v-else-if="notice" class="mt-4 rounded-lg border border-success/20 bg-success/10 px-3 py-2 text-sm text-success">
                 {{ notice }}
             </div>
 
@@ -379,8 +379,8 @@ onMounted(() => {
                     @click="activeTab = tab.key"
                     class="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm border transition-colors"
                     :class="activeTab === tab.key
-                        ? 'bg-indigo-600 text-white border-indigo-600'
-                        : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-slate-700'"
+                        ? 'bg-brand text-white border-brand'
+                        : 'border-border-2 text-text-2 hover:bg-bg-surface-2'"
                 >
                     <component :is="tab.icon" class="w-4 h-4" />
                     {{ tab.label }}
@@ -390,10 +390,10 @@ onMounted(() => {
 
         <div v-if="activeTab === 'providers'" class="space-y-6">
             <!-- Note: Provider creation/editing is handled in EmailSettings.vue -->
-            <div class="rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5">
+            <div class="rounded-xl border border-border-1 bg-bg-surface-1 p-5">
                 <div class="overflow-x-auto">
                     <table class="min-w-full text-sm">
-                        <thead class="text-left text-gray-500 dark:text-gray-400">
+                        <thead class="text-left text-text-3">
                             <tr>
                                 <th class="py-2 pr-4">Provider</th>
                                 <th class="py-2 pr-4">Sender</th>
@@ -403,29 +403,29 @@ onMounted(() => {
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-for="provider in providers" :key="provider.id" class="border-t border-gray-100 dark:border-slate-700">
+                            <tr v-for="provider in providers" :key="provider.id" class="border-t border-border-1">
                                 <td class="py-3 pr-4">
-                                    <div class="font-medium text-gray-900 dark:text-white">{{ provider.host }}:{{ provider.port }}</div>
-                                    <div class="text-xs text-gray-500 dark:text-gray-400">{{ provider.tls_mode }} · {{ provider.username || 'no auth' }}</div>
+                                    <div class="font-medium text-text-1">{{ provider.host }}:{{ provider.port }}</div>
+                                    <div class="text-xs text-text-3">{{ provider.tls_mode }} · {{ provider.username || 'no auth' }}</div>
                                 </td>
                                 <td class="py-3 pr-4">
                                     <div>{{ provider.from_name }}</div>
-                                    <div class="text-xs text-gray-500 dark:text-gray-400">{{ provider.from_address }}</div>
+                                    <div class="text-xs text-text-3">{{ provider.from_address }}</div>
                                 </td>
                                 <td class="py-3 pr-4">
-                                    <span class="px-2 py-1 rounded text-xs" :class="provider.enabled ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300' : 'bg-gray-100 text-gray-700 dark:bg-slate-700 dark:text-gray-200'">
+                                    <span class="px-2 py-1 rounded text-xs" :class="provider.enabled ? 'bg-success/10 text-success' : 'bg-bg-surface-2 text-text-2'">
                                         {{ provider.enabled ? 'Enabled' : 'Disabled' }}
                                     </span>
-                                    <span v-if="provider.is_default" class="ml-2 px-2 py-1 rounded text-xs bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">Default</span>
+                                    <span v-if="provider.is_default" class="ml-2 px-2 py-1 rounded text-xs bg-warning/10 text-warning">Default</span>
                                 </td>
                                 <td class="py-3 pr-4">
-                                    <div class="text-xs text-gray-600 dark:text-gray-300 min-h-4">{{ providerTestStatus[provider.id] || '—' }}</div>
+                                    <div class="text-xs text-text-3 min-h-4">{{ providerTestStatus[provider.id] || '—' }}</div>
                                 </td>
                                 <td class="py-3 text-right">
                                     <div class="inline-flex items-center gap-2">
-                                        <button @click="testProvider(provider.id)" class="px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-xs">Test</button>
-                                        <button @click="setDefaultProvider(provider.id)" class="px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-xs"><Star class="w-3 h-3 inline mr-1" />Default</button>
-                                        <button @click="deleteProvider(provider.id)" class="px-2 py-1 rounded border border-rose-300 text-rose-700 dark:border-rose-800 dark:text-rose-300 text-xs"><Trash2 class="w-3 h-3 inline mr-1" />Delete</button>
+                                        <button @click="testProvider(provider.id)" class="px-2 py-1 rounded border border-border-2 text-xs">Test</button>
+                                        <button @click="setDefaultProvider(provider.id)" class="px-2 py-1 rounded border border-border-2 text-xs"><Star class="w-3 h-3 inline mr-1" />Default</button>
+                                        <button @click="deleteProvider(provider.id)" class="px-2 py-1 rounded border border-danger/30 text-danger text-xs"><Trash2 class="w-3 h-3 inline mr-1" />Delete</button>
                                     </div>
                                 </td>
                             </tr>
@@ -436,10 +436,10 @@ onMounted(() => {
 
         </div>
 
-        <div v-else-if="activeTab === 'workflows'" class="rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5">
+        <div v-else-if="activeTab === 'workflows'" class="rounded-xl border border-border-1 bg-bg-surface-1 p-5">
             <div class="overflow-x-auto">
                 <table class="min-w-full text-sm">
-                    <thead class="text-left text-gray-500 dark:text-gray-400">
+                    <thead class="text-left text-text-3">
                         <tr>
                             <th class="py-2 pr-4">Workflow</th>
                             <th class="py-2 pr-4">Enabled</th>
@@ -450,34 +450,34 @@ onMounted(() => {
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-for="wf in workflows" :key="wf.id" class="border-t border-gray-100 dark:border-slate-700">
+                        <tr v-for="wf in workflows" :key="wf.id" class="border-t border-border-1">
                             <td class="py-3 pr-4">
-                                <div class="font-medium text-gray-900 dark:text-white">{{ wf.name }}</div>
-                                <div class="text-xs text-gray-500 dark:text-gray-400">{{ wf.workflow_key }} · {{ wf.category }}</div>
+                                <div class="font-medium text-text-1">{{ wf.name }}</div>
+                                <div class="text-xs text-text-3">{{ wf.workflow_key }} · {{ wf.category }}</div>
                             </td>
                             <td class="py-3 pr-4">
                                 <label class="inline-flex items-center gap-2">
                                     <input v-model="wf.enabled" type="checkbox" :disabled="!wf.can_disable" class="w-4 h-4 rounded" />
-                                    <span class="text-xs text-gray-600 dark:text-gray-300">{{ wf.can_disable ? 'Editable' : 'Required' }}</span>
+                                    <span class="text-xs text-text-3">{{ wf.can_disable ? 'Editable' : 'Required' }}</span>
                                 </label>
                             </td>
                             <td class="py-3 pr-4">
-                                <input v-model="wf.default_locale" class="w-20 px-2 py-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-900" />
+                                <input v-model="wf.default_locale" class="w-20 px-2 py-1 rounded border border-border-2 bg-bg-surface-1" />
                             </td>
                             <td class="py-3 pr-4">
-                                <select v-model="wf.selected_template_family_id" class="w-56 px-2 py-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-900">
+                                <select v-model="wf.selected_template_family_id" class="w-56 px-2 py-1 rounded border border-border-2 bg-bg-surface-1">
                                     <option :value="null">Default / none</option>
                                     <option v-for="f in templateFamilies" :key="f.id" :value="f.id">{{ f.key }}</option>
                                 </select>
                             </td>
                             <td class="py-3 pr-4">
                                 <details class="max-w-sm">
-                                    <summary class="cursor-pointer text-xs text-indigo-600 dark:text-indigo-300">View policy</summary>
-                                    <pre class="mt-2 p-2 rounded bg-slate-900 text-slate-100 text-xs overflow-auto">{{ JSON.stringify(wf.policy, null, 2) }}</pre>
+                                    <summary class="cursor-pointer text-xs text-brand">View policy</summary>
+                                    <pre class="mt-2 p-2 rounded bg-bg-surface-2 text-text-1 text-xs overflow-auto">{{ JSON.stringify(wf.policy, null, 2) }}</pre>
                                 </details>
                             </td>
                             <td class="py-3 text-right">
-                                <button @click="saveWorkflow(wf)" class="px-3 py-1 rounded bg-indigo-600 hover:bg-indigo-700 text-white text-xs">Save</button>
+                                <button @click="saveWorkflow(wf)" class="px-3 py-1 rounded bg-brand hover:bg-brand/80 text-white text-xs">Save</button>
                             </td>
                         </tr>
                     </tbody>
@@ -486,24 +486,24 @@ onMounted(() => {
         </div>
 
         <div v-else-if="activeTab === 'templates'" class="space-y-6">
-            <div class="rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5">
+            <div class="rounded-xl border border-border-1 bg-bg-surface-1 p-5">
                 <div class="flex items-center justify-between">
-                    <h3 class="text-base font-semibold text-gray-900 dark:text-white">Template Families</h3>
-                    <button @click="editingFamilyId = null" class="text-xs text-gray-500 dark:text-gray-400">Clear edit state</button>
+                    <h3 class="text-base font-semibold text-text-1">Template Families</h3>
+                    <button @click="editingFamilyId = null" class="text-xs text-text-3">Clear edit state</button>
                 </div>
                 <div class="mt-4 grid grid-cols-1 md:grid-cols-4 gap-3">
-                    <input v-model="familyForm.key" placeholder="family_key" class="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-900" />
-                    <input v-model="familyForm.name" placeholder="Display name" class="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-900" />
-                    <input v-model="familyForm.workflow_key" placeholder="workflow_key (optional)" class="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-900" />
-                    <button @click="createOrUpdateFamily" class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white">
+                    <input v-model="familyForm.key" placeholder="family_key" class="px-3 py-2 rounded-lg border border-border-2 bg-bg-surface-1" />
+                    <input v-model="familyForm.name" placeholder="Display name" class="px-3 py-2 rounded-lg border border-border-2 bg-bg-surface-1" />
+                    <input v-model="familyForm.workflow_key" placeholder="workflow_key (optional)" class="px-3 py-2 rounded-lg border border-border-2 bg-bg-surface-1" />
+                    <button @click="createOrUpdateFamily" class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-brand hover:bg-brand/80 text-white">
                         <Plus class="w-4 h-4" /> Create Family
                     </button>
                 </div>
-                <textarea v-model="familyForm.description" rows="2" placeholder="Description" class="mt-3 w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-900" />
+                <textarea v-model="familyForm.description" rows="2" placeholder="Description" class="mt-3 w-full px-3 py-2 rounded-lg border border-border-2 bg-bg-surface-1" />
 
                 <div class="mt-4 overflow-x-auto">
                     <table class="min-w-full text-sm">
-                        <thead class="text-left text-gray-500 dark:text-gray-400">
+                        <thead class="text-left text-text-3">
                             <tr>
                                 <th class="py-2 pr-4">Select</th>
                                 <th class="py-2 pr-4">Key</th>
@@ -514,33 +514,33 @@ onMounted(() => {
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-for="family in templateFamilies" :key="family.id" class="border-t border-gray-100 dark:border-slate-700">
+                            <tr v-for="family in templateFamilies" :key="family.id" class="border-t border-border-1">
                                 <td class="py-3 pr-4">
                                     <input type="radio" name="selectedFamily" :value="family.id" v-model="selectedFamilyId" />
                                 </td>
                                 <td class="py-3 pr-4 font-mono text-xs">{{ family.key }}</td>
                                 <td class="py-3 pr-4">
                                     <template v-if="editingFamilyId === family.id && !family.is_system">
-                                        <input v-model="editableFamilyDraft(family).name" class="w-full px-2 py-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-900" />
-                                        <textarea v-model="editableFamilyDraft(family).description" rows="2" class="mt-2 w-full px-2 py-1 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-900" />
+                                        <input v-model="editableFamilyDraft(family).name" class="w-full px-2 py-1 rounded border border-border-2 bg-bg-surface-1" />
+                                        <textarea v-model="editableFamilyDraft(family).description" rows="2" class="mt-2 w-full px-2 py-1 rounded border border-border-2 bg-bg-surface-1" />
                                     </template>
                                     <template v-else>
-                                        <div class="font-medium text-gray-900 dark:text-white">{{ family.name }}</div>
-                                        <div class="text-xs text-gray-500 dark:text-gray-400">{{ family.description || '—' }}</div>
+                                        <div class="font-medium text-text-1">{{ family.name }}</div>
+                                        <div class="text-xs text-text-3">{{ family.description || '—' }}</div>
                                     </template>
                                 </td>
                                 <td class="py-3 pr-4 text-xs">{{ family.workflow_key || '—' }}</td>
                                 <td class="py-3 pr-4">
-                                    <span class="px-2 py-1 rounded text-xs" :class="family.is_system ? 'bg-gray-100 text-gray-700 dark:bg-slate-700 dark:text-gray-200' : 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'">
+                                    <span class="px-2 py-1 rounded text-xs" :class="family.is_system ? 'bg-bg-surface-2 text-text-2' : 'bg-brand/10 text-brand'">
                                         {{ family.is_system ? 'System' : 'Custom' }}
                                     </span>
                                 </td>
                                 <td class="py-3 text-right">
                                     <div class="inline-flex gap-2">
-                                        <button v-if="!family.is_system && editingFamilyId !== family.id" @click="editingFamilyId = family.id" class="px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-xs">Edit</button>
-                                        <button v-if="!family.is_system && editingFamilyId === family.id" @click="createOrUpdateFamily" class="px-2 py-1 rounded bg-indigo-600 text-white text-xs">Save</button>
-                                        <button v-if="!family.is_system && editingFamilyId === family.id" @click="editingFamilyId = null" class="px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-xs">Cancel</button>
-                                        <button v-if="!family.is_system" @click="removeFamily(family)" class="px-2 py-1 rounded border border-rose-300 text-rose-700 dark:border-rose-800 dark:text-rose-300 text-xs">Delete</button>
+                                        <button v-if="!family.is_system && editingFamilyId !== family.id" @click="editingFamilyId = family.id" class="px-2 py-1 rounded border border-border-2 text-xs">Edit</button>
+                                        <button v-if="!family.is_system && editingFamilyId === family.id" @click="createOrUpdateFamily" class="px-2 py-1 rounded bg-brand text-white text-xs">Save</button>
+                                        <button v-if="!family.is_system && editingFamilyId === family.id" @click="editingFamilyId = null" class="px-2 py-1 rounded border border-border-2 text-xs">Cancel</button>
+                                        <button v-if="!family.is_system" @click="removeFamily(family)" class="px-2 py-1 rounded border border-danger/30 text-danger text-xs">Delete</button>
                                     </div>
                                 </td>
                             </tr>
@@ -549,30 +549,30 @@ onMounted(() => {
                 </div>
             </div>
 
-            <div class="rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5" v-if="selectedFamily">
-                <h3 class="text-base font-semibold text-gray-900 dark:text-white">Template Versions: {{ selectedFamily.key }}</h3>
+            <div class="rounded-xl border border-border-1 bg-bg-surface-1 p-5" v-if="selectedFamily">
+                <h3 class="text-base font-semibold text-text-1">Template Versions: {{ selectedFamily.key }}</h3>
                 <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-sm mb-1 text-gray-700 dark:text-gray-300">Locale</label>
-                        <input v-model="versionForm.locale" class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-900" />
+                        <label class="block text-sm mb-1 text-text-2">Locale</label>
+                        <input v-model="versionForm.locale" class="w-full px-3 py-2 rounded-lg border border-border-2 bg-bg-surface-1" />
                     </div>
                     <div>
-                        <label class="block text-sm mb-1 text-gray-700 dark:text-gray-300">Subject</label>
-                        <input v-model="versionForm.subject" class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-900" />
+                        <label class="block text-sm mb-1 text-text-2">Subject</label>
+                        <input v-model="versionForm.subject" class="w-full px-3 py-2 rounded-lg border border-border-2 bg-bg-surface-1" />
                     </div>
                 </div>
                 <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-sm mb-1 text-gray-700 dark:text-gray-300">Body (text)</label>
-                        <textarea v-model="versionForm.body_text" rows="6" class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-900" />
+                        <label class="block text-sm mb-1 text-text-2">Body (text)</label>
+                        <textarea v-model="versionForm.body_text" rows="6" class="w-full px-3 py-2 rounded-lg border border-border-2 bg-bg-surface-1" />
                     </div>
                     <div>
-                        <label class="block text-sm mb-1 text-gray-700 dark:text-gray-300">Body (HTML)</label>
-                        <textarea v-model="versionForm.body_html" rows="6" class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-900" />
+                        <label class="block text-sm mb-1 text-text-2">Body (HTML)</label>
+                        <textarea v-model="versionForm.body_html" rows="6" class="w-full px-3 py-2 rounded-lg border border-border-2 bg-bg-surface-1" />
                     </div>
                 </div>
                 <div class="mt-4">
-                    <button @click="createTemplateVersion" class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white">
+                    <button @click="createTemplateVersion" class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-brand hover:bg-brand/80 text-white">
                         <Plus class="w-4 h-4" />
                         Create Version
                     </button>
@@ -580,7 +580,7 @@ onMounted(() => {
 
                 <div class="mt-5 overflow-x-auto">
                     <table class="min-w-full text-sm">
-                        <thead class="text-left text-gray-500 dark:text-gray-400">
+                        <thead class="text-left text-text-3">
                             <tr>
                                 <th class="py-2 pr-4">Version</th>
                                 <th class="py-2 pr-4">Status</th>
@@ -591,18 +591,18 @@ onMounted(() => {
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-for="version in templateVersions" :key="version.id" class="border-t border-gray-100 dark:border-slate-700">
+                            <tr v-for="version in templateVersions" :key="version.id" class="border-t border-border-1">
                                 <td class="py-3 pr-4 font-medium">v{{ version.version }}</td>
                                 <td class="py-3 pr-4">{{ version.status }}</td>
                                 <td class="py-3 pr-4">{{ version.locale }}</td>
                                 <td class="py-3 pr-4">{{ version.subject }}</td>
                                 <td class="py-3 pr-4 text-xs">{{ formatDate(version.created_at) }}</td>
                                 <td class="py-3 text-right">
-                                    <button v-if="version.status !== 'published'" @click="publishVersion(version.id)" class="px-3 py-1 rounded bg-indigo-600 hover:bg-indigo-700 text-white text-xs">Publish</button>
+                                    <button v-if="version.status !== 'published'" @click="publishVersion(version.id)" class="px-3 py-1 rounded bg-brand hover:bg-brand/80 text-white text-xs">Publish</button>
                                 </td>
                             </tr>
                             <tr v-if="templateVersions.length === 0">
-                                <td colspan="6" class="py-4 text-sm text-gray-500 dark:text-gray-400">No versions yet for this family.</td>
+                                <td colspan="6" class="py-4 text-sm text-text-3">No versions yet for this family.</td>
                             </tr>
                         </tbody>
                     </table>
@@ -611,20 +611,20 @@ onMounted(() => {
         </div>
 
         <div v-else-if="activeTab === 'outbox'" class="space-y-6">
-            <div class="rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5">
+            <div class="rounded-xl border border-border-1 bg-bg-surface-1 p-5">
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
-                    <input v-model="outboxFilters.status" placeholder="status (queued/failed/...)" class="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-900" />
-                    <input v-model="outboxFilters.workflow_key" placeholder="workflow_key" class="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-900" />
-                    <input v-model="outboxFilters.recipient_email" placeholder="recipient email" class="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-900" />
-                    <button @click="refreshOutbox" class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white">
+                    <input v-model="outboxFilters.status" placeholder="status (queued/failed/...)" class="px-3 py-2 rounded-lg border border-border-2 bg-bg-surface-1" />
+                    <input v-model="outboxFilters.workflow_key" placeholder="workflow_key" class="px-3 py-2 rounded-lg border border-border-2 bg-bg-surface-1" />
+                    <input v-model="outboxFilters.recipient_email" placeholder="recipient email" class="px-3 py-2 rounded-lg border border-border-2 bg-bg-surface-1" />
+                    <button @click="refreshOutbox" class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-brand hover:bg-brand/80 text-white">
                         <RefreshCw class="w-4 h-4" /> Refresh
                     </button>
                 </div>
             </div>
-            <div class="rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5">
+            <div class="rounded-xl border border-border-1 bg-bg-surface-1 p-5">
                 <div class="overflow-x-auto">
                     <table class="min-w-full text-sm">
-                        <thead class="text-left text-gray-500 dark:text-gray-400">
+                        <thead class="text-left text-text-3">
                             <tr>
                                 <th class="py-2 pr-4">Recipient</th>
                                 <th class="py-2 pr-4">Workflow</th>
@@ -635,10 +635,10 @@ onMounted(() => {
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-for="entry in outbox" :key="entry.id" class="border-t border-gray-100 dark:border-slate-700">
+                            <tr v-for="entry in outbox" :key="entry.id" class="border-t border-border-1">
                                 <td class="py-3 pr-4">
                                     <div class="font-medium">{{ entry.recipient_email }}</div>
-                                    <div class="text-xs text-gray-500 dark:text-gray-400 truncate max-w-[20rem]">{{ entry.subject }}</div>
+                                    <div class="text-xs text-text-3 truncate max-w-[20rem]">{{ entry.subject }}</div>
                                 </td>
                                 <td class="py-3 pr-4 text-xs">{{ entry.workflow_key || '—' }}</td>
                                 <td class="py-3 pr-4">{{ entry.status }}</td>
@@ -646,42 +646,42 @@ onMounted(() => {
                                 <td class="py-3 pr-4 text-xs">{{ formatDate(entry.created_at) }}</td>
                                 <td class="py-3 text-right">
                                     <div class="inline-flex gap-2">
-                                        <button @click="viewOutboxDetails(entry.id)" class="px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-xs"><Eye class="w-3 h-3 inline mr-1" />View</button>
-                                        <button v-if="entry.status === 'queued'" @click="cancelOutbox(entry.id)" class="px-2 py-1 rounded border border-rose-300 text-rose-700 dark:border-rose-800 dark:text-rose-300 text-xs">Cancel</button>
-                                        <button v-if="entry.status === 'failed'" @click="retryOutbox(entry.id)" class="px-2 py-1 rounded border border-indigo-300 text-indigo-700 dark:border-indigo-800 dark:text-indigo-300 text-xs">Retry</button>
+                                        <button @click="viewOutboxDetails(entry.id)" class="px-2 py-1 rounded border border-border-2 text-xs"><Eye class="w-3 h-3 inline mr-1" />View</button>
+                                        <button v-if="entry.status === 'queued'" @click="cancelOutbox(entry.id)" class="px-2 py-1 rounded border border-danger/30 text-danger text-xs">Cancel</button>
+                                        <button v-if="entry.status === 'failed'" @click="retryOutbox(entry.id)" class="px-2 py-1 rounded border border-brand/30 text-brand text-xs">Retry</button>
                                     </div>
                                 </td>
                             </tr>
                             <tr v-if="outbox.length === 0">
-                                <td colspan="6" class="py-4 text-sm text-gray-500 dark:text-gray-400">No outbox entries found.</td>
+                                <td colspan="6" class="py-4 text-sm text-text-3">No outbox entries found.</td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
-                <div v-if="selectedOutbox" class="mt-4 rounded-lg border border-gray-200 dark:border-slate-700 p-4">
+                <div v-if="selectedOutbox" class="mt-4 rounded-lg border border-border-1 p-4">
                     <div class="flex items-center justify-between">
-                        <h4 class="font-semibold text-gray-900 dark:text-white">Outbox Entry Details</h4>
-                        <button @click="selectedOutbox = null" class="text-xs text-gray-500 dark:text-gray-400">Close</button>
+                        <h4 class="font-semibold text-text-1">Outbox Entry Details</h4>
+                        <button @click="selectedOutbox = null" class="text-xs text-text-3">Close</button>
                     </div>
-                    <pre class="mt-3 p-3 rounded-lg bg-slate-900 text-slate-100 text-xs overflow-auto">{{ JSON.stringify(selectedOutbox, null, 2) }}</pre>
+                    <pre class="mt-3 p-3 rounded-lg bg-bg-surface-2 text-text-1 text-xs overflow-auto">{{ JSON.stringify(selectedOutbox, null, 2) }}</pre>
                 </div>
             </div>
         </div>
 
         <div v-else-if="activeTab === 'events'" class="space-y-6">
-            <div class="rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5">
+            <div class="rounded-xl border border-border-1 bg-bg-surface-1 p-5">
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <input v-model="eventFilters.workflow_key" placeholder="workflow_key" class="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-900" />
-                    <input v-model="eventFilters.event_type" placeholder="event_type" class="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-900" />
-                    <button @click="refreshEvents" class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white">
+                    <input v-model="eventFilters.workflow_key" placeholder="workflow_key" class="px-3 py-2 rounded-lg border border-border-2 bg-bg-surface-1" />
+                    <input v-model="eventFilters.event_type" placeholder="event_type" class="px-3 py-2 rounded-lg border border-border-2 bg-bg-surface-1" />
+                    <button @click="refreshEvents" class="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-brand hover:bg-brand/80 text-white">
                         <RefreshCw class="w-4 h-4" /> Refresh
                     </button>
                 </div>
             </div>
-            <div class="rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5">
+            <div class="rounded-xl border border-border-1 bg-bg-surface-1 p-5">
                 <div class="overflow-x-auto">
                     <table class="min-w-full text-sm">
-                        <thead class="text-left text-gray-500 dark:text-gray-400">
+                        <thead class="text-left text-text-3">
                             <tr>
                                 <th class="py-2 pr-4">Time</th>
                                 <th class="py-2 pr-4">Event</th>
@@ -692,16 +692,16 @@ onMounted(() => {
                             </tr>
                         </thead>
                         <tbody>
-                            <tr v-for="event in events" :key="event.id" class="border-t border-gray-100 dark:border-slate-700">
+                            <tr v-for="event in events" :key="event.id" class="border-t border-border-1">
                                 <td class="py-3 pr-4 text-xs">{{ formatDate(event.created_at) }}</td>
                                 <td class="py-3 pr-4">{{ event.event_type }}</td>
                                 <td class="py-3 pr-4 text-xs">{{ event.workflow_key || '—' }}</td>
                                 <td class="py-3 pr-4">{{ event.recipient_email }}</td>
                                 <td class="py-3 pr-4 text-xs">{{ event.status_code ?? '—' }}</td>
-                                <td class="py-3 pr-4 text-xs text-rose-600 dark:text-rose-300">{{ event.error_category || event.error_message || '—' }}</td>
+                                <td class="py-3 pr-4 text-xs text-danger">{{ event.error_category || event.error_message || '—' }}</td>
                             </tr>
                             <tr v-if="events.length === 0">
-                                <td colspan="6" class="py-4 text-sm text-gray-500 dark:text-gray-400">No email events found.</td>
+                                <td colspan="6" class="py-4 text-sm text-text-3">No email events found.</td>
                             </tr>
                         </tbody>
                     </table>

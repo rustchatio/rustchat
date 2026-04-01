@@ -110,10 +110,10 @@ function cancelEdit() {
       @cancel="cancelEdit"
     >
       <div class="space-y-3">
-        <label class="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+        <label class="flex items-center justify-between p-3 border border-border-1 rounded-lg cursor-pointer hover:bg-bg-surface-2">
           <div>
-            <div class="text-sm font-medium text-gray-900 dark:text-white">Send messages on Ctrl+Enter</div>
-            <div class="text-xs text-gray-500">When enabled, press Ctrl+Enter to send. Press Enter alone for a new line.</div>
+            <div class="text-sm font-medium text-text-1">Send messages on Ctrl+Enter</div>
+            <div class="text-xs text-text-3">When enabled, press Ctrl+Enter to send. Press Enter alone for a new line.</div>
           </div>
           <input
             type="checkbox"
@@ -143,10 +143,10 @@ function cancelEdit() {
       @cancel="cancelEdit"
     >
       <div class="space-y-3">
-        <label class="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+        <label class="flex items-center justify-between p-3 border border-border-1 rounded-lg cursor-pointer hover:bg-bg-surface-2">
           <div>
-            <div class="text-sm font-medium text-gray-900 dark:text-white">Enable post formatting</div>
-            <div class="text-xs text-gray-500">Show the formatting toolbar in the message input</div>
+            <div class="text-sm font-medium text-text-1">Enable post formatting</div>
+            <div class="text-xs text-text-3">Show the formatting toolbar in the message input</div>
           </div>
           <input
             type="checkbox"
@@ -176,10 +176,10 @@ function cancelEdit() {
       @cancel="cancelEdit"
     >
       <div class="space-y-3">
-        <label class="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+        <label class="flex items-center justify-between p-3 border border-border-1 rounded-lg cursor-pointer hover:bg-bg-surface-2">
           <div>
-            <div class="text-sm font-medium text-gray-900 dark:text-white">Enable join/leave messages</div>
-            <div class="text-xs text-gray-500">Display system messages when users join or leave channels</div>
+            <div class="text-sm font-medium text-text-1">Enable join/leave messages</div>
+            <div class="text-xs text-text-3">Display system messages when users join or leave channels</div>
           </div>
           <input
             type="checkbox"
@@ -209,10 +209,10 @@ function cancelEdit() {
       @cancel="cancelEdit"
     >
       <div class="space-y-3">
-        <label class="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+        <label class="flex items-center justify-between p-3 border border-border-1 rounded-lg cursor-pointer hover:bg-bg-surface-2">
           <div>
-            <div class="text-sm font-medium text-gray-900 dark:text-white">Enable performance debugging</div>
-            <div class="text-xs text-gray-500">Show performance metrics and debugging information</div>
+            <div class="text-sm font-medium text-text-1">Enable performance debugging</div>
+            <div class="text-xs text-text-3">Show performance metrics and debugging information</div>
           </div>
           <input
             type="checkbox"
@@ -242,7 +242,7 @@ function cancelEdit() {
       @cancel="cancelEdit"
     >
       <div class="space-y-3">
-        <label class="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+        <label class="flex items-center gap-3 p-3 border border-border-1 rounded-lg cursor-pointer hover:bg-bg-surface-2">
           <input
             type="radio"
             v-model="localUnreadScrollPosition"
@@ -250,11 +250,11 @@ function cancelEdit() {
             class="w-4 h-4 text-primary"
           />
           <div class="flex-1">
-            <div class="text-sm font-medium text-gray-900 dark:text-white">Start of channel</div>
-            <div class="text-xs text-gray-500">Always scroll to the beginning of the channel</div>
+            <div class="text-sm font-medium text-text-1">Start of channel</div>
+            <div class="text-xs text-text-3">Always scroll to the beginning of the channel</div>
           </div>
         </label>
-        <label class="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+        <label class="flex items-center gap-3 p-3 border border-border-1 rounded-lg cursor-pointer hover:bg-bg-surface-2">
           <input
             type="radio"
             v-model="localUnreadScrollPosition"
@@ -262,11 +262,11 @@ function cancelEdit() {
             class="w-4 h-4 text-primary"
           />
           <div class="flex-1">
-            <div class="text-sm font-medium text-gray-900 dark:text-white">Last viewed post</div>
-            <div class="text-xs text-gray-500">Scroll to the last message you read</div>
+            <div class="text-sm font-medium text-text-1">Last viewed post</div>
+            <div class="text-xs text-text-3">Scroll to the last message you read</div>
           </div>
         </label>
-        <label class="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+        <label class="flex items-center gap-3 p-3 border border-border-1 rounded-lg cursor-pointer hover:bg-bg-surface-2">
           <input
             type="radio"
             v-model="localUnreadScrollPosition"
@@ -274,8 +274,8 @@ function cancelEdit() {
             class="w-4 h-4 text-primary"
           />
           <div class="flex-1">
-            <div class="text-sm font-medium text-gray-900 dark:text-white">End of channel</div>
-            <div class="text-xs text-gray-500">Always scroll to the most recent messages</div>
+            <div class="text-sm font-medium text-text-1">End of channel</div>
+            <div class="text-xs text-text-3">Always scroll to the most recent messages</div>
           </div>
         </label>
       </div>
@@ -300,10 +300,10 @@ function cancelEdit() {
       @cancel="cancelEdit"
     >
       <div class="space-y-3">
-        <label class="flex items-center justify-between p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+        <label class="flex items-center justify-between p-3 border border-border-1 rounded-lg cursor-pointer hover:bg-bg-surface-2">
           <div>
-            <div class="text-sm font-medium text-gray-900 dark:text-white">Sync draft messages</div>
-            <div class="text-xs text-gray-500">Synchronize message drafts across all your devices</div>
+            <div class="text-sm font-medium text-text-1">Sync draft messages</div>
+            <div class="text-xs text-text-3">Synchronize message drafts across all your devices</div>
           </div>
           <input
             type="checkbox"

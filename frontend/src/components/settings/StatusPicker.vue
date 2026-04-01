@@ -76,12 +76,12 @@ async function handleClear() {
       <div class="fixed inset-0 bg-black/50" @click="$emit('close')"></div>
       
       <!-- Modal -->
-      <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
+      <div class="relative bg-bg-surface-1 rounded-xl shadow-2xl w-full max-w-md overflow-hidden">
         <!-- Header -->
-        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-          <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Set a status</h2>
-          <button @click="$emit('close')" class="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded">
-            <X class="w-5 h-5 text-gray-400" />
+        <div class="flex items-center justify-between px-6 py-4 border-b border-border-1">
+          <h2 class="text-lg font-semibold text-text-1">Set a status</h2>
+          <button @click="$emit('close')" class="p-1 hover:bg-bg-surface-2 rounded">
+            <X class="w-5 h-5 text-text-3" />
           </button>
         </div>
         
@@ -92,7 +92,7 @@ async function handleClear() {
             <button 
               ref="emojiButtonRef"
               @click="showEmojiPicker = !showEmojiPicker"
-              class="w-10 h-10 rounded-lg bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+              class="w-10 h-10 rounded-lg bg-bg-surface-2 flex items-center justify-center text-xl hover:bg-bg-surface-1 transition-colors"
             >
               {{ statusEmoji || '😀' }}
             </button>
@@ -100,7 +100,7 @@ async function handleClear() {
               v-model="statusText"
               type="text"
               placeholder="What's your status?"
-              class="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent"
+              class="flex-1 px-4 py-2 border border-border-2 rounded-lg bg-bg-surface-2 text-text-1 focus:ring-2 focus:ring-primary focus:border-transparent"
             />
           </div>
           
@@ -116,7 +116,7 @@ async function handleClear() {
           
           <!-- Quick Presets -->
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label class="block text-sm font-medium text-text-2 mb-2">
               Quick select
             </label>
             <div class="flex flex-wrap gap-2">
@@ -124,23 +124,23 @@ async function handleClear() {
                 v-for="preset in presets"
                 :key="preset.id"
                 @click="applyPreset(preset)"
-                class="px-3 py-1.5 text-sm rounded-full border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center space-x-1"
+                class="px-3 py-1.5 text-sm rounded-full border border-border-2 hover:bg-bg-surface-2 transition-colors flex items-center space-x-1"
               >
                 <span>{{ preset.emoji }}</span>
-                <span class="text-gray-700 dark:text-gray-300">{{ preset.text }}</span>
+                <span class="text-text-2">{{ preset.text }}</span>
               </button>
             </div>
           </div>
           
           <!-- Duration -->
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label class="block text-sm font-medium text-text-2 mb-2">
               <Clock class="w-4 h-4 inline mr-1" />
               Clear after
             </label>
             <select
               v-model="duration"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              class="w-full px-3 py-2 border border-border-2 rounded-lg bg-bg-surface-2 text-text-1"
             >
               <option v-for="opt in durationOptions" :key="opt.label" :value="opt.value">
                 {{ opt.label }}
@@ -150,7 +150,7 @@ async function handleClear() {
         </div>
         
         <!-- Footer -->
-        <div class="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-between">
+        <div class="px-6 py-4 border-t border-border-1 flex justify-between">
           <BaseButton v-if="preferencesStore.hasStatus" variant="secondary" @click="handleClear">
             Clear Status
           </BaseButton>

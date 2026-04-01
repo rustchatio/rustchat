@@ -214,27 +214,27 @@ async function removeMember(userId: string) {
       <div class="fixed inset-0 bg-black/50" @click="$emit('close')"></div>
       
       <!-- Modal -->
-      <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden">
+      <div class="relative bg-bg-surface-1 rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden">
         <!-- Header -->
-        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700 shrink-0">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-border-1 shrink-0">
           <div class="flex items-center space-x-3">
             <div class="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-lg font-bold text-brand-foreground">
               {{ (team.display_name || team.name).charAt(0).toUpperCase() }}
             </div>
             <div>
-              <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ team.display_name || team.name }}</h2>
-              <p class="text-sm text-gray-500">Team Settings</p>
+              <h2 class="text-lg font-semibold text-text-1">{{ team.display_name || team.name }}</h2>
+              <p class="text-sm text-text-3">Team Settings</p>
             </div>
           </div>
-          <button @click="$emit('close')" class="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded">
-            <X class="w-5 h-5 text-gray-400" />
+          <button @click="$emit('close')" class="p-1 hover:bg-bg-surface-2 rounded">
+            <X class="w-5 h-5 text-text-4" />
           </button>
         </div>
         
         <!-- Tabs -->
         <div
           v-if="canManageCurrentTeam"
-          class="flex border-b border-gray-200 dark:border-gray-700 px-6 shrink-0"
+          class="flex border-b border-border-1 px-6 shrink-0"
         >
           <button
             v-for="tab in tabs"
@@ -243,7 +243,7 @@ async function removeMember(userId: string) {
             class="flex items-center px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors"
             :class="activeTab === tab.id 
               ? 'border-primary text-primary' 
-              : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'"
+              : 'border-transparent text-text-3 hover:text-text-2'"
           >
             <component :is="tab.icon" class="w-4 h-4 mr-2" />
             {{ tab.label }}
@@ -254,7 +254,7 @@ async function removeMember(userId: string) {
         <div class="flex-1 overflow-y-auto p-6">
           <div
             v-if="!canManageCurrentTeam"
-            class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300"
+            class="rounded-xl border bg-warning/10 p-4 text-sm text-warning border border-warning/20"
           >
             You do not have permission to manage this team.
           </div>
@@ -269,14 +269,14 @@ async function removeMember(userId: string) {
                 </div>
                 <button 
                   type="button"
-                  class="absolute -bottom-1 -right-1 w-6 h-6 bg-gray-800 dark:bg-gray-600 rounded-full flex items-center justify-center border-2 border-white dark:border-gray-800"
+                  class="absolute -bottom-1 -right-1 w-6 h-6 bg-bg-surface-2 rounded-full flex items-center justify-center border-2 border-bg-surface-1"
                 >
                   <Camera class="w-3 h-3 text-white" />
                 </button>
               </div>
               <div>
-                <p class="text-sm font-medium text-gray-900 dark:text-white">{{ team.name }}</p>
-                <p class="text-xs text-gray-500">Team identifier cannot be changed</p>
+                <p class="text-sm font-medium text-text-1">{{ team.name }}</p>
+                <p class="text-xs text-text-3">Team identifier cannot be changed</p>
               </div>
             </div>
             
@@ -288,11 +288,11 @@ async function removeMember(userId: string) {
             />
             
             <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
+              <label class="block text-sm font-medium text-text-2 mb-1">Description</label>
               <textarea
                 v-model="description"
                 rows="3"
-                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
+                class="w-full px-3 py-2 border border-border-2 rounded-lg bg-bg-surface-1 text-text-1 resize-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
                 placeholder="What is this team about?"
                 :disabled="loading"
               ></textarea>
@@ -302,37 +302,37 @@ async function removeMember(userId: string) {
             <div class="space-y-3 pt-2">
                 <div class="flex items-center justify-between">
                     <div>
-                        <h4 class="text-sm font-medium text-gray-900 dark:text-white">Team Visibility</h4>
-                        <p class="text-xs text-gray-500">Public teams can be discovered by anyone in the organization.</p>
+                        <h4 class="text-sm font-medium text-text-1">Team Visibility</h4>
+                        <p class="text-xs text-text-3">Public teams can be discovered by anyone in the organization.</p>
                     </div>
                     <label class="relative inline-flex items-center cursor-pointer">
                         <input type="checkbox" v-model="isPublic" class="sr-only peer">
-                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none ring-offset-2 peer-focus:ring-2 peer-focus:ring-indigo-500 dark:peer-focus:ring-indigo-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-indigo-600"></div>
-                        <span class="ml-3 text-sm font-medium text-gray-900 dark:text-gray-300">{{ isPublic ? 'Public' : 'Private' }}</span>
+                        <div class="w-11 h-6 bg-bg-surface-2 peer-focus:outline-none ring-offset-2 peer-focus:ring-2 peer-focus:ring-brand rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-border-2 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand"></div>
+                        <span class="ml-3 text-sm font-medium text-text-2">{{ isPublic ? 'Public' : 'Private' }}</span>
                     </label>
                 </div>
 
                 <div class="flex items-center justify-between">
                     <div>
-                        <h4 class="text-sm font-medium text-gray-900 dark:text-white">Allow Open Invite</h4>
-                        <p class="text-xs text-gray-500">Allow users to join via invite link without approval.</p>
+                        <h4 class="text-sm font-medium text-text-1">Allow Open Invite</h4>
+                        <p class="text-xs text-text-3">Allow users to join via invite link without approval.</p>
                     </div>
                     <label class="relative inline-flex items-center cursor-pointer">
                         <input type="checkbox" v-model="allowOpenInvite" class="sr-only peer">
-                        <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none ring-offset-2 peer-focus:ring-2 peer-focus:ring-indigo-500 dark:peer-focus:ring-indigo-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-indigo-600"></div>
+                        <div class="w-11 h-6 bg-bg-surface-2 peer-focus:outline-none ring-offset-2 peer-focus:ring-2 peer-focus:ring-brand rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-border-2 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-brand"></div>
                     </label>
                 </div>
             </div>
             
             <!-- Invite Link -->
-            <div class="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Invite Link</label>
+            <div class="p-4 bg-bg-surface-2 rounded-lg">
+              <label class="block text-sm font-medium text-text-2 mb-2">Invite Link</label>
               <div class="flex items-center space-x-2">
                 <input
                   type="text"
                   :value="inviteLink"
                   readonly
-                  class="flex-1 px-3 py-2 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-sm text-gray-600 dark:text-gray-400"
+                  class="flex-1 px-3 py-2 bg-bg-surface-1 border border-border-2 rounded-lg text-sm text-text-3"
                 />
                 <button
                   @click="copyInviteLink"
@@ -342,17 +342,17 @@ async function removeMember(userId: string) {
                   <span class="text-sm">{{ copied ? 'Copied' : 'Copy' }}</span>
                 </button>
               </div>
-              <p class="mt-2 text-xs text-gray-500">Share this link to invite people to your team</p>
+              <p class="mt-2 text-xs text-text-3">Share this link to invite people to your team</p>
             </div>
             
             <!-- Danger Zone -->
-            <div class="pt-6 border-t border-gray-200 dark:border-gray-700">
-              <h4 class="text-sm font-semibold text-red-600 dark:text-red-400 mb-3">Danger Zone</h4>
+            <div class="pt-6 border-t border-border-1">
+              <h4 class="text-sm font-semibold text-danger mb-3">Danger Zone</h4>
               <div class="space-y-3">
                 <button
                   @click="handleLeave"
                   :disabled="leaving || deleting"
-                  class="flex items-center px-4 py-2 text-sm font-medium text-red-600 dark:text-red-400 border border-red-300 dark:border-red-800 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50"
+                  class="flex items-center px-4 py-2 text-sm font-medium text-danger border border-danger/30 rounded-lg hover:bg-danger/10 transition-colors disabled:opacity-50"
                 >
                   <LogOut class="w-4 h-4 mr-2" />
                   {{ leaving ? 'Leaving...' : 'Leave Team' }}
@@ -362,13 +362,13 @@ async function removeMember(userId: string) {
                   v-if="canManageCurrentTeam"
                   @click="handleDelete"
                   :disabled="deleting || leaving"
-                  class="flex items-center px-4 py-2 text-sm font-medium text-red-600 dark:text-red-400 border border-red-300 dark:border-red-800 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50"
+                  class="flex items-center px-4 py-2 text-sm font-medium text-danger border border-red-300 dark:border-red-800 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50"
                 >
                   <Trash2 class="w-4 h-4 mr-2" />
                   {{ deleting ? 'Deleting...' : 'Delete Team' }}
                 </button>
               </div>
-              <p class="mt-2 text-xs text-gray-500">Leaving a team will remove your access to its channels. Deleting a team is permanent.</p>
+              <p class="mt-2 text-xs text-text-3">Leaving a team will remove your access to its channels. Deleting a team is permanent.</p>
             </div>
           </div>
           
@@ -376,45 +376,45 @@ async function removeMember(userId: string) {
           <div v-else-if="activeTab === 'members'" class="space-y-6">
             <!-- Add Member -->
             <div class="space-y-3">
-              <h4 class="text-sm font-medium text-gray-900 dark:text-white">Add Member</h4>
+              <h4 class="text-sm font-medium text-text-1">Add Member</h4>
               <div class="relative">
                 <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Search class="h-4 w-4 text-gray-400" />
+                  <Search class="h-4 w-4 text-text-4" />
                 </div>
                 <input
                   type="text"
                   v-model="searchQuery"
                   @input="onSearchInput"
                   placeholder="Search users by name or username"
-                  class="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg leading-5 bg-white dark:bg-gray-700 placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-primary focus:border-primary sm:text-sm transition duration-150 ease-in-out dark:text-white"
+                  class="block w-full pl-10 pr-3 py-2 border border-border-2 rounded-lg leading-5 bg-bg-surface-1 placeholder-text-4 focus:outline-none focus:placeholder-text-4 focus:ring-1 focus:ring-primary focus:border-primary sm:text-sm transition duration-150 ease-in-out dark:text-white"
                 />
                 <div v-if="searching" class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-                  <div class="animate-spin h-4 w-4 border-2 border-gray-400 border-t-transparent rounded-full"></div>
+                  <div class="animate-spin h-4 w-4 border-2 border-text-4 border-t-transparent rounded-full"></div>
                 </div>
               </div>
 
               <!-- Search Results -->
-              <div v-if="searchResults.length > 0" class="bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 divide-y divide-gray-200 dark:divide-gray-600 max-h-48 overflow-y-auto">
-                <div v-for="user in searchResults" :key="user.id" class="flex items-center justify-between p-3 hover:bg-gray-50 dark:hover:bg-gray-600/50 transition-colors">
+              <div v-if="searchResults.length > 0" class="bg-bg-surface-1 rounded-lg border border-border-1 divide-y divide-border-1 max-h-48 overflow-y-auto">
+                <div v-for="user in searchResults" :key="user.id" class="flex items-center justify-between p-3 hover:bg-bg-surface-2 transition-colors">
                   <div class="flex items-center space-x-3">
-                    <div class="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-medium text-sm">
+                    <div class="w-8 h-8 rounded-full bg-brand/10 flex items-center justify-center text-brand font-medium text-sm">
                       {{ (user.display_name || user.username).charAt(0).toUpperCase() }}
                     </div>
                     <div>
-                      <p class="text-sm font-medium text-gray-900 dark:text-white">{{ user.display_name || user.username }}</p>
-                      <p class="text-xs text-gray-500">@{{ user.username }}</p>
+                      <p class="text-sm font-medium text-text-1">{{ user.display_name || user.username }}</p>
+                      <p class="text-xs text-text-3">@{{ user.username }}</p>
                     </div>
                   </div>
                   <button
                     @click="addMember(user)"
                     :disabled="addingMember === user.id"
-                    class="p-1.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors disabled:opacity-50"
+                    class="p-1.5 bg-brand/10 text-brand rounded-lg hover:bg-brand/20 transition-colors disabled:opacity-50"
                   >
                     <Plus class="w-4 h-4" />
                   </button>
                 </div>
               </div>
-              <div v-else-if="searchQuery && !searching" class="text-center py-4 text-sm text-gray-500">
+              <div v-else-if="searchQuery && !searching" class="text-center py-4 text-sm text-text-3">
                 No users found
               </div>
             </div>
@@ -422,24 +422,24 @@ async function removeMember(userId: string) {
             <!-- Member List -->
             <div class="space-y-3">
               <div class="flex items-center justify-between">
-                <h4 class="text-sm font-medium text-gray-900 dark:text-white">Team Members</h4>
-                <span class="text-xs text-gray-500">{{ teamStore.members.length }} members</span>
+                <h4 class="text-sm font-medium text-text-1">Team Members</h4>
+                <span class="text-xs text-text-3">{{ teamStore.members.length }} members</span>
               </div>
               
-              <div class="bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 divide-y divide-gray-200 dark:divide-gray-700">
+              <div class="bg-bg-surface-2 rounded-lg border border-border-1 divide-y divide-border-1">
                 <div v-for="member in teamStore.members" :key="member.user_id" class="flex items-center justify-between p-3">
                   <div class="flex items-center space-x-3">
-                    <div class="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-gray-600 dark:text-gray-300 font-medium text-sm">
+                    <div class="w-8 h-8 rounded-full bg-bg-surface-2 flex items-center justify-center text-text-2 font-medium text-sm">
                       {{ (member.display_name || member.username).charAt(0).toUpperCase() }}
                     </div>
                     <div>
                       <div class="flex items-center space-x-2">
-                        <p class="text-sm font-medium text-gray-900 dark:text-white">{{ member.display_name || member.username }}</p>
-                        <span v-if="member.role === 'admin' || member.role === 'owner'" class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
+                        <p class="text-sm font-medium text-text-1">{{ member.display_name || member.username }}</p>
+                        <span v-if="member.role === 'admin' || member.role === 'owner'" class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-warning/10 text-warning border border-warning/20">
                           {{ member.role }}
                         </span>
                       </div>
-                      <p class="text-xs text-gray-500">@{{ member.username }}</p>
+                      <p class="text-xs text-text-3">@{{ member.username }}</p>
                     </div>
                   </div>
                   
@@ -447,7 +447,7 @@ async function removeMember(userId: string) {
                     <button
                       @click="removeMember(member.user_id)"
                       :disabled="removingMember === member.user_id"
-                      class="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-50"
+                      class="p-1.5 text-text-4 hover:text-danger hover:bg-danger/10 rounded-lg transition-colors disabled:opacity-50"
                       title="Remove member"
                     >
                       <UserMinus class="w-4 h-4" />
@@ -455,7 +455,7 @@ async function removeMember(userId: string) {
                   </div>
                 </div>
                 
-                <div v-if="teamStore.members.length === 0" class="p-8 text-center text-gray-500 text-sm">
+                <div v-if="teamStore.members.length === 0" class="p-8 text-center text-text-3 text-sm">
                   No members found
                 </div>
               </div>
@@ -463,7 +463,7 @@ async function removeMember(userId: string) {
           </div>
           
           <!-- Permissions Tab -->
-          <div v-else-if="activeTab === 'permissions'" class="text-center py-10 text-gray-500">
+          <div v-else-if="activeTab === 'permissions'" class="text-center py-10 text-text-3">
             <Shield class="w-12 h-12 mx-auto mb-3 opacity-50" />
             <p>Permission settings coming soon</p>
             <p class="text-sm mt-1">Configure roles and access control</p>
@@ -471,7 +471,7 @@ async function removeMember(userId: string) {
         </div>
         
         <!-- Footer -->
-        <div class="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end space-x-3 shrink-0">
+        <div class="px-6 py-4 border-t border-border-1 flex justify-end space-x-3 shrink-0">
           <BaseButton variant="secondary" @click="$emit('close')">Cancel</BaseButton>
           <BaseButton v-if="canManageCurrentTeam" @click="handleSave" :loading="loading">Save Changes</BaseButton>
         </div>

@@ -280,12 +280,12 @@ function getProviderIcon(type: string) {
 
 function getProviderBadgeClass(type: string) {
   const classes: Record<string, string> = {
-    github: 'bg-gray-800 text-white',
-    google: 'bg-blue-600 text-white',
-    oidc: 'bg-purple-600 text-white',
-    saml: 'bg-orange-600 text-white',
+    github: 'bg-bg-surface-2 text-text-1',
+    google: 'bg-brand text-white',
+    oidc: 'bg-primary text-white',
+    saml: 'bg-warning text-white',
   }
-  return classes[type] || 'bg-gray-600 text-white'
+  return classes[type] || 'bg-text-3 text-white'
 }
 </script>
 
@@ -294,17 +294,17 @@ function getProviderBadgeClass(type: string) {
     <!-- Header -->
     <div class="flex items-center justify-between">
       <div>
-        <h1 class="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-          <Shield class="w-6 h-6 text-indigo-600" />
+        <h1 class="text-2xl font-bold text-text-1 flex items-center gap-2">
+          <Shield class="w-6 h-6 text-brand" />
           Single Sign-On (SSO)
         </h1>
-        <p class="text-gray-600 dark:text-gray-400 mt-1">
+        <p class="text-text-3 mt-1">
           Configure OAuth2 and OIDC authentication providers
         </p>
       </div>
       <button
         @click="openAddModal"
-        class="inline-flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+        class="inline-flex items-center px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand/90 transition-colors"
       >
         <Plus class="w-4 h-4 mr-2" />
         Add Provider
@@ -312,59 +312,59 @@ function getProviderBadgeClass(type: string) {
     </div>
 
     <!-- Global SSO Settings -->
-    <div v-if="authConfig" class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-      <h2 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Global SSO Settings</h2>
+    <div v-if="authConfig" class="bg-bg-surface-1 rounded-lg shadow p-6">
+      <h2 class="text-lg font-semibold text-text-1 mb-4">Global SSO Settings</h2>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <label class="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50">
+        <label class="flex items-center justify-between p-4 border border-border-1 rounded-lg cursor-pointer hover:bg-bg-surface-2">
           <div>
-            <div class="font-medium text-gray-900 dark:text-white">Enable SSO</div>
-            <div class="text-sm text-gray-500 dark:text-gray-400">Allow users to sign in with configured providers</div>
+            <div class="font-medium text-text-1">Enable SSO</div>
+            <div class="text-sm text-text-3">Allow users to sign in with configured providers</div>
           </div>
           <input
             v-model="authConfig.enable_sso"
             @change="updateAuthSettings"
             type="checkbox"
-            class="w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500"
+            class="w-5 h-5 text-brand rounded focus:ring-brand"
           />
         </label>
 
-        <label class="flex items-center justify-between p-4 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/50">
+        <label class="flex items-center justify-between p-4 border border-border-1 rounded-lg cursor-pointer hover:bg-bg-surface-2">
           <div>
-            <div class="font-medium text-gray-900 dark:text-white">Require SSO</div>
-            <div class="text-sm text-gray-500 dark:text-gray-400">Disable password login, SSO only</div>
+            <div class="font-medium text-text-1">Require SSO</div>
+            <div class="text-sm text-text-3">Disable password login, SSO only</div>
           </div>
           <input
             v-model="authConfig.require_sso"
             @change="updateAuthSettings"
             type="checkbox"
-            class="w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500"
+            class="w-5 h-5 text-brand rounded focus:ring-brand"
           />
         </label>
       </div>
     </div>
 
     <!-- Provider List -->
-    <div class="bg-white dark:bg-gray-800 rounded-lg shadow">
-      <div class="p-6 border-b border-gray-200 dark:border-gray-700">
-        <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Configured Providers</h2>
+    <div class="bg-bg-surface-1 rounded-lg shadow">
+      <div class="p-6 border-b border-border-1">
+        <h2 class="text-lg font-semibold text-text-1">Configured Providers</h2>
       </div>
 
-      <div v-if="ssoConfigs.length === 0" class="p-8 text-center text-gray-500 dark:text-gray-400">
+      <div v-if="ssoConfigs.length === 0" class="p-8 text-center text-text-3">
         <Shield class="w-12 h-12 mx-auto mb-4 opacity-50" />
         <p>No SSO providers configured yet.</p>
         <button
           @click="openAddModal"
-          class="mt-4 text-indigo-600 hover:text-indigo-700 font-medium"
+          class="mt-4 text-brand hover:text-brand/80 font-medium"
         >
           Add your first provider
         </button>
       </div>
 
-      <div v-else class="divide-y divide-gray-200 dark:divide-gray-700">
+      <div v-else class="divide-y divide-border-1">
         <div
           v-for="config in ssoConfigs"
           :key="config.id"
-          class="p-6 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+          class="p-6 hover:bg-bg-surface-2 transition-colors"
         >
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-4">
@@ -375,34 +375,34 @@ function getProviderBadgeClass(type: string) {
                 {{ getProviderIcon(config.provider_type) }}
               </span>
               <div>
-                <h3 class="font-semibold text-gray-900 dark:text-white">
+                <h3 class="font-semibold text-text-1">
                   {{ config.display_name || config.provider_key }}
                 </h3>
-                <p class="text-sm text-gray-500 dark:text-gray-400">
+                <p class="text-sm text-text-3">
                   Key: {{ config.provider_key }}
                   <span v-if="config.issuer_url" class="ml-2">• {{ config.issuer_url }}</span>
                 </p>
                 <div class="flex items-center gap-3 mt-1 text-sm">
                   <span
-                    :class="config.is_active ? 'text-green-600' : 'text-gray-500'"
+                    :class="config.is_active ? 'text-success' : 'text-text-3'"
                     class="flex items-center gap-1"
                   >
                     <span
                       class="w-2 h-2 rounded-full"
-                      :class="config.is_active ? 'bg-green-500' : 'bg-gray-400'"
+                      :class="config.is_active ? 'bg-success' : 'bg-text-4'"
                     />
                     {{ config.is_active ? 'Active' : 'Inactive' }}
                   </span>
-                  <span class="text-gray-400">|</span>
-                  <span class="text-gray-600 dark:text-gray-400">
+                  <span class="text-text-4">|</span>
+                  <span class="text-text-2">
                     Auto-provision: {{ config.auto_provision ? 'On' : 'Off' }}
                   </span>
-                  <span v-if="config.allow_domains?.length" class="text-gray-400">|</span>
-                  <span v-if="config.allow_domains?.length" class="text-gray-600 dark:text-gray-400">
+                  <span v-if="config.allow_domains?.length" class="text-text-4">|</span>
+                  <span v-if="config.allow_domains?.length" class="text-text-2">
                     Domains: {{ config.allow_domains.join(', ') }}
                   </span>
-                  <span v-if="config.github_org" class="text-gray-400">|</span>
-                  <span v-if="config.github_org" class="text-gray-600 dark:text-gray-400">
+                  <span v-if="config.github_org" class="text-text-4">|</span>
+                  <span v-if="config.github_org" class="text-text-2">
                     Org: {{ config.github_org }}
                     <span v-if="config.github_team">/{{ config.github_team }}</span>
                   </span>
@@ -412,21 +412,21 @@ function getProviderBadgeClass(type: string) {
             <div class="flex items-center gap-2">
               <button
                 @click="testConfig(config)"
-                class="p-2 text-gray-600 hover:text-indigo-600 hover:bg-indigo-50 dark:text-gray-400 dark:hover:text-indigo-400 dark:hover:bg-indigo-900/20 rounded-lg transition-colors"
+                class="p-2 text-text-2 hover:text-brand hover:bg-brand/10 rounded-lg transition-colors"
                 title="Test Configuration"
               >
                 <TestTube class="w-5 h-5" />
               </button>
               <button
                 @click="openEditModal(config)"
-                class="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 dark:text-gray-400 dark:hover:text-blue-400 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                class="p-2 text-text-2 hover:text-brand hover:bg-brand/10 rounded-lg transition-colors"
                 title="Edit"
               >
                 <Edit2 class="w-5 h-5" />
               </button>
               <button
                 @click="deleteConfig(config)"
-                class="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 dark:text-gray-400 dark:hover:text-red-400 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                class="p-2 text-text-2 hover:text-danger hover:bg-danger/10 rounded-lg transition-colors"
                 title="Delete"
               >
                 <Trash2 class="w-5 h-5" />
@@ -443,9 +443,9 @@ function getProviderBadgeClass(type: string) {
       class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
       @click.self="showAddModal = false; showEditModal = false"
     >
-      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div class="p-6 border-b border-gray-200 dark:border-gray-700">
-          <h2 class="text-xl font-semibold text-gray-900 dark:text-white">
+      <div class="bg-bg-surface-1 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div class="p-6 border-b border-border-1">
+          <h2 class="text-xl font-semibold text-text-1">
             {{ editingConfig ? 'Edit Provider' : 'Add Provider' }}
           </h2>
         </div>
@@ -453,13 +453,13 @@ function getProviderBadgeClass(type: string) {
         <div class="p-6 space-y-6">
           <!-- Provider Type -->
           <div v-if="!editingConfig">
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label class="block text-sm font-medium text-text-2 mb-2">
               Provider Type *
             </label>
             <select
               v-model="form.provider_type"
               @change="onProviderTypeChange"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              class="w-full px-3 py-2 border border-border-2 rounded-lg bg-bg-surface-1 text-text-1"
             >
               <option value="github">GitHub (OAuth2)</option>
               <option value="google">Google (OIDC)</option>
@@ -469,88 +469,88 @@ function getProviderBadgeClass(type: string) {
 
           <!-- Provider Key -->
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label class="block text-sm font-medium text-text-2 mb-2">
               Provider Key *
-              <span class="text-gray-400 font-normal ml-1">(used in URLs, e.g., "github", "oidc-keycloak")</span>
+              <span class="text-text-4 font-normal ml-1">(used in URLs, e.g., "github", "oidc-keycloak")</span>
             </label>
             <input
               v-model="form.provider_key"
               :disabled="!!editingConfig"
               type="text"
               placeholder="e.g., github"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50"
+              class="w-full px-3 py-2 border border-border-2 rounded-lg bg-bg-surface-1 text-text-1 disabled:opacity-50"
             />
-            <p class="text-xs text-gray-500 mt-1">
+            <p class="text-xs text-text-3 mt-1">
               Lowercase letters, numbers, and hyphens only. Cannot be changed after creation.
             </p>
           </div>
 
           <!-- Display Name -->
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label class="block text-sm font-medium text-text-2 mb-2">
               Display Name
             </label>
             <input
               v-model="form.display_name"
               type="text"
               :placeholder="form.provider_type === 'github' ? 'GitHub' : form.provider_type === 'google' ? 'Google' : 'Single Sign-On'"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              class="w-full px-3 py-2 border border-border-2 rounded-lg bg-bg-surface-1 text-text-1"
             />
           </div>
 
           <!-- OIDC-specific: Issuer URL -->
           <div v-if="isOidc">
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label class="block text-sm font-medium text-text-2 mb-2">
               Issuer URL *
-              <span class="text-gray-400 font-normal ml-1">(e.g., https://accounts.google.com)</span>
+              <span class="text-text-4 font-normal ml-1">(e.g., https://accounts.google.com)</span>
             </label>
             <input
               v-model="form.issuer_url"
               type="url"
               placeholder="https://"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              class="w-full px-3 py-2 border border-border-2 rounded-lg bg-bg-surface-1 text-text-1"
             />
           </div>
 
           <!-- Client ID -->
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label class="block text-sm font-medium text-text-2 mb-2">
               Client ID *
             </label>
             <input
               v-model="form.client_id"
               type="text"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              class="w-full px-3 py-2 border border-border-2 rounded-lg bg-bg-surface-1 text-text-1"
             />
           </div>
 
           <!-- Client Secret -->
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label class="block text-sm font-medium text-text-2 mb-2">
               Client Secret {{ editingConfig ? '(leave blank to keep current)' : '*' }}
             </label>
             <input
               v-model="form.client_secret"
               type="password"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              class="w-full px-3 py-2 border border-border-2 rounded-lg bg-bg-surface-1 text-text-1"
             />
           </div>
 
           <!-- Scopes -->
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label class="block text-sm font-medium text-text-2 mb-2">
               Scopes
             </label>
             <div class="flex flex-wrap gap-2 mb-2">
               <span
                 v-for="(scope, index) in form.scopes"
                 :key="index"
-                class="inline-flex items-center px-2 py-1 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 rounded text-sm"
+                class="inline-flex items-center px-2 py-1 bg-brand/10 text-brand rounded text-sm"
               >
                 {{ scope }}
                 <button
                   @click="form.scopes.splice(index, 1)"
-                  class="ml-1 hover:text-indigo-900"
+                  class="ml-1 hover:text-brand/80"
                 >
                   ×
                 </button>
@@ -559,27 +559,27 @@ function getProviderBadgeClass(type: string) {
             <input
               type="text"
               placeholder="Add scope and press Enter"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              class="w-full px-3 py-2 border border-border-2 rounded-lg bg-bg-surface-1 text-text-1"
               @keydown.enter.prevent="($event.target as HTMLInputElement).value && (form.scopes || []).push(($event.target as HTMLInputElement).value); ($event.target as HTMLInputElement).value = ''"
             />
           </div>
 
           <!-- Google-specific: Allowed Domains -->
           <div v-if="form.provider_type === 'google'">
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label class="block text-sm font-medium text-text-2 mb-2">
               Allowed Domains
-              <span class="text-gray-400 font-normal ml-1">(optional, restrict to specific email domains)</span>
+              <span class="text-text-4 font-normal ml-1">(optional, restrict to specific email domains)</span>
             </label>
             <div class="flex flex-wrap gap-2 mb-2">
               <span
                 v-for="(domain, index) in (form.allow_domains || [])"
                 :key="index"
-                class="inline-flex items-center px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded text-sm"
+                class="inline-flex items-center px-2 py-1 bg-success/10 text-success rounded text-sm"
               >
                 {{ domain }}
                 <button
                   @click="(form.allow_domains || []).splice(index, 1)"
-                  class="ml-1 hover:text-green-900"
+                  class="ml-1 hover:text-success/80"
                 >
                   ×
                 </button>
@@ -588,7 +588,7 @@ function getProviderBadgeClass(type: string) {
             <input
               type="text"
               placeholder="e.g., company.com"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              class="w-full px-3 py-2 border border-border-2 rounded-lg bg-bg-surface-1 text-text-1"
               @keydown.enter.prevent="($event.target as HTMLInputElement).value && ((form.allow_domains || (form.allow_domains = [])).push(($event.target as HTMLInputElement).value)); ($event.target as HTMLInputElement).value = ''"
             />
           </div>
@@ -596,27 +596,27 @@ function getProviderBadgeClass(type: string) {
           <!-- GitHub-specific: Org/Team restrictions -->
           <div v-if="isGithub" class="space-y-4">
             <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label class="block text-sm font-medium text-text-2 mb-2">
                 Required Organization
-                <span class="text-gray-400 font-normal ml-1">(optional)</span>
+                <span class="text-text-4 font-normal ml-1">(optional)</span>
               </label>
               <input
                 v-model="form.github_org"
                 type="text"
                 placeholder="e.g., myorg"
-                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                class="w-full px-3 py-2 border border-border-2 rounded-lg bg-bg-surface-1 text-text-1"
               />
             </div>
             <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label class="block text-sm font-medium text-text-2 mb-2">
                 Required Team
-                <span class="text-gray-400 font-normal ml-1">(optional, within the organization)</span>
+                <span class="text-text-4 font-normal ml-1">(optional, within the organization)</span>
               </label>
               <input
                 v-model="form.github_team"
                 type="text"
                 placeholder="e.g., developers"
-                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                class="w-full px-3 py-2 border border-border-2 rounded-lg bg-bg-surface-1 text-text-1"
               />
             </div>
           </div>
@@ -624,52 +624,52 @@ function getProviderBadgeClass(type: string) {
           <!-- OIDC-specific: Groups claim and role mappings -->
           <div v-if="isOidc" class="space-y-4">
             <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label class="block text-sm font-medium text-text-2 mb-2">
                 Groups Claim
-                <span class="text-gray-400 font-normal ml-1">(claim name in ID token containing user groups)</span>
+                <span class="text-text-4 font-normal ml-1">(claim name in ID token containing user groups)</span>
               </label>
               <input
                 v-model="form.groups_claim"
                 type="text"
                 placeholder="groups"
-                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                class="w-full px-3 py-2 border border-border-2 rounded-lg bg-bg-surface-1 text-text-1"
               />
             </div>
           </div>
 
           <!-- Settings -->
           <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <label class="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer">
+            <label class="flex items-center gap-3 p-3 border border-border-1 rounded-lg cursor-pointer">
               <input
                 v-model="form.is_active"
                 type="checkbox"
-                class="w-5 h-5 text-indigo-600 rounded"
+                class="w-5 h-5 text-brand rounded"
               />
               <div>
-                <div class="font-medium text-gray-900 dark:text-white">Active</div>
-                <div class="text-xs text-gray-500">Show on login page</div>
+                <div class="font-medium text-text-1">Active</div>
+                <div class="text-xs text-text-3">Show on login page</div>
               </div>
             </label>
 
-            <label class="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer">
+            <label class="flex items-center gap-3 p-3 border border-border-1 rounded-lg cursor-pointer">
               <input
                 v-model="form.auto_provision"
                 type="checkbox"
-                class="w-5 h-5 text-indigo-600 rounded"
+                class="w-5 h-5 text-brand rounded"
               />
               <div>
-                <div class="font-medium text-gray-900 dark:text-white">Auto-Provision</div>
-                <div class="text-xs text-gray-500">Create new users automatically</div>
+                <div class="font-medium text-text-1">Auto-Provision</div>
+                <div class="text-xs text-text-3">Create new users automatically</div>
               </div>
             </label>
 
-            <div class="p-3 border border-gray-200 dark:border-gray-700 rounded-lg">
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <div class="p-3 border border-border-1 rounded-lg">
+              <label class="block text-sm font-medium text-text-2 mb-1">
                 Default Role
               </label>
               <select
                 v-model="form.default_role"
-                class="w-full px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+                class="w-full px-2 py-1 border border-border-2 rounded bg-bg-surface-1 text-text-1 text-sm"
               >
                 <option value="member">Member</option>
                 <option value="team_admin">Team Admin</option>
@@ -679,15 +679,15 @@ function getProviderBadgeClass(type: string) {
           </div>
 
           <!-- Callback URL Info -->
-          <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+          <div class="bg-brand/10 border border-brand/20 rounded-lg p-4">
             <div class="flex items-start gap-3">
-              <HelpCircle class="w-5 h-5 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+              <HelpCircle class="w-5 h-5 text-brand flex-shrink-0 mt-0.5" />
               <div>
-                <h4 class="font-medium text-blue-900 dark:text-blue-100">Callback URL</h4>
-                <p class="text-sm text-blue-700 dark:text-blue-300 mt-1">
+                <h4 class="font-medium text-brand">Callback URL</h4>
+                <p class="text-sm text-brand/80 mt-1">
                   Configure this redirect URL in your {{ form.provider_type === 'github' ? 'GitHub OAuth app' : form.provider_type === 'google' ? 'Google Cloud Console' : 'OIDC provider' }}:
                 </p>
-                <code class="block mt-2 px-3 py-2 bg-blue-100 dark:bg-blue-900/40 rounded text-sm text-blue-800 dark:text-blue-200 break-all">
+                <code class="block mt-2 px-3 py-2 bg-brand/20 rounded text-sm text-brand break-all">
                   {{ callbackUrl }}
                 </code>
               </div>
@@ -695,17 +695,17 @@ function getProviderBadgeClass(type: string) {
           </div>
         </div>
 
-        <div class="p-6 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3">
+        <div class="p-6 border-t border-border-1 flex justify-end gap-3">
           <button
             @click="showAddModal = false; showEditModal = false"
-            class="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            class="px-4 py-2 text-text-2 hover:bg-bg-surface-2 rounded-lg transition-colors"
           >
             Cancel
           </button>
           <button
             @click="saveConfig"
             :disabled="loading"
-            class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+            class="px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand/90 disabled:opacity-50 transition-colors"
           >
             {{ loading ? 'Saving...' : (editingConfig ? 'Update' : 'Create') }}
           </button>
@@ -719,39 +719,39 @@ function getProviderBadgeClass(type: string) {
       class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
       @click.self="showTestModal = false"
     >
-      <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-lg w-full">
-        <div class="p-6 border-b border-gray-200 dark:border-gray-700">
-          <h2 class="text-xl font-semibold text-gray-900 dark:text-white">
+      <div class="bg-bg-surface-1 rounded-lg shadow-xl max-w-lg w-full">
+        <div class="p-6 border-b border-border-1">
+          <h2 class="text-xl font-semibold text-text-1">
             Test {{ testingConfig?.display_name || testingConfig?.provider_key }}
           </h2>
         </div>
 
         <div class="p-6">
           <div v-if="!testResult" class="flex items-center justify-center py-8">
-            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-            <span class="ml-3 text-gray-600 dark:text-gray-400">Testing configuration...</span>
+            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-brand"></div>
+            <span class="ml-3 text-text-2">Testing configuration...</span>
           </div>
 
           <div v-else>
             <div
               class="flex items-center gap-3 p-4 rounded-lg mb-4"
-              :class="testResult.success ? 'bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-200' : 'bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-200'"
+              :class="testResult.success ? 'bg-success/10 text-success' : 'bg-danger/10 text-danger'"
             >
               <CheckCircle v-if="testResult.success" class="w-6 h-6" />
               <AlertCircle v-else class="w-6 h-6" />
               <span class="font-medium">{{ testResult.message }}</span>
             </div>
 
-            <div v-if="testResult.details" class="bg-gray-50 dark:bg-gray-900 rounded-lg p-4 overflow-auto max-h-64">
-              <pre class="text-sm text-gray-700 dark:text-gray-300">{{ JSON.stringify(testResult.details, null, 2) }}</pre>
+            <div v-if="testResult.details" class="bg-bg-surface-2 rounded-lg p-4 overflow-auto max-h-64">
+              <pre class="text-sm text-text-2">{{ JSON.stringify(testResult.details, null, 2) }}</pre>
             </div>
           </div>
         </div>
 
-        <div class="p-6 border-t border-gray-200 dark:border-gray-700 flex justify-end">
+        <div class="p-6 border-t border-border-1 flex justify-end">
           <button
             @click="showTestModal = false"
-            class="px-4 py-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+            class="px-4 py-2 bg-bg-surface-2 text-text-2 rounded-lg hover:bg-bg-surface-2/80 transition-colors"
           >
             Close
           </button>

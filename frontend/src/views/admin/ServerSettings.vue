@@ -114,60 +114,60 @@ const saveSettings = async () => {
     <div class="space-y-6">
         <div class="flex items-center justify-between">
             <div>
-                <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Server Settings</h1>
-                <p class="text-gray-500 dark:text-gray-400 mt-1">Configure your RustChat instance</p>
+                <h1 class="text-2xl font-bold text-text-1">Server Settings</h1>
+                <p class="text-text-3 mt-1">Configure your RustChat instance</p>
             </div>
             <button 
                 @click="saveSettings"
                 :disabled="saving"
-                class="flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-lg font-medium transition-colors"
+                class="flex items-center px-4 py-2 bg-brand hover:bg-brand/90 disabled:opacity-50 text-white rounded-lg font-medium transition-colors"
             >
                 <Save class="w-5 h-5 mr-2" />
                 {{ saving ? 'Saving...' : 'Save Changes' }}
             </button>
         </div>
 
-        <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 divide-y divide-gray-200 dark:divide-slate-700">
+        <div class="bg-bg-surface-1 rounded-xl shadow-sm border border-border-1 divide-y divide-border-1">
             <!-- Site Information -->
             <div class="p-6">
                 <div class="flex items-center mb-4">
-                    <Globe class="w-5 h-5 text-gray-400 mr-2" />
-                    <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Site Information</h2>
+                    <Globe class="w-5 h-5 text-text-4 mr-2" />
+                    <h2 class="text-lg font-semibold text-text-1">Site Information</h2>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Site Name</label>
+                        <label class="block text-sm font-medium text-text-2 mb-1">Site Name</label>
                         <input 
                             v-model="form.site_name"
                             type="text"
-                            class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white"
+                            class="w-full px-4 py-2 border border-border-2 rounded-lg bg-bg-surface-1 text-text-1"
                             placeholder="RustChat"
                         />
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Site URL</label>
+                        <label class="block text-sm font-medium text-text-2 mb-1">Site URL</label>
                         <input 
                             v-model="form.site_url"
                             type="url"
-                            class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white"
+                            class="w-full px-4 py-2 border border-border-2 rounded-lg bg-bg-surface-1 text-text-1"
                             placeholder="https://chat.example.com"
                         />
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Logo URL (50x50 recommended)</label>
+                        <label class="block text-sm font-medium text-text-2 mb-1">Logo URL (50x50 recommended)</label>
                         <input 
                             v-model="form.logo_url"
                             type="text"
-                            class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white"
+                            class="w-full px-4 py-2 border border-border-2 rounded-lg bg-bg-surface-1 text-text-1"
                             placeholder="https://example.com/logo.png"
                         />
                     </div>
                     <div class="md:col-span-2">
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Site Description</label>
+                        <label class="block text-sm font-medium text-text-2 mb-1">Site Description</label>
                         <textarea 
                             v-model="form.site_description"
                             rows="2"
-                            class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white"
+                            class="w-full px-4 py-2 border border-border-2 rounded-lg bg-bg-surface-1 text-text-1"
                             placeholder="A self-hosted team collaboration platform"
                         ></textarea>
                     </div>
@@ -177,17 +177,17 @@ const saveSettings = async () => {
             <!-- File Uploads -->
             <div class="p-6">
                 <div class="flex items-center mb-4">
-                    <Upload class="w-5 h-5 text-gray-400 mr-2" />
-                    <h2 class="text-lg font-semibold text-gray-900 dark:text-white">File Uploads</h2>
+                    <Upload class="w-5 h-5 text-text-4 mr-2" />
+                    <h2 class="text-lg font-semibold text-text-1">File Uploads</h2>
                 </div>
                 <div class="max-w-xs">
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Max File Size (MB)</label>
+                    <label class="block text-sm font-medium text-text-2 mb-1">Max File Size (MB)</label>
                     <input 
                         v-model.number="form.max_file_size_mb"
                         type="number"
                         min="1"
                         max="500"
-                        class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white"
+                        class="w-full px-4 py-2 border border-border-2 rounded-lg bg-bg-surface-1 text-text-1"
                     />
                 </div>
             </div>
@@ -195,17 +195,17 @@ const saveSettings = async () => {
             <!-- Connection Limits -->
             <div class="p-6">
                 <div class="flex items-center mb-4">
-                    <Activity class="w-5 h-5 text-gray-400 mr-2" />
-                    <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Connection Limits</h2>
+                    <Activity class="w-5 h-5 text-text-4 mr-2" />
+                    <h2 class="text-lg font-semibold text-text-1">Connection Limits</h2>
                 </div>
                 <div class="max-w-xs">
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Max Simultaneous Connections per User</label>
+                    <label class="block text-sm font-medium text-text-2 mb-1">Max Simultaneous Connections per User</label>
                     <input 
                         v-model.number="form.max_simultaneous_connections"
                         type="number"
                         min="1"
                         max="100"
-                        class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white"
+                        class="w-full px-4 py-2 border border-border-2 rounded-lg bg-bg-surface-1 text-text-1"
                     />
                 </div>
             </div>
@@ -214,13 +214,13 @@ const saveSettings = async () => {
             <div class="p-6">
                 <div class="flex items-center justify-between mb-4">
                     <div class="flex items-center">
-                        <Sliders class="w-5 h-5 text-gray-400 mr-2" />
-                        <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Client Configuration (Advanced)</h2>
+                        <Sliders class="w-5 h-5 text-text-4 mr-2" />
+                        <h2 class="text-lg font-semibold text-text-1">Client Configuration (Advanced)</h2>
                     </div>
                     <button
                         type="button"
                         @click="showAdvanced = !showAdvanced"
-                        class="px-3 py-1.5 text-sm font-medium rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-slate-900"
+                        class="px-3 py-1.5 text-sm font-medium rounded-md border border-border-2 text-text-2 hover:bg-bg-surface-2"
                     >
                         {{ showAdvanced ? 'Hide' : 'Show' }} Advanced
                     </button>
@@ -228,98 +228,98 @@ const saveSettings = async () => {
 
                 <div v-if="showAdvanced" class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">About Link</label>
+                        <label class="block text-sm font-medium text-text-2 mb-1">About Link</label>
                         <input
                             v-model="form.about_link"
                             type="url"
-                            class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white"
+                            class="w-full px-4 py-2 border border-border-2 rounded-lg bg-bg-surface-1 text-text-1"
                         />
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Help Link</label>
+                        <label class="block text-sm font-medium text-text-2 mb-1">Help Link</label>
                         <input
                             v-model="form.help_link"
                             type="url"
-                            class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white"
+                            class="w-full px-4 py-2 border border-border-2 rounded-lg bg-bg-surface-1 text-text-1"
                         />
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Terms of Service Link</label>
+                        <label class="block text-sm font-medium text-text-2 mb-1">Terms of Service Link</label>
                         <input
                             v-model="form.terms_of_service_link"
                             type="url"
-                            class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white"
+                            class="w-full px-4 py-2 border border-border-2 rounded-lg bg-bg-surface-1 text-text-1"
                         />
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Privacy Policy Link</label>
+                        <label class="block text-sm font-medium text-text-2 mb-1">Privacy Policy Link</label>
                         <input
                             v-model="form.privacy_policy_link"
                             type="url"
-                            class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white"
+                            class="w-full px-4 py-2 border border-border-2 rounded-lg bg-bg-surface-1 text-text-1"
                         />
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Report a Problem Link</label>
+                        <label class="block text-sm font-medium text-text-2 mb-1">Report a Problem Link</label>
                         <input
                             v-model="form.report_a_problem_link"
                             type="url"
-                            class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white"
+                            class="w-full px-4 py-2 border border-border-2 rounded-lg bg-bg-surface-1 text-text-1"
                         />
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Support Email</label>
+                        <label class="block text-sm font-medium text-text-2 mb-1">Support Email</label>
                         <input
                             v-model="form.support_email"
                             type="email"
-                            class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white"
+                            class="w-full px-4 py-2 border border-border-2 rounded-lg bg-bg-surface-1 text-text-1"
                         />
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">App Download Link</label>
+                        <label class="block text-sm font-medium text-text-2 mb-1">App Download Link</label>
                         <input
                             v-model="form.app_download_link"
                             type="url"
-                            class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white"
+                            class="w-full px-4 py-2 border border-border-2 rounded-lg bg-bg-surface-1 text-text-1"
                         />
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Android App Download Link</label>
+                        <label class="block text-sm font-medium text-text-2 mb-1">Android App Download Link</label>
                         <input
                             v-model="form.android_app_download_link"
                             type="url"
-                            class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white"
+                            class="w-full px-4 py-2 border border-border-2 rounded-lg bg-bg-surface-1 text-text-1"
                         />
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">iOS App Download Link</label>
+                        <label class="block text-sm font-medium text-text-2 mb-1">iOS App Download Link</label>
                         <input
                             v-model="form.ios_app_download_link"
                             type="url"
-                            class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white"
+                            class="w-full px-4 py-2 border border-border-2 rounded-lg bg-bg-surface-1 text-text-1"
                         />
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Custom Brand Text</label>
+                        <label class="block text-sm font-medium text-text-2 mb-1">Custom Brand Text</label>
                         <input
                             v-model="form.custom_brand_text"
                             type="text"
-                            class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white"
+                            class="w-full px-4 py-2 border border-border-2 rounded-lg bg-bg-surface-1 text-text-1"
                         />
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Custom Description Text</label>
+                        <label class="block text-sm font-medium text-text-2 mb-1">Custom Description Text</label>
                         <input
                             v-model="form.custom_description_text"
                             type="text"
-                            class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white"
+                            class="w-full px-4 py-2 border border-border-2 rounded-lg bg-bg-surface-1 text-text-1"
                         />
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Service Environment</label>
+                        <label class="block text-sm font-medium text-text-2 mb-1">Service Environment</label>
                         <select
                             v-model="form.service_environment"
-                            class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white"
+                            class="w-full px-4 py-2 border border-border-2 rounded-lg bg-bg-surface-1 text-text-1"
                         >
                             <option value="production">Production</option>
                             <option value="staging">Staging</option>
@@ -327,81 +327,81 @@ const saveSettings = async () => {
                         </select>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        <label class="block text-sm font-medium text-text-2 mb-1">
                             Message Edit Time Limit (seconds)
                         </label>
                         <input
                             v-model.number="form.post_edit_time_limit_seconds"
                             type="number"
                             min="-1"
-                            class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white"
+                            class="w-full px-4 py-2 border border-border-2 rounded-lg bg-bg-surface-1 text-text-1"
                             placeholder="-1 for unlimited, 0 to disable, e.g. 1800 for 30 min"
                         />
-                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                        <p class="mt-1 text-xs text-text-3">
                             Use <code>-1</code> for unlimited editing, <code>0</code> to disable editing, or a positive number for a time window.
                         </p>
                     </div>
                 </div>
 
                 <div v-if="showAdvanced" class="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <label class="flex items-center justify-between p-4 bg-gray-50 dark:bg-slate-900 rounded-lg">
+                    <label class="flex items-center justify-between p-4 bg-bg-surface-2 rounded-lg">
                         <div>
-                            <p class="font-medium text-gray-900 dark:text-white">Enable Files</p>
-                            <p class="text-sm text-gray-500">Allow file uploads and downloads</p>
+                            <p class="font-medium text-text-1">Enable Files</p>
+                            <p class="text-sm text-text-3">Allow file uploads and downloads</p>
                         </div>
-                        <input type="checkbox" v-model="form.enable_file" class="w-5 h-5 text-indigo-600 rounded" />
+                        <input type="checkbox" v-model="form.enable_file" class="w-5 h-5 text-brand rounded" />
                     </label>
-                    <label class="flex items-center justify-between p-4 bg-gray-50 dark:bg-slate-900 rounded-lg">
+                    <label class="flex items-center justify-between p-4 bg-bg-surface-2 rounded-lg">
                         <div>
-                            <p class="font-medium text-gray-900 dark:text-white">Enable User Statuses</p>
-                            <p class="text-sm text-gray-500">Allow users to set custom statuses</p>
+                            <p class="font-medium text-text-1">Enable User Statuses</p>
+                            <p class="text-sm text-text-3">Allow users to set custom statuses</p>
                         </div>
-                        <input type="checkbox" v-model="form.enable_user_statuses" class="w-5 h-5 text-indigo-600 rounded" />
+                        <input type="checkbox" v-model="form.enable_user_statuses" class="w-5 h-5 text-brand rounded" />
                     </label>
-                    <label class="flex items-center justify-between p-4 bg-gray-50 dark:bg-slate-900 rounded-lg">
+                    <label class="flex items-center justify-between p-4 bg-bg-surface-2 rounded-lg">
                         <div>
-                            <p class="font-medium text-gray-900 dark:text-white">Enable Custom Emoji</p>
-                            <p class="text-sm text-gray-500">Allow custom emoji uploads</p>
+                            <p class="font-medium text-text-1">Enable Custom Emoji</p>
+                            <p class="text-sm text-text-3">Allow custom emoji uploads</p>
                         </div>
-                        <input type="checkbox" v-model="form.enable_custom_emoji" class="w-5 h-5 text-indigo-600 rounded" />
+                        <input type="checkbox" v-model="form.enable_custom_emoji" class="w-5 h-5 text-brand rounded" />
                     </label>
-                    <label class="flex items-center justify-between p-4 bg-gray-50 dark:bg-slate-900 rounded-lg">
+                    <label class="flex items-center justify-between p-4 bg-bg-surface-2 rounded-lg">
                         <div>
-                            <p class="font-medium text-gray-900 dark:text-white">Enable Custom Branding</p>
-                            <p class="text-sm text-gray-500">Show custom brand text in clients</p>
+                            <p class="font-medium text-text-1">Enable Custom Branding</p>
+                            <p class="text-sm text-text-3">Show custom brand text in clients</p>
                         </div>
-                        <input type="checkbox" v-model="form.enable_custom_brand" class="w-5 h-5 text-indigo-600 rounded" />
+                        <input type="checkbox" v-model="form.enable_custom_brand" class="w-5 h-5 text-brand rounded" />
                     </label>
-                    <label class="flex items-center justify-between p-4 bg-gray-50 dark:bg-slate-900 rounded-lg">
+                    <label class="flex items-center justify-between p-4 bg-bg-surface-2 rounded-lg">
                         <div>
-                            <p class="font-medium text-gray-900 dark:text-white">Mobile File Download</p>
-                            <p class="text-sm text-gray-500">Allow downloads on mobile clients</p>
+                            <p class="font-medium text-text-1">Mobile File Download</p>
+                            <p class="text-sm text-text-3">Allow downloads on mobile clients</p>
                         </div>
-                        <input type="checkbox" v-model="form.enable_mobile_file_download" class="w-5 h-5 text-indigo-600 rounded" />
+                        <input type="checkbox" v-model="form.enable_mobile_file_download" class="w-5 h-5 text-brand rounded" />
                     </label>
-                    <label class="flex items-center justify-between p-4 bg-gray-50 dark:bg-slate-900 rounded-lg">
+                    <label class="flex items-center justify-between p-4 bg-bg-surface-2 rounded-lg">
                         <div>
-                            <p class="font-medium text-gray-900 dark:text-white">Mobile File Upload</p>
-                            <p class="text-sm text-gray-500">Allow uploads on mobile clients</p>
+                            <p class="font-medium text-text-1">Mobile File Upload</p>
+                            <p class="text-sm text-text-3">Allow uploads on mobile clients</p>
                         </div>
-                        <input type="checkbox" v-model="form.enable_mobile_file_upload" class="w-5 h-5 text-indigo-600 rounded" />
+                        <input type="checkbox" v-model="form.enable_mobile_file_upload" class="w-5 h-5 text-brand rounded" />
                     </label>
-                    <label class="flex items-center justify-between p-4 bg-gray-50 dark:bg-slate-900 rounded-lg">
+                    <label class="flex items-center justify-between p-4 bg-bg-surface-2 rounded-lg">
                         <div>
-                            <p class="font-medium text-gray-900 dark:text-white">Allow Download Logs</p>
-                            <p class="text-sm text-gray-500">Allow clients to download logs</p>
+                            <p class="font-medium text-text-1">Allow Download Logs</p>
+                            <p class="text-sm text-text-3">Allow clients to download logs</p>
                         </div>
-                        <input type="checkbox" v-model="form.allow_download_logs" class="w-5 h-5 text-indigo-600 rounded" />
+                        <input type="checkbox" v-model="form.allow_download_logs" class="w-5 h-5 text-brand rounded" />
                     </label>
-                    <label class="flex items-center justify-between p-4 bg-gray-50 dark:bg-slate-900 rounded-lg">
+                    <label class="flex items-center justify-between p-4 bg-bg-surface-2 rounded-lg">
                         <div>
-                            <p class="font-medium text-gray-900 dark:text-white">Diagnostics Enabled</p>
-                            <p class="text-sm text-gray-500">Expose diagnostics and telemetry</p>
+                            <p class="font-medium text-text-1">Diagnostics Enabled</p>
+                            <p class="text-sm text-text-3">Expose diagnostics and telemetry</p>
                         </div>
-                        <input type="checkbox" v-model="form.diagnostics_enabled" class="w-5 h-5 text-indigo-600 rounded" />
+                        <input type="checkbox" v-model="form.diagnostics_enabled" class="w-5 h-5 text-brand rounded" />
                     </label>
                 </div>
-                <p v-else class="text-sm text-gray-500 dark:text-gray-400">
+                <p v-else class="text-sm text-text-3">
                     These settings control advanced client behavior and legacy config responses.
                 </p>
             </div>
@@ -409,20 +409,20 @@ const saveSettings = async () => {
             <!-- Team Membership Defaults -->
             <div class="p-6">
                 <div class="flex items-center mb-4">
-                    <Globe class="w-5 h-5 text-gray-400 mr-2" />
-                    <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Team Membership Defaults</h2>
+                    <Globe class="w-5 h-5 text-text-4 mr-2" />
+                    <h2 class="text-lg font-semibold text-text-1">Team Membership Defaults</h2>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    <label class="block text-sm font-medium text-text-2 mb-1">
                         Default Channels For New Team Members
                     </label>
                     <input
                         v-model="defaultChannelsInput"
                         type="text"
-                        class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white"
+                        class="w-full px-4 py-2 border border-border-2 rounded-lg bg-bg-surface-1 text-text-1"
                         placeholder="off-topic, announcements"
                     />
-                    <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                    <p class="mt-2 text-sm text-text-3">
                         Comma-separated channel names. Leave empty to use the fallback (<code>town-square</code> + <code>off-topic</code>).
                         <code>town-square</code> is always included.
                     </p>
@@ -432,15 +432,15 @@ const saveSettings = async () => {
             <!-- Localization -->
             <div class="p-6">
                 <div class="flex items-center mb-4">
-                    <Clock class="w-5 h-5 text-gray-400 mr-2" />
-                    <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Localization</h2>
+                    <Clock class="w-5 h-5 text-text-4 mr-2" />
+                    <h2 class="text-lg font-semibold text-text-1">Localization</h2>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Default Locale</label>
+                        <label class="block text-sm font-medium text-text-2 mb-1">Default Locale</label>
                         <select 
                             v-model="form.default_locale"
-                            class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white"
+                            class="w-full px-4 py-2 border border-border-2 rounded-lg bg-bg-surface-1 text-text-1"
                         >
                             <option value="en">English</option>
                             <option value="es">Spanish</option>
@@ -449,10 +449,10 @@ const saveSettings = async () => {
                         </select>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Default Timezone</label>
+                        <label class="block text-sm font-medium text-text-2 mb-1">Default Timezone</label>
                         <select 
                             v-model="form.default_timezone"
-                            class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white"
+                            class="w-full px-4 py-2 border border-border-2 rounded-lg bg-bg-surface-1 text-text-1"
                         >
                             <option value="UTC">UTC</option>
                             <option value="America/New_York">Eastern Time</option>

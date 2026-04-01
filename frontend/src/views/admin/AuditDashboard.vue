@@ -39,9 +39,9 @@ const filters = ref({
 const hasFailures = computed(() => summary.value.failed_operations_24h > 0);
 const failureRateClass = computed(() => {
     const rate = summary.value.failure_rate_24h;
-    if (rate < 5) return 'text-green-600';
-    if (rate < 15) return 'text-yellow-600';
-    return 'text-red-600';
+    if (rate < 5) return 'text-success';
+    if (rate < 15) return 'text-warning';
+    return 'text-danger';
 });
 
 // Fetch all data
@@ -122,22 +122,22 @@ onMounted(() => {
         <!-- Header -->
         <div class="flex items-center justify-between">
             <div>
-                <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Audit Dashboard</h1>
-                <p class="text-gray-500 dark:text-gray-400 mt-1">
+                <h1 class="text-2xl font-bold text-text-1">Audit Dashboard</h1>
+                <p class="text-text-3 mt-1">
                     Monitor membership policy execution and failures
                 </p>
             </div>
             <div class="flex space-x-2">
                 <button
                     @click="exportLogs"
-                    class="flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                    class="flex items-center px-4 py-2 border border-border-2 rounded-lg hover:bg-bg-surface-2 transition-colors"
                 >
                     <Download class="w-4 h-4 mr-2" />
                     Export
                 </button>
                 <button
                     @click="refresh"
-                    class="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                    class="flex items-center px-4 py-2 bg-brand text-white rounded-lg hover:bg-brand/90 transition-colors"
                     :disabled="loading"
                 >
                     <RefreshCw class="w-4 h-4 mr-2" :class="{ 'animate-spin': loading }" />
@@ -148,56 +148,56 @@ onMounted(() => {
 
         <!-- Summary Cards -->
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div class="p-6 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+            <div class="p-6 bg-bg-surface-1 rounded-lg shadow-sm border border-border-1">
                 <div class="flex items-center justify-between">
                     <div>
-                        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Total Operations (24h)</p>
-                        <p class="text-2xl font-bold text-gray-900 dark:text-white mt-1">{{ summary.total_operations_24h }}</p>
+                        <p class="text-sm font-medium text-text-3">Total Operations (24h)</p>
+                        <p class="text-2xl font-bold text-text-1 mt-1">{{ summary.total_operations_24h }}</p>
                     </div>
-                    <div class="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                        <Activity class="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                    <div class="p-3 bg-brand/10 rounded-lg">
+                        <Activity class="w-6 h-6 text-brand" />
                     </div>
                 </div>
             </div>
 
-            <div class="p-6 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+            <div class="p-6 bg-bg-surface-1 rounded-lg shadow-sm border border-border-1">
                 <div class="flex items-center justify-between">
                     <div>
-                        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Successful (24h)</p>
-                        <p class="text-2xl font-bold text-green-600 dark:text-green-400 mt-1">{{ summary.successful_operations_24h }}</p>
+                        <p class="text-sm font-medium text-text-3">Successful (24h)</p>
+                        <p class="text-2xl font-bold text-success mt-1">{{ summary.successful_operations_24h }}</p>
                     </div>
-                    <div class="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg">
-                        <CheckCircle class="w-6 h-6 text-green-600 dark:text-green-400" />
+                    <div class="p-3 bg-success/10 rounded-lg">
+                        <CheckCircle class="w-6 h-6 text-success" />
                     </div>
                 </div>
             </div>
 
-            <div class="p-6 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+            <div class="p-6 bg-bg-surface-1 rounded-lg shadow-sm border border-border-1">
                 <div class="flex items-center justify-between">
                     <div>
-                        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Failed (24h)</p>
-                        <p class="text-2xl font-bold text-red-600 dark:text-red-400 mt-1">{{ summary.failed_operations_24h }}</p>
+                        <p class="text-sm font-medium text-text-3">Failed (24h)</p>
+                        <p class="text-2xl font-bold text-danger mt-1">{{ summary.failed_operations_24h }}</p>
                     </div>
-                    <div class="p-3 bg-red-100 dark:bg-red-900/30 rounded-lg">
-                        <XCircle class="w-6 h-6 text-red-600 dark:text-red-400" />
+                    <div class="p-3 bg-danger/10 rounded-lg">
+                        <XCircle class="w-6 h-6 text-danger" />
                     </div>
                 </div>
-                <div v-if="hasFailures" class="mt-2 flex items-center text-sm text-red-600">
+                <div v-if="hasFailures" class="mt-2 flex items-center text-sm text-danger">
                     <AlertTriangle class="w-4 h-4 mr-1" />
                     <span>{{ summary.policies_with_failures }} policies affected</span>
                 </div>
             </div>
 
-            <div class="p-6 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+            <div class="p-6 bg-bg-surface-1 rounded-lg shadow-sm border border-border-1">
                 <div class="flex items-center justify-between">
                     <div>
-                        <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Failure Rate (24h)</p>
+                        <p class="text-sm font-medium text-text-3">Failure Rate (24h)</p>
                         <p class="text-2xl font-bold mt-1" :class="failureRateClass">
                             {{ summary.failure_rate_24h.toFixed(1) }}%
                         </p>
                     </div>
-                    <div class="p-3 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg">
-                        <TrendingUp class="w-6 h-6 text-yellow-600 dark:text-yellow-400" />
+                    <div class="p-3 bg-warning/10 rounded-lg">
+                        <TrendingUp class="w-6 h-6 text-warning" />
                     </div>
                 </div>
             </div>
@@ -206,12 +206,12 @@ onMounted(() => {
         <!-- Alert Banner -->
         <div 
             v-if="hasFailures && summary.failure_rate_24h > 15" 
-            class="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg flex items-start"
+            class="p-4 bg-danger/10 border border-danger/20 rounded-lg flex items-start"
         >
-            <AlertTriangle class="w-5 h-5 text-red-600 dark:text-red-400 mr-3 mt-0.5" />
+            <AlertTriangle class="w-5 h-5 text-danger mr-3 mt-0.5" />
             <div>
-                <h3 class="text-sm font-semibold text-red-800 dark:text-red-300">High Failure Rate Detected</h3>
-                <p class="text-sm text-red-700 dark:text-red-400 mt-1">
+                <h3 class="text-sm font-semibold text-danger">High Failure Rate Detected</h3>
+                <p class="text-sm text-danger/80 mt-1">
                     The membership policy failure rate is {{ summary.failure_rate_24h.toFixed(1) }}% in the last 24 hours. 
                     Please review the recent failures below.
                 </p>
@@ -219,31 +219,31 @@ onMounted(() => {
         </div>
 
         <!-- Recent Failures -->
-        <div v-if="recentFailures.length > 0" class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
-                    <AlertTriangle class="w-5 h-5 mr-2 text-red-500" />
+        <div v-if="recentFailures.length > 0" class="bg-bg-surface-1 rounded-lg shadow-sm border border-border-1">
+            <div class="px-6 py-4 border-b border-border-1">
+                <h2 class="text-lg font-semibold text-text-1 flex items-center">
+                    <AlertTriangle class="w-5 h-5 mr-2 text-danger" />
                     Recent Failures (Last Hour)
                 </h2>
             </div>
-            <div class="divide-y divide-gray-200 dark:divide-gray-700">
+            <div class="divide-y divide-border-1">
                 <div
                     v-for="failure in recentFailures.slice(0, 5)"
                     :key="failure.id"
-                    class="px-6 py-4 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                    class="px-6 py-4 hover:bg-bg-surface-2"
                 >
                     <div class="flex items-start justify-between">
                         <div>
-                            <p class="text-sm font-medium text-gray-900 dark:text-white">
+                            <p class="text-sm font-medium text-text-1">
                                 {{ failure.policy_name || 'Unknown Policy' }}
                             </p>
-                            <p class="text-xs text-gray-500 mt-1">
+                            <p class="text-xs text-text-3 mt-1">
                                 User: @{{ failure.username || failure.user_id.slice(0, 8) }} | 
                                 Target: {{ failure.target_type }} {{ failure.target_id.slice(0, 8) }}...
                             </p>
-                            <p class="text-xs text-red-600 mt-1 font-mono">{{ failure.error_message }}</p>
+                            <p class="text-xs text-danger mt-1 font-mono">{{ failure.error_message }}</p>
                         </div>
-                        <span class="text-xs text-gray-400">
+                        <span class="text-xs text-text-4">
                             {{ format(new Date(failure.created_at), 'HH:mm:ss') }}
                         </span>
                     </div>
@@ -252,33 +252,33 @@ onMounted(() => {
         </div>
 
         <!-- Policy Failure Stats -->
-        <div v-if="policyStats.length > 0" class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Policies with Failures</h2>
+        <div v-if="policyStats.length > 0" class="bg-bg-surface-1 rounded-lg shadow-sm border border-border-1">
+            <div class="px-6 py-4 border-b border-border-1">
+                <h2 class="text-lg font-semibold text-text-1">Policies with Failures</h2>
             </div>
             <table class="w-full">
-                <thead class="bg-gray-50 dark:bg-gray-900">
+                <thead class="bg-bg-surface-2">
                     <tr>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Policy</th>
-                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Total</th>
-                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Failed</th>
-                        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Rate</th>
-                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Last Error</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-text-3 uppercase">Policy</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-text-3 uppercase">Total</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-text-3 uppercase">Failed</th>
+                        <th class="px-6 py-3 text-right text-xs font-medium text-text-3 uppercase">Rate</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-text-3 uppercase">Last Error</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
-                    <tr v-for="stat in policyStats" :key="stat.policy_id" class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                        <td class="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">{{ stat.policy_name }}</td>
-                        <td class="px-6 py-4 text-sm text-right text-gray-600 dark:text-gray-400">{{ stat.total_operations }}</td>
-                        <td class="px-6 py-4 text-sm text-right text-red-600 dark:text-red-400 font-semibold">{{ stat.failed_operations }}</td>
+                <tbody class="divide-y divide-border-1">
+                    <tr v-for="stat in policyStats" :key="stat.policy_id" class="hover:bg-bg-surface-2">
+                        <td class="px-6 py-4 text-sm font-medium text-text-1">{{ stat.policy_name }}</td>
+                        <td class="px-6 py-4 text-sm text-right text-text-2">{{ stat.total_operations }}</td>
+                        <td class="px-6 py-4 text-sm text-right text-danger font-semibold">{{ stat.failed_operations }}</td>
                         <td class="px-6 py-4 text-sm text-right">
                             <span :class="{
-                                'text-green-600': stat.failure_rate < 5,
-                                'text-yellow-600': stat.failure_rate >= 5 && stat.failure_rate < 15,
-                                'text-red-600': stat.failure_rate >= 15
+                                'text-success': stat.failure_rate < 5,
+                                'text-warning': stat.failure_rate >= 5 && stat.failure_rate < 15,
+                                'text-danger': stat.failure_rate >= 15
                             }">{{ stat.failure_rate.toFixed(1) }}%</span>
                         </td>
-                        <td class="px-6 py-4 text-xs text-gray-500 truncate max-w-xs" :title="stat.last_error_message">
+                        <td class="px-6 py-4 text-xs text-text-3 truncate max-w-xs" :title="stat.last_error_message">
                             {{ stat.last_error_message || '-' }}
                         </td>
                     </tr>
@@ -287,15 +287,15 @@ onMounted(() => {
         </div>
 
         <!-- Audit Logs Section -->
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+        <div class="bg-bg-surface-1 rounded-lg shadow-sm border border-border-1">
+            <div class="px-6 py-4 border-b border-border-1 flex items-center justify-between">
+                <h2 class="text-lg font-semibold text-text-1 flex items-center">
                     <FileText class="w-5 h-5 mr-2" />
                     Audit Logs
                 </h2>
                 <button
                     @click="showFilters = !showFilters"
-                    class="flex items-center text-sm text-gray-600 hover:text-gray-900"
+                    class="flex items-center text-sm text-text-2 hover:text-text-1"
                 >
                     <Filter class="w-4 h-4 mr-1" />
                     Filters
@@ -305,14 +305,14 @@ onMounted(() => {
             </div>
 
             <!-- Filters -->
-            <div v-if="showFilters" class="px-6 py-4 bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
+            <div v-if="showFilters" class="px-6 py-4 bg-bg-surface-2 border-b border-border-1">
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <div>
-                        <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Status</label>
+                        <label class="block text-xs font-medium text-text-2 mb-1">Status</label>
                         <select
                             v-model="filters.status"
                             @change="fetchAuditLogs"
-                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm"
+                            class="w-full px-3 py-2 border border-border-2 rounded-lg bg-bg-surface-1 text-sm"
                         >
                             <option value="">All</option>
                             <option value="success">Success</option>
@@ -321,11 +321,11 @@ onMounted(() => {
                         </select>
                     </div>
                     <div>
-                        <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Action</label>
+                        <label class="block text-xs font-medium text-text-2 mb-1">Action</label>
                         <select
                             v-model="filters.action"
                             @change="fetchAuditLogs"
-                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm"
+                            class="w-full px-3 py-2 border border-border-2 rounded-lg bg-bg-surface-1 text-sm"
                         >
                             <option value="">All</option>
                             <option value="add">Add</option>
@@ -334,21 +334,21 @@ onMounted(() => {
                         </select>
                     </div>
                     <div>
-                        <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">From</label>
+                        <label class="block text-xs font-medium text-text-2 mb-1">From</label>
                         <input
                             v-model="filters.from_date"
                             type="date"
                             @change="fetchAuditLogs"
-                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm"
+                            class="w-full px-3 py-2 border border-border-2 rounded-lg bg-bg-surface-1 text-sm"
                         />
                     </div>
                     <div>
-                        <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">To</label>
+                        <label class="block text-xs font-medium text-text-2 mb-1">To</label>
                         <input
                             v-model="filters.to_date"
                             type="date"
                             @change="fetchAuditLogs"
-                            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-sm"
+                            class="w-full px-3 py-2 border border-border-2 rounded-lg bg-bg-surface-1 text-sm"
                         />
                     </div>
                 </div>
@@ -357,28 +357,28 @@ onMounted(() => {
             <!-- Logs Table -->
             <div class="overflow-x-auto">
                 <table class="w-full">
-                    <thead class="bg-gray-50 dark:bg-gray-900">
+                    <thead class="bg-bg-surface-2">
                         <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Time</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Policy</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Target</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-text-3 uppercase">Time</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-text-3 uppercase">Policy</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-text-3 uppercase">User</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-text-3 uppercase">Target</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-text-3 uppercase">Action</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-text-3 uppercase">Status</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
-                        <tr v-for="log in auditLogs" :key="log.id" class="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                            <td class="px-6 py-4 text-sm text-gray-500">
+                    <tbody class="divide-y divide-border-1">
+                        <tr v-for="log in auditLogs" :key="log.id" class="hover:bg-bg-surface-2">
+                            <td class="px-6 py-4 text-sm text-text-3">
                                 {{ format(new Date(log.created_at), 'MMM d, HH:mm:ss') }}
                             </td>
-                            <td class="px-6 py-4 text-sm font-medium text-gray-900 dark:text-white">
+                            <td class="px-6 py-4 text-sm font-medium text-text-1">
                                 {{ log.policy_name || 'Unknown' }}
                             </td>
-                            <td class="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
+                            <td class="px-6 py-4 text-sm text-text-2">
                                 @{{ log.username || log.user_id.slice(0, 8) }}...
                             </td>
-                            <td class="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">
+                            <td class="px-6 py-4 text-sm text-text-2">
                                 {{ log.target_type }} {{ log.target_id.slice(0, 8) }}...
                             </td>
                             <td class="px-6 py-4 text-sm capitalize">{{ log.action }}</td>
@@ -386,9 +386,9 @@ onMounted(() => {
                                 <span
                                     :class="{
                                         'px-2 py-1 text-xs rounded-full font-medium': true,
-                                        'bg-green-100 text-green-800': log.status === 'success',
-                                        'bg-red-100 text-red-800': log.status === 'failed',
-                                        'bg-yellow-100 text-yellow-800': log.status === 'pending'
+                                        'bg-success/10 text-success': log.status === 'success',
+                                        'bg-danger/10 text-danger': log.status === 'failed',
+                                        'bg-warning/10 text-warning': log.status === 'pending'
                                     }"
                                 >
                                     {{ log.status }}
@@ -396,8 +396,8 @@ onMounted(() => {
                             </td>
                         </tr>
                         <tr v-if="auditLogs.length === 0">
-                            <td colspan="6" class="px-6 py-8 text-center text-gray-500">
-                                <FileText class="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                            <td colspan="6" class="px-6 py-8 text-center text-text-3">
+                                <FileText class="w-12 h-12 mx-auto mb-2 text-text-4" />
                                 <p>No audit logs found</p>
                             </td>
                         </tr>
