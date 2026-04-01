@@ -42,6 +42,7 @@ services:
       - TURN_SERVER_CREDENTIAL=${TURN_SERVER_CREDENTIAL:-}
       # Push Notification Proxy
       - RUSTCHAT_PUSH_PROXY_URL=${RUSTCHAT_PUSH_PROXY_URL:-http://push-proxy:3000}
+      - PUSH_PROXY_AUTH_KEY=${PUSH_PROXY_AUTH_KEY:-}
       # Cloudflare Turnstile (Bot Protection)
       - RUSTCHAT_TURNSTILE_ENABLED=${RUSTCHAT_TURNSTILE_ENABLED:-false}
       - RUSTCHAT_TURNSTILE_SITE_KEY=${RUSTCHAT_TURNSTILE_SITE_KEY:-}
@@ -72,7 +73,7 @@ services:
     container_name: rustchat-frontend
     restart: always
     ports:
-      - "8080:80"
+      - "8080:8080"
     depends_on:
       backend:
         condition: service_healthy
@@ -166,6 +167,7 @@ services:
       # General
       - RUSTCHAT_PUSH_PORT=3000
       - RUST_LOG=push_proxy=info,tower_http=info
+      - PUSH_PROXY_AUTH_KEY=${PUSH_PROXY_AUTH_KEY:-}
     volumes:
       # Firebase credentials
       - ${FIREBASE_KEY_PATH:-./secrets/firebase-key.json}:/secrets/firebase-key.json:ro

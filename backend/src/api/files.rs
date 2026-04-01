@@ -17,6 +17,27 @@ use crate::auth::AuthUser;
 use crate::error::{ApiResult, AppError};
 use crate::models::{FileInfo, FileUploadResponse, PresignedUploadUrl};
 
+/// Verify the requesting user can access a file (must be member of the file's channel).
+/// Files without a channel_id (e.g. profile photos) are accessible to any authenticated user.
+async fn check_file_access(state: &AppState, file: &FileInfo, user_id: Uuid) -> ApiResult<()> {
+    let Some(channel_id) = file.channel_id else {
+        return Ok(());
+    };
+    let is_member: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM channel_members WHERE channel_id = $1 AND user_id = $2)",
+    )
+    .bind(channel_id)
+    .bind(user_id)
+    .fetch_one(&state.db)
+    .await?;
+    if !is_member {
+        return Err(AppError::Forbidden(
+            "You do not have access to this file".to_string(),
+        ));
+    }
+    Ok(())
+}
+
 /// Build files routes
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -198,7 +219,7 @@ async fn get_presigned_upload(
 /// Get file info
 async fn get_file(
     State(state): State<AppState>,
-    _auth: AuthUser,
+    auth: AuthUser,
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<FileInfo>> {
     let file: FileInfo = sqlx::query_as("SELECT * FROM files WHERE id = $1")
@@ -207,13 +228,15 @@ async fn get_file(
         .await?
         .ok_or_else(|| AppError::NotFound("File not found".to_string()))?;
 
+    check_file_access(&state, &file, auth.user_id).await?;
+
     Ok(Json(file))
 }
 
 /// Get presigned download URL
 async fn download_file(
     State(state): State<AppState>,
-    _auth: AuthUser,
+    auth: AuthUser,
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<serde_json::Value>> {
     let file: FileInfo = sqlx::query_as("SELECT * FROM files WHERE id = $1")
@@ -221,6 +244,8 @@ async fn download_file(
         .fetch_optional(&state.db)
         .await?
         .ok_or_else(|| AppError::NotFound("File not found".to_string()))?;
+
+    check_file_access(&state, &file, auth.user_id).await?;
 
     let url = state
         .s3_client

@@ -95,13 +95,30 @@ pub struct TeamQuery {
     pub team_id: Uuid,
 }
 
+/// Verify the user is a member of the specified team.
+async fn ensure_team_member(state: &AppState, team_id: Uuid, user_id: Uuid) -> ApiResult<()> {
+    let is_member: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM team_members WHERE team_id = $1 AND user_id = $2)"
+    )
+    .bind(team_id)
+    .bind(user_id)
+    .fetch_one(&state.db)
+    .await?;
+    if !is_member {
+        return Err(AppError::Forbidden("Not a member of this team".to_string()));
+    }
+    Ok(())
+}
+
 // ============ Incoming Webhooks ============
 
 async fn list_incoming_webhooks(
     State(state): State<AppState>,
-    _auth: AuthUser,
+    auth: AuthUser,
     Query(query): Query<TeamQuery>,
 ) -> ApiResult<Json<Vec<IncomingWebhook>>> {
+    ensure_team_member(&state, query.team_id, auth.user_id).await?;
+
     let webhooks: Vec<IncomingWebhook> = sqlx::query_as(
         "SELECT * FROM incoming_webhooks WHERE team_id = $1 ORDER BY created_at DESC",
     )
@@ -141,7 +158,7 @@ async fn create_incoming_webhook(
 
 async fn get_incoming_webhook(
     State(state): State<AppState>,
-    _auth: AuthUser,
+    auth: AuthUser,
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<IncomingWebhook>> {
     let webhook: IncomingWebhook = sqlx::query_as("SELECT * FROM incoming_webhooks WHERE id = $1")
@@ -149,6 +166,12 @@ async fn get_incoming_webhook(
         .fetch_optional(&state.db)
         .await?
         .ok_or_else(|| AppError::NotFound("Webhook not found".to_string()))?;
+
+    if !auth.can_access_owned(webhook.creator_id, &permissions::ADMIN_FULL) {
+        return Err(AppError::Forbidden(
+            "Cannot access this webhook".to_string(),
+        ));
+    }
 
     Ok(Json(webhook))
 }
@@ -212,9 +235,11 @@ async fn execute_incoming_webhook(
 
 async fn list_outgoing_webhooks(
     State(state): State<AppState>,
-    _auth: AuthUser,
+    auth: AuthUser,
     Query(query): Query<TeamQuery>,
 ) -> ApiResult<Json<Vec<OutgoingWebhook>>> {
+    ensure_team_member(&state, query.team_id, auth.user_id).await?;
+
     let webhooks: Vec<OutgoingWebhook> = sqlx::query_as(
         "SELECT * FROM outgoing_webhooks WHERE team_id = $1 ORDER BY created_at DESC",
     )
@@ -264,7 +289,7 @@ async fn create_outgoing_webhook(
 
 async fn get_outgoing_webhook(
     State(state): State<AppState>,
-    _auth: AuthUser,
+    auth: AuthUser,
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<OutgoingWebhook>> {
     let webhook: OutgoingWebhook = sqlx::query_as("SELECT * FROM outgoing_webhooks WHERE id = $1")
@@ -272,6 +297,12 @@ async fn get_outgoing_webhook(
         .fetch_optional(&state.db)
         .await?
         .ok_or_else(|| AppError::NotFound("Webhook not found".to_string()))?;
+
+    if !auth.can_access_owned(webhook.creator_id, &permissions::ADMIN_FULL) {
+        return Err(AppError::Forbidden(
+            "Cannot access this webhook".to_string(),
+        ));
+    }
 
     Ok(Json(webhook))
 }
@@ -305,9 +336,11 @@ async fn delete_outgoing_webhook(
 
 async fn list_slash_commands(
     State(state): State<AppState>,
-    _auth: AuthUser,
+    auth: AuthUser,
     Query(query): Query<TeamQuery>,
 ) -> ApiResult<Json<Vec<SlashCommand>>> {
+    ensure_team_member(&state, query.team_id, auth.user_id).await?;
+
     let commands: Vec<SlashCommand> =
         sqlx::query_as("SELECT * FROM slash_commands WHERE team_id = $1 ORDER BY trigger")
             .bind(query.team_id)
@@ -355,7 +388,7 @@ async fn create_slash_command(
 
 async fn get_slash_command(
     State(state): State<AppState>,
-    _auth: AuthUser,
+    auth: AuthUser,
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<SlashCommand>> {
     let command: SlashCommand = sqlx::query_as("SELECT * FROM slash_commands WHERE id = $1")
@@ -363,6 +396,12 @@ async fn get_slash_command(
         .fetch_optional(&state.db)
         .await?
         .ok_or_else(|| AppError::NotFound("Command not found".to_string()))?;
+
+    if !auth.can_access_owned(command.creator_id, &permissions::ADMIN_FULL) {
+        return Err(AppError::Forbidden(
+            "Cannot access this command".to_string(),
+        ));
+    }
 
     Ok(Json(command))
 }
@@ -1166,7 +1205,7 @@ async fn create_bot(
 
 async fn get_bot(
     State(state): State<AppState>,
-    _auth: AuthUser,
+    auth: AuthUser,
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<Bot>> {
     let bot: Bot = sqlx::query_as("SELECT * FROM bots WHERE id = $1")
@@ -1174,6 +1213,10 @@ async fn get_bot(
         .fetch_optional(&state.db)
         .await?
         .ok_or_else(|| AppError::NotFound("Bot not found".to_string()))?;
+
+    if !auth.can_access_owned(bot.owner_id, &permissions::ADMIN_FULL) {
+        return Err(AppError::Forbidden("Cannot access this bot".to_string()));
+    }
 
     Ok(Json(bot))
 }

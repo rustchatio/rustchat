@@ -21,6 +21,10 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 # 3. Copy nginx config
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-EXPOSE 80
+# 4. Run as non-root user
+RUN chown -R nobody:nobody /usr/share/nginx/html /var/log/nginx /etc/nginx/conf.d
+USER nobody
+
+EXPOSE 8080
 
 CMD ["/usr/local/openresty/bin/openresty", "-g", "daemon off;"]

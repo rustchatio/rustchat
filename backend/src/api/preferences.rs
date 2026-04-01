@@ -255,9 +255,14 @@ async fn clear_my_status(
 #[allow(dead_code)]
 async fn get_user_status(
     State(state): State<AppState>,
-    _auth: AuthUser,
+    auth: AuthUser,
     Path(user_id): Path<Uuid>,
 ) -> ApiResult<Json<UserStatus>> {
+    // Only allow querying your own status
+    if user_id != auth.user_id {
+        return Err(AppError::Forbidden("You can only view your own status".to_string()));
+    }
+
     let user = sqlx::query_as::<
         _,
         (

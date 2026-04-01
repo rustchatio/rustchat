@@ -233,14 +233,48 @@ async fn delete_playbook(
     Ok(Json(serde_json::json!({"status": "archived"})))
 }
 
+/// Verify the requesting user has access to a playbook.
+async fn ensure_playbook_access(
+    state: &AppState,
+    playbook_id: Uuid,
+    user_id: Uuid,
+) -> ApiResult<()> {
+    let exists: bool = sqlx::query_scalar(
+        r#"
+        SELECT EXISTS(
+            SELECT 1 FROM playbooks
+            WHERE id = $1
+              AND (
+                is_public = true
+                OR created_by = $2
+                OR ($2 = ANY(member_ids))
+              )
+        )
+        "#,
+    )
+    .bind(playbook_id)
+    .bind(user_id)
+    .fetch_one(&state.db)
+    .await?;
+
+    if !exists {
+        return Err(AppError::Forbidden(
+            "You do not have access to this playbook".to_string(),
+        ));
+    }
+    Ok(())
+}
+
 // ============ Checklists ============
 
 async fn create_checklist(
     State(state): State<AppState>,
-    _auth: AuthUser,
+    auth: AuthUser,
     Path(playbook_id): Path<Uuid>,
     Json(payload): Json<CreateChecklist>,
 ) -> ApiResult<Json<PlaybookChecklist>> {
+    ensure_playbook_access(&state, playbook_id, auth.user_id).await?;
+
     let checklist = sqlx::query_as::<_, PlaybookChecklist>(
         r#"
         INSERT INTO playbook_checklists (playbook_id, name, sort_order)
@@ -259,9 +293,11 @@ async fn create_checklist(
 
 async fn delete_checklist(
     State(state): State<AppState>,
-    _auth: AuthUser,
-    Path((_playbook_id, id)): Path<(Uuid, Uuid)>,
+    auth: AuthUser,
+    Path((playbook_id, id)): Path<(Uuid, Uuid)>,
 ) -> ApiResult<Json<serde_json::Value>> {
+    ensure_playbook_access(&state, playbook_id, auth.user_id).await?;
+
     sqlx::query("DELETE FROM playbook_checklists WHERE id = $1")
         .bind(id)
         .execute(&state.db)
@@ -274,10 +310,18 @@ async fn delete_checklist(
 
 async fn create_task(
     State(state): State<AppState>,
-    _auth: AuthUser,
+    auth: AuthUser,
     Path(checklist_id): Path<Uuid>,
     Json(payload): Json<CreateTask>,
 ) -> ApiResult<Json<PlaybookTask>> {
+    let playbook_id: Uuid = sqlx::query_scalar(
+        "SELECT playbook_id FROM playbook_checklists WHERE id = $1"
+    )
+    .bind(checklist_id)
+    .fetch_one(&state.db)
+    .await?;
+    ensure_playbook_access(&state, playbook_id, auth.user_id).await?;
+
     let task = sqlx::query_as::<_, PlaybookTask>(
         r#"
         INSERT INTO playbook_tasks (checklist_id, title, description, default_assignee_id, due_after_minutes, slash_command, sort_order)
@@ -300,10 +344,23 @@ async fn create_task(
 
 async fn update_task(
     State(state): State<AppState>,
-    _auth: AuthUser,
+    auth: AuthUser,
     Path(id): Path<Uuid>,
     Json(payload): Json<CreateTask>,
 ) -> ApiResult<Json<PlaybookTask>> {
+    let playbook_id: Uuid = sqlx::query_scalar(
+        r#"
+        SELECT c.playbook_id
+        FROM playbook_tasks t
+        JOIN playbook_checklists c ON t.checklist_id = c.id
+        WHERE t.id = $1
+        "#
+    )
+    .bind(id)
+    .fetch_one(&state.db)
+    .await?;
+    ensure_playbook_access(&state, playbook_id, auth.user_id).await?;
+
     let task = sqlx::query_as::<_, PlaybookTask>(
         r#"
         UPDATE playbook_tasks SET
@@ -330,9 +387,22 @@ async fn update_task(
 
 async fn delete_task(
     State(state): State<AppState>,
-    _auth: AuthUser,
+    auth: AuthUser,
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<serde_json::Value>> {
+    let playbook_id: Uuid = sqlx::query_scalar(
+        r#"
+        SELECT c.playbook_id
+        FROM playbook_tasks t
+        JOIN playbook_checklists c ON t.checklist_id = c.id
+        WHERE t.id = $1
+        "#
+    )
+    .bind(id)
+    .fetch_one(&state.db)
+    .await?;
+    ensure_playbook_access(&state, playbook_id, auth.user_id).await?;
+
     sqlx::query("DELETE FROM playbook_tasks WHERE id = $1")
         .bind(id)
         .execute(&state.db)
@@ -345,13 +415,25 @@ async fn delete_task(
 
 async fn list_runs(
     State(state): State<AppState>,
-    _auth: AuthUser,
+    auth: AuthUser,
     Query(query): Query<TeamQuery>,
 ) -> ApiResult<Json<Vec<PlaybookRun>>> {
     let runs = sqlx::query_as::<_, PlaybookRun>(
-        "SELECT * FROM playbook_runs WHERE team_id = $1 ORDER BY started_at DESC LIMIT 50",
+        r#"
+        SELECT pr.* FROM playbook_runs pr
+        JOIN playbooks pb ON pr.playbook_id = pb.id
+        WHERE pr.team_id = $1
+          AND (
+            pb.is_public = true
+            OR pb.created_by = $2
+            OR ($2 = ANY(pb.member_ids))
+          )
+        ORDER BY pr.started_at DESC
+        LIMIT 50
+        "#,
     )
     .bind(query.team_id)
+    .bind(auth.user_id)
     .fetch_all(&state.db)
     .await?;
 
@@ -470,7 +552,7 @@ async fn start_run(
 
 async fn get_run(
     State(state): State<AppState>,
-    _auth: AuthUser,
+    auth: AuthUser,
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<RunWithTasks>> {
     let run = sqlx::query_as::<_, PlaybookRun>("SELECT * FROM playbook_runs WHERE id = $1")
@@ -478,6 +560,8 @@ async fn get_run(
         .fetch_optional(&state.db)
         .await?
         .ok_or_else(|| AppError::NotFound("Run not found".to_string()))?;
+
+    ensure_playbook_access(&state, run.playbook_id, auth.user_id).await?;
 
     let tasks = sqlx::query_as::<_, RunTask>("SELECT * FROM run_tasks WHERE run_id = $1")
         .bind(id)
@@ -495,10 +579,18 @@ async fn get_run(
 
 async fn update_run(
     State(state): State<AppState>,
-    _auth: AuthUser,
+    auth: AuthUser,
     Path(id): Path<Uuid>,
     Json(payload): Json<UpdateRun>,
 ) -> ApiResult<Json<PlaybookRun>> {
+    // Resolve parent playbook and enforce access
+    let playbook_id: Uuid = sqlx::query_scalar("SELECT playbook_id FROM playbook_runs WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&state.db)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Run not found".to_string()))?;
+    ensure_playbook_access(&state, playbook_id, auth.user_id).await?;
+
     let run = sqlx::query_as::<_, PlaybookRun>(
         r#"
         UPDATE playbook_runs SET
@@ -522,9 +614,17 @@ async fn update_run(
 
 async fn finish_run(
     State(state): State<AppState>,
-    _auth: AuthUser,
+    auth: AuthUser,
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<PlaybookRun>> {
+    // Resolve parent playbook and enforce access
+    let playbook_id: Uuid = sqlx::query_scalar("SELECT playbook_id FROM playbook_runs WHERE id = $1")
+        .bind(id)
+        .fetch_optional(&state.db)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Run not found".to_string()))?;
+    ensure_playbook_access(&state, playbook_id, auth.user_id).await?;
+
     let run = sqlx::query_as::<_, PlaybookRun>(
         r#"
         UPDATE playbook_runs SET status = 'finished', finished_at = NOW(), updated_at = NOW()
@@ -589,9 +689,16 @@ async fn update_run_task(
 
 async fn list_status_updates(
     State(state): State<AppState>,
-    _auth: AuthUser,
+    auth: AuthUser,
     Path(run_id): Path<Uuid>,
 ) -> ApiResult<Json<Vec<RunStatusUpdate>>> {
+    let playbook_id: Uuid = sqlx::query_scalar("SELECT playbook_id FROM playbook_runs WHERE id = $1")
+        .bind(run_id)
+        .fetch_optional(&state.db)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Run not found".to_string()))?;
+    ensure_playbook_access(&state, playbook_id, auth.user_id).await?;
+
     let updates = sqlx::query_as::<_, RunStatusUpdate>(
         "SELECT * FROM run_status_updates WHERE run_id = $1 ORDER BY created_at DESC",
     )

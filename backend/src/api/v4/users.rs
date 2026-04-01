@@ -2485,9 +2485,14 @@ async fn get_users_by_usernames(
 
 async fn get_user_by_email(
     State(state): State<AppState>,
-    _auth: MmAuthUser,
+    auth: MmAuthUser,
     Path(email): Path<String>,
 ) -> ApiResult<Json<mm::User>> {
+    if !auth.has_permission(&permissions::SYSTEM_MANAGE) {
+        return Err(AppError::Forbidden(
+            "Missing permission to lookup users by email".to_string(),
+        ));
+    }
     let user: User = sqlx::query_as("SELECT * FROM users WHERE email = $1")
         .bind(&email)
         .fetch_optional(&state.db)
