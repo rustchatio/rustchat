@@ -101,7 +101,7 @@ function handleError() {
 
 <template>
   <div 
-    class="relative inline-flex items-center justify-center overflow-hidden rounded-full bg-slate-100 text-slate-500 font-medium"
+    class="relative inline-flex items-center justify-center overflow-hidden rounded-full bg-bg-surface-2 text-text-3 font-medium"
     :class="computedSize"
   >
     <img 
@@ -116,12 +116,12 @@ function handleError() {
     <!-- Presence Badge -->
     <div 
       v-if="presence && presence !== 'offline' && size !== 'sm'"
-      class="absolute bottom-0 right-0 rounded-full border-2 border-white dark:border-gray-800"
+      class="absolute bottom-0 right-0 rounded-full border-2 border-bg-surface-1"
       :class="[
         size === 'xl' ? 'w-5 h-5 border-[3px]' : 'w-3 h-3',
-        presence === 'online' ? 'bg-green-500' : 
-        presence === 'away' ? 'bg-amber-500' : 
-        presence === 'dnd' ? 'bg-red-500' : 'bg-gray-400'
+        presence === 'online' ? 'bg-success' : 
+        presence === 'away' ? 'bg-warning' : 
+        presence === 'dnd' ? 'bg-danger' : 'bg-text-4'
       ]"
     ></div>
   </div>
