@@ -21,11 +21,11 @@ pub fn router() -> Router<AppState> {
         // Admin endpoints
         .route("/terms_of_service", get(list_terms).post(create_terms))
         .route(
-            "/terms_of_service/:id",
+            "/terms_of_service/{id}",
             get(get_terms).put(update_terms).delete(delete_terms),
         )
-        .route("/terms_of_service/:id/activate", post(activate_terms))
-        .route("/terms_of_service/:id/stats", get(get_terms_stats))
+        .route("/terms_of_service/{id}/activate", post(activate_terms))
+        .route("/terms_of_service/{id}/stats", get(get_terms_stats))
         .route("/terms_of_service/stats/summary", get(get_all_terms_stats))
 }
 
