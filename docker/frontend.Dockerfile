@@ -10,19 +10,14 @@ RUN npm run build
 # Production stage
 FROM openresty/openresty:alpine
 
-# 1. Create required directories and redirect logs to stdout/stderr
-RUN mkdir -p /var/log/nginx /var/run/openresty && \
-    ln -sf /dev/stdout /var/log/nginx/access.log && \
-    ln -sf /dev/stderr /var/log/nginx/error.log
+# Create required directories
+RUN mkdir -p /var/log/nginx /var/run/openresty
 
-# 2. Copy built assets - ensure this matches the 'root' in your nginx.conf
+# Copy built assets
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# 3. Copy nginx config
+# Copy nginx config
 COPY nginx.conf /etc/nginx/conf.d/default.conf
-
-# 4. Fix permissions (run as root for simplicity)
-RUN chown -R nobody:nobody /usr/share/nginx/html /var/log/nginx /var/run/openresty /etc/nginx/conf.d
 
 EXPOSE 8080
 
