@@ -1,7 +1,22 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { FileText, Plus, Edit2, Trash2, CheckCircle, AlertCircle, Users, Eye, X, Save, AlertTriangle } from 'lucide-vue-next';
-import api from '../../api/client';
+import { HttpClient } from '../../api/http/HttpClient';
+
+// Create v4 API client
+const v4Api = new HttpClient({
+    baseURL: '/api/v4',
+    requestInterceptor: (config) => {
+        const token = localStorage.getItem('auth_token');
+        if (token) {
+            config.headers = {
+                ...config.headers,
+                Authorization: `Bearer ${token}`,
+            };
+        }
+        return config;
+    },
+});
 
 interface TermsOfService {
     id: string;
@@ -60,7 +75,7 @@ onMounted(async () => {
 async function fetchTermsList() {
     loading.value = true;
     try {
-        const { data } = await api.get('/terms_of_service');
+        const { data } = await v4Api.get('/terms_of_service');
         termsList.value = data;
         currentTerms.value = data.find((t: TermsOfService) => t.is_active) || null;
     } catch (e: any) {
@@ -72,7 +87,7 @@ async function fetchTermsList() {
 
 async function fetchTermsStats() {
     try {
-        const { data } = await api.get('/terms_of_service/stats/summary');
+        const { data } = await v4Api.get('/terms_of_service/stats/summary');
         if (data.has_active_terms) {
             stats.value = {
                 total_users: data.total_users,
@@ -123,7 +138,7 @@ function openPreviewModal(terms: TermsOfService) {
 
 async function createTerms() {
     try {
-        await api.post('/terms_of_service', {
+        await v4Api.post('/terms_of_service', {
             ...form.value,
             effective_date: new Date(form.value.effective_date || new Date()).toISOString(),
         });
@@ -138,7 +153,7 @@ async function createTerms() {
 async function updateTerms() {
     if (!editingTerms.value) return;
     try {
-        await api.put(`/terms_of_service/${editingTerms.value.id}`, {
+        await v4Api.put(`/terms_of_service/${editingTerms.value.id}`, {
             title: form.value.title,
             content: form.value.content,
             summary: form.value.summary || undefined,
@@ -157,7 +172,7 @@ async function activateTerms(terms: TermsOfService) {
         return;
     }
     try {
-        await api.post(`/terms_of_service/${terms.id}/activate`);
+        await v4Api.post(`/terms_of_service/${terms.id}/activate`);
         await fetchTermsList();
         await fetchTermsStats();
     } catch (e: any) {
@@ -174,7 +189,7 @@ async function deleteTerms(terms: TermsOfService) {
         return;
     }
     try {
-        await api.delete(`/terms_of_service/${terms.id}`);
+        await v4Api.delete(`/terms_of_service/${terms.id}`);
         await fetchTermsList();
     } catch (e: any) {
         error.value = e.response?.data?.message || 'Failed to delete terms';

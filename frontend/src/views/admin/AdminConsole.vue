@@ -3,7 +3,7 @@ import { useRouter, useRoute, RouterView } from 'vue-router';
 import { useAuthStore } from '../../stores/auth';
 import { 
     LayoutDashboard, Users, Building2, Settings, Shield, 
-    Puzzle, Scale, FileText, Mail, Activity, ArrowLeft,
+    Puzzle, Scale, Mail, Activity, ArrowLeft,
     KeyRound, UserPlus, BarChart3, ScrollText
 } from 'lucide-vue-next';
 import { computed } from 'vue';
@@ -27,7 +27,6 @@ const navItems = [
     { path: '/admin/integrations', name: 'Integrations', icon: Puzzle },
     { path: '/admin/compliance', name: 'Compliance', icon: Scale },
     { path: '/admin/terms', name: 'Terms of Service', icon: ScrollText },
-    { path: '/admin/audit', name: 'Audit Logs', icon: FileText },
     { path: '/admin/email', name: 'Email & SMTP', icon: Mail },
     { path: '/admin/health', name: 'System Health', icon: Activity },
 ];

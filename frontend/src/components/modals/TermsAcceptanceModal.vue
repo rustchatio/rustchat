@@ -1,7 +1,22 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
 import { FileText, CheckCircle, AlertTriangle } from 'lucide-vue-next';
-import api from '../../api/client';
+import { HttpClient } from '../../api/http/HttpClient';
+
+// Create v4 API client
+const v4Api = new HttpClient({
+    baseURL: '/api/v4',
+    requestInterceptor: (config) => {
+        const token = localStorage.getItem('auth_token');
+        if (token) {
+            config.headers = {
+                ...config.headers,
+                Authorization: `Bearer ${token}`,
+            };
+        }
+        return config;
+    },
+});
 
 interface TermsOfService {
     id: string;
@@ -36,7 +51,7 @@ onMounted(async () => {
 
 async function checkTermsStatus() {
     try {
-        const { data } = await api.get<TermsStatus>('/terms_of_service/status');
+        const { data } = await v4Api.get<TermsStatus>('/terms_of_service/status');
         hasChecked.value = true;
         
         if (data.acceptance_required && data.current_terms) {
@@ -60,7 +75,7 @@ async function acceptTerms() {
     error.value = '';
     
     try {
-        await api.post('/terms_of_service/accept', {
+        await v4Api.post('/terms_of_service/accept', {
             terms_id: terms.value.id,
         });
         show.value = false;
