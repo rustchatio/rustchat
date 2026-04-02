@@ -10,8 +10,8 @@ RUN npm run build
 # Production stage
 FROM openresty/openresty:alpine
 
-# 1. Create the log directory and redirect logs to stdout/stderr
-RUN mkdir -p /var/log/nginx && \
+# 1. Create required directories and redirect logs to stdout/stderr
+RUN mkdir -p /var/log/nginx /var/run/openresty && \
     ln -sf /dev/stdout /var/log/nginx/access.log && \
     ln -sf /dev/stderr /var/log/nginx/error.log
 
@@ -22,7 +22,7 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # 4. Run as non-root user
-RUN chown -R nobody:nobody /usr/share/nginx/html /var/log/nginx /etc/nginx/conf.d
+RUN chown -R nobody:nobody /usr/share/nginx/html /var/log/nginx /var/run/openresty /etc/nginx/conf.d
 USER nobody
 
 EXPOSE 8080
