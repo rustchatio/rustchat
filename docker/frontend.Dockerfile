@@ -21,9 +21,8 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 # 3. Copy nginx config
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# 4. Run as non-root user
+# 4. Fix permissions (run as root for simplicity)
 RUN chown -R nobody:nobody /usr/share/nginx/html /var/log/nginx /var/run/openresty /etc/nginx/conf.d
-USER nobody
 
 EXPOSE 8080
 
