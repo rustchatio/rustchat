@@ -1,9 +1,9 @@
 use crate::api::AppState;
-use crate::error::{ApiError, ApiResult};
+use crate::error::{AppError, ApiResult};
 use crate::models::terms::*;
 use axum::{
     extract::{Path, State},
-    routing::{get, post, put, delete},
+    routing::{get, post},
     Json, Router,
 };
 use chrono::Utc;
@@ -48,7 +48,7 @@ async fn get_current_terms(State(state): State<AppState>) -> ApiResult<Json<Opti
 
 async fn get_terms_status(
     State(state): State<AppState>,
-    MmAuthUser(user): MmAuthUser,
+    auth_user: MmAuthUser,
 ) -> ApiResult<Json<TermsStatusResponse>> {
     // Get current active terms
     let current_terms = sqlx::query_as::<_, TermsOfService>(
@@ -72,7 +72,7 @@ async fn get_terms_status(
     };
 
     // Check if user has accepted
-    let accepted = sqlx::query_scalar::<_, bool>(
+    let accepted: bool = sqlx::query_scalar(
         r#"
         SELECT EXISTS(
             SELECT 1 FROM user_terms_acceptance 
@@ -80,7 +80,7 @@ async fn get_terms_status(
         )
         "#,
     )
-    .bind(user.id)
+    .bind(auth_user.user_id)
     .bind(terms.id)
     .fetch_one(&state.db)
     .await?;
@@ -102,7 +102,7 @@ async fn get_terms_status(
 
 async fn accept_terms(
     State(state): State<AppState>,
-    MmAuthUser(user): MmAuthUser,
+    auth_user: MmAuthUser,
     Json(req): Json<TermsAcceptanceRequest>,
 ) -> ApiResult<Json<serde_json::Value>> {
     // Verify terms exist and are active
@@ -114,7 +114,7 @@ async fn accept_terms(
     .await?;
 
     let Some(_) = terms else {
-        return Err(ApiError::not_found("Terms not found"));
+        return Err(AppError::NotFound("Terms not found".to_string()));
     };
 
     // Insert acceptance
@@ -125,7 +125,7 @@ async fn accept_terms(
         ON CONFLICT (user_id, terms_id) DO UPDATE SET accepted_at = $3
         "#,
     )
-    .bind(user.id)
+    .bind(auth_user.user_id)
     .bind(req.terms_id)
     .bind(Utc::now())
     .execute(&state.db)
@@ -141,7 +141,7 @@ async fn accept_terms(
 
 async fn list_terms(
     State(state): State<AppState>,
-    MmAuthUser(_user): MmAuthUser, // TODO: Check admin permission
+    _auth_user: MmAuthUser, // TODO: Check admin permission
 ) -> ApiResult<Json<Vec<TermsOfService>>> {
     let terms = sqlx::query_as::<_, TermsOfService>(
         r#"
@@ -157,7 +157,7 @@ async fn list_terms(
 
 async fn get_terms(
     State(state): State<AppState>,
-    MmAuthUser(_user): MmAuthUser,
+    _auth_user: MmAuthUser,
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<TermsOfService>> {
     let terms = sqlx::query_as::<_, TermsOfService>(
@@ -169,13 +169,13 @@ async fn get_terms(
 
     match terms {
         Some(t) => Ok(Json(t)),
-        None => Err(ApiError::not_found("Terms not found")),
+        None => Err(AppError::NotFound("Terms not found".to_string())),
     }
 }
 
 async fn create_terms(
     State(state): State<AppState>,
-    MmAuthUser(user): MmAuthUser,
+    auth_user: MmAuthUser,
     Json(req): Json<CreateTermsRequest>,
 ) -> ApiResult<Json<TermsOfService>> {
     // Validate version uniqueness
@@ -187,7 +187,7 @@ async fn create_terms(
     .await?;
 
     if existing {
-        return Err(ApiError::validation("Version already exists"));
+        return Err(AppError::Validation("Version already exists".to_string()));
     }
 
     let terms = sqlx::query_as::<_, TermsOfService>(
@@ -203,7 +203,7 @@ async fn create_terms(
     .bind(&req.content)
     .bind(&req.summary)
     .bind(req.effective_date)
-    .bind(user.id)
+    .bind(auth_user.user_id)
     .fetch_one(&state.db)
     .await?;
 
@@ -212,7 +212,7 @@ async fn create_terms(
 
 async fn update_terms(
     State(state): State<AppState>,
-    MmAuthUser(_user): MmAuthUser,
+    _auth_user: MmAuthUser,
     Path(id): Path<Uuid>,
     Json(req): Json<UpdateTermsRequest>,
 ) -> ApiResult<Json<TermsOfService>> {
@@ -224,7 +224,7 @@ async fn update_terms(
     .await?;
 
     if terms.is_none() {
-        return Err(ApiError::not_found("Terms not found"));
+        return Err(AppError::NotFound("Terms not found".to_string()));
     }
 
     let updated = sqlx::query_as::<_, TermsOfService>(
@@ -252,7 +252,7 @@ async fn update_terms(
 
 async fn delete_terms(
     State(state): State<AppState>,
-    MmAuthUser(_user): MmAuthUser,
+    _auth_user: MmAuthUser,
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<serde_json::Value>> {
     // Check if terms is active
@@ -264,8 +264,8 @@ async fn delete_terms(
     .await?;
 
     if is_active == Some(true) {
-        return Err(ApiError::validation(
-            "Cannot delete active terms. Deactivate first.",
+        return Err(AppError::Validation(
+            "Cannot delete active terms. Deactivate first.".to_string(),
         ));
     }
 
@@ -279,7 +279,7 @@ async fn delete_terms(
 
 async fn activate_terms(
     State(state): State<AppState>,
-    MmAuthUser(_user): MmAuthUser,
+    _auth_user: MmAuthUser,
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<TermsOfService>> {
     let terms = sqlx::query_as::<_, TermsOfService>(
@@ -296,13 +296,13 @@ async fn activate_terms(
 
     match terms {
         Some(t) => Ok(Json(t)),
-        None => Err(ApiError::not_found("Terms not found")),
+        None => Err(AppError::NotFound("Terms not found".to_string())),
     }
 }
 
 async fn get_terms_stats(
     State(state): State<AppState>,
-    MmAuthUser(_user): MmAuthUser,
+    _auth_user: MmAuthUser,
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<TermsStats>> {
     let row = sqlx::query(
@@ -337,7 +337,7 @@ async fn get_terms_stats(
 
 async fn get_all_terms_stats(
     State(state): State<AppState>,
-    MmAuthUser(_user): MmAuthUser,
+    _auth_user: MmAuthUser,
 ) -> ApiResult<Json<serde_json::Value>> {
     // Get current active terms
     let current_terms = sqlx::query_as::<_, TermsOfService>(
