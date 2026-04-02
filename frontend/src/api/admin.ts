@@ -328,6 +328,7 @@ export const adminApi = {
         api.delete(`/admin/users/${id}`, { data }),
     wipeUser: (id: string) => api.post(`/admin/users/${id}/wipe`),
     resetPassword: (id: string) => api.post(`/admin/users/${id}/reset-password`),
+    setUserPassword: (id: string, password: string) => api.post(`/admin/users/${id}/set-password`, { password }),
 
     // Audit Logs
     listAuditLogs: (params?: {
@@ -357,6 +358,10 @@ export const adminApi = {
     }) => api.get<{ teams: AdminTeam[]; total: number }>('/admin/teams', { params }),
 
     getTeam: (id: string) => api.get<AdminTeam>(`/admin/teams/${id}`),
+    createTeam: (data: { name: string; display_name?: string; description?: string; is_public?: boolean; allow_open_invite?: boolean }) =>
+        api.post<AdminTeam>('/admin/teams', data),
+    updateTeam: (id: string, data: { display_name?: string; description?: string; is_public?: boolean; allow_open_invite?: boolean }) =>
+        api.patch<AdminTeam>(`/admin/teams/${id}`, data),
     deleteTeam: (id: string) => api.delete(`/admin/teams/${id}`),
 
     listChannels: (params?: {
@@ -388,6 +393,8 @@ export const adminApi = {
         api.post(`/admin/teams/${teamId}/members`, { user_id: userId, role }),
     removeTeamMember: (teamId: string, userId: string) => 
         api.delete(`/admin/teams/${teamId}/members/${userId}`),
+    updateTeamMemberRole: (teamId: string, userId: string, role: string) =>
+        api.patch(`/admin/teams/${teamId}/members/${userId}`, { role }),
     
     // Groups (for membership policies)
     listGroups: (params?: { source?: string; search?: string }) => 

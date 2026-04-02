@@ -23,6 +23,7 @@ pub mod reaction;
 pub mod scheduled_post;
 pub mod server_config;
 pub mod team;
+pub mod terms;
 pub mod user;
 
 pub use call::*;
@@ -45,4 +46,5 @@ pub use post::*;
 pub use preferences::*;
 pub use server_config::*;
 pub use team::*;
+pub use terms::*;
 pub use user::*;
