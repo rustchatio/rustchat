@@ -167,13 +167,14 @@ async fn register(
     }
 
     // Determine if this is passwordless registration
-    let has_password = input.password.is_some() && !input.password.as_ref().unwrap().is_empty();
+    let password_ref = input.password.as_ref().filter(|p| !p.is_empty());
+    let has_password = password_ref.is_some();
 
     // Validate password if provided
-    let password_hash = if has_password {
+    let password_hash = if let Some(password) = password_ref {
         let config = crate::services::auth_config::get_password_rules(&state.db).await?;
-        crate::services::auth_config::validate_password(input.password.as_ref().unwrap(), &config)?;
-        Some(hash_password(input.password.as_ref().unwrap())?)
+        crate::services::auth_config::validate_password(password, &config)?;
+        Some(hash_password(password)?)
     } else {
         None
     };

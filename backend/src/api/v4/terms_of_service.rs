@@ -1,4 +1,5 @@
 use crate::api::AppState;
+use crate::auth::policy::permissions;
 use crate::error::{ApiResult, AppError};
 use crate::models::terms::*;
 use axum::{
@@ -142,8 +143,14 @@ async fn accept_terms(
 
 async fn list_terms(
     State(state): State<AppState>,
-    _auth_user: MmAuthUser, // TODO: Check admin permission
+    auth_user: MmAuthUser,
 ) -> ApiResult<Json<Vec<TermsOfService>>> {
+    // Check admin permission
+    if !auth_user.has_permission(&permissions::SYSTEM_MANAGE) {
+        return Err(AppError::Forbidden(
+            "Admin access required".to_string(),
+        ));
+    }
     let terms = sqlx::query_as::<_, TermsOfService>(
         r#"
         SELECT * FROM terms_of_service 
@@ -158,9 +165,15 @@ async fn list_terms(
 
 async fn get_terms(
     State(state): State<AppState>,
-    _auth_user: MmAuthUser,
+    auth_user: MmAuthUser,
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<TermsOfService>> {
+    // Check admin permission
+    if !auth_user.has_permission(&permissions::SYSTEM_MANAGE) {
+        return Err(AppError::Forbidden(
+            "Admin access required".to_string(),
+        ));
+    }
     let terms =
         sqlx::query_as::<_, TermsOfService>(r#"SELECT * FROM terms_of_service WHERE id = $1"#)
             .bind(id)
@@ -178,6 +191,12 @@ async fn create_terms(
     auth_user: MmAuthUser,
     Json(req): Json<CreateTermsRequest>,
 ) -> ApiResult<Json<TermsOfService>> {
+    // Check admin permission
+    if !auth_user.has_permission(&permissions::SYSTEM_MANAGE) {
+        return Err(AppError::Forbidden(
+            "Admin access required".to_string(),
+        ));
+    }
     // Validate version uniqueness
     let existing = sqlx::query_scalar::<_, bool>(
         r#"SELECT EXISTS(SELECT 1 FROM terms_of_service WHERE version = $1)"#,
@@ -212,10 +231,16 @@ async fn create_terms(
 
 async fn update_terms(
     State(state): State<AppState>,
-    _auth_user: MmAuthUser,
+    auth_user: MmAuthUser,
     Path(id): Path<Uuid>,
     Json(req): Json<UpdateTermsRequest>,
 ) -> ApiResult<Json<TermsOfService>> {
+    // Check admin permission
+    if !auth_user.has_permission(&permissions::SYSTEM_MANAGE) {
+        return Err(AppError::Forbidden(
+            "Admin access required".to_string(),
+        ));
+    }
     let terms =
         sqlx::query_as::<_, TermsOfService>(r#"SELECT * FROM terms_of_service WHERE id = $1"#)
             .bind(id)
@@ -251,9 +276,15 @@ async fn update_terms(
 
 async fn delete_terms(
     State(state): State<AppState>,
-    _auth_user: MmAuthUser,
+    auth_user: MmAuthUser,
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<serde_json::Value>> {
+    // Check admin permission
+    if !auth_user.has_permission(&permissions::SYSTEM_MANAGE) {
+        return Err(AppError::Forbidden(
+            "Admin access required".to_string(),
+        ));
+    }
     // Check if terms is active
     let is_active =
         sqlx::query_scalar::<_, bool>(r#"SELECT is_active FROM terms_of_service WHERE id = $1"#)
@@ -277,9 +308,15 @@ async fn delete_terms(
 
 async fn activate_terms(
     State(state): State<AppState>,
-    _auth_user: MmAuthUser,
+    auth_user: MmAuthUser,
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<TermsOfService>> {
+    // Check admin permission
+    if !auth_user.has_permission(&permissions::SYSTEM_MANAGE) {
+        return Err(AppError::Forbidden(
+            "Admin access required".to_string(),
+        ));
+    }
     let terms = sqlx::query_as::<_, TermsOfService>(
         r#"
         UPDATE terms_of_service 
@@ -300,9 +337,15 @@ async fn activate_terms(
 
 async fn get_terms_stats(
     State(state): State<AppState>,
-    _auth_user: MmAuthUser,
+    auth_user: MmAuthUser,
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<TermsStats>> {
+    // Check admin permission
+    if !auth_user.has_permission(&permissions::SYSTEM_MANAGE) {
+        return Err(AppError::Forbidden(
+            "Admin access required".to_string(),
+        ));
+    }
     let row = sqlx::query(
         r#"
         SELECT 
@@ -335,8 +378,14 @@ async fn get_terms_stats(
 
 async fn get_all_terms_stats(
     State(state): State<AppState>,
-    _auth_user: MmAuthUser,
+    auth_user: MmAuthUser,
 ) -> ApiResult<Json<serde_json::Value>> {
+    // Check admin permission
+    if !auth_user.has_permission(&permissions::SYSTEM_MANAGE) {
+        return Err(AppError::Forbidden(
+            "Admin access required".to_string(),
+        ));
+    }
     // Get current active terms
     let current_terms = sqlx::query_as::<_, TermsOfService>(
         r#"
