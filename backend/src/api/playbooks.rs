@@ -314,12 +314,11 @@ async fn create_task(
     Path(checklist_id): Path<Uuid>,
     Json(payload): Json<CreateTask>,
 ) -> ApiResult<Json<PlaybookTask>> {
-    let playbook_id: Uuid = sqlx::query_scalar(
-        "SELECT playbook_id FROM playbook_checklists WHERE id = $1"
-    )
-    .bind(checklist_id)
-    .fetch_one(&state.db)
-    .await?;
+    let playbook_id: Uuid =
+        sqlx::query_scalar("SELECT playbook_id FROM playbook_checklists WHERE id = $1")
+            .bind(checklist_id)
+            .fetch_one(&state.db)
+            .await?;
     ensure_playbook_access(&state, playbook_id, auth.user_id).await?;
 
     let task = sqlx::query_as::<_, PlaybookTask>(
@@ -354,7 +353,7 @@ async fn update_task(
         FROM playbook_tasks t
         JOIN playbook_checklists c ON t.checklist_id = c.id
         WHERE t.id = $1
-        "#
+        "#,
     )
     .bind(id)
     .fetch_one(&state.db)
@@ -396,7 +395,7 @@ async fn delete_task(
         FROM playbook_tasks t
         JOIN playbook_checklists c ON t.checklist_id = c.id
         WHERE t.id = $1
-        "#
+        "#,
     )
     .bind(id)
     .fetch_one(&state.db)
@@ -584,11 +583,12 @@ async fn update_run(
     Json(payload): Json<UpdateRun>,
 ) -> ApiResult<Json<PlaybookRun>> {
     // Resolve parent playbook and enforce access
-    let playbook_id: Uuid = sqlx::query_scalar("SELECT playbook_id FROM playbook_runs WHERE id = $1")
-        .bind(id)
-        .fetch_optional(&state.db)
-        .await?
-        .ok_or_else(|| AppError::NotFound("Run not found".to_string()))?;
+    let playbook_id: Uuid =
+        sqlx::query_scalar("SELECT playbook_id FROM playbook_runs WHERE id = $1")
+            .bind(id)
+            .fetch_optional(&state.db)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Run not found".to_string()))?;
     ensure_playbook_access(&state, playbook_id, auth.user_id).await?;
 
     let run = sqlx::query_as::<_, PlaybookRun>(
@@ -618,11 +618,12 @@ async fn finish_run(
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<PlaybookRun>> {
     // Resolve parent playbook and enforce access
-    let playbook_id: Uuid = sqlx::query_scalar("SELECT playbook_id FROM playbook_runs WHERE id = $1")
-        .bind(id)
-        .fetch_optional(&state.db)
-        .await?
-        .ok_or_else(|| AppError::NotFound("Run not found".to_string()))?;
+    let playbook_id: Uuid =
+        sqlx::query_scalar("SELECT playbook_id FROM playbook_runs WHERE id = $1")
+            .bind(id)
+            .fetch_optional(&state.db)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Run not found".to_string()))?;
     ensure_playbook_access(&state, playbook_id, auth.user_id).await?;
 
     let run = sqlx::query_as::<_, PlaybookRun>(
@@ -692,11 +693,12 @@ async fn list_status_updates(
     auth: AuthUser,
     Path(run_id): Path<Uuid>,
 ) -> ApiResult<Json<Vec<RunStatusUpdate>>> {
-    let playbook_id: Uuid = sqlx::query_scalar("SELECT playbook_id FROM playbook_runs WHERE id = $1")
-        .bind(run_id)
-        .fetch_optional(&state.db)
-        .await?
-        .ok_or_else(|| AppError::NotFound("Run not found".to_string()))?;
+    let playbook_id: Uuid =
+        sqlx::query_scalar("SELECT playbook_id FROM playbook_runs WHERE id = $1")
+            .bind(run_id)
+            .fetch_optional(&state.db)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Run not found".to_string()))?;
     ensure_playbook_access(&state, playbook_id, auth.user_id).await?;
 
     let updates = sqlx::query_as::<_, RunStatusUpdate>(

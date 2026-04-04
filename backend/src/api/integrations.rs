@@ -15,12 +15,12 @@ use crate::auth::AuthUser;
 use crate::error::{ApiResult, AppError};
 use crate::mattermost_compat::id::encode_mm_id;
 use crate::middleware::reliability::{send_reqwest_with_retry, RetryCondition, RetryConfig};
-use crate::services::webhooks::is_valid_callback_url;
 use crate::models::{
     Bot, BotToken, CommandResponse, CreateBot, CreateIncomingWebhook, CreateOutgoingWebhook,
     CreateSlashCommand, ExecuteCommand, IncomingWebhook, OutgoingWebhook, OutgoingWebhookPayload,
     SlashCommand, WebhookPayload,
 };
+use crate::services::webhooks::is_valid_callback_url;
 use chrono::Utc;
 use std::time::Duration;
 
@@ -98,7 +98,7 @@ pub struct TeamQuery {
 /// Verify the user is a member of the specified team.
 async fn ensure_team_member(state: &AppState, team_id: Uuid, user_id: Uuid) -> ApiResult<()> {
     let is_member: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM team_members WHERE team_id = $1 AND user_id = $2)"
+        "SELECT EXISTS(SELECT 1 FROM team_members WHERE team_id = $1 AND user_id = $2)",
     )
     .bind(team_id)
     .bind(user_id)

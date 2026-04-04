@@ -174,7 +174,7 @@ async fn get_team(
     // Verify the user is a member of the team (or an admin)
     if !auth.has_permission(&permissions::TEAM_MANAGE) {
         let is_member: bool = sqlx::query_scalar(
-            "SELECT EXISTS(SELECT 1 FROM team_members WHERE team_id = $1 AND user_id = $2)"
+            "SELECT EXISTS(SELECT 1 FROM team_members WHERE team_id = $1 AND user_id = $2)",
         )
         .bind(id)
         .bind(auth.user_id)
@@ -182,7 +182,9 @@ async fn get_team(
         .await?;
 
         if !is_member {
-            return Err(AppError::Forbidden("You do not have access to this team".into()));
+            return Err(AppError::Forbidden(
+                "You do not have access to this team".into(),
+            ));
         }
     }
 
@@ -238,7 +240,7 @@ async fn get_members(
     // Verify the user is a member of the team (or an admin)
     if !auth.has_permission(&permissions::TEAM_MANAGE) {
         let is_member: bool = sqlx::query_scalar(
-            "SELECT EXISTS(SELECT 1 FROM team_members WHERE team_id = $1 AND user_id = $2)"
+            "SELECT EXISTS(SELECT 1 FROM team_members WHERE team_id = $1 AND user_id = $2)",
         )
         .bind(id)
         .bind(auth.user_id)
@@ -246,7 +248,9 @@ async fn get_members(
         .await?;
 
         if !is_member {
-            return Err(AppError::Forbidden("You do not have access to this team".into()));
+            return Err(AppError::Forbidden(
+                "You do not have access to this team".into(),
+            ));
         }
     }
 

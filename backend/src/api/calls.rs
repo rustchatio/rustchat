@@ -70,7 +70,7 @@ async fn get_call(
 
     // Verify the user is a member of the call's channel
     let is_member: bool = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM channel_members WHERE channel_id = $1 AND user_id = $2)"
+        "SELECT EXISTS(SELECT 1 FROM channel_members WHERE channel_id = $1 AND user_id = $2)",
     )
     .bind(call.channel_id)
     .bind(auth.user_id)
@@ -78,7 +78,9 @@ async fn get_call(
     .await?;
 
     if !is_member {
-        return Err(AppError::Forbidden("You do not have access to this call".to_string()));
+        return Err(AppError::Forbidden(
+            "You do not have access to this call".to_string(),
+        ));
     }
 
     let participants = sqlx::query_as::<_, CallParticipant>(

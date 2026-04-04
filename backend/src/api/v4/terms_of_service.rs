@@ -1,5 +1,5 @@
 use crate::api::AppState;
-use crate::error::{AppError, ApiResult};
+use crate::error::{ApiResult, AppError};
 use crate::models::terms::*;
 use axum::{
     extract::{Path, State},
@@ -31,7 +31,9 @@ pub fn router() -> Router<AppState> {
 
 // Public endpoints
 
-async fn get_current_terms(State(state): State<AppState>) -> ApiResult<Json<Option<TermsOfService>>> {
+async fn get_current_terms(
+    State(state): State<AppState>,
+) -> ApiResult<Json<Option<TermsOfService>>> {
     let terms = sqlx::query_as::<_, TermsOfService>(
         r#"
         SELECT * FROM terms_of_service 
@@ -106,12 +108,11 @@ async fn accept_terms(
     Json(req): Json<TermsAcceptanceRequest>,
 ) -> ApiResult<Json<serde_json::Value>> {
     // Verify terms exist and are active
-    let terms = sqlx::query_as::<_, TermsOfService>(
-        r#"SELECT * FROM terms_of_service WHERE id = $1"#,
-    )
-    .bind(req.terms_id)
-    .fetch_optional(&state.db)
-    .await?;
+    let terms =
+        sqlx::query_as::<_, TermsOfService>(r#"SELECT * FROM terms_of_service WHERE id = $1"#)
+            .bind(req.terms_id)
+            .fetch_optional(&state.db)
+            .await?;
 
     let Some(_) = terms else {
         return Err(AppError::NotFound("Terms not found".to_string()));
@@ -160,12 +161,11 @@ async fn get_terms(
     _auth_user: MmAuthUser,
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<TermsOfService>> {
-    let terms = sqlx::query_as::<_, TermsOfService>(
-        r#"SELECT * FROM terms_of_service WHERE id = $1"#,
-    )
-    .bind(id)
-    .fetch_optional(&state.db)
-    .await?;
+    let terms =
+        sqlx::query_as::<_, TermsOfService>(r#"SELECT * FROM terms_of_service WHERE id = $1"#)
+            .bind(id)
+            .fetch_optional(&state.db)
+            .await?;
 
     match terms {
         Some(t) => Ok(Json(t)),
@@ -216,12 +216,11 @@ async fn update_terms(
     Path(id): Path<Uuid>,
     Json(req): Json<UpdateTermsRequest>,
 ) -> ApiResult<Json<TermsOfService>> {
-    let terms = sqlx::query_as::<_, TermsOfService>(
-        r#"SELECT * FROM terms_of_service WHERE id = $1"#,
-    )
-    .bind(id)
-    .fetch_optional(&state.db)
-    .await?;
+    let terms =
+        sqlx::query_as::<_, TermsOfService>(r#"SELECT * FROM terms_of_service WHERE id = $1"#)
+            .bind(id)
+            .fetch_optional(&state.db)
+            .await?;
 
     if terms.is_none() {
         return Err(AppError::NotFound("Terms not found".to_string()));
@@ -256,12 +255,11 @@ async fn delete_terms(
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<serde_json::Value>> {
     // Check if terms is active
-    let is_active = sqlx::query_scalar::<_, bool>(
-        r#"SELECT is_active FROM terms_of_service WHERE id = $1"#,
-    )
-    .bind(id)
-    .fetch_optional(&state.db)
-    .await?;
+    let is_active =
+        sqlx::query_scalar::<_, bool>(r#"SELECT is_active FROM terms_of_service WHERE id = $1"#)
+            .bind(id)
+            .fetch_optional(&state.db)
+            .await?;
 
     if is_active == Some(true) {
         return Err(AppError::Validation(
