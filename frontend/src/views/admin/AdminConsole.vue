@@ -58,7 +58,7 @@ const exitAdmin = () => {
                     <div class="w-6 h-6 rounded-md bg-brand flex items-center justify-center shrink-0">
                         <span class="text-white text-xs font-bold">R</span>
                     </div>
-                    <span class="font-semibold text-sm text-text-1 truncate">{{ configStore.siteConfig.site_name }}</span>
+                    <span class="font-semibold text-sm text-text-1 truncate">{{ configStore.siteConfig.site_name || 'RustChat' }}</span>
                     <span class="text-[10px] bg-brand/10 text-brand px-1.5 py-0.5 rounded font-medium shrink-0">Admin</span>
                 </div>
             </div>

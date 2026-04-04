@@ -493,7 +493,7 @@ const formatDate = (date: string) => {
                     <div v-else class="divide-y divide-border-1">
                         <div v-for="user in pendingUsers" :key="user.id" class="px-5 py-3 flex items-center gap-3">
                             <div class="w-8 h-8 rounded-full bg-brand/10 flex items-center justify-center text-brand text-xs font-bold">
-                                {{ user.username.charAt(0).toUpperCase() }}
+                                {{ (user.username?.charAt(0) || 'U').toUpperCase() }}
                             </div>
                             <div class="min-w-0 flex-1">
                                 <div class="text-xs font-medium text-text-1">{{ user.display_name || user.username }}</div>
