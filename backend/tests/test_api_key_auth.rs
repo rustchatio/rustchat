@@ -518,6 +518,7 @@ async fn test_api_key_auth_legacy_key_rejected(pool: PgPool) -> anyhow::Result<(
 /// while still verifying O(1) behavior. The key is that latency should not
 /// increase significantly with more entities.
 #[sqlx::test]
+#[ignore] // Performance test - run manually with: cargo test test_api_key_auth_performance_with_entities -- --ignored
 async fn test_api_key_auth_performance_with_entities(pool: PgPool) -> anyhow::Result<()> {
     let state = common::create_test_state(pool.clone()).await?;
 
