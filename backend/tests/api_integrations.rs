@@ -6,7 +6,6 @@ use serde_json::Value;
 mod common;
 
 #[tokio::test]
-#[ignore] // TODO: Test expects 500 when webhook fails, but getting 200. Needs investigation.
 async fn test_slash_command_lifecycle() {
     let app = spawn_app().await;
 
@@ -180,5 +179,5 @@ async fn test_slash_command_lifecycle() {
         .await
         .expect("Failed to execute custom command");
 
-    assert_eq!(500, exec_res.status().as_u16());
+    assert_eq!(400, exec_res.status().as_u16());
 }

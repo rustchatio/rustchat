@@ -1066,14 +1066,9 @@ pub async fn execute_command_internal(
 
         // Validate slash command URL to prevent SSRF
         if !is_valid_callback_url(&cmd.url) {
-            return Ok(CommandResponse {
-                response_type: "ephemeral".to_string(),
-                text: "Command URL is not valid or points to an internal address".to_string(),
-                username: None,
-                icon_url: None,
-                goto_location: None,
-                attachments: None,
-            });
+            return Err(AppError::BadRequest(
+                "Command URL is not valid or points to an internal address".to_string(),
+            ));
         }
 
         // Execute external command (HTTP POST)
