@@ -159,6 +159,7 @@ const presenceIconClass = computed(() => {
         :src="avatarUrl" 
         :alt="username" 
         class="w-full h-full object-cover"
+        crossorigin="anonymous"
         @error="handleImageError"
       />
       <!-- Fallback Initials -->

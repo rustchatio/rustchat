@@ -109,6 +109,7 @@ function handleError() {
         :src="currentSrc" 
         :alt="alt || username" 
         class="w-full h-full object-cover"
+        crossorigin="anonymous"
         @error="handleError"
     />
     <span v-else>{{ initials }}</span>
