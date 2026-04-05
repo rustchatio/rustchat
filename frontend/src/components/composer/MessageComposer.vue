@@ -47,10 +47,10 @@ const isMac = ref(false)
 const autocompleteStartPos = ref(0)
 
 const attachedFiles = ref<{
-  file: File
-  uploading: boolean
-  progress: number
-  uploaded?: FileUploadResponse
+ file: File
+ uploading: boolean
+ progress: number
+ uploaded?: FileUploadResponse
 }[]>([])
 
 let lastTypingEmit = 0
@@ -60,8 +60,8 @@ const MAX_TEXTAREA_HEIGHT = 320
 const COMMAND_PREFIX = '^k'
 
 const placeholderText = computed(() => {
-  const channelName = channelStore.currentChannel?.display_name || channelStore.currentChannel?.name
-  return channelName ? `Message #${channelName}` : 'Write a message'
+ const channelName = channelStore.currentChannel?.display_name || channelStore.currentChannel?.name
+ return channelName ? `Message #${channelName}` : 'Write a message'
 })
 
 const sendOnCtrlEnter = computed(() => preferencesStore.preferences?.send_on_ctrl_enter ?? false)
@@ -69,913 +69,913 @@ const formattingAllowed = computed(() => preferencesStore.preferences?.enable_po
 const showToolbar = computed(() => formattingAllowed.value && showFormatting.value)
 
 const canSend = computed(() => {
-  const hasContent = content.value.trim().length > 0
-  const hasUploadedFiles = attachedFiles.value.some((file) => file.uploaded)
-  const hasUploadInProgress = attachedFiles.value.some((file) => file.uploading)
-  return (hasContent || hasUploadedFiles) && !hasUploadInProgress
+ const hasContent = content.value.trim().length > 0
+ const hasUploadedFiles = attachedFiles.value.some((file) => file.uploaded)
+ const hasUploadInProgress = attachedFiles.value.some((file) => file.uploading)
+ return (hasContent || hasUploadedFiles) && !hasUploadInProgress
 })
 
 const uploadInProgressCount = computed(
-  () => attachedFiles.value.filter((attachment) => attachment.uploading).length
+ () => attachedFiles.value.filter((attachment) => attachment.uploading).length
 )
 
 const sendShortcutLabel = computed(() => {
-  if (!sendOnCtrlEnter.value) return 'Enter'
-  return isMac.value ? 'Cmd+Enter' : 'Ctrl+Enter'
+ if (!sendOnCtrlEnter.value) return 'Enter'
+ return isMac.value ? 'Cmd+Enter' : 'Ctrl+Enter'
 })
 
 const hasMentionSuggestions = computed(() => {
-  if (!showMentionMenu.value) return false
-  const query = mentionQuery.value.toLowerCase()
-  return teamStore.members.some((member) => member.username.toLowerCase().includes(query))
+ if (!showMentionMenu.value) return false
+ const query = mentionQuery.value.toLowerCase()
+ return teamStore.members.some((member) => member.username.toLowerCase().includes(query))
 })
 
 const hasEmojiSuggestions = computed(() => {
-  if (!showEmojiAutocomplete.value || !emojiQuery.value) return false
-  return searchEmojis(emojiQuery.value, 1).length > 0
+ if (!showEmojiAutocomplete.value || !emojiQuery.value) return false
+ return searchEmojis(emojiQuery.value, 1).length > 0
 })
 
 const hasChannelSuggestions = computed(() => {
-  if (!showChannelAutocomplete.value || !channelQuery.value) return false
-  const query = channelQuery.value.toLowerCase()
-  return channelStore.channels.some((channel) => {
-    const channelName = channel.name?.toLowerCase() ?? ''
-    const displayName = channel.display_name?.toLowerCase() ?? ''
-    return channelName.includes(query) || displayName.includes(query)
-  })
+ if (!showChannelAutocomplete.value || !channelQuery.value) return false
+ const query = channelQuery.value.toLowerCase()
+ return channelStore.channels.some((channel) => {
+ const channelName = channel.name?.toLowerCase() ?? ''
+ const displayName = channel.display_name?.toLowerCase() ?? ''
+ return channelName.includes(query) || displayName.includes(query)
+ })
 })
 
 const commandEntries = ['call start', 'call join', 'call leave', 'call end']
 
 const hasCommandSuggestions = computed(() => {
-  if (!showCommandAutocomplete.value) return false
-  const query = commandQuery.value.trim().toLowerCase().replace(/^\^k\s*/, '')
-  if (!query) return commandEntries.length > 0
-  return commandEntries.some((command) => command.toLowerCase().startsWith(query))
+ if (!showCommandAutocomplete.value) return false
+ const query = commandQuery.value.trim().toLowerCase().replace(/^\^k\s*/, '')
+ if (!query) return commandEntries.length > 0
+ return commandEntries.some((command) => command.toLowerCase().startsWith(query))
 })
 
 function getDraftKey(channelId?: string): string | null {
-  if (!channelId) return null
-  return `${DRAFT_STORAGE_PREFIX}${channelId}`
+ if (!channelId) return null
+ return `${DRAFT_STORAGE_PREFIX}${channelId}`
 }
 
 function loadDraft(channelId?: string): string {
-  const key = getDraftKey(channelId)
-  if (!key) return ''
+ const key = getDraftKey(channelId)
+ if (!key) return ''
 
-  try {
-    const raw = localStorage.getItem(key)
-    if (!raw) return ''
-    const parsed = JSON.parse(raw) as { content?: string; timestamp?: number }
+ try {
+ const raw = localStorage.getItem(key)
+ if (!raw) return ''
+ const parsed = JSON.parse(raw) as { content?: string; timestamp?: number }
 
-    if (!parsed.timestamp || Date.now() - parsed.timestamp > 7 * 24 * 60 * 60 * 1000) {
-      localStorage.removeItem(key)
-      return ''
-    }
+ if (!parsed.timestamp || Date.now() - parsed.timestamp > 7 * 24 * 60 * 60 * 1000) {
+ localStorage.removeItem(key)
+ return ''
+ }
 
-    return parsed.content || ''
-  } catch {
-    return ''
-  }
+ return parsed.content || ''
+ } catch {
+ return ''
+ }
 }
 
 function saveDraft() {
-  const key = getDraftKey(channelStore.currentChannelId ?? undefined)
-  if (!key) return
+ const key = getDraftKey(channelStore.currentChannelId ?? undefined)
+ if (!key) return
 
-  if (!content.value.trim()) {
-    localStorage.removeItem(key)
-    return
-  }
+ if (!content.value.trim()) {
+ localStorage.removeItem(key)
+ return
+ }
 
-  localStorage.setItem(
-    key,
-    JSON.stringify({
-      content: content.value,
-      timestamp: Date.now(),
-    })
-  )
+ localStorage.setItem(
+ key,
+ JSON.stringify({
+ content: content.value,
+ timestamp: Date.now(),
+ })
+ )
 }
 
 function clearDraft() {
-  const key = getDraftKey(channelStore.currentChannelId ?? undefined)
-  if (!key) return
-  localStorage.removeItem(key)
+ const key = getDraftKey(channelStore.currentChannelId ?? undefined)
+ if (!key) return
+ localStorage.removeItem(key)
 }
 
 function autoResize() {
-  const textarea = textareaRef.value
-  if (!textarea) return
+ const textarea = textareaRef.value
+ if (!textarea) return
 
-  textarea.style.height = 'auto'
-  const nextHeight = Math.min(textarea.scrollHeight, MAX_TEXTAREA_HEIGHT)
-  textarea.style.height = `${nextHeight}px`
-  textarea.style.overflowY = textarea.scrollHeight > MAX_TEXTAREA_HEIGHT ? 'auto' : 'hidden'
+ textarea.style.height = 'auto'
+ const nextHeight = Math.min(textarea.scrollHeight, MAX_TEXTAREA_HEIGHT)
+ textarea.style.height = `${nextHeight}px`
+ textarea.style.overflowY = textarea.scrollHeight > MAX_TEXTAREA_HEIGHT ? 'auto' : 'hidden'
 }
 
 function resetComposer() {
-  content.value = ''
-  attachedFiles.value = []
-  showPreview.value = false
-  showMentionMenu.value = false
-  showEmojiAutocomplete.value = false
-  showChannelAutocomplete.value = false
-  showCommandAutocomplete.value = false
-  showEmojiPicker.value = false
+ content.value = ''
+ attachedFiles.value = []
+ showPreview.value = false
+ showMentionMenu.value = false
+ showEmojiAutocomplete.value = false
+ showChannelAutocomplete.value = false
+ showCommandAutocomplete.value = false
+ showEmojiPicker.value = false
 
-  nextTick(() => {
-    if (textareaRef.value) {
-      textareaRef.value.style.height = 'auto'
-      textareaRef.value.focus()
-    }
-  })
+ nextTick(() => {
+ if (textareaRef.value) {
+ textareaRef.value.style.height = 'auto'
+ textareaRef.value.focus()
+ }
+ })
 }
 
 function resetForChannelChange(channelId?: string) {
-  content.value = loadDraft(channelId)
-  attachedFiles.value = []
-  showPreview.value = false
-  showMentionMenu.value = false
-  showEmojiAutocomplete.value = false
-  showChannelAutocomplete.value = false
-  showCommandAutocomplete.value = false
-  showEmojiPicker.value = false
-  mentionQuery.value = ''
-  emojiQuery.value = ''
-  channelQuery.value = ''
-  commandQuery.value = ''
+ content.value = loadDraft(channelId)
+ attachedFiles.value = []
+ showPreview.value = false
+ showMentionMenu.value = false
+ showEmojiAutocomplete.value = false
+ showChannelAutocomplete.value = false
+ showCommandAutocomplete.value = false
+ showEmojiPicker.value = false
+ mentionQuery.value = ''
+ emojiQuery.value = ''
+ channelQuery.value = ''
+ commandQuery.value = ''
 
-  nextTick(() => {
-    autoResize()
-  })
+ nextTick(() => {
+ autoResize()
+ })
 }
 
 function toggleFormatting() {
-  if (!formattingAllowed.value) return
-  showFormatting.value = !showFormatting.value
+ if (!formattingAllowed.value) return
+ showFormatting.value = !showFormatting.value
 }
 
 function handleGlobalKeydown(event: KeyboardEvent) {
-  if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 't') {
-    event.preventDefault()
-    toggleFormatting()
-  }
+ if ((event.ctrlKey || event.metaKey) && event.altKey && event.key.toLowerCase() === 't') {
+ event.preventDefault()
+ toggleFormatting()
+ }
 }
 
 async function handleCommandAction(command: string, args: string[]): Promise<boolean> {
-  const channelId = channelStore.currentChannelId
-  if (!channelId) return false
+ const channelId = channelStore.currentChannelId
+ if (!channelId) return false
 
-  switch (command) {
-    case 'call': {
-      const subCommand = args[0]
+ switch (command) {
+ case 'call': {
+ const subCommand = args[0]
 
-      if (subCommand === 'start' || !subCommand) {
-        const existingCall = callsStore.currentChannelCall(channelId)
-        if (existingCall) {
-          toast.error('A call is already in progress', 'Join the existing call instead')
-          return true
-        }
+ if (subCommand === 'start' || !subCommand) {
+ const existingCall = callsStore.currentChannelCall(channelId)
+ if (existingCall) {
+ toast.error('A call is already in progress', 'Join the existing call instead')
+ return true
+ }
 
-        try {
-          await callsStore.startCall(channelId)
-          toast.success('Call started', 'You are now in a call')
-        } catch (error: any) {
-          toast.error('Failed to start call', error.message || 'Unknown error')
-        }
-        return true
-      }
+ try {
+ await callsStore.startCall(channelId)
+ toast.success('Call started', 'You are now in a call')
+ } catch (error: any) {
+ toast.error('Failed to start call', error.message || 'Unknown error')
+ }
+ return true
+ }
 
-      if (subCommand === 'join') {
-        try {
-          await callsStore.joinCall(channelId)
-        } catch (error: any) {
-          toast.error('Failed to join call', error.message || 'Unknown error')
-        }
-        return true
-      }
+ if (subCommand === 'join') {
+ try {
+ await callsStore.joinCall(channelId)
+ } catch (error: any) {
+ toast.error('Failed to join call', error.message || 'Unknown error')
+ }
+ return true
+ }
 
-      if (subCommand === 'leave') {
-        if (callsStore.isInCall) {
-          await callsStore.leaveCall()
-        } else {
-          toast.error('Not in a call', 'You are not currently in a call')
-        }
-        return true
-      }
+ if (subCommand === 'leave') {
+ if (callsStore.isInCall) {
+ await callsStore.leaveCall()
+ } else {
+ toast.error('Not in a call', 'You are not currently in a call')
+ }
+ return true
+ }
 
-      if (subCommand === 'end') {
-        if (callsStore.isInCall) {
-          await callsStore.endCall()
-        } else {
-          toast.error('Not in a call', 'You are not currently in a call')
-        }
-        return true
-      }
+ if (subCommand === 'end') {
+ if (callsStore.isInCall) {
+ await callsStore.endCall()
+ } else {
+ toast.error('Not in a call', 'You are not currently in a call')
+ }
+ return true
+ }
 
-      return false
-    }
-    default:
-      return false
-  }
+ return false
+ }
+ default:
+ return false
+ }
 }
 
 async function handleSend() {
-  if (!canSend.value) return
+ if (!canSend.value) return
 
-  const trimmedText = content.value.trim()
-  const commandMatch = trimmedText.match(/^\^k\s*(.*)$/i)
-  if (commandMatch) {
-    const commandPayload = (commandMatch[1] ?? '').trim()
-    if (!commandPayload) {
-      toast.error('No command selected', 'Use Ctrl/Cmd+K or type ^k and choose a command')
-      return
-    }
+ const trimmedText = content.value.trim()
+ const commandMatch = trimmedText.match(/^\^k\s*(.*)$/i)
+ if (commandMatch) {
+ const commandPayload = (commandMatch[1] ?? '').trim()
+ if (!commandPayload) {
+ toast.error('No command selected', 'Use Ctrl/Cmd+K or type ^k and choose a command')
+ return
+ }
 
-    const parts = commandPayload.split(/\s+/)
-    const command = (parts[0] ?? '').toLowerCase()
-    const args = parts.slice(1)
-    const handled = await handleCommandAction(command, args)
-    if (handled) {
-      clearDraft()
-      resetComposer()
-      return
-    }
+ const parts = commandPayload.split(/\s+/)
+ const command = (parts[0] ?? '').toLowerCase()
+ const args = parts.slice(1)
+ const handled = await handleCommandAction(command, args)
+ if (handled) {
+ clearDraft()
+ resetComposer()
+ return
+ }
 
-    toast.error('Unknown command', `The command "${commandPayload}" is not available`)
-    return
-  }
+ toast.error('Unknown command', `The command"${commandPayload}" is not available`)
+ return
+ }
 
-  const fileIds = attachedFiles.value
-    .filter((attachment) => !attachment.uploading && attachment.uploaded)
-    .map((attachment) => attachment.uploaded!.id)
+ const fileIds = attachedFiles.value
+ .filter((attachment) => !attachment.uploading && attachment.uploaded)
+ .map((attachment) => attachment.uploaded!.id)
 
-  emit('send', {
-    content: content.value,
-    file_ids: fileIds,
-  })
+ emit('send', {
+ content: content.value,
+ file_ids: fileIds,
+ })
 
-  clearDraft()
-  resetComposer()
+ clearDraft()
+ resetComposer()
 }
 
 function handleKeydown(event: KeyboardEvent) {
-  if ((event.ctrlKey || event.metaKey) && !event.shiftKey && event.key.toLowerCase() === 'k') {
-    event.preventDefault()
-    openCommandMenu()
-    return
-  }
+ if ((event.ctrlKey || event.metaKey) && !event.shiftKey && event.key.toLowerCase() === 'k') {
+ event.preventDefault()
+ openCommandMenu()
+ return
+ }
 
-  if (hasCommandSuggestions.value) {
-    if (event.key === 'ArrowUp') {
-      event.preventDefault()
-      commandAutocompleteRef.value?.selectPrevious()
-      return
-    }
-    if (event.key === 'ArrowDown') {
-      event.preventDefault()
-      commandAutocompleteRef.value?.selectNext()
-      return
-    }
-    if (event.key === 'Enter' || event.key === 'Tab') {
-      event.preventDefault()
-      commandAutocompleteRef.value?.selectCurrent()
-      return
-    }
-  }
+ if (hasCommandSuggestions.value) {
+ if (event.key === 'ArrowUp') {
+ event.preventDefault()
+ commandAutocompleteRef.value?.selectPrevious()
+ return
+ }
+ if (event.key === 'ArrowDown') {
+ event.preventDefault()
+ commandAutocompleteRef.value?.selectNext()
+ return
+ }
+ if (event.key === 'Enter' || event.key === 'Tab') {
+ event.preventDefault()
+ commandAutocompleteRef.value?.selectCurrent()
+ return
+ }
+ }
 
-  if (hasEmojiSuggestions.value) {
-    if (event.key === 'ArrowUp') {
-      event.preventDefault()
-      emojiAutocompleteRef.value?.selectPrevious()
-      return
-    }
-    if (event.key === 'ArrowDown') {
-      event.preventDefault()
-      emojiAutocompleteRef.value?.selectNext()
-      return
-    }
-    if (event.key === 'Enter' || event.key === 'Tab') {
-      event.preventDefault()
-      emojiAutocompleteRef.value?.selectCurrent()
-      return
-    }
-  }
+ if (hasEmojiSuggestions.value) {
+ if (event.key === 'ArrowUp') {
+ event.preventDefault()
+ emojiAutocompleteRef.value?.selectPrevious()
+ return
+ }
+ if (event.key === 'ArrowDown') {
+ event.preventDefault()
+ emojiAutocompleteRef.value?.selectNext()
+ return
+ }
+ if (event.key === 'Enter' || event.key === 'Tab') {
+ event.preventDefault()
+ emojiAutocompleteRef.value?.selectCurrent()
+ return
+ }
+ }
 
-  if (hasChannelSuggestions.value) {
-    if (event.key === 'ArrowUp') {
-      event.preventDefault()
-      channelAutocompleteRef.value?.selectPrevious()
-      return
-    }
-    if (event.key === 'ArrowDown') {
-      event.preventDefault()
-      channelAutocompleteRef.value?.selectNext()
-      return
-    }
-    if (event.key === 'Enter' || event.key === 'Tab') {
-      event.preventDefault()
-      channelAutocompleteRef.value?.selectCurrent()
-      return
-    }
-  }
+ if (hasChannelSuggestions.value) {
+ if (event.key === 'ArrowUp') {
+ event.preventDefault()
+ channelAutocompleteRef.value?.selectPrevious()
+ return
+ }
+ if (event.key === 'ArrowDown') {
+ event.preventDefault()
+ channelAutocompleteRef.value?.selectNext()
+ return
+ }
+ if (event.key === 'Enter' || event.key === 'Tab') {
+ event.preventDefault()
+ channelAutocompleteRef.value?.selectCurrent()
+ return
+ }
+ }
 
-  if (showMentionMenu.value && hasMentionSuggestions.value) {
-    if (event.key === 'ArrowUp' || event.key === 'ArrowDown' || event.key === 'Enter' || event.key === 'Tab') {
-      event.preventDefault()
-      return
-    }
-  }
+ if (showMentionMenu.value && hasMentionSuggestions.value) {
+ if (event.key === 'ArrowUp' || event.key === 'ArrowDown' || event.key === 'Enter' || event.key === 'Tab') {
+ event.preventDefault()
+ return
+ }
+ }
 
-  if (event.key === 'Escape') {
-    showMentionMenu.value = false
-    showEmojiAutocomplete.value = false
-    showChannelAutocomplete.value = false
-    showCommandAutocomplete.value = false
-    showEmojiPicker.value = false
-    event.preventDefault()
-    return
-  }
+ if (event.key === 'Escape') {
+ showMentionMenu.value = false
+ showEmojiAutocomplete.value = false
+ showChannelAutocomplete.value = false
+ showCommandAutocomplete.value = false
+ showEmojiPicker.value = false
+ event.preventDefault()
+ return
+ }
 
-  if ((event.ctrlKey || event.metaKey) && !event.altKey) {
-    if (event.key.toLowerCase() === 'b') {
-      event.preventDefault()
-      applyFormat('bold')
-      return
-    }
+ if ((event.ctrlKey || event.metaKey) && !event.altKey) {
+ if (event.key.toLowerCase() === 'b') {
+ event.preventDefault()
+ applyFormat('bold')
+ return
+ }
 
-    if (event.key.toLowerCase() === 'i') {
-      event.preventDefault()
-      applyFormat('italic')
-      return
-    }
+ if (event.key.toLowerCase() === 'i') {
+ event.preventDefault()
+ applyFormat('italic')
+ return
+ }
 
-    if (event.shiftKey && event.key.toLowerCase() === 'x') {
-      event.preventDefault()
-      applyFormat('strike')
-      return
-    }
-  }
+ if (event.shiftKey && event.key.toLowerCase() === 'x') {
+ event.preventDefault()
+ applyFormat('strike')
+ return
+ }
+ }
 
-  if ((event.ctrlKey || event.metaKey) && event.shiftKey) {
-    if (event.key === '7') {
-      event.preventDefault()
-      applyFormat('numbered')
-      return
-    }
-    if (event.key === '8') {
-      event.preventDefault()
-      applyFormat('bullet')
-      return
-    }
-  }
+ if ((event.ctrlKey || event.metaKey) && event.shiftKey) {
+ if (event.key === '7') {
+ event.preventDefault()
+ applyFormat('numbered')
+ return
+ }
+ if (event.key === '8') {
+ event.preventDefault()
+ applyFormat('bullet')
+ return
+ }
+ }
 
-  if (event.key !== 'Enter' || event.shiftKey) return
+ if (event.key !== 'Enter' || event.shiftKey) return
 
-  if (sendOnCtrlEnter.value) {
-    if (event.ctrlKey || event.metaKey) {
-      event.preventDefault()
-      void handleSend()
-    }
-    return
-  }
+ if (sendOnCtrlEnter.value) {
+ if (event.ctrlKey || event.metaKey) {
+ event.preventDefault()
+ void handleSend()
+ }
+ return
+ }
 
-  if (!event.ctrlKey && !event.metaKey) {
-    event.preventDefault()
-    void handleSend()
-  }
+ if (!event.ctrlKey && !event.metaKey) {
+ event.preventDefault()
+ void handleSend()
+ }
 }
 
 function handleInput() {
-  autoResize()
-  saveDraft()
+ autoResize()
+ saveDraft()
 
-  const now = Date.now()
-  if (content.value.trim().length > 0 && now - lastTypingEmit > TYPING_ACTIVITY_INTERVAL_MS) {
-    lastTypingEmit = now
-    emit('typing')
-  }
+ const now = Date.now()
+ if (content.value.trim().length > 0 && now - lastTypingEmit > TYPING_ACTIVITY_INTERVAL_MS) {
+ lastTypingEmit = now
+ emit('typing')
+ }
 
-  const textarea = textareaRef.value
-  if (!textarea) return
+ const textarea = textareaRef.value
+ if (!textarea) return
 
-  const cursorPos = textarea.selectionStart
-  const textBefore = content.value.substring(0, cursorPos)
+ const cursorPos = textarea.selectionStart
+ const textBefore = content.value.substring(0, cursorPos)
 
-  const commandPrefixMatch = !textBefore.includes('\n') ? textBefore.match(/^\^k\s*(.*)$/i) : null
-  if (commandPrefixMatch) {
-    commandQuery.value = commandPrefixMatch[1] ?? ''
-    autocompleteStartPos.value = 0
-    showCommandAutocomplete.value = true
-    showMentionMenu.value = false
-    showEmojiAutocomplete.value = false
-    showChannelAutocomplete.value = false
-    return
-  }
+ const commandPrefixMatch = !textBefore.includes('\n') ? textBefore.match(/^\^k\s*(.*)$/i) : null
+ if (commandPrefixMatch) {
+ commandQuery.value = commandPrefixMatch[1] ?? ''
+ autocompleteStartPos.value = 0
+ showCommandAutocomplete.value = true
+ showMentionMenu.value = false
+ showEmojiAutocomplete.value = false
+ showChannelAutocomplete.value = false
+ return
+ }
 
-  const mentionMatch = textBefore.match(/@([^\s@]*)$/)
-  if (mentionMatch) {
-    mentionQuery.value = mentionMatch[1] ?? ''
-    autocompleteStartPos.value = cursorPos - mentionMatch[0].length
-    showMentionMenu.value = true
-    showEmojiAutocomplete.value = false
-    showChannelAutocomplete.value = false
-    showCommandAutocomplete.value = false
-    if (teamStore.members.length === 0 && teamStore.currentTeamId) {
-      teamStore.fetchMembers(teamStore.currentTeamId as string)
-    }
-    return
-  }
+ const mentionMatch = textBefore.match(/@([^\s@]*)$/)
+ if (mentionMatch) {
+ mentionQuery.value = mentionMatch[1] ?? ''
+ autocompleteStartPos.value = cursorPos - mentionMatch[0].length
+ showMentionMenu.value = true
+ showEmojiAutocomplete.value = false
+ showChannelAutocomplete.value = false
+ showCommandAutocomplete.value = false
+ if (teamStore.members.length === 0 && teamStore.currentTeamId) {
+ teamStore.fetchMembers(teamStore.currentTeamId as string)
+ }
+ return
+ }
 
-  const emojiMatch = textBefore.match(/:([^\s:]*)$/)
-  const emojiToken = emojiMatch?.[1] ?? ''
-  if (emojiMatch && emojiToken.length > 0) {
-    emojiQuery.value = emojiToken
-    autocompleteStartPos.value = cursorPos - emojiMatch[0].length
-    showEmojiAutocomplete.value = true
-    showMentionMenu.value = false
-    showChannelAutocomplete.value = false
-    showCommandAutocomplete.value = false
-    return
-  }
+ const emojiMatch = textBefore.match(/:([^\s:]*)$/)
+ const emojiToken = emojiMatch?.[1] ?? ''
+ if (emojiMatch && emojiToken.length > 0) {
+ emojiQuery.value = emojiToken
+ autocompleteStartPos.value = cursorPos - emojiMatch[0].length
+ showEmojiAutocomplete.value = true
+ showMentionMenu.value = false
+ showChannelAutocomplete.value = false
+ showCommandAutocomplete.value = false
+ return
+ }
 
-  const channelMatch = textBefore.match(/~([^\s~]*)$/)
-  if (channelMatch) {
-    channelQuery.value = channelMatch[1] ?? ''
-    autocompleteStartPos.value = cursorPos - channelMatch[0].length
-    showChannelAutocomplete.value = true
-    showMentionMenu.value = false
-    showEmojiAutocomplete.value = false
-    showCommandAutocomplete.value = false
-    return
-  }
+ const channelMatch = textBefore.match(/~([^\s~]*)$/)
+ if (channelMatch) {
+ channelQuery.value = channelMatch[1] ?? ''
+ autocompleteStartPos.value = cursorPos - channelMatch[0].length
+ showChannelAutocomplete.value = true
+ showMentionMenu.value = false
+ showEmojiAutocomplete.value = false
+ showCommandAutocomplete.value = false
+ return
+ }
 
-  showMentionMenu.value = false
-  showEmojiAutocomplete.value = false
-  showChannelAutocomplete.value = false
-  showCommandAutocomplete.value = false
+ showMentionMenu.value = false
+ showEmojiAutocomplete.value = false
+ showChannelAutocomplete.value = false
+ showCommandAutocomplete.value = false
 }
 
 function handleMentionSelect(username: string) {
-  const textarea = textareaRef.value
-  if (!textarea) return
+ const textarea = textareaRef.value
+ if (!textarea) return
 
-  const cursorPos = textarea.selectionStart
-  content.value = `${content.value.substring(0, autocompleteStartPos.value)}@${username} ${content.value.substring(cursorPos)}`
-  showMentionMenu.value = false
-  saveDraft()
+ const cursorPos = textarea.selectionStart
+ content.value = `${content.value.substring(0, autocompleteStartPos.value)}@${username} ${content.value.substring(cursorPos)}`
+ showMentionMenu.value = false
+ saveDraft()
 
-  textarea.focus()
-  const newPos = autocompleteStartPos.value + username.length + 2
-  setTimeout(() => {
-    textarea.setSelectionRange(newPos, newPos)
-    autoResize()
-  }, 0)
+ textarea.focus()
+ const newPos = autocompleteStartPos.value + username.length + 2
+ setTimeout(() => {
+ textarea.setSelectionRange(newPos, newPos)
+ autoResize()
+ }, 0)
 }
 
 function handleEmojiAutocompleteSelect(emojiName: string) {
-  const textarea = textareaRef.value
-  if (!textarea) return
-  const cursorPos = textarea.selectionStart
-  content.value = `${content.value.substring(0, autocompleteStartPos.value)}:${emojiName}: ${content.value.substring(cursorPos)}`
-  showEmojiAutocomplete.value = false
-  saveDraft()
-  const newPos = autocompleteStartPos.value + emojiName.length + 3
-  nextTick(() => {
-    textarea.focus()
-    textarea.setSelectionRange(newPos, newPos)
-    autoResize()
-  })
+ const textarea = textareaRef.value
+ if (!textarea) return
+ const cursorPos = textarea.selectionStart
+ content.value = `${content.value.substring(0, autocompleteStartPos.value)}:${emojiName}: ${content.value.substring(cursorPos)}`
+ showEmojiAutocomplete.value = false
+ saveDraft()
+ const newPos = autocompleteStartPos.value + emojiName.length + 3
+ nextTick(() => {
+ textarea.focus()
+ textarea.setSelectionRange(newPos, newPos)
+ autoResize()
+ })
 }
 
 function handleChannelAutocompleteSelect(channelName: string) {
-  const textarea = textareaRef.value
-  if (!textarea) return
-  const cursorPos = textarea.selectionStart
-  content.value = `${content.value.substring(0, autocompleteStartPos.value)}~${channelName} ${content.value.substring(cursorPos)}`
-  showChannelAutocomplete.value = false
-  saveDraft()
-  const newPos = autocompleteStartPos.value + channelName.length + 2
-  nextTick(() => {
-    textarea.focus()
-    textarea.setSelectionRange(newPos, newPos)
-    autoResize()
-  })
+ const textarea = textareaRef.value
+ if (!textarea) return
+ const cursorPos = textarea.selectionStart
+ content.value = `${content.value.substring(0, autocompleteStartPos.value)}~${channelName} ${content.value.substring(cursorPos)}`
+ showChannelAutocomplete.value = false
+ saveDraft()
+ const newPos = autocompleteStartPos.value + channelName.length + 2
+ nextTick(() => {
+ textarea.focus()
+ textarea.setSelectionRange(newPos, newPos)
+ autoResize()
+ })
 }
 
 function handleCommandAutocompleteSelect(command: string) {
-  const textarea = textareaRef.value
-  if (!textarea) return
+ const textarea = textareaRef.value
+ if (!textarea) return
 
-  const cursorPos = textarea.selectionStart
-  const suffix = content.value.substring(cursorPos).replace(/^\s+/, '')
-  const prefix = `${COMMAND_PREFIX} ${command} `
-  content.value = suffix.length > 0 ? `${prefix}${suffix}` : prefix
+ const cursorPos = textarea.selectionStart
+ const suffix = content.value.substring(cursorPos).replace(/^\s+/, '')
+ const prefix = `${COMMAND_PREFIX} ${command} `
+ content.value = suffix.length > 0 ? `${prefix}${suffix}` : prefix
 
-  showCommandAutocomplete.value = false
-  saveDraft()
+ showCommandAutocomplete.value = false
+ saveDraft()
 
-  nextTick(() => {
-    textarea.focus()
-    textarea.setSelectionRange(prefix.length, prefix.length)
-    autoResize()
-  })
+ nextTick(() => {
+ textarea.focus()
+ textarea.setSelectionRange(prefix.length, prefix.length)
+ autoResize()
+ })
 }
 
 function handleTextareaBlur() {
-  setTimeout(() => {
-    showMentionMenu.value = false
-    showEmojiAutocomplete.value = false
-    showChannelAutocomplete.value = false
-    showCommandAutocomplete.value = false
-  }, 120)
+ setTimeout(() => {
+ showMentionMenu.value = false
+ showEmojiAutocomplete.value = false
+ showChannelAutocomplete.value = false
+ showCommandAutocomplete.value = false
+ }, 120)
 }
 
 function openCommandMenu() {
-  const existing = content.value.trim()
-  if (!existing.toLowerCase().startsWith(COMMAND_PREFIX)) {
-    content.value = existing ? `${COMMAND_PREFIX} ${existing}` : `${COMMAND_PREFIX} `
-  }
+ const existing = content.value.trim()
+ if (!existing.toLowerCase().startsWith(COMMAND_PREFIX)) {
+ content.value = existing ? `${COMMAND_PREFIX} ${existing}` : `${COMMAND_PREFIX} `
+ }
 
-  commandQuery.value = content.value.replace(/^\^k\s*/i, '')
-  showCommandAutocomplete.value = true
-  showMentionMenu.value = false
-  showEmojiAutocomplete.value = false
-  showChannelAutocomplete.value = false
+ commandQuery.value = content.value.replace(/^\^k\s*/i, '')
+ showCommandAutocomplete.value = true
+ showMentionMenu.value = false
+ showEmojiAutocomplete.value = false
+ showChannelAutocomplete.value = false
 
-  saveDraft()
-  nextTick(() => {
-    if (!textareaRef.value) return
-    const pos = content.value.length
-    textareaRef.value.focus()
-    textareaRef.value.setSelectionRange(pos, pos)
-    autoResize()
-  })
+ saveDraft()
+ nextTick(() => {
+ if (!textareaRef.value) return
+ const pos = content.value.length
+ textareaRef.value.focus()
+ textareaRef.value.setSelectionRange(pos, pos)
+ autoResize()
+ })
 }
 
 function applyFormat(type: string) {
-  const textarea = textareaRef.value
-  if (!textarea) return
+ const textarea = textareaRef.value
+ if (!textarea) return
 
-  const start = textarea.selectionStart
-  const end = textarea.selectionEnd
-  const selectedText = content.value.substring(start, end)
+ const start = textarea.selectionStart
+ const end = textarea.selectionEnd
+ const selectedText = content.value.substring(start, end)
 
-  let before = ''
-  let after = ''
-  let prefix = ''
+ let before = ''
+ let after = ''
+ let prefix = ''
 
-  switch (type) {
-    case 'bold':
-      before = '**'
-      after = '**'
-      break
-    case 'italic':
-      before = '*'
-      after = '*'
-      break
-    case 'strike':
-      before = '~~'
-      after = '~~'
-      break
-    case 'heading':
-      prefix = '### '
-      break
-    case 'code':
-      before = '`'
-      after = '`'
-      break
-    case 'codeblock':
-      before = '```\n'
-      after = '\n```'
-      break
-    case 'link':
-      before = '['
-      after = '](url)'
-      break
-    case 'quote':
-      prefix = '> '
-      break
-    case 'bullet':
-      prefix = '- '
-      break
-    case 'numbered':
-      prefix = '1. '
-      break
-  }
+ switch (type) {
+ case 'bold':
+ before = '**'
+ after = '**'
+ break
+ case 'italic':
+ before = '*'
+ after = '*'
+ break
+ case 'strike':
+ before = '~~'
+ after = '~~'
+ break
+ case 'heading':
+ prefix = '### '
+ break
+ case 'code':
+ before = '`'
+ after = '`'
+ break
+ case 'codeblock':
+ before = '```\n'
+ after = '\n```'
+ break
+ case 'link':
+ before = '['
+ after = '](url)'
+ break
+ case 'quote':
+ prefix = '> '
+ break
+ case 'bullet':
+ prefix = '- '
+ break
+ case 'numbered':
+ prefix = '1. '
+ break
+ }
 
-  if (prefix) {
-    const lineStart = content.value.lastIndexOf('\n', start - 1) + 1
-    content.value = content.value.substring(0, lineStart) + prefix + content.value.substring(lineStart)
-  } else {
-    content.value =
-      content.value.substring(0, start) + before + selectedText + after + content.value.substring(end)
-    textarea.focus()
-    setTimeout(() => {
-      textarea.setSelectionRange(start + before.length, end + before.length)
-    }, 0)
-  }
+ if (prefix) {
+ const lineStart = content.value.lastIndexOf('\n', start - 1) + 1
+ content.value = content.value.substring(0, lineStart) + prefix + content.value.substring(lineStart)
+ } else {
+ content.value =
+ content.value.substring(0, start) + before + selectedText + after + content.value.substring(end)
+ textarea.focus()
+ setTimeout(() => {
+ textarea.setSelectionRange(start + before.length, end + before.length)
+ }, 0)
+ }
 
-  saveDraft()
-  autoResize()
+ saveDraft()
+ autoResize()
 }
 
 function openFilePicker() {
-  fileUploaderRef.value?.openFilePicker()
+ fileUploaderRef.value?.openFilePicker()
 }
 
 async function handleFiles(files: File[]) {
-  for (const file of files) {
-    const attachment = {
-      file,
-      uploading: true,
-      progress: 0,
-      uploaded: undefined as FileUploadResponse | undefined,
-    }
-    attachedFiles.value.push(attachment)
+ for (const file of files) {
+ const attachment = {
+ file,
+ uploading: true,
+ progress: 0,
+ uploaded: undefined as FileUploadResponse | undefined,
+ }
+ attachedFiles.value.push(attachment)
 
-    try {
-      const response = await filesApi.upload(file, channelStore.currentChannelId || undefined, (progressEvent) => {
-        if (progressEvent.total) {
-          attachment.progress = Math.round((progressEvent.loaded * 100) / progressEvent.total)
-        }
-      })
+ try {
+ const response = await filesApi.upload(file, channelStore.currentChannelId || undefined, (progressEvent) => {
+ if (progressEvent.total) {
+ attachment.progress = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+ }
+ })
 
-      attachment.uploaded = response.data
-      toast.success('File uploaded', file.name)
-    } catch (error: any) {
-      toast.error('Upload failed', error.message || 'Unknown error')
-      attachedFiles.value = attachedFiles.value.filter((fileItem) => fileItem !== attachment)
-    } finally {
-      attachment.uploading = false
-    }
-  }
+ attachment.uploaded = response.data
+ toast.success('File uploaded', file.name)
+ } catch (error: any) {
+ toast.error('Upload failed', error.message || 'Unknown error')
+ attachedFiles.value = attachedFiles.value.filter((fileItem) => fileItem !== attachment)
+ } finally {
+ attachment.uploading = false
+ }
+ }
 }
 
 function removeAttachment(index: number) {
-  if (attachedFiles.value[index]?.uploading) return
-  attachedFiles.value.splice(index, 1)
+ if (attachedFiles.value[index]?.uploading) return
+ attachedFiles.value.splice(index, 1)
 }
 
 function insertEmoji(emoji: string) {
-  const textarea = textareaRef.value
-  if (!textarea) {
-    content.value += emoji
-    saveDraft()
-    showEmojiPicker.value = false
-    return
-  }
+ const textarea = textareaRef.value
+ if (!textarea) {
+ content.value += emoji
+ saveDraft()
+ showEmojiPicker.value = false
+ return
+ }
 
-  const start = textarea.selectionStart
-  const end = textarea.selectionEnd
-  content.value = `${content.value.substring(0, start)}${emoji}${content.value.substring(end)}`
-  saveDraft()
-  showEmojiPicker.value = false
+ const start = textarea.selectionStart
+ const end = textarea.selectionEnd
+ content.value = `${content.value.substring(0, start)}${emoji}${content.value.substring(end)}`
+ saveDraft()
+ showEmojiPicker.value = false
 
-  nextTick(() => {
-    textarea.focus()
-    const newCursorPos = start + emoji.length
-    textarea.setSelectionRange(newCursorPos, newCursorPos)
-    autoResize()
-  })
+ nextTick(() => {
+ textarea.focus()
+ const newCursorPos = start + emoji.length
+ textarea.setSelectionRange(newCursorPos, newCursorPos)
+ autoResize()
+ })
 }
 
 function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+ if (bytes < 1024) return `${bytes} B`
+ if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+ return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
 watch(
-  () => channelStore.currentChannelId,
-  (channelId) => {
-    resetForChannelChange(channelId || undefined)
-  },
-  { immediate: true }
+ () => channelStore.currentChannelId,
+ (channelId) => {
+ resetForChannelChange(channelId || undefined)
+ },
+ { immediate: true }
 )
 
 watch(
-  () => formattingAllowed.value,
-  (allowed) => {
-    if (!allowed) {
-      showFormatting.value = false
-      showPreview.value = false
-    }
-  },
-  { immediate: true }
+ () => formattingAllowed.value,
+ (allowed) => {
+ if (!allowed) {
+ showFormatting.value = false
+ showPreview.value = false
+ }
+ },
+ { immediate: true }
 )
 
 onMounted(() => {
-  isMac.value = navigator.platform.toUpperCase().includes('MAC')
-  window.addEventListener('keydown', handleGlobalKeydown)
+ isMac.value = navigator.platform.toUpperCase().includes('MAC')
+ window.addEventListener('keydown', handleGlobalKeydown)
 
-  if (!preferencesStore.preferences) {
-    void preferencesStore.fetchPreferences()
-  }
+ if (!preferencesStore.preferences) {
+ void preferencesStore.fetchPreferences()
+ }
 
-  if (textareaRef.value) {
-    autoResize()
-  }
+ if (textareaRef.value) {
+ autoResize()
+ }
 })
 
 onUnmounted(() => {
-  window.removeEventListener('keydown', handleGlobalKeydown)
+ window.removeEventListener('keydown', handleGlobalKeydown)
 })
 </script>
 
 <template>
-  <FileUploader
-    ref="fileUploaderRef"
-    class="shrink-0 z-[80] border-t border-border-1 bg-bg-surface-1 p-3"
-    @files-selected="handleFiles"
-  >
-    <div class="relative overflow-visible rounded-r-2 border border-border-1 bg-bg-surface-1 transition-standard focus-within:border-brand/60 focus-within:ring-2 focus-within:ring-brand/10">
-      <!-- Formatting Toolbar -->
-      <FormattingToolbar
-        v-if="showToolbar"
-        :showPreview="showPreview"
-        @format="applyFormat"
-        @togglePreview="showPreview = !showPreview"
-      />
+ <FileUploader
+ ref="fileUploaderRef"
+ class="shrink-0 z-[80] border-t border-border-1 bg-bg-surface-1 p-3"
+ @files-selected="handleFiles"
+ >
+ <div class="relative overflow-visible rounded-r-2 border border-border-1 bg-bg-surface-1 transition-standard focus-within:border-brand/60 focus-within:ring-2 focus-within:ring-brand/10">
+ <!-- Formatting Toolbar -->
+ <FormattingToolbar
+ v-if="showToolbar"
+ :showPreview="showPreview"
+ @format="applyFormat"
+ @togglePreview="showPreview = !showPreview"
+ />
 
-      <!-- Markdown Preview -->
-      <div v-if="showPreview" class="border-b border-border-1 px-3 py-2">
-        <MarkdownPreview :content="content" />
-      </div>
+ <!-- Markdown Preview -->
+ <div v-if="showPreview" class="border-b border-border-1 px-3 py-2">
+ <MarkdownPreview :content="content" />
+ </div>
 
-      <!-- Attached Files -->
-      <div v-if="attachedFiles.length > 0" class="flex flex-wrap gap-2 border-b border-border-1 bg-bg-surface-2/30 px-3 py-2">
-        <div
-          v-for="(attachment, index) in attachedFiles"
-          :key="index"
-          class="relative flex min-w-[200px] max-w-[300px] items-center gap-2 rounded-r-1 border border-border-1 bg-bg-surface-1 px-3 py-2"
-        >
-          <FileIcon class="h-4 w-4 shrink-0 text-text-3" />
-          <div class="min-w-0 flex-1">
-            <p class="truncate text-xs font-medium text-text-1">{{ attachment.file.name }}</p>
-            <p class="text-[10px] text-text-3">{{ formatFileSize(attachment.file.size) }}</p>
-          </div>
-          <button
-            class="rounded p-1 text-text-3 transition-standard hover:bg-danger/10 hover:text-danger focus-ring disabled:cursor-not-allowed disabled:opacity-40"
-            aria-label="Remove attachment"
-            :disabled="attachment.uploading"
-            @click="removeAttachment(index)"
-          >
-            <X class="h-3.5 w-3.5" />
-          </button>
+ <!-- Attached Files -->
+ <div v-if="attachedFiles.length > 0" class="flex flex-wrap gap-2 border-b border-border-1 bg-bg-surface-2/30 px-3 py-2">
+ <div
+ v-for="(attachment, index) in attachedFiles"
+ :key="index"
+ class="relative flex min-w-[200px] max-w-[300px] items-center gap-2 rounded-r-1 border border-border-1 bg-bg-surface-1 px-3 py-2"
+ >
+ <FileIcon class="h-4 w-4 shrink-0 text-text-3" />
+ <div class="min-w-0 flex-1">
+ <p class="truncate text-xs font-medium text-text-1">{{ attachment.file.name }}</p>
+ <p class="text-[10px] text-text-3">{{ formatFileSize(attachment.file.size) }}</p>
+ </div>
+ <button
+ class="rounded p-1 text-text-3 transition-standard hover:bg-danger/10 hover:text-danger focus-ring disabled:cursor-not-allowed disabled:opacity-40"
+ aria-label="Remove attachment"
+ :disabled="attachment.uploading"
+ @click="removeAttachment(index)"
+ >
+ <X class="h-3.5 w-3.5" />
+ </button>
 
-          <div v-if="attachment.uploading" class="absolute inset-x-0 bottom-0 h-0.5 bg-border-1">
-            <div class="h-full bg-brand transition-standard" :style="{ width: `${attachment.progress}%` }"></div>
-          </div>
-        </div>
-      </div>
+ <div v-if="attachment.uploading" class="absolute inset-x-0 bottom-0 h-0.5 bg-border-1">
+ <div class="h-full bg-brand transition-standard" :style="{ width: `${attachment.progress}%` }"></div>
+ </div>
+ </div>
+ </div>
 
-      <!-- Autocomplete Menus -->
-      <div class="relative">
-        <MentionAutocomplete
-          :show="showMentionMenu"
-          :query="mentionQuery"
-          @select="handleMentionSelect"
-          @close="showMentionMenu = false"
-        />
-        <CommandAutocomplete
-          ref="commandAutocompleteRef"
-          :show="showCommandAutocomplete"
-          :query="commandQuery"
-          @select="handleCommandAutocompleteSelect"
-          @close="showCommandAutocomplete = false"
-        />
-        <EmojiAutocomplete
-          ref="emojiAutocompleteRef"
-          :show="showEmojiAutocomplete"
-          :query="emojiQuery"
-          @select="handleEmojiAutocompleteSelect"
-          @close="showEmojiAutocomplete = false"
-        />
-        <ChannelAutocomplete
-          ref="channelAutocompleteRef"
-          :show="showChannelAutocomplete"
-          :query="channelQuery"
-          @select="handleChannelAutocompleteSelect"
-          @close="showChannelAutocomplete = false"
-        />
+ <!-- Autocomplete Menus -->
+ <div class="relative">
+ <MentionAutocomplete
+ :show="showMentionMenu"
+ :query="mentionQuery"
+ @select="handleMentionSelect"
+ @close="showMentionMenu = false"
+ />
+ <CommandAutocomplete
+ ref="commandAutocompleteRef"
+ :show="showCommandAutocomplete"
+ :query="commandQuery"
+ @select="handleCommandAutocompleteSelect"
+ @close="showCommandAutocomplete = false"
+ />
+ <EmojiAutocomplete
+ ref="emojiAutocompleteRef"
+ :show="showEmojiAutocomplete"
+ :query="emojiQuery"
+ @select="handleEmojiAutocompleteSelect"
+ @close="showEmojiAutocomplete = false"
+ />
+ <ChannelAutocomplete
+ ref="channelAutocompleteRef"
+ :show="showChannelAutocomplete"
+ :query="channelQuery"
+ @select="handleChannelAutocompleteSelect"
+ @close="showChannelAutocomplete = false"
+ />
 
-        <!-- Textarea -->
-        <textarea
-          ref="textareaRef"
-          v-model="content"
-          rows="1"
-          class="max-h-80 min-h-[44px] w-full resize-none border-0 bg-transparent px-3 py-2.5 text-sm leading-relaxed text-text-1 placeholder:text-text-3 focus:ring-0"
-          :placeholder="placeholderText"
-          aria-label="Message composer"
-          @keydown="handleKeydown"
-          @input="handleInput"
-          @blur="handleTextareaBlur"
-        ></textarea>
-      </div>
+ <!-- Textarea -->
+ <textarea
+ ref="textareaRef"
+ v-model="content"
+ rows="1"
+ class="max-h-80 min-h-[44px] w-full resize-none border-0 bg-transparent px-3 py-2.5 text-sm leading-relaxed text-text-1 placeholder:text-text-3 focus:ring-0"
+ :placeholder="placeholderText"
+ aria-label="Message composer"
+ @keydown="handleKeydown"
+ @input="handleInput"
+ @blur="handleTextareaBlur"
+ ></textarea>
+ </div>
 
-      <!-- Bottom Toolbar -->
-      <div class="flex flex-wrap items-center gap-x-2 gap-y-2 border-t border-border-1/60 px-2 py-2">
-        <!-- Left Actions -->
-        <div class="flex items-center gap-1">
-          <button
-            class="flex h-11 w-11 items-center justify-center rounded-r-1 transition-standard hover:bg-brand/10 hover:text-brand focus-ring"
-            title="Attach file"
-            aria-label="Attach file"
-            @click="openFilePicker"
-          >
-            <Paperclip class="h-4 w-4" />
-          </button>
+ <!-- Bottom Toolbar -->
+ <div class="flex flex-wrap items-center gap-x-2 gap-y-2 border-t border-border-1/60 px-2 py-2">
+ <!-- Left Actions -->
+ <div class="flex items-center gap-1">
+ <button
+ class="flex h-11 w-11 items-center justify-center rounded-r-1 transition-standard hover:bg-brand/10 hover:text-brand focus-ring"
+ title="Attach file"
+ aria-label="Attach file"
+ @click="openFilePicker"
+ >
+ <Paperclip class="h-4 w-4" />
+ </button>
 
-          <div class="relative">
-            <button
-              ref="emojiButtonRef"
-              class="flex h-11 w-11 items-center justify-center rounded-r-1 transition-standard hover:bg-warning/10 hover:text-warning focus-ring"
-              title="Insert emoji"
-              aria-label="Insert emoji"
-              @click="showEmojiPicker = !showEmojiPicker"
-            >
-              <Smile class="h-4 w-4" />
-            </button>
-            <EmojiPicker
-              :show="showEmojiPicker"
-              :anchor-el="emojiButtonRef"
-              @select="insertEmoji"
-              @close="showEmojiPicker = false"
-            />
-          </div>
+ <div class="relative">
+ <button
+ ref="emojiButtonRef"
+ class="flex h-11 w-11 items-center justify-center rounded-r-1 transition-standard hover:bg-warning/10 hover:text-warning focus-ring"
+ title="Insert emoji"
+ aria-label="Insert emoji"
+ @click="showEmojiPicker = !showEmojiPicker"
+ >
+ <Smile class="h-4 w-4" />
+ </button>
+ <EmojiPicker
+ :show="showEmojiPicker"
+ :anchor-el="emojiButtonRef"
+ @select="insertEmoji"
+ @close="showEmojiPicker = false"
+ />
+ </div>
 
-          <button
-            class="hidden sm:inline-flex min-h-11 items-center gap-1 rounded-r-1 px-3 transition-standard focus-ring"
-            :class="showToolbar ? 'bg-brand/10 text-brand' : 'hover:bg-brand/10 hover:text-brand'"
-            :disabled="!formattingAllowed"
-            :title="showToolbar ? 'Hide formatting (Ctrl+Alt+T)' : 'Show formatting (Ctrl+Alt+T)'"
-            aria-label="Toggle formatting toolbar"
-            @click="toggleFormatting"
-          >
-            <span class="text-sm font-medium">Aa</span>
-            <ChevronUp v-if="showToolbar" class="h-3 w-3" />
-            <ChevronDown v-else class="h-3 w-3" />
-          </button>
+ <button
+ class="hidden sm:inline-flex min-h-11 items-center gap-1 rounded-r-1 px-3 transition-standard focus-ring"
+ :class="showToolbar ? 'bg-brand/10 text-brand' : 'hover:bg-brand/10 hover:text-brand'"
+ :disabled="!formattingAllowed"
+ :title="showToolbar ? 'Hide formatting (Ctrl+Alt+T)' : 'Show formatting (Ctrl+Alt+T)'"
+ aria-label="Toggle formatting toolbar"
+ @click="toggleFormatting"
+ >
+ <span class="text-sm font-medium">Aa</span>
+ <ChevronUp v-if="showToolbar" class="h-3 w-3" />
+ <ChevronDown v-else class="h-3 w-3" />
+ </button>
 
-          <button
-            v-if="!callsStore.isInCall"
-            class="flex h-11 w-11 items-center justify-center rounded-r-1 transition-standard hover:bg-success/10 hover:text-success focus-ring"
-            title="Start audio call"
-            aria-label="Start audio call"
-            @click="$emit('startAudioCall')"
-          >
-            <Phone class="h-4 w-4" />
-          </button>
-          <button
-            v-else
-            class="flex h-11 w-11 items-center justify-center rounded-r-1 bg-success/10 text-success transition-standard focus-ring"
-            title="Show active call"
-            aria-label="Show active call"
-            @click="callsStore.toggleExpanded()"
-          >
-            <Phone class="h-4 w-4" />
-          </button>
-        </div>
+ <button
+ v-if="!callsStore.isInCall"
+ class="flex h-11 w-11 items-center justify-center rounded-r-1 transition-standard hover:bg-success/10 hover:text-success focus-ring"
+ title="Start audio call"
+ aria-label="Start audio call"
+ @click="$emit('startAudioCall')"
+ >
+ <Phone class="h-4 w-4" />
+ </button>
+ <button
+ v-else
+ class="flex h-11 w-11 items-center justify-center rounded-r-1 bg-success/10 text-success transition-standard focus-ring"
+ title="Show active call"
+ aria-label="Show active call"
+ @click="callsStore.toggleExpanded()"
+ >
+ <Phone class="h-4 w-4" />
+ </button>
+ </div>
 
-        <!-- Right: Shortcuts + Send -->
-        <div class="ml-auto flex items-center gap-2 sm:gap-3">
-          <!-- Keyboard Shortcuts Hint -->
-          <div class="hidden xl:flex items-center gap-2 text-[11px] text-text-3">
-            <span class="flex items-center gap-1">
-              <kbd class="px-1.5 py-0.5 bg-bg-surface-2 rounded text-[10px]">{{ sendShortcutLabel }}</kbd>
-              <span>to send</span>
-            </span>
-            <span class="text-border-2">|</span>
-            <span class="flex items-center gap-1">
-              <kbd class="px-1.5 py-0.5 bg-bg-surface-2 rounded text-[10px]">Shift+Enter</kbd>
-              <span>newline</span>
-            </span>
-          </div>
+ <!-- Right: Shortcuts + Send -->
+ <div class="ml-auto flex items-center gap-2 sm:gap-3">
+ <!-- Keyboard Shortcuts Hint -->
+ <div class="hidden xl:flex items-center gap-2 text-[11px] text-text-3">
+ <span class="flex items-center gap-1">
+ <kbd class="px-1.5 py-0.5 bg-bg-surface-2 rounded text-[10px]">{{ sendShortcutLabel }}</kbd>
+ <span>to send</span>
+ </span>
+ <span class="text-border-2">|</span>
+ <span class="flex items-center gap-1">
+ <kbd class="px-1.5 py-0.5 bg-bg-surface-2 rounded text-[10px]">Shift+Enter</kbd>
+ <span>newline</span>
+ </span>
+ </div>
 
-          <!-- Mobile Command Hint -->
-          <div class="hidden md:flex xl:hidden items-center text-[11px] text-text-3">
-            <kbd class="px-1 py-0.5 bg-bg-surface-2 rounded">^k</kbd>
-            <span class="ml-1">command</span>
-          </div>
+ <!-- Mobile Command Hint -->
+ <div class="hidden md:flex xl:hidden items-center text-[11px] text-text-3">
+ <kbd class="px-1 py-0.5 bg-bg-surface-2 rounded">^k</kbd>
+ <span class="ml-1">command</span>
+ </div>
 
-          <!-- Send Button -->
-          <button
-            class="flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-r-1 bg-brand px-3 text-brand-foreground shadow-1 transition-standard hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50 sm:px-4"
-            :disabled="!canSend"
-            aria-label="Send message"
-            @click="handleSend"
-          >
-            <Send class="h-4 w-4" />
-            <span class="hidden sm:inline text-sm font-medium">Send</span>
-          </button>
-        </div>
-      </div>
+ <!-- Send Button -->
+ <button
+ class="flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-r-1 bg-brand px-3 text-brand-foreground shadow-1 transition-standard hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50 sm:px-4"
+ :disabled="!canSend"
+ aria-label="Send message"
+ @click="handleSend"
+ >
+ <Send class="h-4 w-4" />
+ <span class="hidden sm:inline text-sm font-medium">Send</span>
+ </button>
+ </div>
+ </div>
 
-      <!-- Upload Progress -->
-      <div v-if="uploadInProgressCount > 0" class="border-t border-border-1/50 px-3 py-1 text-[11px] text-text-3">
-        Uploading {{ uploadInProgressCount }} file{{ uploadInProgressCount > 1 ? 's' : '' }}...
-      </div>
-    </div>
-  </FileUploader>
+ <!-- Upload Progress -->
+ <div v-if="uploadInProgressCount > 0" class="border-t border-border-1/50 px-3 py-1 text-[11px] text-text-3">
+ Uploading {{ uploadInProgressCount }} file{{ uploadInProgressCount > 1 ? 's' : '' }}...
+ </div>
+ </div>
+ </FileUploader>
 </template>

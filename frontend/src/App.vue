@@ -27,52 +27,52 @@ const singleTabEnabled = computed(() => authStore.isAuthenticated)
 const { isActiveTab, takeOver } = useSingleActiveTab(singleTabEnabled)
 
 const showTermsModal = computed(() => {
-    // Only show terms modal for authenticated users outside of admin section
-    return authStore.isAuthenticated && !route.path.startsWith('/admin')
+ // Only show terms modal for authenticated users outside of admin section
+ return authStore.isAuthenticated && !route.path.startsWith('/admin')
 })
 
 onMounted(async () => {
-    if (toastManagerRef.value) {
-        register(toastManagerRef.value)
-    }
-    await configStore.fetchPublicConfig()
-    configStore.initSync()
+ if (toastManagerRef.value) {
+ register(toastManagerRef.value)
+ }
+ await configStore.fetchPublicConfig()
+ configStore.initSync()
 })
 
 // Connect realtime only when this tab is the active tab for the session.
 watch([() => authStore.isAuthenticated, isActiveTab], async ([isAuth, isActive]) => {
-    if (isAuth && isActive) {
-        connect()
-        await unreadStore.fetchOverview()
-    } else {
-        disconnect()
-    }
+ if (isAuth && isActive) {
+ connect()
+ await unreadStore.fetchOverview()
+ } else {
+ disconnect()
+ }
 }, { immediate: true })
 </script>
 
 <template>
-  <ToastManager ref="toastManagerRef" />
-  <CommandPalette v-if="isActiveTab" />
-  <SettingsModal v-if="isActiveTab" :isOpen="ui.isSettingsOpen" @close="ui.closeSettings()" />
-  <ActiveCall v-if="isActiveTab" />
-  <IncomingCallModal v-if="isActiveTab" />
-  <TermsAcceptanceModal v-if="showTermsModal" />
-  <router-view />
-  <div
-    v-if="authStore.isAuthenticated && !isActiveTab"
-    class="fixed inset-0 z-[120] flex items-center justify-center bg-bg-app/90 backdrop-blur-sm p-6"
-  >
-    <div class="w-full max-w-md rounded-r-2 border border-border-1 bg-bg-surface-1 p-6 text-center shadow-2">
-      <h2 class="text-lg font-semibold text-text-1">This tab is inactive</h2>
-      <p class="mt-2 text-sm text-text-2">
-        Another tab is currently active for messaging in this browser session.
-      </p>
-      <button
-        class="mt-5 inline-flex items-center justify-center rounded-r-1 bg-brand px-4 py-2 text-sm font-medium text-brand-foreground transition-standard hover:bg-brand-hover"
-        @click="takeOver"
-      >
-        Use this tab instead
-      </button>
-    </div>
-  </div>
+ <ToastManager ref="toastManagerRef" />
+ <CommandPalette v-if="isActiveTab" />
+ <SettingsModal v-if="isActiveTab" :isOpen="ui.isSettingsOpen" @close="ui.closeSettings()" />
+ <ActiveCall v-if="isActiveTab" />
+ <IncomingCallModal v-if="isActiveTab" />
+ <TermsAcceptanceModal v-if="showTermsModal" />
+ <router-view />
+ <div
+ v-if="authStore.isAuthenticated && !isActiveTab"
+ class="fixed inset-0 z-[120] flex items-center justify-center bg-bg-app/90 backdrop-blur-sm p-6"
+ >
+ <div class="w-full max-w-md rounded-r-2 border border-border-1 bg-bg-surface-1 p-6 text-center shadow-2">
+ <h2 class="text-lg font-semibold text-text-1">This tab is inactive</h2>
+ <p class="mt-2 text-sm text-text-2">
+ Another tab is currently active for messaging in this browser session.
+ </p>
+ <button
+ class="mt-5 inline-flex items-center justify-center rounded-r-1 bg-brand px-4 py-2 text-sm font-medium text-brand-foreground transition-standard hover:bg-brand-hover"
+ @click="takeOver"
+ >
+ Use this tab instead
+ </button>
+ </div>
+ </div>
 </template>
