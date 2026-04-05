@@ -81,7 +81,7 @@ pub fn router() -> Router<AppState> {
         .route("/admin/teams", get(list_admin_teams))
         .route(
             "/admin/teams/{id}",
-            get(get_admin_team).delete(delete_admin_team),
+            get(get_admin_team).put(update_admin_team).delete(delete_admin_team),
         )
         .route(
             "/admin/teams/{id}/members",
@@ -1540,6 +1540,52 @@ async fn get_admin_team(
 ) -> ApiResult<Json<AdminTeamResponse>> {
     require_admin(&auth)?;
 
+    let team: AdminTeamResponse = sqlx::query_as(
+        r#"
+        SELECT t.*, 
+               (SELECT COUNT(*) FROM team_members WHERE team_id = t.id) as members_count,
+               (SELECT COUNT(*) FROM channels WHERE team_id = t.id) as channels_count
+        FROM teams t
+        WHERE t.id = $1
+        "#,
+    )
+    .bind(id)
+    .fetch_one(&state.db)
+    .await?;
+
+    Ok(Json(team))
+}
+
+#[derive(Debug, serde::Deserialize)]
+struct UpdateTeamRequest {
+    display_name: Option<String>,
+    description: Option<String>,
+}
+
+async fn update_admin_team(
+    State(state): State<AppState>,
+    auth: AuthUser,
+    Path(id): Path<Uuid>,
+    Json(payload): Json<UpdateTeamRequest>,
+) -> ApiResult<Json<AdminTeamResponse>> {
+    require_admin(&auth)?;
+
+    // Update the team with provided fields
+    sqlx::query(
+        r#"
+        UPDATE teams 
+        SET display_name = COALESCE($2, display_name),
+            description = COALESCE($3, description)
+        WHERE id = $1
+        "#,
+    )
+    .bind(id)
+    .bind(&payload.display_name)
+    .bind(&payload.description)
+    .execute(&state.db)
+    .await?;
+
+    // Fetch and return updated team
     let team: AdminTeamResponse = sqlx::query_as(
         r#"
         SELECT t.*, 
