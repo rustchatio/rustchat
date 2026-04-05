@@ -1,5 +1,31 @@
 # Task Plan
 
+## 2026-04-05 Permanent Avatar URL Stabilization
+
+### Task
+- Stop authenticated app surfaces from emitting expired S3 presigned avatar URLs.
+- Move avatar uploads onto the stable profile-image path.
+- Keep already-uploaded legacy avatars working through a backward-compatible stable image endpoint.
+
+### Implementation Checklist
+- [x] Add backend regression coverage for avatar URL normalization and legacy-avatar fallback.
+- [x] Add a shared backend helper for effective/stable avatar URLs.
+- [x] Normalize native auth/user/post/team/activity responses away from raw expiring `users.avatar_url` values.
+- [x] Extend the v4 profile-image reader to fall back to legacy file-backed avatar objects when the canonical avatar object is missing.
+- [x] Update frontend profile avatar uploads to use `/api/v4/users/{id}/image` instead of `/api/v1/files`.
+- [ ] Re-verify the live login path that previously showed expired-avatar `403` console errors.
+
+### Manual Verification Commands
+1. `cd /Users/scolak/Projects/rustchat/backend && cargo test avatar -- --nocapture`
+2. `cd /Users/scolak/Projects/rustchat/backend && cargo check`
+3. `cd /Users/scolak/Projects/rustchat/frontend && npm run build`
+4. Log in to `https://app.rustchat.io`, open the main workspace and admin pages, and confirm the browser console no longer shows `403 AccessDenied` avatar loads from stale `s3.rustchat.io` presigned URLs.
+
+### Readiness
+- Approved by the user on `2026-04-05` after root-cause tracing identified stale `avatar_url` persistence and response echoing.
+- Focused verification is passing locally (`cargo check`, avatar normalization unit tests, `npm run build`).
+- Full integration-test execution remains blocked in this workspace because the Docker daemon is not running, so the local Postgres/Redis/S3 harness could not be started.
+
 ## 2026-03-29 Team Creation Permission Regression
 
 ### Task

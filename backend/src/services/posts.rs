@@ -4,7 +4,9 @@ use uuid::Uuid;
 
 use crate::api::AppState;
 use crate::error::{ApiResult, AppError};
-use crate::models::{ChannelMember, CreatePost, FileUploadResponse, Post, PostResponse};
+use crate::models::{
+    normalize_avatar_url, ChannelMember, CreatePost, FileUploadResponse, Post, PostResponse,
+};
 use crate::realtime::{EventType, WsBroadcast, WsEnvelope};
 use crate::services::activity;
 
@@ -183,6 +185,7 @@ pub async fn create_post(
         client_msg_id,
         seq: post.seq,
     };
+    response.avatar_url = normalize_avatar_url(response.user_id, response.avatar_url.as_deref());
 
     // Populate files if any
     if !response.file_ids.is_empty() {
@@ -535,6 +538,8 @@ pub async fn ensure_dm_membership(state: &AppState, channel_id: Uuid) -> ApiResu
 pub async fn populate_files(state: &AppState, posts: &mut [PostResponse]) -> ApiResult<()> {
     use crate::mattermost_compat::id::encode_mm_id;
 
+    normalize_post_avatar_urls(posts);
+
     // 1. Collect all file IDs
     let all_file_ids: Vec<Uuid> = posts.iter().flat_map(|p| p.file_ids.clone()).collect();
 
@@ -592,6 +597,12 @@ pub async fn populate_files(state: &AppState, posts: &mut [PostResponse]) -> Api
     }
 
     Ok(())
+}
+
+pub fn normalize_post_avatar_urls(posts: &mut [PostResponse]) {
+    for post in posts {
+        post.avatar_url = normalize_avatar_url(post.user_id, post.avatar_url.as_deref());
+    }
 }
 
 /// Create a system message in a channel
@@ -877,6 +888,7 @@ pub async fn get_posts(
     .await?;
 
     let mut posts = posts;
+    normalize_post_avatar_urls(&mut posts);
     if !posts.is_empty() {
         populate_files(state, &mut posts).await?;
     }
@@ -903,6 +915,7 @@ pub async fn get_post_by_id(state: &AppState, post_id: Uuid) -> ApiResult<PostRe
     .ok_or_else(|| AppError::NotFound("Post not found".to_string()))?;
 
     let mut post = post;
+    post.avatar_url = normalize_avatar_url(post.user_id, post.avatar_url.as_deref());
     populate_files(state, std::slice::from_mut(&mut post)).await?;
 
     Ok(post)
@@ -941,7 +954,8 @@ pub async fn get_thread(
     .fetch_optional(&state.db)
     .await?;
 
-    let parent = parent.ok_or_else(|| AppError::NotFound("Post not found".to_string()))?;
+    let mut parent = parent.ok_or_else(|| AppError::NotFound("Post not found".to_string()))?;
+    parent.avatar_url = normalize_avatar_url(parent.user_id, parent.avatar_url.as_deref());
 
     // Build query for replies
     let mut query = String::from(
@@ -982,7 +996,8 @@ pub async fn get_thread(
 
     // Determine pagination
     let has_more = replies.len() > limit as usize;
-    let replies: Vec<PostResponse> = replies.into_iter().take(limit as usize).collect();
+    let mut replies: Vec<PostResponse> = replies.into_iter().take(limit as usize).collect();
+    normalize_post_avatar_urls(&mut replies);
 
     let next_cursor = if has_more {
         replies.last().map(|r| r.id.to_string())

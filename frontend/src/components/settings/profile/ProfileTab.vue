@@ -3,9 +3,9 @@ import { ref, watch } from 'vue'
 import { Camera } from 'lucide-vue-next'
 import BaseButton from '../../atomic/BaseButton.vue'
 import BaseInput from '../../atomic/BaseInput.vue'
+import api from '../../../api/client'
 import { useAuthStore } from '../../../stores/auth'
 import { usersApi } from '../../../api/users'
-import { filesApi } from '../../../api/files'
 
 const auth = useAuthStore()
 const loading = ref(false)
@@ -69,9 +69,15 @@ async function handleFileUpload(event: Event) {
     error.value = ''
     
     try {
-      const response = await filesApi.upload(file)
-      avatarUrl.value = response.data.url
-      success.value = 'Avatar uploaded successfully! Click Save to apply.'
+      const formData = new FormData()
+      formData.append('image', file)
+
+      await api.post(`/users/${auth.user.id}/image`, formData, {
+        baseURL: '/api/v4',
+      })
+      await auth.fetchMe()
+      avatarUrl.value = auth.user?.avatar_url || ''
+      success.value = 'Avatar uploaded successfully!'
     } catch (e: any) {
       error.value = e.response?.data?.message || 'Failed to upload avatar'
     } finally {

@@ -2,6 +2,7 @@
 use crate::common::spawn_app;
 use rustchat::models::{UpdateUser, UserResponse};
 use serde_json::json;
+use sqlx::Executor;
 
 mod common;
 
@@ -98,4 +99,73 @@ async fn test_user_custom_status() {
     let user: UserResponse = get_res.json().await.expect("Failed to parse user");
 
     assert_eq!(user.custom_status, Some(status_payload));
+}
+
+#[tokio::test]
+async fn test_auth_me_normalizes_internal_presigned_avatar_urls() {
+    let app = spawn_app().await;
+
+    let register_data = json!({
+        "username": "avataruser",
+        "email": "avatar@example.com",
+        "password": "Password123!",
+        "display_name": "Avatar User"
+    });
+
+    let register_res = app
+        .api_client
+        .post(&format!("{}/api/v1/auth/register", &app.address))
+        .json(&register_data)
+        .send()
+        .await
+        .expect("Failed to register avatar user");
+
+    assert_eq!(200, register_res.status().as_u16());
+    let register_body: serde_json::Value = register_res
+        .json()
+        .await
+        .expect("Failed to parse register response");
+    let token = register_body["token"]
+        .as_str()
+        .expect("Missing auth token")
+        .to_string();
+    let user_id = register_body["user"]["id"]
+        .as_str()
+        .expect("Missing user id")
+        .to_string();
+
+    let stale_url = format!(
+        "https://s3.rustchat.io/rustchat-uploads/files/{}/legacy-avatar.jpg?x-id=GetObject&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20260401T232501Z&X-Amz-Expires=3600",
+        user_id
+    );
+
+    app.db_pool
+        .execute(
+            sqlx::query("UPDATE users SET avatar_url = $1 WHERE id = $2")
+                .bind(&stale_url)
+                .bind(
+                    uuid::Uuid::parse_str(&user_id)
+                        .expect("Expected UUID user id for avatar normalization test"),
+                ),
+        )
+        .await
+        .expect("Failed to seed stale avatar URL");
+
+    let me_res = app
+        .api_client
+        .get(&format!("{}/api/v1/auth/me", &app.address))
+        .header("Authorization", format!("Bearer {}", token))
+        .send()
+        .await
+        .expect("Failed to fetch current user");
+
+    assert_eq!(200, me_res.status().as_u16());
+    let me: UserResponse = me_res
+        .json()
+        .await
+        .expect("Failed to parse /auth/me response");
+    assert_eq!(
+        me.avatar_url,
+        Some(format!("/api/v4/users/{}/image", user_id))
+    );
 }

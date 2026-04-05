@@ -24,7 +24,7 @@ use crate::mattermost_compat::{
     models as mm,
 };
 use crate::middleware::rate_limit::{self, RateLimitConfig};
-use crate::models::{channel::Channel, Team, User};
+use crate::models::{channel::Channel, legacy_avatar_key_from_url, Team, User};
 use crate::services::oauth_token_exchange::{exchange_code_with_sso_verification, ExchangeError};
 
 mod activity;
@@ -2119,7 +2119,23 @@ async fn get_user_image(
 
     // Try to fetch from S3
     let key = format!("avatars/{}.png", user_uuid);
-    let data = state.s3_client.download_optional(&key).await?;
+    let mut data = state.s3_client.download_optional(&key).await?;
+
+    if data.is_none() {
+        let legacy_avatar_url: Option<String> =
+            sqlx::query_scalar("SELECT avatar_url FROM users WHERE id = $1")
+                .bind(user_uuid)
+                .fetch_optional(&state.db)
+                .await?
+                .flatten();
+
+        if let Some(legacy_key) = legacy_avatar_url
+            .as_deref()
+            .and_then(|url| legacy_avatar_key_from_url(user_uuid, url))
+        {
+            data = state.s3_client.download_optional(&legacy_key).await?;
+        }
+    }
 
     match data {
         Some(bytes) => {

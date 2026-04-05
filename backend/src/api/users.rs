@@ -12,7 +12,7 @@ use crate::api::v4::status as v4_status;
 use crate::auth::policy::permissions;
 use crate::auth::{hash_password, AuthUser};
 use crate::error::{ApiResult, AppError};
-use crate::models::{ChangePassword, UpdateUser, User, UserResponse};
+use crate::models::{normalize_avatar_url, ChangePassword, UpdateUser, User, UserResponse};
 
 /// User status response
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -260,8 +260,10 @@ async fn update_user(
             .await?;
     }
     if let Some(ref avatar_url) = input.avatar_url {
+        let normalized_avatar_url =
+            normalize_avatar_url(id, Some(avatar_url)).unwrap_or_else(String::new);
         sqlx::query("UPDATE users SET avatar_url = $1 WHERE id = $2")
-            .bind(avatar_url)
+            .bind(&normalized_avatar_url)
             .bind(id)
             .execute(&state.db)
             .await?;

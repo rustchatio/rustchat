@@ -167,7 +167,8 @@ impl S3Client {
             .build()
             .map_err(|e| AppError::Internal(format!("CORS config build error: {}", e)))?;
 
-        match self.client
+        match self
+            .client
             .put_bucket_cors()
             .bucket(&self.bucket)
             .cors_configuration(cors_config)

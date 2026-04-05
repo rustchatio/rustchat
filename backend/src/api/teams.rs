@@ -12,7 +12,10 @@ use crate::{
     auth::middleware::AuthUser,
     auth::policy::permissions,
     error::AppError,
-    models::team::{AddTeamMember, CreateTeam, Team, TeamMember, TeamMemberResponse},
+    models::{
+        normalize_avatar_url,
+        team::{AddTeamMember, CreateTeam, Team, TeamMember, TeamMemberResponse},
+    },
     services::team_membership::{
         apply_default_channel_membership_for_team_join, ensure_default_channels_for_team,
     },
@@ -254,7 +257,7 @@ async fn get_members(
         }
     }
 
-    let members = sqlx::query_as::<_, TeamMemberResponse>(
+    let mut members = sqlx::query_as::<_, TeamMemberResponse>(
         r#"
         SELECT tm.team_id, tm.user_id, tm.role, tm.created_at,
                u.username, u.display_name, u.avatar_url, u.presence
@@ -267,6 +270,10 @@ async fn get_members(
     .bind(id)
     .fetch_all(&state.db)
     .await?;
+
+    for member in &mut members {
+        member.avatar_url = normalize_avatar_url(member.user_id, member.avatar_url.as_deref());
+    }
 
     Ok(Json(members))
 }

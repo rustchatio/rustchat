@@ -3,7 +3,8 @@
 use crate::api::AppState;
 use crate::error::ApiResult;
 use crate::models::{
-    Activity, ActivityFeedResponse, ActivityQuery, ActivityResponse, ActivityType,
+    normalize_avatar_url, Activity, ActivityFeedResponse, ActivityQuery, ActivityResponse,
+    ActivityType,
 };
 use crate::realtime::{EventType, WsBroadcast, WsEnvelope};
 use chrono::{DateTime, Utc};
@@ -105,23 +106,29 @@ pub async fn create_activity(
     .await
     .ok()
     .flatten()
-    .map(|row: sqlx::postgres::PgRow| ActivityResponse {
-        id: row.get("id"),
-        r#type: ActivityType::parse(&row.get::<String, _>("activity_type"))
-            .expect("unknown activity type"),
-        actor_id: row.get("actor_id"),
-        actor_username: row.get("actor_username"),
-        actor_avatar_url: row.get("actor_avatar_url"),
-        channel_id: row.get("channel_id"),
-        channel_name: row.get("channel_name"),
-        team_id: row.get("team_id"),
-        team_name: row.get("team_name"),
-        post_id: row.get("post_id"),
-        root_id: row.get("root_id"),
-        message_text: row.get("message_text"),
-        reaction: row.get("reaction"),
-        read: row.get("read"),
-        created_at: row.get("created_at"),
+    .map(|row: sqlx::postgres::PgRow| {
+        let actor_id: Uuid = row.get("actor_id");
+        ActivityResponse {
+            id: row.get("id"),
+            r#type: ActivityType::parse(&row.get::<String, _>("activity_type"))
+                .expect("unknown activity type"),
+            actor_id,
+            actor_username: row.get("actor_username"),
+            actor_avatar_url: normalize_avatar_url(
+                actor_id,
+                row.get::<Option<String>, _>("actor_avatar_url").as_deref(),
+            ),
+            channel_id: row.get("channel_id"),
+            channel_name: row.get("channel_name"),
+            team_id: row.get("team_id"),
+            team_name: row.get("team_name"),
+            post_id: row.get("post_id"),
+            root_id: row.get("root_id"),
+            message_text: row.get("message_text"),
+            reaction: row.get("reaction"),
+            read: row.get("read"),
+            created_at: row.get("created_at"),
+        }
     });
 
     let broadcast_data = activity_response
@@ -221,6 +228,10 @@ pub async fn get_activities(
             created_at: row.get("created_at"),
         })
         .collect();
+
+    for row in &mut rows {
+        row.actor_avatar_url = normalize_avatar_url(row.actor_id, row.actor_avatar_url.as_deref());
+    }
 
     // Pagination: we fetched limit+1 rows to determine if there's a next page
     let has_more = rows.len() > limit as usize;

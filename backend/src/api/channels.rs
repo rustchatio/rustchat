@@ -12,7 +12,9 @@ use super::AppState;
 use crate::auth::policy::permissions;
 use crate::auth::AuthUser;
 use crate::error::{ApiResult, AppError};
-use crate::models::{Channel, ChannelMember, ChannelType, CreateChannel, UpdateChannel};
+use crate::models::{
+    normalize_avatar_url, Channel, ChannelMember, ChannelType, CreateChannel, UpdateChannel,
+};
 use crate::realtime::events::{EventType, WsBroadcast, WsEnvelope};
 
 /// Build channels routes
@@ -496,7 +498,7 @@ async fn list_members(
             .await?
             .ok_or_else(|| AppError::Forbidden("Not a member of this channel".to_string()))?;
 
-    let members: Vec<ChannelMember> = sqlx::query_as(
+    let mut members: Vec<ChannelMember> = sqlx::query_as(
         r#"
         SELECT cm.*, u.username, u.display_name, u.avatar_url, u.presence
         FROM channel_members cm
@@ -508,6 +510,10 @@ async fn list_members(
     .bind(id)
     .fetch_all(&state.db)
     .await?;
+
+    for member in &mut members {
+        member.avatar_url = normalize_avatar_url(member.user_id, member.avatar_url.as_deref());
+    }
 
     Ok(Json(members))
 }

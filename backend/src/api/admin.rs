@@ -14,9 +14,10 @@ use crate::auth::AuthUser;
 use crate::error::{ApiResult, AppError};
 use crate::middleware::reliability::{send_reqwest_with_retry, RetryCondition, RetryConfig};
 use crate::models::{
-    AddTeamMember, AuditLog, AuditLogQuery, CreateChannel, CreateRetentionPolicy, CreateSsoConfig,
-    Permission, RetentionPolicy, ServerConfig, ServerConfigResponse, SsoConfig, SsoConfigResponse,
-    SsoProviderType, SsoTestResult, TeamMember, TeamMemberResponse, UpdateChannel, UpdateSsoConfig,
+    normalize_avatar_url, AddTeamMember, AuditLog, AuditLogQuery, CreateChannel,
+    CreateRetentionPolicy, CreateSsoConfig, Permission, RetentionPolicy, ServerConfig,
+    ServerConfigResponse, SsoConfig, SsoConfigResponse, SsoProviderType, SsoTestResult, TeamMember,
+    TeamMemberResponse, UpdateChannel, UpdateSsoConfig,
 };
 use crate::services::email_provider::{EmailAddress, EmailContent, MailProvider, SmtpProvider};
 use crate::services::membership_policies::apply_auto_membership_for_new_user;
@@ -81,7 +82,9 @@ pub fn router() -> Router<AppState> {
         .route("/admin/teams", get(list_admin_teams))
         .route(
             "/admin/teams/{id}",
-            get(get_admin_team).put(update_admin_team).delete(delete_admin_team),
+            get(get_admin_team)
+                .put(update_admin_team)
+                .delete(delete_admin_team),
         )
         .route(
             "/admin/teams/{id}/members",
@@ -1625,7 +1628,7 @@ async fn list_team_members(
 ) -> ApiResult<Json<Vec<TeamMemberResponse>>> {
     require_admin(&auth)?;
 
-    let members = sqlx::query_as::<_, TeamMemberResponse>(
+    let mut members = sqlx::query_as::<_, TeamMemberResponse>(
         r#"
         SELECT tm.team_id, tm.user_id, tm.role, tm.created_at,
                u.username, u.display_name, u.avatar_url
@@ -1638,6 +1641,10 @@ async fn list_team_members(
     .bind(id)
     .fetch_all(&state.db)
     .await?;
+
+    for member in &mut members {
+        member.avatar_url = normalize_avatar_url(member.user_id, member.avatar_url.as_deref());
+    }
 
     Ok(Json(members))
 }
