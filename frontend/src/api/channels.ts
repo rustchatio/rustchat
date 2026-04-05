@@ -1,4 +1,22 @@
 import api from './client'
+import { HttpClient } from './http/HttpClient'
+import { useAuthStore } from '../stores/auth'
+
+// Create v4 API client for MM-compatible endpoints
+// (the default client uses /api/v1 as base)
+const v4Api = new HttpClient({
+    baseURL: '/api/v4',
+    requestInterceptor: (config) => {
+        const authStore = useAuthStore()
+        if (authStore.token) {
+            config.headers = {
+                ...config.headers,
+                Authorization: `Bearer ${authStore.token}`,
+            }
+        }
+        return config
+    },
+})
 
 export type ChannelType = 'public' | 'private' | 'direct' | 'group'
 
@@ -101,17 +119,17 @@ export const channelsApi = {
         api.post<ChannelMember>(`/channels/${channelId}/members`, { user_id: userId }),
 }
 
-// Sidebar categories API
+// Sidebar categories API (v4 Mattermost-compatible)
 export const categoriesApi = {
     getCategories: (userId: string, teamId: string) =>
-        api.get<SidebarCategories>(`/users/${userId}/teams/${teamId}/channels/categories`),
+        v4Api.get<SidebarCategories>(`/users/${userId}/teams/${teamId}/channels/categories`),
 
     getCategoriesOrder: (userId: string, teamId: string) =>
-        api.get<string[]>(`/users/${userId}/teams/${teamId}/channels/categories/order`),
+        v4Api.get<string[]>(`/users/${userId}/teams/${teamId}/channels/categories/order`),
     
     updateCategories: (userId: string, teamId: string, categories: SidebarCategory[]) =>
-        api.put<SidebarCategory[]>(`/users/${userId}/teams/${teamId}/channels/categories`, categories),
+        v4Api.put<SidebarCategory[]>(`/users/${userId}/teams/${teamId}/channels/categories`, categories),
     
     updateCategory: (userId: string, teamId: string, categoryId: string, category: Partial<SidebarCategory>) =>
-        api.put<SidebarCategory>(`/users/${userId}/teams/${teamId}/channels/categories/${categoryId}`, category),
+        v4Api.put<SidebarCategory>(`/users/${userId}/teams/${teamId}/channels/categories/${categoryId}`, category),
 }
