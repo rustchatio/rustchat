@@ -65,11 +65,11 @@ onMounted(loadUsers);
 
 <template>
     <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]" @click.self="emit('close')">
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col">
+        <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[80vh] flex flex-col">
             <!-- Header -->
-            <div class="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+            <div class="flex items-center justify-between p-6 border-b border-gray-200">
                 <div>
-                    <h2 class="text-xl font-bold text-gray-900 dark:text-white">Policy Impact Preview</h2>
+                    <h2 class="text-xl font-bold text-gray-900">Policy Impact Preview</h2>
                     <p class="text-sm text-gray-500 mt-1">{{ policy?.name }}</p>
                 </div>
                 <button @click="emit('close')" class="p-2 text-gray-500 hover:text-gray-700 rounded-lg">
@@ -81,61 +81,61 @@ onMounted(loadUsers);
             <div class="flex-1 overflow-auto p-6 space-y-6">
                 <!-- Summary -->
                 <div class="grid grid-cols-3 gap-4">
-                    <div class="p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg">
+                    <div class="p-4 bg-indigo-50 rounded-lg">
                         <div class="flex items-center text-indigo-600 mb-2">
                             <Users class="w-5 h-5 mr-2" />
                             <span class="text-sm font-medium">Source</span>
                         </div>
-                        <p class="text-lg font-semibold text-gray-900 dark:text-white">{{ sourceLabel }}</p>
+                        <p class="text-lg font-semibold text-gray-900">{{ sourceLabel }}</p>
                     </div>
                     
-                    <div class="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                    <div class="p-4 bg-blue-50 rounded-lg">
                         <div class="flex items-center text-blue-600 mb-2">
                             <Building2 class="w-5 h-5 mr-2" />
                             <span class="text-sm font-medium">Teams</span>
                         </div>
-                        <p class="text-lg font-semibold text-gray-900 dark:text-white">{{ affectedTeams.length }}</p>
+                        <p class="text-lg font-semibold text-gray-900">{{ affectedTeams.length }}</p>
                     </div>
                     
-                    <div class="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                    <div class="p-4 bg-green-50 rounded-lg">
                         <div class="flex items-center text-green-600 mb-2">
                             <Hash class="w-5 h-5 mr-2" />
                             <span class="text-sm font-medium">Channels</span>
                         </div>
-                        <p class="text-lg font-semibold text-gray-900 dark:text-white">{{ affectedChannels.length }}</p>
+                        <p class="text-lg font-semibold text-gray-900">{{ affectedChannels.length }}</p>
                     </div>
                 </div>
 
                 <!-- Affected Targets -->
                 <div>
-                    <h3 class="text-sm font-medium text-gray-900 dark:text-white uppercase tracking-wider mb-3">Target Memberships</h3>
+                    <h3 class="text-sm font-medium text-gray-900 uppercase tracking-wider mb-3">Target Memberships</h3>
                     
                     <div class="space-y-2">
                         <div
                             v-for="target in affectedTeams"
                             :key="target.id"
-                            class="flex items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
+                            class="flex items-center p-3 bg-gray-50 rounded-lg"
                         >
                             <Building2 class="w-5 h-5 text-gray-400 mr-3" />
                             <span class="flex-1">Team (ID: {{ target.target_id.slice(0, 8) }}...)</span>
-                            <span class="px-2 py-1 text-xs rounded-full bg-gray-200 dark:bg-gray-600 capitalize">{{ target.role_mode }}</span>
+                            <span class="px-2 py-1 text-xs rounded-full bg-gray-200 capitalize">{{ target.role_mode }}</span>
                         </div>
                         
                         <div
                             v-for="target in affectedChannels"
                             :key="target.id"
-                            class="flex items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg"
+                            class="flex items-center p-3 bg-gray-50 rounded-lg"
                         >
                             <Hash class="w-5 h-5 text-gray-400 mr-3" />
                             <span class="flex-1">Channel (ID: {{ target.target_id.slice(0, 8) }}...)</span>
-                            <span class="px-2 py-1 text-xs rounded-full bg-gray-200 dark:bg-gray-600 capitalize">{{ target.role_mode }}</span>
+                            <span class="px-2 py-1 text-xs rounded-full bg-gray-200 capitalize">{{ target.role_mode }}</span>
                         </div>
                     </div>
                 </div>
 
                 <!-- Sample Users -->
                 <div>
-                    <h3 class="text-sm font-medium text-gray-900 dark:text-white uppercase tracking-wider mb-3">
+                    <h3 class="text-sm font-medium text-gray-900 uppercase tracking-wider mb-3">
                         Sample Affected Users
                     </h3>
                     
@@ -152,7 +152,7 @@ onMounted(loadUsers);
                         <div
                             v-for="user in users"
                             :key="user.id"
-                            class="flex items-center p-3 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                            class="flex items-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50"
                         >
                             <input
                                 type="checkbox"
@@ -161,10 +161,10 @@ onMounted(loadUsers);
                                 class="w-4 h-4 text-indigo-600 rounded mr-3"
                             />
                             <div class="flex-1">
-                                <p class="font-medium text-gray-900 dark:text-white">@{{ user.username }}</p>
+                                <p class="font-medium text-gray-900">@{{ user.username }}</p>
                                 <p class="text-sm text-gray-500">{{ user.email }}</p>
                             </div>
-                            <span class="px-2 py-1 text-xs rounded-full bg-gray-100 dark:bg-gray-600 capitalize">{{ user.role }}</span>
+                            <span class="px-2 py-1 text-xs rounded-full bg-gray-100 capitalize">{{ user.role }}</span>
                         </div>
                     </div>
                     
@@ -174,9 +174,9 @@ onMounted(loadUsers);
                 </div>
 
                 <!-- Warning -->
-                <div class="p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg flex items-start">
+                <div class="p-4 bg-yellow-50 rounded-lg flex items-start">
                     <AlertCircle class="w-5 h-5 text-yellow-600 mr-3 mt-0.5" />
-                    <div class="text-sm text-yellow-800 dark:text-yellow-200">
+                    <div class="text-sm text-yellow-800">
                         <p class="font-medium">Important</p>
                         <p>This is a preview only. The actual number of affected users may vary based on current membership states and policy execution timing.</p>
                     </div>
@@ -184,7 +184,7 @@ onMounted(loadUsers);
             </div>
 
             <!-- Footer -->
-            <div class="flex justify-end p-6 border-t border-gray-200 dark:border-gray-700">
+            <div class="flex justify-end p-6 border-t border-gray-200">
                 <button
                     @click="emit('close')"
                     class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"

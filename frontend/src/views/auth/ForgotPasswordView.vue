@@ -98,10 +98,10 @@ async function handleSubmit() {
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
         </svg>
       </div>
-      <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+      <h3 class="text-xl font-semibold text-gray-900 mb-2">
         Check your email
       </h3>
-      <p class="text-gray-600 dark:text-gray-300 mb-6">
+      <p class="text-gray-600 mb-6">
         If an account exists for <strong>{{ email }}</strong>, you will receive a password reset link.
         Please check your inbox and spam folder.
       </p>
@@ -129,7 +129,7 @@ async function handleSubmit() {
         />
       </div>
 
-      <p class="text-sm text-gray-600 dark:text-gray-300">
+      <p class="text-sm text-gray-600">
         Enter your email address and we'll send you a link to reset your password.
       </p>
 

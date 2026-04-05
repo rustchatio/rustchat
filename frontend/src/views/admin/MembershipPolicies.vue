@@ -173,8 +173,8 @@ onMounted(fetchPolicies);
         <!-- Header -->
         <div class="flex items-center justify-between">
             <div>
-                <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Membership Policies</h1>
-                <p class="text-gray-500 dark:text-gray-400 mt-1">
+                <h1 class="text-2xl font-bold text-gray-900">Membership Policies</h1>
+                <p class="text-gray-500 mt-1">
                     Configure automatic team and channel membership based on user attributes
                 </p>
             </div>
@@ -188,7 +188,7 @@ onMounted(fetchPolicies);
         </div>
 
         <!-- Filters -->
-        <div class="flex flex-wrap gap-4 p-4 bg-white dark:bg-gray-800 rounded-lg shadow-sm">
+        <div class="flex flex-wrap gap-4 p-4 bg-white rounded-lg shadow-sm">
             <div class="flex-1 min-w-[200px]">
                 <div class="relative">
                     <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -196,7 +196,7 @@ onMounted(fetchPolicies);
                         v-model="searchQuery"
                         type="text"
                         placeholder="Search policies..."
-                        class="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-900"
                     />
                 </div>
             </div>
@@ -204,7 +204,7 @@ onMounted(fetchPolicies);
             <select
                 v-model="filterScope"
                 @change="fetchPolicies"
-                class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                class="px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-900"
             >
                 <option value="all">All Scopes</option>
                 <option value="global">Global</option>
@@ -214,7 +214,7 @@ onMounted(fetchPolicies);
             <select
                 v-model="filterEnabled"
                 @change="fetchPolicies"
-                class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                class="px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-900"
             >
                 <option value="all">All Status</option>
                 <option value="true">Enabled</option>
@@ -223,7 +223,7 @@ onMounted(fetchPolicies);
             
             <button
                 @click="fetchPolicies"
-                class="flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                class="flex items-center px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
             >
                 <RefreshCw class="w-4 h-4 mr-2" :class="{ 'animate-spin': loading }" />
                 Refresh
@@ -231,7 +231,7 @@ onMounted(fetchPolicies);
         </div>
 
         <!-- Policies List -->
-        <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm overflow-hidden">
+        <div class="bg-white rounded-lg shadow-sm overflow-hidden">
             <div v-if="loading" class="p-8 text-center text-gray-500">
                 <RefreshCw class="w-8 h-8 animate-spin mx-auto mb-4" />
                 <p>Loading policies...</p>
@@ -239,15 +239,15 @@ onMounted(fetchPolicies);
             
             <div v-else-if="filteredPolicies.length === 0" class="p-8 text-center text-gray-500">
                 <Shield class="w-16 h-16 mx-auto mb-4 text-gray-300" />
-                <p class="text-lg font-medium text-gray-700 dark:text-gray-300">No policies found</p>
+                <p class="text-lg font-medium text-gray-700">No policies found</p>
                 <p class="mt-1">Create a policy to automatically manage team and channel memberships</p>
             </div>
             
-            <div v-else class="divide-y divide-gray-200 dark:divide-gray-700">
+            <div v-else class="divide-y divide-gray-200">
                 <div
                     v-for="policy in filteredPolicies"
                     :key="policy.id"
-                    class="p-6 hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors"
+                    class="p-6 hover:bg-gray-50 transition-colors"
                 >
                     <div class="flex items-start justify-between">
                         <div class="flex-1 min-w-0">
@@ -256,28 +256,28 @@ onMounted(fetchPolicies);
                                     :is="getScopeIcon(policy.scope_type)"
                                     class="w-5 h-5 text-gray-400"
                                 />
-                                <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+                                <h3 class="text-lg font-semibold text-gray-900">
                                     {{ policy.name }}
                                 </h3>
                                 <span
                                     :class="[
                                         'px-2 py-0.5 text-xs rounded-full font-medium',
                                         policy.enabled
-                                            ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                                            : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300'
+                                            ? 'bg-green-100 text-green-800'
+                                            : 'bg-gray-100 text-gray-800'
                                     ]"
                                 >
                                     {{ policy.enabled ? 'Enabled' : 'Disabled' }}
                                 </span>
                                 <span
                                     v-if="policy.scope_type === 'team'"
-                                    class="px-2 py-0.5 text-xs rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+                                    class="px-2 py-0.5 text-xs rounded-full bg-blue-100 text-blue-800"
                                 >
                                     Team
                                 </span>
                             </div>
                             
-                            <p v-if="policy.description" class="mt-1 text-gray-600 dark:text-gray-400">
+                            <p v-if="policy.description" class="mt-1 text-gray-600">
                                 {{ policy.description }}
                             </p>
                             
@@ -364,10 +364,10 @@ onMounted(fetchPolicies);
             class="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
             @click.self="showAudit = false"
         >
-            <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[80vh] flex flex-col">
-                <div class="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+            <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[80vh] flex flex-col">
+                <div class="flex items-center justify-between p-6 border-b border-gray-200">
                     <div>
-                        <h2 class="text-xl font-bold text-gray-900 dark:text-white">
+                        <h2 class="text-xl font-bold text-gray-900">
                             Audit Log: {{ auditPolicy?.name }}
                         </h2>
                         <p class="text-sm text-gray-500 mt-1">Recent policy application events</p>
@@ -400,7 +400,7 @@ onMounted(fetchPolicies);
                                 <th class="pb-3">Status</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                        <tbody class="divide-y divide-gray-200">
                             <tr v-for="log in auditLogs" :key="log.id" class="text-sm">
                                 <td class="py-3 text-gray-500">
                                     {{ format(new Date(log.created_at), 'MMM d, HH:mm') }}

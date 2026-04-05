@@ -2,13 +2,13 @@
   <Transition name="slide">
     <div
       v-if="isOpen"
-      class="fixed inset-y-0 right-0 w-[400px] bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-800 shadow-xl z-50 flex flex-col"
+      class="fixed inset-y-0 right-0 w-[400px] bg-white border-l border-gray-200 shadow-xl z-50 flex flex-col"
       role="dialog"
       aria-label="Activity feed"
       aria-modal="true"
     >
       <!-- Header -->
-      <div class="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-800">
+      <div class="flex items-center justify-between p-4 border-b border-gray-200">
         <div class="flex items-center gap-2">
           <Bell class="w-5 h-5" />
           <h2 class="text-lg font-semibold">
@@ -27,7 +27,7 @@
             Mark all read
           </button>
           <button
-            class="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded"
+            class="p-1 hover:bg-gray-100 rounded"
             aria-label="Close activity feed"
             @click="close"
           >
@@ -55,7 +55,7 @@
           <p class="text-sm mt-1">Mentions, replies, and reactions will appear here</p>
         </div>
 
-        <div v-else class="divide-y divide-gray-100 dark:divide-gray-800">
+        <div v-else class="divide-y divide-gray-100">
           <ActivityItem
             v-for="activity in activities"
             :key="activity.id"

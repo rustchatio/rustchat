@@ -2,8 +2,8 @@
   <div
     class="flex items-start gap-3 p-4 cursor-pointer transition-colors"
     :class="{
-      'bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30': !activity.read,
-      'hover:bg-gray-50 dark:hover:bg-gray-800/50': activity.read
+      'bg-blue-50 hover:bg-blue-100': !activity.read,
+      'hover:bg-gray-50': activity.read
     }"
     @click="$emit('click')"
   >
@@ -30,7 +30,7 @@
         </span>
       </div>
 
-      <p v-if="activity.message" class="text-sm text-gray-600 dark:text-gray-400 mt-1 line-clamp-2">
+      <p v-if="activity.message" class="text-sm text-gray-600 mt-1 line-clamp-2">
         {{ activity.message }}
       </p>
 

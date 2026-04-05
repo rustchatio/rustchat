@@ -24,7 +24,7 @@ const typingText = computed(() => {
 <template>
   <div 
     v-if="typingUsers.length > 0"
-    class="px-5 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 flex items-center space-x-2 bg-transparent transition-opacity duration-200"
+    class="px-5 py-2 text-xs font-medium text-gray-500 flex items-center space-x-2 bg-transparent transition-opacity duration-200"
   >
     <!-- Typing dots animation -->
     <div class="flex space-x-1">

@@ -54,8 +54,8 @@ const saveSettings = async () => {
     <div class="space-y-6">
         <div class="flex items-center justify-between">
             <div>
-                <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Integrations</h1>
-                <p class="text-gray-500 dark:text-gray-400 mt-1">Configure webhooks, slash commands, and bots</p>
+                <h1 class="text-2xl font-bold text-gray-900">Integrations</h1>
+                <p class="text-gray-500 mt-1">Configure webhooks, slash commands, and bots</p>
             </div>
             <div class="flex items-center gap-3">
                 <span v-if="saveSuccess" class="flex items-center text-green-600 text-sm">
@@ -73,43 +73,43 @@ const saveSettings = async () => {
         </div>
 
         <!-- Error Alert -->
-        <div v-if="saveError" class="flex items-center gap-2 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-400">
+        <div v-if="saveError" class="flex items-center gap-2 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
             <AlertCircle class="w-5 h-5 shrink-0" />
             {{ saveError }}
         </div>
 
         <div class="space-y-4">
             <!-- Webhooks -->
-            <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                 <div class="flex items-center justify-between mb-4">
                     <div class="flex items-center">
                         <Webhook class="w-6 h-6 text-indigo-500 mr-3" />
                         <div>
-                            <h3 class="font-semibold text-gray-900 dark:text-white">Webhooks</h3>
+                            <h3 class="font-semibold text-gray-900">Webhooks</h3>
                             <p class="text-sm text-gray-500">Incoming and outgoing webhooks for integrations</p>
                         </div>
                     </div>
                     <input type="checkbox" v-model="form.enable_webhooks" class="w-5 h-5 text-indigo-600 rounded" />
                 </div>
-                <div v-if="form.enable_webhooks" class="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-gray-200 dark:border-slate-700">
+                <div v-if="form.enable_webhooks" class="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-gray-200">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Max per Team</label>
-                        <input v-model.number="form.max_webhooks_per_team" type="number" class="w-full px-3 py-2 border rounded-lg dark:bg-slate-900 dark:border-gray-600 dark:text-white" />
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Max per Team</label>
+                        <input v-model.number="form.max_webhooks_per_team" type="number" class="w-full px-3 py-2 border rounded-lg" />
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Max Payload (KB)</label>
-                        <input v-model.number="form.webhook_payload_size_kb" type="number" class="w-full px-3 py-2 border rounded-lg dark:bg-slate-900 dark:border-gray-600 dark:text-white" />
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Max Payload (KB)</label>
+                        <input v-model.number="form.webhook_payload_size_kb" type="number" class="w-full px-3 py-2 border rounded-lg" />
                     </div>
                 </div>
             </div>
 
             <!-- Slash Commands -->
-            <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                 <div class="flex items-center justify-between">
                     <div class="flex items-center">
                         <Terminal class="w-6 h-6 text-green-500 mr-3" />
                         <div>
-                            <h3 class="font-semibold text-gray-900 dark:text-white">Slash Commands</h3>
+                            <h3 class="font-semibold text-gray-900">Slash Commands</h3>
                             <p class="text-sm text-gray-500">Custom commands for teams and channels</p>
                         </div>
                     </div>
@@ -118,12 +118,12 @@ const saveSettings = async () => {
             </div>
 
             <!-- Bots -->
-            <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                 <div class="flex items-center justify-between">
                     <div class="flex items-center">
                         <Bot class="w-6 h-6 text-purple-500 mr-3" />
                         <div>
-                            <h3 class="font-semibold text-gray-900 dark:text-white">Bot Accounts</h3>
+                            <h3 class="font-semibold text-gray-900">Bot Accounts</h3>
                             <p class="text-sm text-gray-500">Allow creation of bot users for automation</p>
                         </div>
                     </div>

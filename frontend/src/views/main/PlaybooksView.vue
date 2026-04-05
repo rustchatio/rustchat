@@ -18,21 +18,21 @@ onMounted(() => {
 </script>
 
 <template>
-    <div class="flex h-screen bg-white dark:bg-gray-900">
+    <div class="flex h-screen bg-white">
         <!-- Sidebar (Reusing ChannelSidebar for navigation consistency) -->
         <ChannelSidebar />
 
         <!-- Main Content -->
-        <div class="flex-1 flex flex-col min-w-0 bg-gray-50 dark:bg-gray-800">
+        <div class="flex-1 flex flex-col min-w-0 bg-gray-50">
             <!-- Header -->
-            <header class="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-6 py-4 flex justify-between items-center">
+            <header class="bg-white border-b border-gray-200 px-6 py-4 flex justify-between items-center">
                 <div class="flex items-center space-x-4">
-                    <div class="p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg">
-                        <Book class="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
+                    <div class="p-2 bg-indigo-100 rounded-lg">
+                        <Book class="w-6 h-6 text-indigo-600" />
                     </div>
                     <div>
-                        <h1 class="text-xl font-bold text-gray-900 dark:text-white">Playbooks</h1>
-                        <p class="text-sm text-gray-500 dark:text-gray-400">Automate your team's workflows</p>
+                        <h1 class="text-xl font-bold text-gray-900">Playbooks</h1>
+                        <p class="text-sm text-gray-500">Automate your team's workflows</p>
                     </div>
                 </div>
                 
@@ -43,14 +43,14 @@ onMounted(() => {
             </header>
 
             <!-- Tabs -->
-            <div class="px-6 mt-4 border-b border-gray-200 dark:border-gray-700">
+            <div class="px-6 mt-4 border-b border-gray-200">
                 <nav class="flex space-x-8">
                     <button
                         @click="activeTab = 'playbooks'"
                         class="pb-4 border-b-2 font-medium text-sm transition-colors flex items-center"
                         :class="activeTab === 'playbooks' 
-                            ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400' 
-                            : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'"
+                            ? 'border-indigo-500 text-indigo-600' 
+                            : 'border-transparent text-gray-500 hover:text-gray-700'"
                     >
                         <Book class="w-4 h-4 mr-2" />
                         Library
@@ -59,8 +59,8 @@ onMounted(() => {
                         @click="activeTab = 'runs'"
                         class="pb-4 border-b-2 font-medium text-sm transition-colors flex items-center"
                         :class="activeTab === 'runs' 
-                            ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400' 
-                            : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'"
+                            ? 'border-indigo-500 text-indigo-600' 
+                            : 'border-transparent text-gray-500 hover:text-gray-700'"
                     >
                         <Play class="w-4 h-4 mr-2" />
                         Runs
@@ -83,9 +83,9 @@ onMounted(() => {
                         <PlaybookList />
                     </div>
                     <div v-else key="runs">
-                        <div v-if="playbookStore.runs.length === 0" class="text-center py-20 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 border-dashed">
+                        <div v-if="playbookStore.runs.length === 0" class="text-center py-20 bg-white rounded-lg border border-gray-200 border-dashed">
                             <Play class="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                            <h3 class="text-lg font-medium text-gray-900 dark:text-white">No active runs</h3>
+                            <h3 class="text-lg font-medium text-gray-900">No active runs</h3>
                             <p class="text-gray-500">Start a playbook run to track progress</p>
                         </div>
                         <div v-else class="grid grid-cols-1 gap-4">
@@ -93,16 +93,16 @@ onMounted(() => {
                                 v-for="run in playbookStore.runs" 
                                 :key="run.id"
                                 @click="router.push(`/runs/${run.id}`)"
-                                class="bg-white dark:bg-gray-800 p-4 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-all cursor-pointer flex items-center justify-between group"
+                                class="bg-white p-4 rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-all cursor-pointer flex items-center justify-between group"
                             >
                                 <div class="flex items-center space-x-4">
-                                    <div class="p-2 bg-blue-50 dark:bg-blue-900/30 rounded-lg text-blue-600 dark:text-blue-400">
+                                    <div class="p-2 bg-blue-50 rounded-lg text-blue-600">
                                         <Play class="w-5 h-5" />
                                     </div>
                                     <div>
-                                        <h3 class="font-medium text-gray-900 dark:text-white group-hover:text-primary transition-colors">{{ run.name }}</h3>
+                                        <h3 class="font-medium text-gray-900 group-hover:text-primary transition-colors">{{ run.name }}</h3>
                                         <div class="flex items-center space-x-2 mt-1 text-xs text-gray-500">
-                                            <span class="capitalize px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700">{{ run.status.replace('_', ' ') }}</span>
+                                            <span class="capitalize px-1.5 py-0.5 rounded bg-gray-100">{{ run.status.replace('_', ' ') }}</span>
                                             <span>• Started {{ new Date(run.started_at).toLocaleDateString() }}</span>
                                         </div>
                                     </div>

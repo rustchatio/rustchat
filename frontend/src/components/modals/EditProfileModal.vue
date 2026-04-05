@@ -98,11 +98,11 @@ function handleClose() {
       <div class="absolute inset-0 bg-black/50" @click="handleClose"></div>
       
       <!-- Modal -->
-      <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden max-h-[90vh] overflow-y-auto">
+      <div class="relative bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden max-h-[90vh] overflow-y-auto">
         <!-- Header -->
-        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-          <h2 class="text-xl font-bold text-gray-900 dark:text-white">Edit Profile</h2>
-          <button @click="handleClose" class="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+          <h2 class="text-xl font-bold text-gray-900">Edit Profile</h2>
+          <button @click="handleClose" class="p-1 hover:bg-gray-100 rounded-lg transition-colors">
             <X class="w-5 h-5 text-gray-500" />
           </button>
         </div>
@@ -118,7 +118,7 @@ function handleClose() {
               </div>
               <button 
                 type="button"
-                class="absolute bottom-0 right-0 w-8 h-8 bg-gray-800 dark:bg-gray-600 rounded-full flex items-center justify-center border-2 border-white dark:border-gray-800"
+                class="absolute bottom-0 right-0 w-8 h-8 bg-gray-800 rounded-full flex items-center justify-center border-2 border-white"
               >
                 <Camera class="w-4 h-4 text-white" />
               </button>
@@ -127,15 +127,15 @@ function handleClose() {
 
           <!-- Full Name Preview -->
           <div class="text-center">
-            <p class="text-lg font-semibold text-gray-900 dark:text-white">{{ fullNamePreview }}</p>
+            <p class="text-lg font-semibold text-gray-900">{{ fullNamePreview }}</p>
             <p class="text-sm text-gray-500">@{{ username }}</p>
           </div>
 
           <!-- Error/Success Messages -->
-          <div v-if="error" class="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-600 dark:text-red-400 text-sm">
+          <div v-if="error" class="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
             {{ error }}
           </div>
-          <div v-if="success" class="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-green-600 dark:text-green-400 text-sm">
+          <div v-if="success" class="p-3 bg-green-50 border border-green-200 rounded-lg text-green-600 text-sm">
             {{ success }}
           </div>
 
@@ -195,10 +195,10 @@ function handleClose() {
 
           <!-- Email (read-only) -->
           <div class="space-y-1">
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+            <label class="block text-sm font-medium text-gray-700">
               Email
             </label>
-            <div class="px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-gray-600 dark:text-gray-400 text-sm">
+            <div class="px-3 py-2 bg-gray-100 rounded-lg text-gray-600 text-sm">
               {{ currentUser?.email }}
             </div>
           </div>

@@ -27,8 +27,8 @@ const formatDate = (date: string) => {
 <template>
     <div class="space-y-6">
         <div>
-            <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Audit Logs</h1>
-            <p class="text-gray-500 dark:text-gray-400 mt-1">View administrative actions and changes</p>
+            <h1 class="text-2xl font-bold text-gray-900">Audit Logs</h1>
+            <p class="text-gray-500 mt-1">View administrative actions and changes</p>
         </div>
 
         <!-- Filters -->
@@ -39,15 +39,15 @@ const formatDate = (date: string) => {
                     v-model="actionFilter"
                     type="text"
                     placeholder="Filter by action..."
-                    class="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-800"
+                    class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg bg-white"
                 />
             </div>
         </div>
 
         <!-- Logs Table -->
-        <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 overflow-hidden">
-            <table class="min-w-full divide-y divide-gray-200 dark:divide-slate-700">
-                <thead class="bg-gray-50 dark:bg-slate-900">
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
                     <tr>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Action</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Target</th>
@@ -56,12 +56,12 @@ const formatDate = (date: string) => {
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                     </tr>
                 </thead>
-                <tbody class="divide-y divide-gray-200 dark:divide-slate-700">
-                    <tr v-for="log in adminStore.auditLogs" :key="log.id" class="hover:bg-gray-50 dark:hover:bg-slate-700/50">
+                <tbody class="divide-y divide-gray-200">
+                    <tr v-for="log in adminStore.auditLogs" :key="log.id" class="hover:bg-gray-50">
                         <td class="px-6 py-4 whitespace-nowrap">
                             <div class="flex items-center">
                                 <component :is="actionIcons[log.action] || FileText" class="w-4 h-4 text-gray-400 mr-2" />
-                                <span class="text-sm font-medium text-gray-900 dark:text-white">{{ log.action }}</span>
+                                <span class="text-sm font-medium text-gray-900">{{ log.action }}</span>
                             </div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">

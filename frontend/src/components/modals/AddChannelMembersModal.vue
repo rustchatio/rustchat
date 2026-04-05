@@ -106,27 +106,27 @@ function handleClose() {
       <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="handleClose"></div>
       
       <!-- Modal -->
-      <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden flex flex-col max-h-[80vh]">
+      <div class="relative bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden flex flex-col max-h-[80vh]">
         <!-- Header -->
-        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
           <div>
-            <h2 class="text-xl font-bold text-gray-900 dark:text-white">Add Members</h2>
-            <p v-if="channelName" class="text-sm text-gray-500 dark:text-gray-400 mt-0.5">To #{{ channelName }}</p>
+            <h2 class="text-xl font-bold text-gray-900">Add Members</h2>
+            <p v-if="channelName" class="text-sm text-gray-500 mt-0.5">To #{{ channelName }}</p>
           </div>
-          <button @click="handleClose" class="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
+          <button @click="handleClose" class="p-1 hover:bg-gray-100 rounded-lg transition-colors">
             <X class="w-5 h-5 text-gray-500" />
           </button>
         </div>
 
         <!-- Search -->
-        <div class="px-6 py-4 border-b border-gray-100 dark:border-gray-700">
+        <div class="px-6 py-4 border-b border-gray-100">
           <div class="relative">
             <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input 
               v-model="search"
               type="text"
               placeholder="Search for team members..."
-              class="w-full pl-10 pr-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
+              class="w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all"
               autofocus
             />
           </div>
@@ -135,12 +135,12 @@ function handleClose() {
         <!-- Content -->
         <div class="flex-1 overflow-y-auto p-2 custom-scrollbar min-h-[200px]">
           <!-- Error -->
-          <div v-if="error" class="m-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-600 dark:text-red-400 text-sm">
+          <div v-if="error" class="m-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
             {{ error }}
           </div>
 
           <!-- Success -->
-          <div v-if="success" class="m-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-green-600 dark:text-green-400 text-sm">
+          <div v-if="success" class="m-4 p-3 bg-green-50 border border-green-200 rounded-lg text-green-600 text-sm">
             {{ success }}
           </div>
 
@@ -157,7 +157,7 @@ function handleClose() {
               :key="member.user_id"
               @click="addMember(member)"
               :disabled="addingMembers.has(member.user_id)"
-              class="w-full flex items-center justify-between px-4 py-3 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-colors group text-left"
+              class="w-full flex items-center justify-between px-4 py-3 rounded-lg hover:bg-indigo-50 transition-colors group text-left"
             >
               <div class="flex items-center">
                 <!-- Avatar -->
@@ -165,19 +165,19 @@ function handleClose() {
                   <img 
                     v-if="member.avatar_url"
                     :src="member.avatar_url"
-                    class="w-10 h-10 rounded-full object-cover ring-2 ring-white dark:ring-gray-800 shadow-sm"
+                    class="w-10 h-10 rounded-full object-cover ring-2 ring-white shadow-sm"
                   />
-                  <div v-else class="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center ring-2 ring-white dark:ring-gray-800 shadow-sm">
-                    <User class="w-6 h-6 text-indigo-500 dark:text-indigo-400" />
+                  <div v-else class="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center ring-2 ring-white shadow-sm">
+                    <User class="w-6 h-6 text-indigo-500" />
                   </div>
                 </div>
 
                 <!-- Name -->
                 <div class="flex-1 min-w-0">
-                  <p class="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                  <p class="text-sm font-semibold text-gray-900 truncate">
                     {{ member.display_name || member.username }}
                   </p>
-                  <p class="text-xs text-gray-500 dark:text-gray-400 truncate">
+                  <p class="text-xs text-gray-500 truncate">
                     @{{ member.username }}
                   </p>
                 </div>
@@ -187,7 +187,7 @@ function handleClose() {
               <div v-if="addingMembers.has(member.user_id)" class="w-8 h-8 flex items-center justify-center">
                 <div class="w-5 h-5 border-2 border-indigo-500/20 border-t-indigo-500 rounded-full animate-spin"></div>
               </div>
-              <div v-else class="w-8 h-8 flex items-center justify-center rounded-full bg-indigo-100 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div v-else class="w-8 h-8 flex items-center justify-center rounded-full bg-indigo-100 text-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity">
                 <UserPlus class="w-4 h-4" />
               </div>
             </button>
@@ -195,7 +195,7 @@ function handleClose() {
 
           <!-- Empty State -->
           <div v-else class="flex flex-col items-center justify-center py-12 text-gray-500 px-6 text-center">
-            <div class="w-12 h-12 rounded-full bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-4">
+            <div class="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mb-4">
               <UserPlus class="w-6 h-6 text-gray-400" />
             </div>
             <p class="text-sm font-medium">No members to add</p>
@@ -204,7 +204,7 @@ function handleClose() {
         </div>
 
         <!-- Footer -->
-        <div class="px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 flex justify-end">
+        <div class="px-6 py-4 border-t border-gray-200 bg-gray-50 flex justify-end">
           <BaseButton variant="secondary" @click="handleClose">
             Done
           </BaseButton>

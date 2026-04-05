@@ -52,17 +52,17 @@ function jumpToMessage(message: Message) {
 <template>
   <aside 
     v-if="show"
-    class="h-full bg-white dark:bg-gray-800 flex flex-col"
+    class="h-full bg-white flex flex-col"
   >
     <!-- Header -->
-    <div class="h-12 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between px-4">
+    <div class="h-12 border-b border-gray-200 flex items-center justify-between px-4">
       <div class="flex items-center space-x-2">
         <Bookmark class="w-5 h-5 text-gray-500 fill-current" />
-        <span class="font-semibold text-gray-900 dark:text-white">Saved Items</span>
+        <span class="font-semibold text-gray-900">Saved Items</span>
       </div>
       <button 
         @click="$emit('close')"
-        class="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-colors"
+        class="p-1 hover:bg-gray-100 rounded transition-colors"
       >
         <X class="w-5 h-5 text-gray-400" />
       </button>
@@ -83,36 +83,36 @@ function jumpToMessage(message: Message) {
         <div class="text-xs">Save messages to access them quickly here</div>
       </div>
 
-      <div v-else class="divide-y divide-gray-100 dark:divide-gray-800">
+      <div v-else class="divide-y divide-gray-100">
         <div 
             v-for="message in savedMessages" 
             :key="message.id"
-            class="px-4 py-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors group relative"
+            class="px-4 py-4 hover:bg-gray-50 transition-colors group relative"
         >
             <div class="flex items-start justify-between mb-1">
                 <div class="flex items-center space-x-2">
-                    <span class="font-bold text-sm text-gray-900 dark:text-gray-100">{{ message.username }}</span>
+                    <span class="font-bold text-sm text-gray-900">{{ message.username }}</span>
                     <span class="text-[10px] text-gray-400">{{ format(new Date(message.timestamp), 'MMM d, h:mm a') }}</span>
                 </div>
                 <!-- Actions -->
                 <div class="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button 
                         @click="handleUnsave(message)"
-                        class="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded text-gray-400 hover:text-red-500 transition-colors"
+                        class="p-1 hover:bg-gray-200 rounded text-gray-400 hover:text-red-500 transition-colors"
                         title="Unsave"
                     >
                         <Bookmark class="w-3.5 h-3.5" />
                     </button>
                     <button 
                         @click="jumpToMessage(message)"
-                        class="p-1 hover:bg-gray-200 dark:hover:bg-gray-700 rounded text-gray-400 hover:text-blue-500 transition-colors"
+                        class="p-1 hover:bg-gray-200 rounded text-gray-400 hover:text-blue-500 transition-colors"
                         title="Jump to message"
                     >
                         <ExternalLink class="w-3.5 h-3.5" />
                     </button>
                 </div>
             </div>
-            <div class="text-sm text-gray-700 dark:text-gray-300 line-clamp-4 mt-1">
+            <div class="text-sm text-gray-700 line-clamp-4 mt-1">
                 {{ message.content }}
             </div>
         </div>

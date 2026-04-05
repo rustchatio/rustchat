@@ -183,8 +183,8 @@ const sendTestEmail = async () => {
     <div class="space-y-6">
         <div class="flex items-center justify-between">
             <div>
-                <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Email & SMTP</h1>
-                <p class="text-gray-500 dark:text-gray-400 mt-1">Configure email delivery providers</p>
+                <h1 class="text-2xl font-bold text-gray-900">Email & SMTP</h1>
+                <p class="text-gray-500 mt-1">Configure email delivery providers</p>
             </div>
             <div class="flex items-center gap-3">
                 <span v-if="saveSuccess" class="flex items-center text-green-600 text-sm">
@@ -201,16 +201,16 @@ const sendTestEmail = async () => {
         </div>
 
         <!-- Error Alert -->
-        <div v-if="saveError" class="flex items-center gap-2 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-400">
+        <div v-if="saveError" class="flex items-center gap-2 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
             <AlertCircle class="w-5 h-5 shrink-0" />
             {{ saveError }}
         </div>
 
         <!-- Providers List -->
-        <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <div class="flex items-center mb-6">
                 <Mail class="w-5 h-5 text-gray-400 mr-2" />
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Email Providers</h2>
+                <h2 class="text-lg font-semibold text-gray-900">Email Providers</h2>
             </div>
 
             <div v-if="loading" class="text-center py-8 text-gray-500">
@@ -223,35 +223,35 @@ const sendTestEmail = async () => {
 
             <div v-else class="space-y-4">
                 <div v-for="provider in providers" :key="provider.id" 
-                     class="flex items-center justify-between p-4 border border-gray-200 dark:border-slate-700 rounded-lg"
-                     :class="{ 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-200 dark:border-indigo-800': provider.is_default }">
+                     class="flex items-center justify-between p-4 border border-gray-200 rounded-lg"
+                     :class="{ 'bg-indigo-50 border-indigo-200': provider.is_default }">
                     <div class="flex items-center gap-4">
-                        <div class="w-10 h-10 rounded-full bg-gray-100 dark:bg-slate-700 flex items-center justify-center">
+                        <div class="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
                             <Mail class="w-5 h-5 text-gray-500" />
                         </div>
                         <div>
                             <div class="flex items-center gap-2">
-                                <span class="font-medium text-gray-900 dark:text-white">{{ provider.host }}:{{ provider.port }}</span>
-                                <span v-if="provider.is_default" class="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 text-xs rounded-full">Default</span>
-                                <span v-if="!provider.enabled" class="px-2 py-0.5 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 text-xs rounded-full">Disabled</span>
+                                <span class="font-medium text-gray-900">{{ provider.host }}:{{ provider.port }}</span>
+                                <span v-if="provider.is_default" class="px-2 py-0.5 bg-indigo-100 text-indigo-700 text-xs rounded-full">Default</span>
+                                <span v-if="!provider.enabled" class="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs rounded-full">Disabled</span>
                             </div>
-                            <div class="text-sm text-gray-500 dark:text-gray-400">
+                            <div class="text-sm text-gray-500">
                                 {{ provider.from_name }} &lt;{{ provider.from_address }}&gt; • {{ provider.tls_mode.toUpperCase() }}
                             </div>
                         </div>
                     </div>
                     <div class="flex items-center gap-2">
                         <button v-if="!provider.is_default" @click="setDefault(provider.id)"
-                                class="p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg"
+                                class="p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg"
                                 title="Set as default">
                             <Star class="w-5 h-5" />
                         </button>
                         <button @click="editProvider(provider)"
-                                class="p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg">
+                                class="p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg">
                             Edit
                         </button>
                         <button @click="deleteProvider(provider.id)"
-                                class="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg">
+                                class="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg">
                             <Trash2 class="w-5 h-5" />
                         </button>
                     </div>
@@ -260,14 +260,14 @@ const sendTestEmail = async () => {
         </div>
 
         <!-- Test Email -->
-        <div v-if="defaultProvider" class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Send Test Email</h3>
+        <div v-if="defaultProvider" class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Send Test Email</h3>
             
-            <div v-if="testSuccess" class="mb-4 p-3 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-lg text-sm">
+            <div v-if="testSuccess" class="mb-4 p-3 bg-green-50 text-green-700 rounded-lg text-sm">
                 Test email sent successfully!
             </div>
             
-            <div v-if="testError" class="mb-4 p-3 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 rounded-lg text-sm">
+            <div v-if="testError" class="mb-4 p-3 bg-red-50 text-red-700 rounded-lg text-sm">
                 {{ testError }}
             </div>
 
@@ -275,7 +275,7 @@ const sendTestEmail = async () => {
                 <input 
                     v-model="testEmail"
                     type="email"
-                    class="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white"
+                    class="flex-1 px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-900"
                     placeholder="test@example.com"
                 />
                 <button 
@@ -293,9 +293,9 @@ const sendTestEmail = async () => {
 
         <!-- Add/Edit Modal -->
         <div v-if="showAddModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div class="bg-white dark:bg-slate-800 rounded-xl shadow-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-                <div class="p-6 border-b border-gray-200 dark:border-slate-700">
-                    <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
+            <div class="bg-white rounded-xl shadow-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                <div class="p-6 border-b border-gray-200">
+                    <h3 class="text-lg font-semibold text-gray-900">
                         {{ editingProvider ? 'Edit Provider' : 'Add Email Provider' }}
                     </h3>
                 </div>
@@ -303,74 +303,74 @@ const sendTestEmail = async () => {
                 <div class="p-6 space-y-4">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">SMTP Host</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">SMTP Host</label>
                             <input v-model="form.host" type="text" placeholder="smtp.example.com"
-                                   class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white" />
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-900" />
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">SMTP Port</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">SMTP Port</label>
                             <input v-model.number="form.port" type="number"
-                                   class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white" />
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-900" />
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Username</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Username</label>
                             <input v-model="form.username" type="text"
-                                   class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white" />
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-900" />
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">
                                 Password {{ editingProvider ? '(leave blank to keep existing)' : '' }}
                             </label>
                             <input v-model="form.password" type="password"
-                                   class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white" />
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-900" />
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">From Address</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">From Address</label>
                             <input v-model="form.from_address" type="email" placeholder="noreply@example.com"
-                                   class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white" />
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-900" />
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">From Name</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">From Name</label>
                             <input v-model="form.from_name" type="text"
-                                   class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white" />
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-900" />
                         </div>
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">SMTP Security</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">SMTP Security</label>
                             <select v-model="form.tls_mode"
-                                    class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white">
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-900">
                                 <option value="starttls">STARTTLS (587)</option>
                                 <option value="implicit_tls">Implicit TLS (465)</option>
                                 <option value="none">Plain (no TLS)</option>
                             </select>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Reply-To (optional)</label>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Reply-To (optional)</label>
                             <input v-model="form.reply_to" type="email" placeholder="support@example.com"
-                                   class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white" />
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-900" />
                         </div>
                     </div>
 
                     <div class="flex items-center gap-4">
                         <label class="flex items-center">
                             <input type="checkbox" v-model="form.enabled" class="w-4 h-4 text-indigo-600 rounded mr-2" />
-                            <span class="text-gray-700 dark:text-gray-300 text-sm">Enabled</span>
+                            <span class="text-gray-700 text-sm">Enabled</span>
                         </label>
                         <label class="flex items-center">
                             <input type="checkbox" v-model="form.is_default" class="w-4 h-4 text-indigo-600 rounded mr-2" />
-                            <span class="text-gray-700 dark:text-gray-300 text-sm">Set as default</span>
+                            <span class="text-gray-700 text-sm">Set as default</span>
                         </label>
                         <label class="flex items-center">
                             <input type="checkbox" v-model="form.skip_cert_verify" class="w-4 h-4 text-indigo-600 rounded mr-2" />
-                            <span class="text-gray-700 dark:text-gray-300 text-sm">Skip cert verify (testing only)</span>
+                            <span class="text-gray-700 text-sm">Skip cert verify (testing only)</span>
                         </label>
                     </div>
                 </div>
 
-                <div class="p-6 border-t border-gray-200 dark:border-slate-700 flex justify-end gap-3">
-                    <button @click="showAddModal = false" class="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-slate-700 rounded-lg">
+                <div class="p-6 border-t border-gray-200 flex justify-end gap-3">
+                    <button @click="showAddModal = false" class="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg">
                         Cancel
                     </button>
                     <button @click="saveProvider" :disabled="saving || !form.host"

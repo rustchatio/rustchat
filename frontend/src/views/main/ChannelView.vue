@@ -273,7 +273,7 @@ function handleKeydown(e: KeyboardEvent) {
                   />
                   
                   <!-- Breadcrumb navigation -->
-                  <div class="flex items-center px-4 py-1.5 border-b border-gray-100 dark:border-gray-800/50 bg-white dark:bg-gray-900">
+                  <div class="flex items-center px-4 py-1.5 border-b border-gray-100 bg-white">
                     <BreadcrumbBar :segments="breadcrumbs" />
                   </div>
 

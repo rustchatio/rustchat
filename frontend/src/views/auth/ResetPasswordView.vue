@@ -124,7 +124,7 @@ async function handleSubmit() {
     <!-- Validating State -->
     <div v-if="validating" class="text-center py-8">
       <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
-      <p class="mt-4 text-gray-600 dark:text-gray-300">Validating your link...</p>
+      <p class="mt-4 text-gray-600">Validating your link...</p>
     </div>
 
     <!-- Invalid Token State -->
@@ -134,10 +134,10 @@ async function handleSubmit() {
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
         </svg>
       </div>
-      <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+      <h3 class="text-xl font-semibold text-gray-900 mb-2">
         Link expired or invalid
       </h3>
-      <p class="text-gray-600 dark:text-gray-300 mb-6">
+      <p class="text-gray-600 mb-6">
         {{ error }}
       </p>
       <BaseButton @click="router.push('/forgot-password')" block>
@@ -152,10 +152,10 @@ async function handleSubmit() {
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
         </svg>
       </div>
-      <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+      <h3 class="text-xl font-semibold text-gray-900 mb-2">
         {{ isSetup ? 'Password set successfully!' : 'Password reset successfully!' }}
       </h3>
-      <p class="text-gray-600 dark:text-gray-300 mb-6">
+      <p class="text-gray-600 mb-6">
         Your password has been {{ isSetup ? 'set' : 'reset' }}. You can now sign in with your new password.
       </p>
       <BaseButton @click="router.push('/login')" block>
@@ -169,8 +169,8 @@ async function handleSubmit() {
         {{ error }}
       </div>
 
-      <div v-if="userEmail" class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md p-4">
-        <p class="text-sm text-blue-700 dark:text-blue-300">
+      <div v-if="userEmail" class="bg-blue-50 border border-blue-200 rounded-md p-4">
+        <p class="text-sm text-blue-700">
           Setting password for: <strong>{{ userEmail }}</strong>
         </p>
       </div>
