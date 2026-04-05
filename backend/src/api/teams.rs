@@ -162,7 +162,7 @@ async fn create_team(
 /// Get a specific team
 async fn get_team(
     State(state): State<AppState>,
-    _auth: AuthUser,
+    auth: AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Team>, AppError> {
     let team = sqlx::query_as::<_, Team>("SELECT * FROM teams WHERE id = $1")
@@ -170,6 +170,23 @@ async fn get_team(
         .fetch_optional(&state.db)
         .await?
         .ok_or_else(|| AppError::NotFound("Team not found".into()))?;
+
+    // Verify the user is a member of the team (or an admin)
+    if !auth.has_permission(&permissions::TEAM_MANAGE) {
+        let is_member: bool = sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM team_members WHERE team_id = $1 AND user_id = $2)",
+        )
+        .bind(id)
+        .bind(auth.user_id)
+        .fetch_one(&state.db)
+        .await?;
+
+        if !is_member {
+            return Err(AppError::Forbidden(
+                "You do not have access to this team".into(),
+            ));
+        }
+    }
 
     Ok(Json(team))
 }
@@ -217,9 +234,26 @@ async fn delete_team(
 /// Get team members with user details
 async fn get_members(
     State(state): State<AppState>,
-    _auth: AuthUser,
+    auth: AuthUser,
     Path(id): Path<Uuid>,
 ) -> Result<Json<Vec<TeamMemberResponse>>, AppError> {
+    // Verify the user is a member of the team (or an admin)
+    if !auth.has_permission(&permissions::TEAM_MANAGE) {
+        let is_member: bool = sqlx::query_scalar(
+            "SELECT EXISTS(SELECT 1 FROM team_members WHERE team_id = $1 AND user_id = $2)",
+        )
+        .bind(id)
+        .bind(auth.user_id)
+        .fetch_one(&state.db)
+        .await?;
+
+        if !is_member {
+            return Err(AppError::Forbidden(
+                "You do not have access to this team".into(),
+            ));
+        }
+    }
+
     let members = sqlx::query_as::<_, TeamMemberResponse>(
         r#"
         SELECT tm.team_id, tm.user_id, tm.role, tm.created_at,

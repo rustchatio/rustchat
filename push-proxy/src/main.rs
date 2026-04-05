@@ -23,7 +23,7 @@
 mod apns;
 mod fcm;
 
-use axum::{extract::State, http::StatusCode, routing::post, Json, Router};
+use axum::{extract::State, http::{HeaderMap, StatusCode}, routing::post, Json, Router};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tracing::{error, info, warn};
@@ -92,6 +92,7 @@ struct PushResponse {
 struct AppState {
     fcm_client: Option<FcmClient>,
     apns_client: Option<ApnsClient>,
+    auth_key: Option<String>,
 }
 
 #[tokio::main]
@@ -113,9 +114,12 @@ async fn main() -> anyhow::Result<()> {
     // Initialize APNS client (iOS VoIP)
     let apns_client = init_apns_client().await?;
 
+    let auth_key = std::env::var("PUSH_PROXY_AUTH_KEY").ok().filter(|s| !s.is_empty());
+
     let state = Arc::new(AppState {
         fcm_client,
         apns_client,
+        auth_key,
     });
 
     // Build routes
@@ -238,8 +242,25 @@ async fn health_check() -> Json<serde_json::Value> {
 
 async fn send_notification(
     State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
     Json(payload): Json<PushRequest>,
 ) -> Result<StatusCode, (StatusCode, Json<PushResponse>)> {
+    // Validate shared-secret auth key if configured
+    if let Some(expected) = state.auth_key.as_ref() {
+        let provided = headers
+            .get("x-push-proxy-key")
+            .and_then(|v| v.to_str().ok());
+        if provided != Some(expected) {
+            warn!("Rejecting unauthenticated push request");
+            return Err((
+                StatusCode::UNAUTHORIZED,
+                Json(PushResponse {
+                    success: false,
+                    message: "Unauthorized".to_string(),
+                }),
+            ));
+        }
+    }
     let platform = payload.platform.to_lowercase();
     let is_call =
         payload.data.sub_type.as_deref() == Some("calls") || payload.notification_type == "call";

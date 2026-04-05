@@ -181,22 +181,22 @@ async function handleDelete() {
       <div class="fixed inset-0 bg-black/50" @click="$emit('close')"></div>
       
       <!-- Modal -->
-      <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden">
+      <div class="relative bg-bg-surface-1 rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden">
         <!-- Header -->
-        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700 shrink-0">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-border-1 shrink-0">
           <div class="flex items-center space-x-2">
-            <component :is="channel.channel_type === 'private' ? Lock : Hash" class="w-5 h-5 text-gray-500" />
-            <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ channel.name }}</h2>
+            <component :is="channel.channel_type === 'private' ? Lock : Hash" class="w-5 h-5 text-text-3" />
+            <h2 class="text-lg font-semibold text-text-1">{{ channel.name }}</h2>
           </div>
-          <button @click="$emit('close')" class="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded">
-            <X class="w-5 h-5 text-gray-400" />
+          <button @click="$emit('close')" class="p-1 hover:bg-bg-surface-2 rounded">
+            <X class="w-5 h-5 text-text-4" />
           </button>
         </div>
         
         <!-- Tabs -->
         <div
           v-if="canManageCurrentChannel"
-          class="flex border-b border-gray-200 dark:border-gray-700 px-6 shrink-0"
+          class="flex border-b border-border-1 px-6 shrink-0"
         >
           <button
             v-for="tab in tabs"
@@ -205,7 +205,7 @@ async function handleDelete() {
             class="flex items-center px-4 py-3 text-sm font-medium border-b-2 -mb-px transition-colors"
             :class="activeTab === tab.id 
               ? 'border-primary text-primary' 
-              : 'border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'"
+              : 'border-transparent text-text-3 hover:text-text-2'"
           >
             <component :is="tab.icon" class="w-4 h-4 mr-2" />
             {{ tab.label }}
@@ -216,7 +216,7 @@ async function handleDelete() {
         <div class="flex-1 overflow-y-auto p-6">
           <div
             v-if="!canManageCurrentChannel"
-            class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300"
+            class="rounded-xl border bg-warning/10 p-4 text-sm text-warning border border-warning/20"
           >
             You do not have permission to manage this channel.
           </div>
@@ -224,11 +224,11 @@ async function handleDelete() {
           <!-- General Tab -->
           <div v-else-if="activeTab === 'general'" class="space-y-5">
             <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Channel Name</label>
-              <div class="px-3 py-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-gray-600 dark:text-gray-400 text-sm">
+              <label class="block text-sm font-medium text-text-2 mb-1">Channel Name</label>
+              <div class="px-3 py-2 bg-bg-surface-2 rounded-lg text-text-3 text-sm">
                 #{{ channel.name }}
               </div>
-              <p class="mt-1 text-xs text-gray-500">Channel names cannot be changed after creation.</p>
+              <p class="mt-1 text-xs text-text-3">Channel names cannot be changed after creation.</p>
             </div>
             
             <BaseInput 
@@ -239,34 +239,34 @@ async function handleDelete() {
             />
             
             <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Purpose</label>
+              <label class="block text-sm font-medium text-text-2 mb-1">Purpose</label>
               <textarea
                 v-model="purpose"
                 rows="2"
-                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
+                class="w-full px-3 py-2 border border-border-2 rounded-lg bg-bg-surface-1 text-text-1 resize-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
                 placeholder="What is this channel about?"
                 :disabled="loading"
               ></textarea>
             </div>
             
             <div>
-              <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Header</label>
+              <label class="block text-sm font-medium text-text-2 mb-1">Header</label>
               <textarea
                 v-model="header"
                 rows="2"
-                class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
+                class="w-full px-3 py-2 border border-border-2 rounded-lg bg-bg-surface-1 text-text-1 resize-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
                 placeholder="Channel header (shown at the top)"
                 :disabled="loading"
               ></textarea>
             </div>
             
             <!-- Danger Zone -->
-            <div class="pt-6 border-t border-gray-200 dark:border-gray-700">
-              <h4 class="text-sm font-semibold text-red-600 dark:text-red-400 mb-3">Danger Zone</h4>
+            <div class="pt-6 border-t border-border-1">
+              <h4 class="text-sm font-semibold text-danger mb-3">Danger Zone</h4>
               <button
                 @click="handleDelete"
                 :disabled="deleting"
-                class="flex items-center px-4 py-2 text-sm font-medium text-red-600 dark:text-red-400 border border-red-300 dark:border-red-800 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50"
+                class="flex items-center px-4 py-2 text-sm font-medium text-danger border border-danger/30 rounded-lg hover:bg-danger/10 transition-colors disabled:opacity-50"
               >
                 <Trash2 class="w-4 h-4 mr-2" />
                 {{ deleting ? 'Deleting...' : 'Delete Channel' }}
@@ -278,41 +278,41 @@ async function handleDelete() {
           <div v-else-if="activeTab === 'members'" class="space-y-6">
             <!-- Add Member -->
             <div class="space-y-3">
-              <h4 class="text-sm font-medium text-gray-900 dark:text-white">Add Member</h4>
+              <h4 class="text-sm font-medium text-text-1">Add Member</h4>
               <div class="relative">
                 <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Search class="h-4 w-4 text-gray-400" />
+                  <Search class="h-4 w-4 text-text-4" />
                 </div>
                 <input
                   type="text"
                   v-model="searchQuery"
                   placeholder="Search team members to add"
-                  class="block w-full pl-10 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg leading-5 bg-white dark:bg-gray-700 placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-primary focus:border-primary sm:text-sm transition duration-150 ease-in-out dark:text-white"
+                  class="block w-full pl-10 pr-3 py-2 border border-border-2 rounded-lg leading-5 bg-bg-surface-1 placeholder-text-4 focus:outline-none focus:placeholder-text-4 focus:ring-1 focus:ring-primary focus:border-primary sm:text-sm transition duration-150 ease-in-out dark:text-white"
                 />
               </div>
 
               <!-- Search Results -->
-              <div v-if="searchQuery && searchResults.length > 0" class="bg-white dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600 divide-y divide-gray-200 dark:divide-gray-600 max-h-48 overflow-y-auto">
-                <div v-for="user in searchResults" :key="user.user_id" class="flex items-center justify-between p-3 hover:bg-gray-50 dark:hover:bg-gray-600/50 transition-colors">
+              <div v-if="searchQuery && searchResults.length > 0" class="bg-bg-surface-1 rounded-lg border border-border-1 divide-y divide-border-1 max-h-48 overflow-y-auto">
+                <div v-for="user in searchResults" :key="user.user_id" class="flex items-center justify-between p-3 hover:bg-bg-surface-2 transition-colors">
                   <div class="flex items-center space-x-3">
-                    <div class="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400 font-medium text-sm">
+                    <div class="w-8 h-8 rounded-full bg-brand/10 flex items-center justify-center text-brand font-medium text-sm">
                       {{ (user.display_name || user.username).charAt(0).toUpperCase() }}
                     </div>
                     <div>
-                      <p class="text-sm font-medium text-gray-900 dark:text-white">{{ user.display_name || user.username }}</p>
-                      <p class="text-xs text-gray-500">@{{ user.username }}</p>
+                      <p class="text-sm font-medium text-text-1">{{ user.display_name || user.username }}</p>
+                      <p class="text-xs text-text-3">@{{ user.username }}</p>
                     </div>
                   </div>
                   <button
                     @click="addMember(user.user_id)"
                     :disabled="addingMember === user.user_id"
-                    class="p-1.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors disabled:opacity-50"
+                    class="p-1.5 bg-brand/10 text-brand rounded-lg hover:bg-brand/20 transition-colors disabled:opacity-50"
                   >
                     <Plus class="w-4 h-4" />
                   </button>
                 </div>
               </div>
-              <div v-else-if="searchQuery && searchResults.length === 0" class="text-center py-4 text-sm text-gray-500">
+              <div v-else-if="searchQuery && searchResults.length === 0" class="text-center py-4 text-sm text-text-3">
                 No matching team members found
               </div>
             </div>
@@ -320,28 +320,28 @@ async function handleDelete() {
             <!-- Member List -->
             <div class="space-y-3">
               <div class="flex items-center justify-between">
-                <h4 class="text-sm font-medium text-gray-900 dark:text-white">Channel Members</h4>
-                <span class="text-xs text-gray-500">{{ channelMembers.length }} members</span>
+                <h4 class="text-sm font-medium text-text-1">Channel Members</h4>
+                <span class="text-xs text-text-3">{{ channelMembers.length }} members</span>
               </div>
               
-              <div class="bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 divide-y divide-gray-200 dark:divide-gray-700 max-h-64 overflow-y-auto">
-                <div v-if="membersLoading" class="p-4 text-center text-gray-500 text-sm">
+              <div class="bg-bg-surface-2 rounded-lg border border-border-1 divide-y divide-border-1 max-h-64 overflow-y-auto">
+                <div v-if="membersLoading" class="p-4 text-center text-text-3 text-sm">
                   Loading members...
                 </div>
                 <template v-else>
                   <div v-for="member in channelMembers" :key="member.user_id" class="flex items-center justify-between p-3">
                     <div class="flex items-center space-x-3">
-                      <div class="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-gray-600 dark:text-gray-300 font-medium text-sm">
+                      <div class="w-8 h-8 rounded-full bg-bg-surface-2 flex items-center justify-center text-text-2 font-medium text-sm">
                         {{ (member.display_name || member.username).charAt(0).toUpperCase() }}
                       </div>
                       <div>
                         <div class="flex items-center space-x-2">
-                          <p class="text-sm font-medium text-gray-900 dark:text-white">{{ member.display_name || member.username }}</p>
-                          <span v-if="member.role === 'admin' || member.role === 'owner'" class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
+                          <p class="text-sm font-medium text-text-1">{{ member.display_name || member.username }}</p>
+                          <span v-if="member.role === 'admin' || member.role === 'owner'" class="px-1.5 py-0.5 rounded text-[10px] font-medium bg-warning/10 text-warning border border-warning/20">
                             {{ member.role }}
                           </span>
                         </div>
-                        <p class="text-xs text-gray-500">@{{ member.username }}</p>
+                        <p class="text-xs text-text-3">@{{ member.username }}</p>
                       </div>
                     </div>
                     
@@ -349,7 +349,7 @@ async function handleDelete() {
                       <button
                         @click="removeMember(member.user_id)"
                         :disabled="removingMember === member.user_id"
-                        class="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors disabled:opacity-50"
+                        class="p-1.5 text-text-4 hover:text-danger hover:bg-danger/10 rounded-lg transition-colors disabled:opacity-50"
                         title="Remove member"
                       >
                         <UserMinus class="w-4 h-4" />
@@ -357,7 +357,7 @@ async function handleDelete() {
                     </div>
                   </div>
                   
-                  <div v-if="channelMembers.length === 0" class="p-8 text-center text-gray-500 text-sm">
+                  <div v-if="channelMembers.length === 0" class="p-8 text-center text-text-3 text-sm">
                     No members found
                   </div>
                 </template>
@@ -367,7 +367,7 @@ async function handleDelete() {
         </div>
         
         <!-- Footer -->
-        <div class="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end space-x-3 shrink-0">
+        <div class="px-6 py-4 border-t border-border-1 flex justify-end space-x-3 shrink-0">
           <BaseButton variant="secondary" @click="$emit('close')">Cancel</BaseButton>
           <BaseButton v-if="canManageCurrentChannel" @click="handleSave" :loading="loading">Save Changes</BaseButton>
         </div>

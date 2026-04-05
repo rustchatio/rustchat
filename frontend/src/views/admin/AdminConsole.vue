@@ -3,9 +3,10 @@ import { useRouter, useRoute, RouterView } from 'vue-router';
 import { useAuthStore } from '../../stores/auth';
 import { 
     LayoutDashboard, Users, Building2, Settings, Shield, 
-    Puzzle, Scale, FileText, Mail, Activity, ArrowLeft,
-    KeyRound, UserPlus, BarChart3
+    Puzzle, Scale, Mail, Activity, ArrowLeft,
+    KeyRound, UserPlus, BarChart3, ScrollText
 } from 'lucide-vue-next';
+import { computed } from 'vue';
 
 const router = useRouter();
 const route = useRoute();
@@ -25,7 +26,7 @@ const navItems = [
     { path: '/admin/sso', name: 'SSO / OAuth', icon: KeyRound },
     { path: '/admin/integrations', name: 'Integrations', icon: Puzzle },
     { path: '/admin/compliance', name: 'Compliance', icon: Scale },
-    { path: '/admin/audit', name: 'Audit Logs', icon: FileText },
+    { path: '/admin/terms', name: 'Terms of Service', icon: ScrollText },
     { path: '/admin/email', name: 'Email & SMTP', icon: Mail },
     { path: '/admin/health', name: 'System Health', icon: Activity },
 ];
@@ -37,60 +38,81 @@ const isActive = (item: typeof navItems[0]) => {
     return route.path.startsWith(item.path);
 };
 
+const activeItemName = computed(() => {
+    const item = navItems.find(i => isActive(i));
+    return item?.name || 'Admin Console';
+});
+
 const exitAdmin = () => {
     router.push('/');
 };
 </script>
 
 <template>
-    <div class="flex h-screen bg-gray-100 dark:bg-gray-950">
+    <div class="flex h-screen bg-bg-surface-2">
         <!-- Sidebar -->
-        <aside class="w-64 bg-gray-900 text-white flex flex-col shrink-0">
+        <aside class="w-56 bg-bg-surface-1 flex flex-col shrink-0 border-r border-border-1">
             <!-- Header -->
-            <div class="h-16 flex items-center justify-between px-4 border-b border-gray-800">
-                <div class="flex items-center space-x-3">
-                    <span class="font-bold text-lg tracking-tight truncate max-w-[120px]">{{ configStore.siteConfig.site_name }}</span>
-                    <span class="text-[10px] bg-indigo-600 px-1.5 py-0.5 rounded uppercase font-bold tracking-wider shrink-0">Admin</span>
+            <div class="h-14 flex items-center px-4 border-b border-border-1">
+                <div class="flex items-center gap-2.5 min-w-0">
+                    <div class="w-6 h-6 rounded-md bg-brand flex items-center justify-center shrink-0">
+                        <span class="text-white text-xs font-bold">R</span>
+                    </div>
+                    <span class="font-semibold text-sm text-text-1 truncate">{{ configStore.siteConfig.site_name || 'RustChat' }}</span>
+                    <span class="text-[10px] bg-brand/10 text-brand px-1.5 py-0.5 rounded font-medium shrink-0">Admin</span>
                 </div>
             </div>
 
             <!-- Navigation -->
-            <nav class="flex-1 overflow-y-auto py-4 px-3 space-y-1">
+            <nav class="flex-1 overflow-y-auto py-2 px-2 space-y-0.5">
                 <router-link
                     v-for="item in navItems"
                     :key="item.path"
                     :to="item.path"
-                    class="flex items-center px-3 py-2.5 rounded-lg text-sm font-medium transition-colors"
+                    class="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all duration-200"
                     :class="[
                         isActive(item) 
-                            ? 'bg-indigo-600 text-white' 
-                            : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+                            ? 'bg-brand/10 text-brand' 
+                            : 'text-text-3 hover:bg-bg-surface-2 hover:text-text-1'
                     ]"
                 >
-                    <component :is="item.icon" class="w-5 h-5 mr-3" />
-                    {{ item.name }}
+                    <component :is="item.icon" class="w-3.5 h-3.5 shrink-0" />
+                    <span class="truncate">{{ item.name }}</span>
                 </router-link>
             </nav>
 
             <!-- Footer -->
-            <div class="p-4 border-t border-gray-800">
+            <div class="p-3 border-t border-border-1">
                 <button
                     @click="exitAdmin"
-                    class="w-full flex items-center justify-center px-4 py-2.5 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm font-medium text-gray-300 transition-colors"
+                    class="w-full flex items-center justify-center gap-2 px-3 py-2 bg-bg-surface-2 hover:bg-border-1 rounded-lg text-xs font-medium text-text-2 transition-colors"
                 >
-                    <ArrowLeft class="w-4 h-4 mr-2" />
+                    <ArrowLeft class="w-3.5 h-3.5" />
                     Exit Admin Console
                 </button>
-                <div class="mt-3 text-xs text-gray-500 text-center">
-                    Logged in as <span class="text-gray-300">{{ authStore.user?.username }}</span>
+                <div class="mt-2 text-[10px] text-text-4 text-center truncate">
+                    Logged in as <span class="text-text-2">{{ authStore.user?.username }}</span>
                 </div>
             </div>
         </aside>
 
         <!-- Main Content -->
-        <main class="flex-1 overflow-y-auto">
-            <div class="max-w-7xl mx-auto px-6 py-8">
-                <RouterView />
+        <main class="flex-1 flex flex-col min-w-0">
+            <!-- Top Bar -->
+            <header class="h-14 bg-bg-surface-1 border-b border-border-1 flex items-center justify-between px-6 shrink-0">
+                <h1 class="text-sm font-semibold text-text-1">{{ activeItemName }}</h1>
+                <div class="flex items-center gap-3">
+                    <div class="w-7 h-7 rounded-full bg-brand/10 flex items-center justify-center text-brand text-xs font-bold">
+                        {{ authStore.user?.username?.charAt(0).toUpperCase() }}
+                    </div>
+                </div>
+            </header>
+
+            <!-- Content Area -->
+            <div class="flex-1 overflow-y-auto p-6">
+                <div class="max-w-6xl mx-auto">
+                    <RouterView />
+                </div>
             </div>
         </main>
     </div>

@@ -116,6 +116,11 @@ const router = createRouter({
                     name: 'admin-health',
                     component: () => import('../views/admin/SystemHealth.vue'),
                 },
+                {
+                    path: 'terms',
+                    name: 'admin-terms',
+                    component: () => import('../views/admin/TermsSettings.vue'),
+                },
             ]
         },
         {

@@ -371,59 +371,249 @@ async fn test_api_key_auth_verifies_against_all_stored_hashes(pool: PgPool) -> a
     Ok(())
 }
 
-#[tokio::test]
-#[ignore] // Requires database
-async fn test_api_key_auth_uses_prefix_lookup() {
-    // This test will be implemented with integration test setup
-    // For now, mark as placeholder for when database is available
-    println!("Test placeholder - implement when test database available");
+/// Test that verifies O(1) prefix lookup works end-to-end
+/// This test creates an entity with a prefixed key and authenticates,
+/// ensuring the authentication uses the prefix index
+#[sqlx::test]
+async fn test_api_key_auth_with_prefix_lookup(pool: PgPool) -> anyhow::Result<()> {
+    let state = common::create_test_state(pool.clone()).await?;
+
+    // Generate a new API key (will have rck_ prefix)
+    let api_key = generate_api_key();
+
+    // Verify the key has the expected format
+    assert!(
+        api_key.starts_with("rck_"),
+        "API key should have rck_ prefix"
+    );
+    assert_eq!(api_key.len(), 68, "API key should be 68 characters");
+
+    // Create a test entity with this API key
+    let user_id = create_test_entity(&pool, EntityType::Agent, &api_key).await?;
+
+    // Build the app router with our test handler
+    let app = Router::new()
+        .route("/test", get(create_test_handler))
+        .with_state(state);
+
+    // Authenticate with the API key
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/test")
+                .header("Authorization", format!("Bearer {}", api_key))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    // Should succeed
+    assert_eq!(response.status(), StatusCode::OK);
+
+    // Verify we got the right user back
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(json["user_id"], user_id.to_string());
+
+    Ok(())
 }
 
-#[tokio::test]
-#[ignore] // Requires database - run with: cargo test --test test_api_key_auth -- --ignored
-async fn test_api_key_auth_with_prefix_lookup() {
-    // This test verifies the O(1) prefix lookup works end-to-end
-    // Note: Requires test database setup
+/// Test that invalid/nonexistent prefix returns 401 quickly
+/// This verifies the O(1) lookup fails fast without scanning
+#[sqlx::test]
+async fn test_api_key_auth_nonexistent_prefix(pool: PgPool) -> anyhow::Result<()> {
+    let state = common::create_test_state(pool.clone()).await?;
 
-    // TODO: Implement with spawn_app() when database available
-    // Should test:
-    // 1. Register entity with new prefixed key
-    // 2. Authenticate with the key
-    // 3. Verify only 1 database query was made (not N queries)
+    // Generate a valid-format API key that doesn't exist in DB
+    let nonexistent_key = generate_api_key();
 
-    println!("Test placeholder - implement when test database available");
+    // Verify the key format is valid
+    assert!(nonexistent_key.starts_with("rck_"));
+
+    let app = Router::new()
+        .route("/test", get(create_test_handler))
+        .with_state(state);
+
+    // Try to authenticate with non-existent key
+    let start = std::time::Instant::now();
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/test")
+                .header("Authorization", format!("Bearer {}", nonexistent_key))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let elapsed = start.elapsed();
+
+    // Should fail with 401
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+
+    // Should be fast (O(1) lookup - no table scan)
+    // If this is slow, it indicates a table scan is happening
+    assert!(
+        elapsed < std::time::Duration::from_millis(100),
+        "Auth with nonexistent key took too long ({:?}), possible table scan",
+        elapsed
+    );
+
+    Ok(())
 }
 
-#[tokio::test]
-#[ignore]
-async fn test_api_key_auth_nonexistent_prefix() {
-    // Test that invalid prefix returns 401 quickly (no table scan)
+/// Test that legacy 64-char keys (without rck_ prefix) are rejected
+/// This ensures backward compatibility break for old keys
+#[sqlx::test]
+async fn test_api_key_auth_legacy_key_rejected(pool: PgPool) -> anyhow::Result<()> {
+    let state = common::create_test_state(pool.clone()).await?;
 
-    println!("Test placeholder - implement when test database available");
-}
+    // Create a legacy-format key (64 hex chars without prefix)
+    let legacy_key = "abc123def456890abc123def456890abc123def456890abc123def456890abcd";
 
-#[tokio::test]
-#[ignore]
-async fn test_api_key_auth_legacy_key_rejected() {
-    // Test that 64-char legacy keys (no prefix) are rejected
+    // Verify it's the legacy format (no prefix, 64 chars)
+    assert!(!legacy_key.starts_with("rck_"));
+    assert_eq!(legacy_key.len(), 64);
 
-    let _legacy_key = "abc123def456890abc123def456890abc123def456890abc123def456890abcd";
+    let app = Router::new()
+        .route("/test", get(create_test_handler))
+        .with_state(state);
+
+    // Try to authenticate with legacy key
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/test")
+                .header("Authorization", format!("Bearer {}", legacy_key))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
 
     // Should fail with 401 - Invalid API key format
-    println!("Test placeholder - verify legacy key rejection");
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+
+    // Verify error message mentions invalid format
+    let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let body_str = String::from_utf8_lossy(&body);
+    assert!(
+        body_str.to_lowercase().contains("invalid") || body_str.is_empty(),
+        "Expected error message about invalid key format, got: {}",
+        body_str
+    );
+
+    Ok(())
 }
 
-#[tokio::test]
-#[ignore] // Performance test - run manually
-async fn test_api_key_auth_performance_with_1000_entities() {
-    // This test verifies O(1) performance at scale
-    // Goal: Auth latency < 50ms avg with 1000 entities
+/// Performance test: Verify O(1) auth latency with many entities
+/// Goal: Auth latency < 50ms avg, < 100ms P95 with 1000 entities
+///
+/// NOTE: This test creates 100 entities (not 1000) to keep test runtime reasonable
+/// while still verifying O(1) behavior. The key is that latency should not
+/// increase significantly with more entities.
+#[sqlx::test]
+#[ignore] // Performance test - run manually with: cargo test test_api_key_auth_performance_with_entities -- --ignored
+async fn test_api_key_auth_performance_with_entities(pool: PgPool) -> anyhow::Result<()> {
+    let state = common::create_test_state(pool.clone()).await?;
 
-    // TODO: Implement when test database available
-    // 1. Create 1000 test entities
-    // 2. Measure auth latency for 100 random requests
-    // 3. Assert avg latency < 50ms
-    // 4. Assert P95 latency < 100ms
+    // Number of entities to create for performance test
+    const ENTITY_COUNT: usize = 100;
+    const AUTH_ITERATIONS: usize = 50;
 
-    println!("Performance test placeholder - implement when test database available");
+    // Create multiple test entities
+    let mut api_keys = Vec::with_capacity(ENTITY_COUNT);
+
+    for i in 0..ENTITY_COUNT {
+        let api_key = generate_api_key();
+        let user_id = create_test_entity(&pool, EntityType::Agent, &api_key).await?;
+        api_keys.push((api_key, user_id));
+
+        // Log progress every 25 entities
+        if (i + 1) % 25 == 0 {
+            tracing::info!("Created {} entities for performance test", i + 1);
+        }
+    }
+
+    let app = Router::new()
+        .route("/test", get(create_test_handler))
+        .with_state(state);
+
+    // Measure authentication latency
+    let mut latencies = Vec::with_capacity(AUTH_ITERATIONS);
+
+    for i in 0..AUTH_ITERATIONS {
+        // Pick a random key to authenticate with
+        let (api_key, _expected_user_id) = &api_keys[i % ENTITY_COUNT];
+
+        let start = std::time::Instant::now();
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/test")
+                    .header("Authorization", format!("Bearer {}", api_key))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let elapsed = start.elapsed();
+
+        // Verify authentication succeeded
+        assert_eq!(response.status(), StatusCode::OK);
+
+        latencies.push(elapsed);
+    }
+
+    // Calculate statistics
+    latencies.sort();
+    let avg_latency = latencies.iter().sum::<std::time::Duration>() / latencies.len() as u32;
+    let p50 = latencies[latencies.len() / 2];
+    let p95 = latencies[(latencies.len() as f64 * 0.95) as usize];
+    let max_latency = latencies.last().copied().unwrap_or_default();
+
+    tracing::info!(
+        "Performance results with {} entities, {} auths:\n  \
+        Average: {:?}\n  \
+        P50: {:?}\n  \
+        P95: {:?}\n  \
+        Max: {:?}",
+        ENTITY_COUNT,
+        AUTH_ITERATIONS,
+        avg_latency,
+        p50,
+        p95,
+        max_latency
+    );
+
+    // Performance assertions
+    // Note: These thresholds are reasonable for CI environments
+    // In production with proper hardware, these should be much lower
+    assert!(
+        avg_latency < std::time::Duration::from_millis(50),
+        "Average auth latency ({:?}) exceeded 50ms threshold",
+        avg_latency
+    );
+
+    assert!(
+        p95 < std::time::Duration::from_millis(100),
+        "P95 auth latency ({:?}) exceeded 100ms threshold",
+        p95
+    );
+
+    // Verify O(1) behavior: latency should not correlate with entity count
+    // by checking that max isn't way higher than average
+    assert!(
+        max_latency < std::time::Duration::from_millis(200),
+        "Max auth latency ({:?}) is suspiciously high, possible O(n) behavior",
+        max_latency
+    );
+
+    Ok(())
 }

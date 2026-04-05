@@ -263,9 +263,15 @@ async fn send_via_push_proxy(
     };
 
     let client = reqwest::Client::new();
+    let mut request = client.post(&url).json(&payload);
+    if let Ok(auth_key) = std::env::var("PUSH_PROXY_AUTH_KEY") {
+        if !auth_key.is_empty() {
+            request = request.header("x-push-proxy-key", auth_key);
+        }
+    }
     let retry_config = outbound_retry_config();
     let response = send_reqwest_with_retry(
-        client.post(&url).json(&payload),
+        request,
         &retry_config,
         |e| {
             if e.is_connect() || e.is_timeout() {

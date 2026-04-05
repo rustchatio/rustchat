@@ -349,31 +349,31 @@ fn validate_sso_config(input: &CreateSsoConfig, is_update: bool) -> ApiResult<Ss
     // Validate required fields based on provider type
     match provider_type {
         SsoProviderType::GitHub => {
-            if input.client_id.is_none() || input.client_id.as_ref().unwrap().is_empty() {
+            if input.client_id.as_ref().is_none_or(|s| s.is_empty()) {
                 return Err(AppError::Validation(
                     "GitHub requires client_id".to_string(),
                 ));
             }
-            if input.client_secret.is_none() || input.client_secret.as_ref().unwrap().is_empty() {
+            if input.client_secret.as_ref().is_none_or(|s| s.is_empty()) {
                 return Err(AppError::Validation(
                     "GitHub requires client_secret".to_string(),
                 ));
             }
         }
         SsoProviderType::Google | SsoProviderType::Oidc => {
-            if input.issuer_url.is_none() || input.issuer_url.as_ref().unwrap().is_empty() {
+            if input.issuer_url.as_ref().is_none_or(|s| s.is_empty()) {
                 return Err(AppError::Validation(format!(
                     "{} requires issuer_url",
                     provider_type.as_str()
                 )));
             }
-            if input.client_id.is_none() || input.client_id.as_ref().unwrap().is_empty() {
+            if input.client_id.as_ref().is_none_or(|s| s.is_empty()) {
                 return Err(AppError::Validation(format!(
                     "{} requires client_id",
                     provider_type.as_str()
                 )));
             }
-            if input.client_secret.is_none() || input.client_secret.as_ref().unwrap().is_empty() {
+            if input.client_secret.as_ref().is_none_or(|s| s.is_empty()) {
                 return Err(AppError::Validation(format!(
                     "{} requires client_secret",
                     provider_type.as_str()

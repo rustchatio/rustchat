@@ -50,21 +50,21 @@ defineExpose({ add, remove })
         <div 
             v-for="toast in toasts" 
             :key="toast.id" 
-            class="pointer-events-auto w-full max-w-sm overflow-hidden rounded-lg bg-white dark:bg-gray-800 shadow-lg ring-1 ring-black ring-opacity-5"
+            class="pointer-events-auto w-full max-w-sm overflow-hidden rounded-lg bg-bg-surface-1 shadow-lg ring-1 ring-text-1/5"
         >
             <div class="p-4">
                 <div class="flex items-start">
                     <div class="flex-shrink-0">
-                        <CheckCircle v-if="toast.type === 'success'" class="h-6 w-6 text-green-400" />
-                        <AlertCircle v-else-if="toast.type === 'error'" class="h-6 w-6 text-red-400" />
-                        <Info v-else class="h-6 w-6 text-blue-400" />
+                        <CheckCircle v-if="toast.type === 'success'" class="h-6 w-6 text-success" />
+                        <AlertCircle v-else-if="toast.type === 'error'" class="h-6 w-6 text-danger" />
+                        <Info v-else class="h-6 w-6 text-brand" />
                     </div>
                     <div class="ml-3 w-0 flex-1 pt-0.5">
-                        <p class="text-sm font-medium text-gray-900 dark:text-white">{{ toast.title }}</p>
-                        <p v-if="toast.message" class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ toast.message }}</p>
+                        <p class="text-sm font-medium text-text-1">{{ toast.title }}</p>
+                        <p v-if="toast.message" class="mt-1 text-sm text-text-3">{{ toast.message }}</p>
                     </div>
                     <div class="ml-4 flex flex-shrink-0">
-                        <button @click="remove(toast.id)" type="button" class="inline-flex rounded-md bg-white dark:bg-gray-800 text-gray-400 hover:text-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
+                        <button @click="remove(toast.id)" type="button" class="inline-flex rounded-md bg-bg-surface-1 text-text-4 hover:text-text-3 focus:outline-none focus:ring-2 focus:ring-brand focus:ring-offset-2">
                             <span class="sr-only">Close</span>
                             <X class="h-5 w-5" />
                         </button>

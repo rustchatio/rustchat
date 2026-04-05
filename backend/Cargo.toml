@@ -86,7 +86,7 @@ hmac = "0.12"
 sha1 = "0.10"
 
 # WebRTC for SFU
-webrtc = "0.12"
+webrtc = "0.17.1"
 
 # TLS/crypto provider (required for rustls 0.23+)
 rustls = { version = "0.23", default-features = false, features = ["ring"] }

@@ -1585,7 +1585,7 @@ async fn host_screen_off(
 /// Get current call state
 async fn get_call_state(
     State(state): State<AppState>,
-    _auth: MmAuthUser,
+    auth: MmAuthUser,
     Path(channel_id): Path<String>,
 ) -> ApiResult<Response> {
     let normalized_channel_id = channel_id.trim();
@@ -1599,6 +1599,7 @@ async fn get_call_state(
     }
 
     let channel_uuid = resolve_channel_id(&state, &channel_id).await?;
+    check_channel_permission(&state, auth.user_id, channel_uuid).await?;
 
     // Get call manager
     let call_manager = state.call_state_manager.as_ref();
@@ -1642,16 +1643,16 @@ async fn send_reaction(
     let timestamp = Utc::now().timestamp_millis();
     let emoji_name = crate::mattermost_compat::emoji_data::get_short_name_for_emoji(&payload.emoji);
 
-    let session_id = state
-        .call_state_manager
+    let call_manager = state.call_state_manager.as_ref();
+    let call = call_manager
         .get_call_by_channel(&channel_uuid)
         .await
-        .and_then(|call| {
-            call.participants
-                .get(&auth.user_id)
-                .map(|participant| participant.session_id.to_string())
-        })
-        .unwrap_or_default();
+        .ok_or_else(|| AppError::NotFound("No active call in this channel".to_string()))?;
+    let session_id = call_manager
+        .get_participant(call.call_id, auth.user_id)
+        .await
+        .map(|p| p.session_id.to_string())
+        .ok_or_else(|| AppError::Forbidden("You are not in this call".to_string()))?;
 
     // Broadcast reaction event
     broadcast_call_event(
@@ -1760,13 +1761,12 @@ async fn mute_user(
         .await
         .ok_or_else(|| AppError::NotFound("No active call in this channel".to_string()))?;
 
-    // Get user's session_id from participants
-    let participants = call_manager.get_participants(call.call_id).await;
-    let session_id = participants
-        .iter()
-        .find(|p| p.user_id == auth.user_id)
-        .map(|p| p.session_id.to_string())
-        .unwrap_or_default();
+    // Verify user is in the call
+    let participant = call_manager
+        .get_participant(call.call_id, auth.user_id)
+        .await
+        .ok_or_else(|| AppError::Forbidden("You are not in this call".to_string()))?;
+    let session_id = participant.session_id.to_string();
 
     // Set muted
     call_manager
@@ -1811,13 +1811,12 @@ async fn unmute_user(
         .await
         .ok_or_else(|| AppError::NotFound("No active call in this channel".to_string()))?;
 
-    // Get user's session_id from participants
-    let participants = call_manager.get_participants(call.call_id).await;
-    let session_id = participants
-        .iter()
-        .find(|p| p.user_id == auth.user_id)
-        .map(|p| p.session_id.to_string())
-        .unwrap_or_default();
+    // Verify user is in the call
+    let participant = call_manager
+        .get_participant(call.call_id, auth.user_id)
+        .await
+        .ok_or_else(|| AppError::Forbidden("You are not in this call".to_string()))?;
+    let session_id = participant.session_id.to_string();
 
     // Set unmuted
     call_manager
@@ -2348,6 +2347,7 @@ async fn dismiss_notification(
     Path(channel_id): Path<String>,
 ) -> ApiResult<Json<StatusResponse>> {
     let channel_uuid = resolve_channel_id(&state, &channel_id).await?;
+    check_channel_permission(&state, auth.user_id, channel_uuid).await?;
     let call = state
         .call_state_manager
         .get_call_by_channel(&channel_uuid)

@@ -88,7 +88,7 @@ function cancelEdit() {
       @cancel="cancelEdit"
     >
       <div class="space-y-3">
-        <label class="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+        <label class="flex items-center gap-3 p-3 border border-border-1 rounded-lg cursor-pointer hover:bg-bg-surface-2">
           <input
             type="radio"
             v-model="localGroupUnread"
@@ -96,11 +96,11 @@ function cancelEdit() {
             class="w-4 h-4 text-primary"
           />
           <div class="flex-1">
-            <div class="text-sm font-medium text-gray-900 dark:text-white">Off</div>
-            <div class="text-xs text-gray-500">Show channels in their normal order</div>
+            <div class="text-sm font-medium text-text-1">Off</div>
+            <div class="text-xs text-text-3">Show channels in their normal order</div>
           </div>
         </label>
-        <label class="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+        <label class="flex items-center gap-3 p-3 border border-border-1 rounded-lg cursor-pointer hover:bg-bg-surface-2">
           <input
             type="radio"
             v-model="localGroupUnread"
@@ -108,11 +108,11 @@ function cancelEdit() {
             class="w-4 h-4 text-primary"
           />
           <div class="flex-1">
-            <div class="text-sm font-medium text-gray-900 dark:text-white">For favorites only</div>
-            <div class="text-xs text-gray-500">Only group unread channels in Favorites</div>
+            <div class="text-sm font-medium text-text-1">For favorites only</div>
+            <div class="text-xs text-text-3">Only group unread channels in Favorites</div>
           </div>
         </label>
-        <label class="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+        <label class="flex items-center gap-3 p-3 border border-border-1 rounded-lg cursor-pointer hover:bg-bg-surface-2">
           <input
             type="radio"
             v-model="localGroupUnread"
@@ -120,8 +120,8 @@ function cancelEdit() {
             class="w-4 h-4 text-primary"
           />
           <div class="flex-1">
-            <div class="text-sm font-medium text-gray-900 dark:text-white">On</div>
-            <div class="text-xs text-gray-500">Group all unread channels at the top</div>
+            <div class="text-sm font-medium text-text-1">On</div>
+            <div class="text-xs text-text-3">Group all unread channels at the top</div>
           </div>
         </label>
       </div>
@@ -146,7 +146,7 @@ function cancelEdit() {
       @cancel="cancelEdit"
     >
       <div class="space-y-3">
-        <label class="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+        <label class="flex items-center gap-3 p-3 border border-border-1 rounded-lg cursor-pointer hover:bg-bg-surface-2">
           <input
             type="radio"
             v-model="localLimitDMs"
@@ -154,11 +154,11 @@ function cancelEdit() {
             class="w-4 h-4 text-primary"
           />
           <div class="flex-1">
-            <div class="text-sm font-medium text-gray-900 dark:text-white">All direct messages</div>
-            <div class="text-xs text-gray-500">Show all your direct messages</div>
+            <div class="text-sm font-medium text-text-1">All direct messages</div>
+            <div class="text-xs text-text-3">Show all your direct messages</div>
           </div>
         </label>
-        <label class="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+        <label class="flex items-center gap-3 p-3 border border-border-1 rounded-lg cursor-pointer hover:bg-bg-surface-2">
           <input
             type="radio"
             v-model="localLimitDMs"
@@ -166,11 +166,11 @@ function cancelEdit() {
             class="w-4 h-4 text-primary"
           />
           <div class="flex-1">
-            <div class="text-sm font-medium text-gray-900 dark:text-white">40 direct messages</div>
-            <div class="text-xs text-gray-500">Show the 40 most recent conversations</div>
+            <div class="text-sm font-medium text-text-1">40 direct messages</div>
+            <div class="text-xs text-text-3">Show the 40 most recent conversations</div>
           </div>
         </label>
-        <label class="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+        <label class="flex items-center gap-3 p-3 border border-border-1 rounded-lg cursor-pointer hover:bg-bg-surface-2">
           <input
             type="radio"
             v-model="localLimitDMs"
@@ -178,11 +178,11 @@ function cancelEdit() {
             class="w-4 h-4 text-primary"
           />
           <div class="flex-1">
-            <div class="text-sm font-medium text-gray-900 dark:text-white">20 direct messages</div>
-            <div class="text-xs text-gray-500">Show the 20 most recent conversations</div>
+            <div class="text-sm font-medium text-text-1">20 direct messages</div>
+            <div class="text-xs text-text-3">Show the 20 most recent conversations</div>
           </div>
         </label>
-        <label class="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800">
+        <label class="flex items-center gap-3 p-3 border border-border-1 rounded-lg cursor-pointer hover:bg-bg-surface-2">
           <input
             type="radio"
             v-model="localLimitDMs"
@@ -190,8 +190,8 @@ function cancelEdit() {
             class="w-4 h-4 text-primary"
           />
           <div class="flex-1">
-            <div class="text-sm font-medium text-gray-900 dark:text-white">10 direct messages</div>
-            <div class="text-xs text-gray-500">Show the 10 most recent conversations</div>
+            <div class="text-sm font-medium text-text-1">10 direct messages</div>
+            <div class="text-xs text-text-3">Show the 10 most recent conversations</div>
           </div>
         </label>
       </div>

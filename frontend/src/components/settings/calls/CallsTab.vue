@@ -97,18 +97,18 @@ async function saveVideoDevices() {
 
 <template>
   <div class="space-y-1">
-    <h3 class="mb-1 px-2 text-3xl sm:text-[2rem] font-semibold tracking-tight text-gray-900 dark:text-white">Calls Settings</h3>
+    <h3 class="mb-1 px-2 text-3xl sm:text-[2rem] font-semibold tracking-tight text-text-1">Calls Settings</h3>
 
-    <div class="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
+    <div class="rounded-lg border border-border-1 bg-bg-surface-1">
       <div v-if="expandedRow !== 'audio_devices'">
         <button
           type="button"
-          class="flex w-full items-start justify-between gap-4 border-b border-gray-200 px-4 py-4 text-left hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50"
+          class="flex w-full items-start justify-between gap-4 border-b border-border-1 px-4 py-4 text-left hover:bg-bg-surface-2"
           @click="expandRow('audio_devices')"
         >
           <div>
-            <div class="text-xl sm:text-2xl font-medium leading-tight text-gray-900 dark:text-white">Audio devices</div>
-            <div class="mt-1 text-sm text-gray-500 dark:text-gray-400">Set up audio devices to be used for Mattermost calls</div>
+            <div class="text-xl sm:text-2xl font-medium leading-tight text-text-1">Audio devices</div>
+            <div class="mt-1 text-sm text-text-3">Set up audio devices to be used for Mattermost calls</div>
           </div>
           <span class="mt-0.5 inline-flex items-center gap-1 text-sm font-medium text-primary">
             <Pencil class="h-4 w-4" />
@@ -126,18 +126,18 @@ async function saveVideoDevices() {
         @cancel="cancelEdit"
       >
         <div class="space-y-4">
-          <div v-if="permissionError" class="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-900/20 dark:text-amber-300">
+          <div v-if="permissionError" class="rounded-md border border-warning bg-warning/10 p-3 text-sm text-warning">
             Permission required for device listing: {{ permissionError }}
           </div>
 
           <div>
-            <div class="mb-2 text-sm font-semibold text-gray-900 dark:text-white">Microphone</div>
-            <div class="mb-2 text-xs text-gray-500 dark:text-gray-400">Current: {{ audioInputLabel }}</div>
+            <div class="mb-2 text-sm font-semibold text-text-1">Microphone</div>
+            <div class="mb-2 text-xs text-text-3">Current: {{ audioInputLabel }}</div>
             <div class="space-y-2">
               <label
                 v-for="device in audioInputDevices"
                 :key="device.deviceId"
-                class="flex items-start gap-3 rounded-md border border-gray-200 p-3 text-sm hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50"
+                class="flex items-start gap-3 rounded-md border border-border-1 p-3 text-sm hover:bg-bg-surface-2"
               >
                 <input v-model="selectedAudioInput" type="radio" :value="device.deviceId" class="mt-0.5 h-4 w-4" />
                 <span>{{ device.label || 'Default microphone' }}</span>
@@ -146,19 +146,19 @@ async function saveVideoDevices() {
           </div>
 
           <div>
-            <div class="mb-2 text-sm font-semibold text-gray-900 dark:text-white">Speaker</div>
-            <div class="mb-2 text-xs text-gray-500 dark:text-gray-400">Current: {{ audioOutputLabel }}</div>
+            <div class="mb-2 text-sm font-semibold text-text-1">Speaker</div>
+            <div class="mb-2 text-xs text-text-3">Current: {{ audioOutputLabel }}</div>
             <div v-if="audioOutputDevices.length > 0" class="space-y-2">
               <label
                 v-for="device in audioOutputDevices"
                 :key="device.deviceId"
-                class="flex items-start gap-3 rounded-md border border-gray-200 p-3 text-sm hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50"
+                class="flex items-start gap-3 rounded-md border border-border-1 p-3 text-sm hover:bg-bg-surface-2"
               >
                 <input v-model="selectedAudioOutput" type="radio" :value="device.deviceId" class="mt-0.5 h-4 w-4" />
                 <span>{{ device.label || 'Default speaker' }}</span>
               </label>
             </div>
-            <div v-else class="rounded-md border border-gray-200 p-3 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+            <div v-else class="rounded-md border border-border-1 p-3 text-sm text-text-3">
               No selectable output devices were detected in this browser.
             </div>
           </div>
@@ -168,12 +168,12 @@ async function saveVideoDevices() {
       <div v-if="expandedRow !== 'video_devices'">
         <button
           type="button"
-          class="flex w-full items-start justify-between gap-4 px-4 py-4 text-left hover:bg-gray-50 dark:hover:bg-gray-800/50"
+          class="flex w-full items-start justify-between gap-4 px-4 py-4 text-left hover:bg-bg-surface-2"
           @click="expandRow('video_devices')"
         >
           <div>
-            <div class="text-xl sm:text-2xl font-medium leading-tight text-gray-900 dark:text-white">Video devices</div>
-            <div class="mt-1 text-sm text-gray-500 dark:text-gray-400">Set up video devices to be used for Mattermost calls</div>
+            <div class="text-xl sm:text-2xl font-medium leading-tight text-text-1">Video devices</div>
+            <div class="mt-1 text-sm text-text-3">Set up video devices to be used for Mattermost calls</div>
           </div>
           <span class="mt-0.5 inline-flex items-center gap-1 text-sm font-medium text-primary">
             <Pencil class="h-4 w-4" />
@@ -191,19 +191,19 @@ async function saveVideoDevices() {
         @cancel="cancelEdit"
       >
         <div class="space-y-4">
-          <div class="mb-2 text-sm font-semibold text-gray-900 dark:text-white">Camera</div>
-          <div class="mb-2 text-xs text-gray-500 dark:text-gray-400">Current: {{ videoDeviceLabel }}</div>
+          <div class="mb-2 text-sm font-semibold text-text-1">Camera</div>
+          <div class="mb-2 text-xs text-text-3">Current: {{ videoDeviceLabel }}</div>
           <div class="space-y-2">
             <label
               v-for="device in videoDevices"
               :key="device.deviceId"
-              class="flex items-start gap-3 rounded-md border border-gray-200 p-3 text-sm hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-800/50"
+              class="flex items-start gap-3 rounded-md border border-border-1 p-3 text-sm hover:bg-bg-surface-2"
             >
               <input v-model="selectedVideoDevice" type="radio" :value="device.deviceId" class="mt-0.5 h-4 w-4" />
               <span>{{ device.label || 'Default camera' }}</span>
             </label>
           </div>
-          <div v-if="videoDevices.length === 0" class="rounded-md border border-gray-200 p-3 text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">
+          <div v-if="videoDevices.length === 0" class="rounded-md border border-border-1 p-3 text-sm text-text-3">
             No camera devices found.
           </div>
         </div>

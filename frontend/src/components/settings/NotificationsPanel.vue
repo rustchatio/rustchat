@@ -62,7 +62,7 @@ const notifyOptions = [
   <div class="space-y-6">
     <!-- Notifications Section -->
     <div>
-      <h3 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center mb-4">
+      <h3 class="text-lg font-semibold text-text-1 flex items-center mb-4">
         <Bell class="w-5 h-5 mr-2 text-primary" />
         Notifications
       </h3>
@@ -70,12 +70,12 @@ const notifyOptions = [
       <div class="space-y-4">
         <!-- Desktop Notifications -->
         <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          <label class="block text-sm font-medium text-text-2 mb-1">
             Desktop notifications
           </label>
           <select
             v-model="notifyDesktop"
-            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            class="w-full px-3 py-2 border border-border-2 rounded-lg bg-bg-surface-1 text-text-1"
           >
             <option v-for="opt in notifyOptions" :key="opt.value" :value="opt.value">
               {{ opt.label }}
@@ -85,12 +85,12 @@ const notifyOptions = [
         
         <!-- Mobile Push -->
         <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          <label class="block text-sm font-medium text-text-2 mb-1">
             Mobile push notifications
           </label>
           <select
             v-model="notifyPush"
-            class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            class="w-full px-3 py-2 border border-border-2 rounded-lg bg-bg-surface-1 text-text-1"
           >
             <option v-for="opt in notifyOptions" :key="opt.value" :value="opt.value">
               {{ opt.label }}
@@ -100,11 +100,11 @@ const notifyOptions = [
         
         <!-- Sounds -->
         <div class="flex items-center justify-between">
-          <span class="text-sm text-gray-700 dark:text-gray-300">Notification sounds</span>
+          <span class="text-sm text-text-2">Notification sounds</span>
           <button
             @click="notifySounds = !notifySounds"
             class="relative w-11 h-6 rounded-full transition-colors"
-            :class="notifySounds ? 'bg-primary' : 'bg-gray-300 dark:bg-gray-600'"
+            :class="notifySounds ? 'bg-primary' : 'bg-bg-surface-3'"
           >
             <span
               class="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform"
@@ -116,19 +116,19 @@ const notifyOptions = [
     </div>
     
     <!-- Do Not Disturb -->
-    <div class="pt-4 border-t border-gray-200 dark:border-gray-700">
-      <h3 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center mb-4">
+    <div class="pt-4 border-t border-border-1">
+      <h3 class="text-lg font-semibold text-text-1 flex items-center mb-4">
         <Moon class="w-5 h-5 mr-2 text-primary" />
         Do Not Disturb
       </h3>
       
       <div class="space-y-4">
         <div class="flex items-center justify-between">
-          <span class="text-sm text-gray-700 dark:text-gray-300">Enable scheduled DND</span>
+          <span class="text-sm text-text-2">Enable scheduled DND</span>
           <button
             @click="dndEnabled = !dndEnabled"
             class="relative w-11 h-6 rounded-full transition-colors"
-            :class="dndEnabled ? 'bg-primary' : 'bg-gray-300 dark:bg-gray-600'"
+            :class="dndEnabled ? 'bg-primary' : 'bg-bg-surface-3'"
           >
             <span
               class="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform"
@@ -139,23 +139,23 @@ const notifyOptions = [
         
         <div v-if="dndEnabled" class="grid grid-cols-2 gap-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label class="block text-sm font-medium text-text-2 mb-1">
               Start time
             </label>
             <input
               v-model="dndStartTime"
               type="time"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              class="w-full px-3 py-2 border border-border-2 rounded-lg bg-bg-surface-1 text-text-1"
             />
           </div>
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label class="block text-sm font-medium text-text-2 mb-1">
               End time
             </label>
             <input
               v-model="dndEndTime"
               type="time"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              class="w-full px-3 py-2 border border-border-2 rounded-lg bg-bg-surface-1 text-text-1"
             />
           </div>
         </div>
@@ -163,8 +163,8 @@ const notifyOptions = [
     </div>
     
     <!-- Display Settings -->
-    <div class="pt-4 border-t border-gray-200 dark:border-gray-700">
-      <h3 class="text-lg font-semibold text-gray-900 dark:text-white flex items-center mb-4">
+    <div class="pt-4 border-t border-border-1">
+      <h3 class="text-lg font-semibold text-text-1 flex items-center mb-4">
         <Monitor class="w-5 h-5 mr-2 text-primary" />
         Display
       </h3>
@@ -172,7 +172,7 @@ const notifyOptions = [
       <div class="space-y-4">
         <!-- Message Display -->
         <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label class="block text-sm font-medium text-text-2 mb-2">
             Message display
           </label>
           <div class="flex space-x-3">
@@ -181,7 +181,7 @@ const notifyOptions = [
               class="flex-1 p-3 border rounded-lg transition-colors text-sm"
               :class="messageDisplay === 'standard' 
                 ? 'border-primary bg-primary/10 text-primary' 
-                : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300'"
+                : 'border-border-2 text-text-2'"
             >
               Standard
             </button>
@@ -190,7 +190,7 @@ const notifyOptions = [
               class="flex-1 p-3 border rounded-lg transition-colors text-sm"
               :class="messageDisplay === 'compact' 
                 ? 'border-primary bg-primary/10 text-primary' 
-                : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300'"
+                : 'border-border-2 text-text-2'"
             >
               Compact
             </button>
@@ -199,7 +199,7 @@ const notifyOptions = [
         
         <!-- Time Format -->
         <div>
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <label class="block text-sm font-medium text-text-2 mb-2">
             Time format
           </label>
           <div class="flex space-x-3">
@@ -208,7 +208,7 @@ const notifyOptions = [
               class="flex-1 p-3 border rounded-lg transition-colors text-sm"
               :class="timeFormat === '12h' 
                 ? 'border-primary bg-primary/10 text-primary' 
-                : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300'"
+                : 'border-border-2 text-text-2'"
             >
               12-hour (3:00 PM)
             </button>
@@ -217,7 +217,7 @@ const notifyOptions = [
               class="flex-1 p-3 border rounded-lg transition-colors text-sm"
               :class="timeFormat === '24h' 
                 ? 'border-primary bg-primary/10 text-primary' 
-                : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300'"
+                : 'border-border-2 text-text-2'"
             >
               24-hour (15:00)
             </button>

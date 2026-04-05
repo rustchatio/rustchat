@@ -18,4 +18,9 @@ FROM debian:bookworm-slim AS runtime
 WORKDIR /app
 RUN apt-get update && apt-get install -y ca-certificates libssl3 wget && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /app/target/release/push-proxy /usr/local/bin
+
+# Run as non-root user
+RUN useradd -m -u 1000 pushproxy
+USER pushproxy
+
 ENTRYPOINT ["/usr/local/bin/push-proxy"]

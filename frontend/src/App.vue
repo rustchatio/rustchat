@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { ref, onMounted, watch, computed } from 'vue'
+import { useRoute } from 'vue-router'
 import ToastManager from './components/ui/ToastManager.vue'
 import CommandPalette from './components/ui/CommandPalette.vue'
 import SettingsModal from './components/settings/SettingsModal.vue'
+import TermsAcceptanceModal from './components/modals/TermsAcceptanceModal.vue'
 import { useToast } from './composables/useToast'
 import { useWebSocket } from './composables/useWebSocket'
 import { useSingleActiveTab } from './composables/useSingleActiveTab'
@@ -19,9 +21,15 @@ const ui = useUIStore()
 const authStore = useAuthStore()
 const unreadStore = useUnreadStore()
 const configStore = useConfigStore()
+const route = useRoute()
 const { connect, disconnect } = useWebSocket()
 const singleTabEnabled = computed(() => authStore.isAuthenticated)
 const { isActiveTab, takeOver } = useSingleActiveTab(singleTabEnabled)
+
+const showTermsModal = computed(() => {
+    // Only show terms modal for authenticated users outside of admin section
+    return authStore.isAuthenticated && !route.path.startsWith('/admin')
+})
 
 onMounted(async () => {
     if (toastManagerRef.value) {
@@ -48,6 +56,7 @@ watch([() => authStore.isAuthenticated, isActiveTab], async ([isAuth, isActive])
   <SettingsModal v-if="isActiveTab" :isOpen="ui.isSettingsOpen" @close="ui.closeSettings()" />
   <ActiveCall v-if="isActiveTab" />
   <IncomingCallModal v-if="isActiveTab" />
+  <TermsAcceptanceModal v-if="showTermsModal" />
   <router-view />
   <div
     v-if="authStore.isAuthenticated && !isActiveTab"

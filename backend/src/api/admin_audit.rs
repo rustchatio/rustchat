@@ -10,7 +10,7 @@ use serde::Deserialize;
 use sqlx::FromRow;
 use uuid::Uuid;
 
-use crate::api::AppState;
+use crate::api::{admin::require_admin, AppState};
 use crate::auth::AuthUser;
 use crate::error::ApiResult;
 
@@ -92,9 +92,10 @@ pub struct RecentFailure {
 /// List audit logs with filtering
 async fn list_audit_logs(
     State(state): State<AppState>,
-    _auth: AuthUser,
+    auth: AuthUser,
     Query(query): Query<AuditLogQuery>,
 ) -> ApiResult<Json<Vec<AuditLogEntry>>> {
+    require_admin(&auth)?;
     let offset = query.page * query.per_page;
 
     let mut sql = String::from(
@@ -208,8 +209,9 @@ async fn list_audit_logs(
 /// Get audit summary statistics
 async fn get_audit_summary(
     State(state): State<AppState>,
-    _auth: AuthUser,
+    auth: AuthUser,
 ) -> ApiResult<Json<AuditSummary>> {
+    require_admin(&auth)?;
     let row: (i64, i64, i64, i64, i64) = sqlx::query_as(
         r#"
         SELECT 
@@ -250,8 +252,9 @@ async fn get_audit_summary(
 /// Get failure statistics per policy
 async fn get_policy_failure_stats(
     State(state): State<AppState>,
-    _auth: AuthUser,
+    auth: AuthUser,
 ) -> ApiResult<Json<Vec<PolicyFailureStats>>> {
+    require_admin(&auth)?;
     let stats: Vec<PolicyFailureStats> = sqlx::query_as(
         r#"
         SELECT 
@@ -287,8 +290,9 @@ async fn get_policy_failure_stats(
 /// Get recent failures for alerting
 async fn get_recent_failures(
     State(state): State<AppState>,
-    _auth: AuthUser,
+    auth: AuthUser,
 ) -> ApiResult<Json<Vec<RecentFailure>>> {
+    require_admin(&auth)?;
     let failures: Vec<RecentFailure> = sqlx::query_as(
         r#"
         SELECT 
@@ -320,15 +324,16 @@ async fn get_recent_failures(
 /// Export audit logs (filtered)
 async fn export_audit_logs(
     State(state): State<AppState>,
-    _auth: AuthUser,
+    auth: AuthUser,
     Query(query): Query<AuditLogQuery>,
 ) -> ApiResult<Json<Vec<AuditLogEntry>>> {
+    require_admin(&auth)?;
     // Similar to list but with higher limit for export
     let mut export_query = query;
     export_query.per_page = 10000; // Max export size
     export_query.page = 0;
 
-    list_audit_logs(State(state), _auth, Query(export_query)).await
+    list_audit_logs(State(state), auth, Query(export_query)).await
 }
 
 /// Create router for audit endpoints

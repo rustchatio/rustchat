@@ -52,8 +52,8 @@ export function renderMarkdown(markdown: string, highlightMentions?: string): st
         (_match, username) => {
             const isMe = highlightMentions && username === highlightMentions;
             const highlightClass = isMe
-                ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300 font-bold px-0.5 rounded border border-amber-200 dark:border-amber-800'
-                : 'text-blue-600 dark:text-blue-400 font-semibold hover:underline cursor-pointer';
+                ? 'bg-warning/20 text-warning font-bold px-0.5 rounded border border-warning/30'
+                : 'text-brand font-semibold hover:underline cursor-pointer';
             return `<span class="mention ${highlightClass}" data-username="${username}">@${username}</span>`;
         }
     );

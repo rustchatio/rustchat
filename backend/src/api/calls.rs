@@ -59,7 +59,7 @@ async fn create_call(
 
 async fn get_call(
     State(state): State<AppState>,
-    _auth: AuthUser,
+    auth: AuthUser,
     Path(id): Path<Uuid>,
 ) -> ApiResult<Json<CallSession>> {
     let call = sqlx::query_as::<_, Call>("SELECT * FROM calls WHERE id = $1")
@@ -67,6 +67,21 @@ async fn get_call(
         .fetch_optional(&state.db)
         .await?
         .ok_or_else(|| AppError::NotFound("Call not found".to_string()))?;
+
+    // Verify the user is a member of the call's channel
+    let is_member: bool = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM channel_members WHERE channel_id = $1 AND user_id = $2)",
+    )
+    .bind(call.channel_id)
+    .bind(auth.user_id)
+    .fetch_one(&state.db)
+    .await?;
+
+    if !is_member {
+        return Err(AppError::Forbidden(
+            "You do not have access to this call".to_string(),
+        ));
+    }
 
     let participants = sqlx::query_as::<_, CallParticipant>(
         "SELECT * FROM call_participants WHERE call_id = $1 AND left_at IS NULL",

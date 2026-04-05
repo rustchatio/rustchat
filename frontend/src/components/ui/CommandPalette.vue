@@ -73,19 +73,19 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 <template>
   <div v-if="isOpen" class="fixed inset-0 z-50 overflow-y-auto p-4 sm:p-6 md:p-20" role="dialog" @click="close">
     <!-- Backdrop -->
-    <div class="fixed inset-0 bg-gray-500 bg-opacity-25 transition-opacity backdrop-blur-sm"></div>
+    <div class="fixed inset-0 bg-black/25 transition-opacity backdrop-blur-sm"></div>
 
     <!-- Modal -->
     <div 
-        class="mx-auto max-w-xl transform divide-y divide-gray-100 overflow-hidden rounded-xl bg-white dark:bg-gray-800 shadow-2xl ring-1 ring-black ring-opacity-5 transition-all"
+        class="mx-auto max-w-xl transform divide-y divide-border-1 overflow-hidden rounded-xl bg-bg-surface-1 shadow-2xl ring-1 ring-text-1/5 transition-all"
         @click.stop
     >
       <div class="relative">
-        <Search class="pointer-events-none absolute top-3.5 left-4 h-5 w-5 text-gray-400" />
+        <Search class="pointer-events-none absolute top-3.5 left-4 h-5 w-5 text-text-4" />
         <input
           ref="inputRef"
           type="text"
-          class="h-12 w-full border-0 bg-transparent pl-11 pr-4 text-gray-800 dark:text-white placeholder-gray-400 focus:ring-0 sm:text-sm"
+          class="h-12 w-full border-0 bg-transparent pl-11 pr-4 text-text-1 placeholder-text-4 focus:ring-0 sm:text-sm"
           placeholder="Search items..."
           v-model="searchQuery"
         />
@@ -99,20 +99,20 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
                 @click="selectItem(item)"
                 @mouseenter="selectedIndex = index"
                 class="group flex cursor-default select-none rounded-xl p-3"
-                :class="selectedIndex === index ? 'bg-gray-100 dark:bg-gray-700' : ''"
+                :class="selectedIndex === index ? 'bg-bg-surface-2' : ''"
              >
                 <div 
                     class="flex h-10 w-10 flex-none items-center justify-center rounded-lg"
-                    :class="selectedIndex === index ? 'bg-white dark:bg-gray-600' : 'bg-gray-100 dark:bg-gray-700'"
+                    :class="selectedIndex === index ? 'bg-bg-surface-1' : 'bg-bg-surface-2'"
                 >
-                    <Hash v-if="item.type === 'channel'" class="h-6 w-6 text-gray-500" />
-                    <User v-else class="h-6 w-6 text-gray-500" />
+                    <Hash v-if="item.type === 'channel'" class="h-6 w-6 text-text-3" />
+                    <User v-else class="h-6 w-6 text-text-3" />
                 </div>
                 <div class="ml-4 flex-auto">
-                    <p class="text-sm font-medium text-gray-700 dark:text-gray-200" :class="selectedIndex === index ? 'text-gray-900 dark:text-white' : ''">
+                    <p class="text-sm font-medium text-text-2" :class="selectedIndex === index ? 'text-text-1' : ''">
                         {{ item.name }}
                     </p>
-                    <p class="text-sm text-gray-500 dark:text-gray-400">
+                    <p class="text-sm text-text-3">
                         {{ item.group }}
                     </p>
                 </div>
@@ -121,8 +121,8 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
       </div>
       
       <div v-else class="py-14 px-6 text-center text-sm sm:px-14">
-          <p class="mt-4 font-semibold text-gray-900 dark:text-white">No results found</p>
-          <p class="mt-2 text-gray-500">No components found for this search term. Please try again.</p>
+          <p class="mt-4 font-semibold text-text-1">No results found</p>
+          <p class="mt-2 text-text-3">No components found for this search term. Please try again.</p>
       </div>
     </div>
   </div>
