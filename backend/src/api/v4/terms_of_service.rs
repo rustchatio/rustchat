@@ -147,9 +147,7 @@ async fn list_terms(
 ) -> ApiResult<Json<Vec<TermsOfService>>> {
     // Check admin permission
     if !auth_user.has_permission(&permissions::SYSTEM_MANAGE) {
-        return Err(AppError::Forbidden(
-            "Admin access required".to_string(),
-        ));
+        return Err(AppError::Forbidden("Admin access required".to_string()));
     }
     let terms = sqlx::query_as::<_, TermsOfService>(
         r#"
@@ -170,9 +168,7 @@ async fn get_terms(
 ) -> ApiResult<Json<TermsOfService>> {
     // Check admin permission
     if !auth_user.has_permission(&permissions::SYSTEM_MANAGE) {
-        return Err(AppError::Forbidden(
-            "Admin access required".to_string(),
-        ));
+        return Err(AppError::Forbidden("Admin access required".to_string()));
     }
     let terms =
         sqlx::query_as::<_, TermsOfService>(r#"SELECT * FROM terms_of_service WHERE id = $1"#)
@@ -193,9 +189,7 @@ async fn create_terms(
 ) -> ApiResult<Json<TermsOfService>> {
     // Check admin permission
     if !auth_user.has_permission(&permissions::SYSTEM_MANAGE) {
-        return Err(AppError::Forbidden(
-            "Admin access required".to_string(),
-        ));
+        return Err(AppError::Forbidden("Admin access required".to_string()));
     }
     // Validate version uniqueness
     let existing = sqlx::query_scalar::<_, bool>(
@@ -237,9 +231,7 @@ async fn update_terms(
 ) -> ApiResult<Json<TermsOfService>> {
     // Check admin permission
     if !auth_user.has_permission(&permissions::SYSTEM_MANAGE) {
-        return Err(AppError::Forbidden(
-            "Admin access required".to_string(),
-        ));
+        return Err(AppError::Forbidden("Admin access required".to_string()));
     }
     let terms =
         sqlx::query_as::<_, TermsOfService>(r#"SELECT * FROM terms_of_service WHERE id = $1"#)
@@ -281,9 +273,7 @@ async fn delete_terms(
 ) -> ApiResult<Json<serde_json::Value>> {
     // Check admin permission
     if !auth_user.has_permission(&permissions::SYSTEM_MANAGE) {
-        return Err(AppError::Forbidden(
-            "Admin access required".to_string(),
-        ));
+        return Err(AppError::Forbidden("Admin access required".to_string()));
     }
     // Check if terms is active
     let is_active =
@@ -313,9 +303,7 @@ async fn activate_terms(
 ) -> ApiResult<Json<TermsOfService>> {
     // Check admin permission
     if !auth_user.has_permission(&permissions::SYSTEM_MANAGE) {
-        return Err(AppError::Forbidden(
-            "Admin access required".to_string(),
-        ));
+        return Err(AppError::Forbidden("Admin access required".to_string()));
     }
     let terms = sqlx::query_as::<_, TermsOfService>(
         r#"
@@ -342,9 +330,7 @@ async fn get_terms_stats(
 ) -> ApiResult<Json<TermsStats>> {
     // Check admin permission
     if !auth_user.has_permission(&permissions::SYSTEM_MANAGE) {
-        return Err(AppError::Forbidden(
-            "Admin access required".to_string(),
-        ));
+        return Err(AppError::Forbidden("Admin access required".to_string()));
     }
     let row = sqlx::query(
         r#"
@@ -382,9 +368,7 @@ async fn get_all_terms_stats(
 ) -> ApiResult<Json<serde_json::Value>> {
     // Check admin permission
     if !auth_user.has_permission(&permissions::SYSTEM_MANAGE) {
-        return Err(AppError::Forbidden(
-            "Admin access required".to_string(),
-        ));
+        return Err(AppError::Forbidden("Admin access required".to_string()));
     }
     // Get current active terms
     let current_terms = sqlx::query_as::<_, TermsOfService>(
