@@ -7,6 +7,8 @@ release/
 .claude/
 
 #AI
+previous-analyses/
+skills-lock.json
 .codex/
 .agents/*
 !.agents/skills/
@@ -55,6 +57,40 @@ secrets/
 *.gcno
 *.gcda
 coverage/
+
+# Playwright (at root level)
+test-results/
+playwright-report/
+blob-report/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+ENV/
+env/
+
+# Package managers
+.pnpm-store/
+.yarn/cache
+.pnp.*
+
+# Cache files
+.eslintcache
+.stylelintcache
+.prettiercache
+*.tsbuildinfo
+
+# Process IDs
+*.pid
+*.pid.lock
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
 
 # Cargo
 .worktrees/

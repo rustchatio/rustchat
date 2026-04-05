@@ -279,22 +279,29 @@ rustchat/
 ├── push-proxy/         Push notification proxy
 ├── scripts/            Compatibility and operational smoke scripts
 ├── tools/mm-compat/    Compatibility extraction/report tooling
-├── docs/               Operator/developer architecture and runbooks
+├── docs/               Documentation (user, admin, dev, architecture)
 └── previous-analyses/  Historical compatibility analysis artifacts
 ```
 
 ## Documentation
 
+| Audience | Location |
+|----------|----------|
+| **End Users** | [User Guide](docs/user/) - Getting started, features, troubleshooting |
+| **Administrators** | [Admin Guide](docs/admin/) - Installation, configuration, security |
+| **Developers** | [Development Guide](docs/development/) - Contributing, testing, compatibility |
+| **Architecture** | [Architecture Guide](docs/architecture/) - System design, data model |
+| **Operations** | [Operations Guide](docs/operations/) - Runbooks, incident response |
+
+### Key Documents
+
 | Document | Purpose |
 |---|---|
-| [Architecture Overview](docs/architecture/architecture-overview.md) | System components, data flow, key design decisions |
-| [Agent Operating Model](docs/agent-operating-model.md) | LLM agent roles, skills, workflow, scope boundaries |
-| [Compatibility Scope](docs/compatibility-scope.md) | Mattermost client compatibility commitments and coverage |
-| [Testing Model](docs/testing-model.md) | Test layers, CI gates, requirements by risk tier |
-| [Ownership Map](docs/ownership-map.md) | Code ownership, review routing, agent boundaries |
-| [Repo Current State](docs/repo-current-state.md) | Current version, services, known gaps |
-| [Target Operating Model](docs/target-operating-model.md) | Goals, applied operating model, deferred items |
-| [Contributor Model](docs/contributor-model.md) | How human contributors participate in the project |
+| [Architecture Overview](docs/architecture/overview.md) | System components, data flow, key design decisions |
+| [Contributing Guidelines](docs/development/contributing.md) | How to contribute code to the project |
+| [Compatibility Scope](docs/development/compatibility.md) | Mattermost client compatibility commitments |
+| [Installation Guide](docs/admin/installation.md) | Deploy RustChat with Docker Compose |
+| [Configuration Reference](docs/admin/configuration.md) | All environment variables and settings |
 
 ## License
 
