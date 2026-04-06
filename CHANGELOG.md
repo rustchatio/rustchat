@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Admin panel team members now load correctly (fixed missing `presence` column in SQL query)
+- Thread view now displays replies properly (fixed API response format mismatch)
+- Typing indicators now appear when other users are typing (fixed v1 WebSocket message format conversion)
+
 ## [0.3.5] - 2026-03-09
 
 ### Added
