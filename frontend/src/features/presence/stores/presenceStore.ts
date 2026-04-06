@@ -123,6 +123,16 @@ export const usePresenceStore = defineStore('presenceStore', () => {
     })
   }
 
+  // Check if there are any typing users in a channel (for sidebar badges)
+  function hasTypingUsers(channelId: ChannelId): boolean {
+    for (const user of typingUsers.value.values()) {
+      if (user.channelId === channelId && !user.threadRootId) {
+        return true
+      }
+    }
+    return false
+  }
+
   function getUserPresence(userId: UserId) {
     return computed(() => {
       if (self.value?.userId === userId) return self.value
@@ -157,6 +167,7 @@ export const usePresenceStore = defineStore('presenceStore', () => {
     addTypingUser,
     removeTypingUser,
     getTypingUsersForChannel,
+    hasTypingUsers,
     getUserPresence,
     getTypingUsersMap,
     clear

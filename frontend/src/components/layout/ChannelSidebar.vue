@@ -8,6 +8,7 @@ import { useChannelStore } from '../../stores/channels';
 import { useAuthStore } from '../../stores/auth';
 import { useUnreadStore } from '../../stores/unreads';
 import { useChannelPreferencesStore } from '../../stores/channelPreferences';
+import { usePresenceStore } from '../../features/presence';
 import CreateChannelModal from '../modals/CreateChannelModal.vue';
 import DirectMessageModal from '../modals/DirectMessageModal.vue';
 import TeamSettingsModal from '../modals/TeamSettingsModal.vue';
@@ -31,6 +32,7 @@ const channelStore = useChannelStore();
 const authStore = useAuthStore();
 const unreadStore = useUnreadStore();
 const channelPrefsStore = useChannelPreferencesStore();
+const presenceStore = usePresenceStore();
 
 const showCreateModal = ref(false);
 const showDirectMessageModal = ref(false);
@@ -193,6 +195,7 @@ function normalizeChannelForDisplay(c: any) {
     mention: mentionCount > 0,
     mentionCount: mentionCount,
     creator_id: c.creator_id,
+    isTyping: presenceStore.hasTypingUsers(c.id),
   };
 }
 
@@ -551,6 +554,17 @@ async function handleLeaveTeam() {
                   class="shrink-0 w-2 h-2 rounded-full bg-text-2"
                   :class="channelStore.currentChannelId === channel.id ? 'bg-brand' : 'bg-text-2'"
                 />
+
+                <!-- Typing indicator badge -->
+                <div 
+                  v-else-if="channel.isTyping && channelStore.currentChannelId !== channel.id" 
+                  class="shrink-0 flex items-center gap-0.5"
+                  title="Someone is typing..."
+                >
+                  <div class="w-1 h-1 rounded-full bg-blue-500 animate-bounce" style="animation-delay: 0ms"></div>
+                  <div class="w-1 h-1 rounded-full bg-blue-500 animate-bounce" style="animation-delay: 150ms"></div>
+                  <div class="w-1 h-1 rounded-full bg-blue-500 animate-bounce" style="animation-delay: 300ms"></div>
+                </div>
 
                 <!-- Context Menu Trigger -->
                 <button
