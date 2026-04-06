@@ -606,6 +606,70 @@
   }
 }
 
+/* === CODE DISPLAY STYLES === */
+
+/* Base code font stack */
+.message-content code,
+.message-content pre code {
+  font-family: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+/* Inline code: smaller than body text for visual distinction */
+.message-content :not(pre) > code {
+  font-size: 0.857em; /* ~12px when body is 14px */
+  line-height: 1.4;
+  background-color: var(--bg-surface-2);
+  color: var(--text-1);
+  padding: 0.15em 0.4em;
+  border-radius: 4px;
+  border: 1px solid var(--border-1);
+  vertical-align: baseline;
+  word-break: break-word;
+}
+
+/* Code blocks: even smaller for density */
+.message-content pre {
+  background-color: var(--bg-surface-2);
+  border: 1px solid var(--border-1);
+  border-radius: var(--r-2);
+  padding: 0.75rem 1rem;
+  margin: 0.5rem 0;
+  overflow-x: auto;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.message-content pre code {
+  background: transparent;
+  border: none;
+  padding: 0;
+  font-size: 0.786em; /* ~11px for code blocks */
+  line-height: 1.5;
+  color: var(--text-1);
+}
+
+/* Syntax highlighting for light theme (github.css compatible) */
+.message-content .hljs {
+  background: transparent;
+  color: var(--text-1);
+}
+
+.message-content .hljs-keyword { color: #d73a49; }
+.message-content .hljs-string { color: #032f62; }
+.message-content .hljs-number { color: #005cc5; }
+.message-content .hljs-comment { color: #6a737d; font-style: italic; }
+.message-content .hljs-function { color: #6f42c1; }
+.message-content .hljs-class { color: #6f42c1; }
+.message-content .hljs-title { color: #6f42c1; }
+.message-content .hljs-params { color: var(--text-1); }
+.message-content .hljs-built_in { color: #005cc5; }
+.message-content .hljs-literal { color: #005cc5; }
+.message-content .hljs-operator { color: #d73a49; }
+.message-content .hljs-punctuation { color: var(--text-2); }
+.message-content .hljs-property { color: #005cc5; }
+.message-content .hljs-tag { color: #22863a; }
+.message-content .hljs-attr { color: #6f42c1; }
+
 /* === RESPONSIVE HELPERS === */
 
 @media (max-width: 767px) {

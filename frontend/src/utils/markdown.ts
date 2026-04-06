@@ -1,7 +1,7 @@
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import hljs from 'highlight.js/lib/common';
-import 'highlight.js/styles/github-dark.css';
+import 'highlight.js/styles/github.css';
 
 /**
  * Custom renderer to handle code highlighting
