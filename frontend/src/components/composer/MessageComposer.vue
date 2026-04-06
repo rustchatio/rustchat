@@ -852,11 +852,6 @@ onUnmounted(() => {
       <div class="flex gap-3">
         <!-- Textarea Container -->
         <div :class="showPreview ? 'flex-1' : 'w-full'">
-          <!-- Markdown Preview (top preview - shown when preview enabled but not side-by-side) -->
-          <div v-if="showPreview" class="border-b border-border-1 px-3 py-2">
-            <MarkdownPreview :content="content" />
-          </div>
-
           <!-- Autocomplete Menus -->
           <div class="relative">
             <MentionAutocomplete

@@ -1,20 +1,7 @@
 import type { Ref } from 'vue'
-import { ref } from 'vue'
 import { wrapWithInlineCode, wrapWithCodeBlock } from '../services/markdownService'
 
 export function useCodeFormatting(textareaRef: Ref<HTMLTextAreaElement | null>) {
-  const lastSelection = ref<{ start: number; end: number; text: string } | null>(null)
-
-  function saveSelection() {
-    const textarea = textareaRef.value
-    if (!textarea) return
-    
-    lastSelection.value = {
-      start: textarea.selectionStart,
-      end: textarea.selectionEnd,
-      text: textarea.value.substring(textarea.selectionStart, textarea.selectionEnd)
-    }
-  }
 
   function wrapSelection(
     content: Ref<string>,
@@ -52,34 +39,8 @@ export function useCodeFormatting(textareaRef: Ref<HTMLTextAreaElement | null>) 
     return wrapSelection(content, (text) => wrapWithCodeBlock(text, ''))
   }
 
-  function handleKeydown(event: KeyboardEvent, content: Ref<string>): boolean {
-    // Handle ` key for inline code
-    if (event.key === '`' && !event.ctrlKey && !event.metaKey && !event.altKey) {
-      const textarea = textareaRef.value
-      if (!textarea) return false
-
-      const start = textarea.selectionStart
-      const end = textarea.selectionEnd
-      
-      if (start !== end) {
-        event.preventDefault()
-        // Check if triple backtick for code block
-        const isTriple = event.repeat || false
-        if (isTriple) {
-          return formatCodeBlock(content)
-        }
-        return formatInlineCode(content)
-      }
-    }
-    
-    return false
-  }
-
   return {
-    saveSelection,
     formatInlineCode,
-    formatCodeBlock,
-    handleKeydown,
-    lastSelection
+    formatCodeBlock
   }
 }

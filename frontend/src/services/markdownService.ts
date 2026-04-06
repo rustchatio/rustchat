@@ -1,5 +1,6 @@
 import { marked, Renderer } from 'marked'
 import hljs from 'highlight.js'
+import DOMPurify from 'dompurify'
 import 'highlight.js/styles/github-dark.css'
 
 // Create a custom renderer with syntax highlighting
@@ -33,7 +34,16 @@ export function renderMarkdown(content: string): string {
     return '<p class="text-gray-400 text-xs">Nothing to preview</p>'
   }
   
-  return marked.parse(content) as string
+  const html = marked.parse(content) as string
+  
+  // Sanitize HTML to prevent XSS
+  return DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: [
+      'p', 'br', 'strong', 'em', 'code', 'pre', 'span', 'ul', 'ol', 'li',
+      'blockquote', 'a', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'div', 'button'
+    ],
+    ALLOWED_ATTR: ['href', 'target', 'class', 'style', 'rel']
+  }) as string
 }
 
 export function wrapWithInlineCode(text: string): string {
