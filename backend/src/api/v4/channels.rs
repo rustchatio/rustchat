@@ -210,6 +210,7 @@ struct ChannelWithTeamDataRow {
     creator_id: Option<Uuid>,
     created_at: chrono::DateTime<chrono::Utc>,
     updated_at: chrono::DateTime<chrono::Utc>,
+    deleted_at: Option<chrono::DateTime<chrono::Utc>>,
     team_display_name: Option<String>,
     team_name: String,
     team_updated_at: chrono::DateTime<chrono::Utc>,
@@ -243,6 +244,7 @@ fn map_channel_with_team_data_row(row: ChannelWithTeamDataRow) -> ChannelWithTea
         creator_id: row.creator_id,
         created_at: row.created_at,
         updated_at: row.updated_at,
+        deleted_at: row.deleted_at,
     };
 
     ChannelWithTeamDataResponse {

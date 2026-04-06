@@ -32,6 +32,8 @@ pub struct Channel {
     pub creator_id: Option<Uuid>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    #[sqlx(default)]
+    pub deleted_at: Option<DateTime<Utc>>,
 }
 
 /// Channel member

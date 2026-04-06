@@ -406,7 +406,7 @@ function handleQuickSwitcherSelect(item: QuickSwitcherItem) {
 
             <!-- Admin Console -->
             <button
-              v-if="['system_admin', 'org_admin', 'admin', 'administrator'].includes(auth.user?.role)"
+              v-if="['system_admin', 'org_admin', 'admin', 'administrator'].includes(auth.user?.role || '')"
               @click="router.push('/admin'); showUserMenu = false"
               class="w-full flex items-center gap-3 px-4 py-2 text-sm text-text-2 hover:bg-bg-surface-2 transition-colors"
             >

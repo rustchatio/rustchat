@@ -2,6 +2,7 @@
 import { ref, watch, computed } from 'vue';
 import { X, User, Camera } from 'lucide-vue-next';
 import { useAuthStore } from '../../stores/auth';
+import type { AuthUser } from '../../core/entities/Auth';
 import { usersApi } from '../../api/users';
 import BaseButton from '../atomic/BaseButton.vue';
 import BaseInput from '../atomic/BaseInput.vue';
@@ -71,7 +72,7 @@ async function handleSubmit() {
         });
         
         // Update local user state
-        authStore.user = response.data;
+        authStore.user = response.data as unknown as AuthUser;
         success.value = 'Profile updated successfully!';
         
         setTimeout(() => {

@@ -72,7 +72,7 @@ async function handleFileUpload(event: Event) {
       const formData = new FormData()
       formData.append('image', file)
 
-      await api.post(`/users/${auth.user.id}/image`, formData, {
+      await api.post(`/users/${auth.user?.id}/image`, formData, {
         baseURL: '/api/v4',
       })
       await auth.fetchMe()

@@ -2,6 +2,8 @@ import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
 import { useStorage } from '@vueuse/core'
 import client from '../api/client'
+import type { AuthUser, LoginCredentials, AuthResponse, AuthPolicy, StatusUpdateInput, StatusSnapshot } from '../core/entities/Auth'
+import type { PresenceStatus } from '../core/entities/User'
 import { clearUserSummaryCache } from '../composables/useUserSummary'
 import { clearChannelPermissionCache } from '../features/permissions/capabilities'
 import { usePresenceStore } from '../features/presence'
@@ -52,7 +54,7 @@ function parseJwtExpiryMs(tokenValue: string): number | null {
 
 export const useAuthStore = defineStore('auth', () => {
     const token = useStorage('auth_token', '')
-    const user = ref<any>(null)
+    const user = ref<AuthUser | null>(null)
     let tokenExpiryTimer: ReturnType<typeof setTimeout> | null = null
     const statusExpiryTimers = new Map<string, ReturnType<typeof setTimeout>>()
     let isLoggingOut = false
@@ -77,32 +79,25 @@ export const useAuthStore = defineStore('auth', () => {
         clearSharedStatusExpiryTimer(statusExpiryTimers, 'self')
     }
 
-    function syncUserStatusSnapshot(snapshot: {
-        status?: string | null
-        presence?: string | null
-        text?: string | null
-        emoji?: string | null
-        expiresAt?: string | number | null
-        expires_at?: string | number | null
-    }) {
+    function syncUserStatusSnapshot(snapshot: StatusSnapshot) {
         if (!user.value) {
             return
         }
 
-        const nextPresence = snapshot.status ?? snapshot.presence
+        const nextPresence = (snapshot.status ?? snapshot.presence) as PresenceStatus | undefined
         if (nextPresence) {
             user.value.presence = nextPresence
         }
 
-        const nextExpiresAt = snapshot.expiresAt ?? snapshot.expires_at ?? null
+        const nextExpiresAt = (snapshot.expiresAt ?? snapshot.expires_at ?? null) as string | number | null
         user.value.status_text = snapshot.text ?? null
         user.value.status_emoji = snapshot.emoji ?? null
         user.value.status_expires_at = nextExpiresAt
 
         if (snapshot.text || snapshot.emoji) {
             user.value.custom_status = {
-                text: snapshot.text ?? null,
-                emoji: snapshot.emoji ?? null,
+                text: (snapshot.text ?? null) as string | null,
+                emoji: (snapshot.emoji ?? null) as string | null,
                 expires_at: nextExpiresAt,
             }
         } else {
@@ -170,8 +165,8 @@ export const useAuthStore = defineStore('auth', () => {
 
     const isAuthenticated = computed(() => !!token.value)
 
-    async function login(credentials: any) {
-        const { data } = await client.post('/auth/login', credentials)
+    async function login(credentials: LoginCredentials) {
+        const { data } = await client.post<AuthResponse>('/auth/login', credentials)
         token.value = data.token
         setAuthCookie(data.token)
         user.value = data.user
@@ -227,7 +222,7 @@ export const useAuthStore = defineStore('auth', () => {
         }
     }
 
-    async function updateStatus(status: { status?: string, presence?: string, text?: string, emoji?: string, duration?: string, duration_minutes?: number, dnd_end_time?: number }) {
+    async function updateStatus(status: StatusUpdateInput) {
         if (!token.value) return
         try {
             const payload = { ...status }
@@ -249,7 +244,7 @@ export const useAuthStore = defineStore('auth', () => {
         }
     }
 
-    const authPolicy = ref<any>(null)
+    const authPolicy = ref<AuthPolicy | null>(null)
 
     async function getAuthPolicy() {
         try {

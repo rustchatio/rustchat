@@ -31,8 +31,9 @@ const passwordErrors = computed(() => {
   
   if (!policy) return errors
   
-  if (pwd.length < policy.password_min_length) {
-    errors.push(`At least ${policy.password_min_length} characters`)
+  const minLength = policy.password_min_length ?? policy.passwordMinLength ?? 8
+  if (pwd.length < minLength) {
+    errors.push(`At least ${minLength} characters`)
   }
   if (policy.password_require_uppercase && !/[A-Z]/.test(pwd)) {
     errors.push('One uppercase letter')
@@ -197,8 +198,8 @@ async function handleSubmit() {
       <div v-if="authStore.authPolicy" class="text-xs text-gray-500 space-y-1">
         <p>Password must contain:</p>
         <ul class="list-disc list-inside">
-          <li :class="{ 'text-green-600': password.length >= authStore.authPolicy.password_min_length }">
-            At least {{ authStore.authPolicy.password_min_length }} characters
+          <li :class="{ 'text-green-600': password.length >= (authStore.authPolicy.password_min_length ?? authStore.authPolicy.passwordMinLength ?? 8) }">
+            At least {{ authStore.authPolicy.password_min_length ?? authStore.authPolicy.passwordMinLength ?? 8 }} characters
           </li>
           <li v-if="authStore.authPolicy.password_require_uppercase" :class="{ 'text-green-600': /[A-Z]/.test(password) }">
             An uppercase letter

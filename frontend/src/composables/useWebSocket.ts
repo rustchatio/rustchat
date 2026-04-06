@@ -1,6 +1,6 @@
 import { ref } from 'vue'
 import { useAuthStore } from '../stores/auth'
-import { useMessageStore, postToMessage } from '../stores/messages'
+import { useMessageStore, postToMessage, type Message } from '../stores/messages'
 import { usePresenceStore } from '../features/presence'
 import type { PresenceStatus } from '../core/entities/User'
 import { useUnreadStore } from '../stores/unreads'
@@ -10,6 +10,10 @@ import { postsApi, type ChannelUnreadAt, type Post } from '../api/posts'
 import type { Channel } from '../api/channels'
 import { normalizeEntityId, normalizeIdsDeep } from '../utils/idCompat'
 import { applyUserStatusSnapshot } from './useUserSummary'
+
+
+// Type for WebSocket listener callbacks
+type WsListener = (data: unknown) => void
 
 // Server -> Client
 export interface WsEnvelope {
@@ -22,14 +26,14 @@ export interface WsEnvelope {
         team_id?: string
         user_id?: string
     }
-    data: any
+    data: unknown
 }
 
 // Client -> Server
 export interface ClientEnvelope {
     type: 'command'
     event: string
-    data: any
+    data: unknown
     channel_id?: string
     client_msg_id?: string
     seq?: number
@@ -41,7 +45,7 @@ const connected = ref(false)
 const reconnectAttempts = ref(0)
 const maxReconnectAttempts = 10
 const subscriptions = ref<Set<string>>(new Set())
-const listeners = ref<Record<string, Set<(data: any) => void>>>({})
+const listeners = ref<Record<string, Set<WsListener>>>({})
 let actionSeq = 1
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -71,49 +75,49 @@ function normalizeWsTimestamp(value: unknown, fallback: string): string {
     return fallback
 }
 
-function extractWsPostPayload(data: any): Record<string, any> | null {
+function extractWsPostPayload(data: unknown): Record<string, unknown> | null {
     if (!data || typeof data !== 'object') {
         return null
     }
 
     if ('post' in data) {
-        const wrappedPost = (data as Record<string, any>).post
+        const wrappedPost = (data as Record<string, unknown>).post
         if (typeof wrappedPost === 'string') {
             try {
                 const parsed = JSON.parse(wrappedPost)
-                return parsed && typeof parsed === 'object' ? parsed : null
+                return parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : null
             } catch {
                 return null
             }
         }
         if (wrappedPost && typeof wrappedPost === 'object') {
-            return wrappedPost as Record<string, any>
+            return wrappedPost as Record<string, unknown>
         }
         return null
     }
 
-    return data as Record<string, any>
+    return data as Record<string, unknown>
 }
 
-function normalizeWsPost(data: any, envelopeChannelId?: string): Post | null {
+function normalizeWsPost(data: unknown, envelopeChannelId?: string): Post | null {
     const rawPost = extractWsPostPayload(data)
     if (!rawPost || typeof rawPost.id !== 'string') {
         return null
     }
-    const normalizedRawPost = normalizeIdsDeep(rawPost) as Record<string, any>
+    const normalizedRawPost = normalizeIdsDeep(rawPost) as Record<string, unknown>
 
     const fallbackTimestamp = new Date().toISOString()
     const createdAt = normalizeWsTimestamp(normalizedRawPost.created_at ?? normalizedRawPost.create_at, fallbackTimestamp)
     const updatedAt = normalizeWsTimestamp(normalizedRawPost.updated_at ?? normalizedRawPost.update_at, createdAt)
-    const postId = normalizeEntityId(normalizedRawPost.id) ?? normalizedRawPost.id
+    const postId = normalizeEntityId(normalizedRawPost.id) ?? (normalizedRawPost.id as string)
     const channelId = normalizeEntityId(normalizedRawPost.channel_id)
         ?? normalizeEntityId(envelopeChannelId)
-        ?? normalizedRawPost.channel_id
+        ?? (normalizedRawPost.channel_id as string | undefined)
         ?? envelopeChannelId
-    const userId = normalizeEntityId(normalizedRawPost.user_id) ?? normalizedRawPost.user_id
+    const userId = normalizeEntityId(normalizedRawPost.user_id) ?? (normalizedRawPost.user_id as string | undefined)
     const rootPostId = normalizeEntityId(normalizedRawPost.root_post_id ?? normalizedRawPost.root_id)
-        ?? normalizedRawPost.root_post_id
-        ?? normalizedRawPost.root_id
+        ?? (normalizedRawPost.root_post_id as string | undefined)
+        ?? (normalizedRawPost.root_id as string | undefined)
 
     return {
         ...normalizedRawPost,
@@ -125,12 +129,12 @@ function normalizeWsPost(data: any, envelopeChannelId?: string): Post | null {
         root_id: rootPostId,
         created_at: createdAt,
         updated_at: updatedAt,
-        client_msg_id: normalizedRawPost.client_msg_id ?? normalizedRawPost.pending_post_id,
+        client_msg_id: (normalizedRawPost.client_msg_id ?? normalizedRawPost.pending_post_id) as string | undefined,
         file_ids: Array.isArray(normalizedRawPost.file_ids)
             ? normalizedRawPost.file_ids.map((id: unknown) => normalizeEntityId(id) ?? id)
             : [],
         is_pinned: typeof normalizedRawPost.is_pinned === 'boolean' ? normalizedRawPost.is_pinned : false,
-        seq: normalizedRawPost.seq ?? 0,
+        seq: (normalizedRawPost.seq as number | undefined) ?? 0,
     } as unknown as Post
 }
 
@@ -153,7 +157,7 @@ function normalizeWsEnvelope(envelope: WsEnvelope): WsEnvelope {
     }
 }
 
-function normalizeWsReactionPayload(data: any): Record<string, any> | null {
+function normalizeWsReactionPayload(data: unknown): Record<string, unknown> | null {
     if (!data || typeof data !== 'object') {
         return null
     }
@@ -175,7 +179,7 @@ function normalizeWsReactionPayload(data: any): Record<string, any> | null {
         return null
     }
 
-    const normalized = normalizeIdsDeep(rawReaction) as Record<string, any>
+    const normalized = normalizeIdsDeep(rawReaction) as Record<string, unknown>
     const emojiName = typeof normalized.emoji_name === 'string'
         ? normalized.emoji_name
         : typeof normalized.emoji === 'string'
@@ -203,34 +207,35 @@ function normalizeWsChannelType(value: unknown): Channel['channel_type'] {
     return 'public'
 }
 
-function normalizeWsChannelPayload(data: any): Channel | null {
+function normalizeWsChannelPayload(data: unknown): Channel | null {
     if (!data || typeof data !== 'object') {
         return null
     }
 
-    const id = normalizeEntityId(data.id) ?? data.id
-    const teamId = normalizeEntityId(data.team_id) ?? data.team_id
+    const dataObj = data as Record<string, unknown>
+    const id = normalizeEntityId(dataObj.id) ?? (dataObj.id as string | undefined)
+    const teamId = normalizeEntityId(dataObj.team_id) ?? (dataObj.team_id as string | undefined)
     if (typeof id !== 'string' || !id || typeof teamId !== 'string' || !teamId) {
         return null
     }
 
-    const displayName = typeof data.display_name === 'string' && data.display_name
-        ? data.display_name
-        : (typeof data.name === 'string' ? data.name : '')
-    const createdAtRaw = data.created_at ?? data.create_at
+    const displayName = typeof dataObj.display_name === 'string' && dataObj.display_name
+        ? dataObj.display_name
+        : (typeof dataObj.name === 'string' ? dataObj.name : '')
+    const createdAtRaw = dataObj.created_at ?? dataObj.create_at
 
     return {
         id,
         team_id: teamId,
-        name: typeof data.name === 'string' ? data.name : '',
+        name: typeof dataObj.name === 'string' ? dataObj.name : '',
         display_name: displayName,
-        channel_type: normalizeWsChannelType(data.channel_type ?? data.type),
-        header: typeof data.header === 'string' ? data.header : '',
-        purpose: typeof data.purpose === 'string' ? data.purpose : '',
+        channel_type: normalizeWsChannelType(dataObj.channel_type ?? dataObj.type),
+        header: typeof dataObj.header === 'string' ? dataObj.header : '',
+        purpose: typeof dataObj.purpose === 'string' ? dataObj.purpose : '',
         created_at: normalizeWsTimestamp(createdAtRaw, new Date().toISOString()),
-        creator_id: normalizeEntityId(data.creator_id) ?? data.creator_id ?? '',
-        unreadCount: typeof data.unreadCount === 'number' ? data.unreadCount : 0,
-        mentionCount: typeof data.mentionCount === 'number' ? data.mentionCount : 0,
+        creator_id: normalizeEntityId(dataObj.creator_id) ?? (dataObj.creator_id as string | undefined) ?? '',
+        unreadCount: typeof dataObj.unreadCount === 'number' ? dataObj.unreadCount : 0,
+        mentionCount: typeof dataObj.mentionCount === 'number' ? dataObj.mentionCount : 0,
     }
 }
 
@@ -242,6 +247,23 @@ function normalizeWsPresence(value: unknown): PresenceStatus {
     return 'offline'
 }
 
+// Raw status data from WebSocket
+interface RawStatusData {
+    user_id?: unknown
+    status?: unknown
+    text?: unknown
+    emoji?: unknown
+    expires_at?: unknown
+}
+
+// Raw unread data from WebSocket
+interface RawUnreadData {
+    channel_id?: unknown
+    msg_count?: unknown
+    unread_count?: unknown
+    mention_count?: unknown
+}
+
 export function useWebSocket() {
     const authStore = useAuthStore()
     const messageStore = useMessageStore()
@@ -250,13 +272,15 @@ export function useWebSocket() {
     const channelStore = useChannelStore()
     const toast = useToast()
 
-    function applyInitialLoadSnapshot(data: any) {
+    function applyInitialLoadSnapshot(data: unknown) {
         if (!data || typeof data !== 'object') {
             return
         }
 
-        if (Array.isArray(data.channels)) {
-            data.channels.forEach((rawChannel: any) => {
+        const dataObj = data as Record<string, unknown>
+
+        if (Array.isArray(dataObj.channels)) {
+            dataObj.channels.forEach((rawChannel: unknown) => {
                 const channel = normalizeWsChannelPayload(rawChannel)
                 if (channel) {
                     channelStore.addChannel(channel)
@@ -264,40 +288,42 @@ export function useWebSocket() {
             })
         }
 
-        if (Array.isArray(data.channel_unreads)) {
-            data.channel_unreads.forEach((rawUnread: any) => {
-                const channelId = normalizeEntityId(rawUnread.channel_id) ?? rawUnread.channel_id
+        if (Array.isArray(dataObj.channel_unreads)) {
+            dataObj.channel_unreads.forEach((rawUnread: unknown) => {
+                const unreadData = rawUnread as RawUnreadData
+                const channelId = normalizeEntityId(unreadData.channel_id) ?? (unreadData.channel_id as string | undefined)
                 if (typeof channelId !== 'string' || !channelId) {
                     return
                 }
 
-                const unreadCount = Number(rawUnread.msg_count ?? rawUnread.unread_count ?? 0)
-                const mentionCount = Number(rawUnread.mention_count ?? 0)
+                const unreadCount = Number(unreadData.msg_count ?? unreadData.unread_count ?? 0)
+                const mentionCount = Number(unreadData.mention_count ?? 0)
                 unreadStore.channelUnreads[channelId] = Number.isFinite(unreadCount) ? unreadCount : 0
                 unreadStore.channelMentions[channelId] = Number.isFinite(mentionCount) ? mentionCount : 0
             })
         }
 
-        if (Array.isArray(data.statuses)) {
-            data.statuses.forEach((rawStatus: any) => {
-                const userId = normalizeEntityId(rawStatus.user_id) ?? rawStatus.user_id
-                const status = normalizeWsPresence(rawStatus.status)
+        if (Array.isArray(dataObj.statuses)) {
+            dataObj.statuses.forEach((rawStatus: unknown) => {
+                const statusData = rawStatus as RawStatusData
+                const userId = normalizeEntityId(statusData.user_id) ?? (statusData.user_id as string | undefined)
+                const status = normalizeWsPresence(statusData.status)
                 if (typeof userId === 'string' && userId) {
                     presenceStore.updatePresenceFromEvent(userId, status)
                     applyUserStatusSnapshot({
                         userId,
-                        presence: status,
-                        statusText: rawStatus.text ?? null,
-                        statusEmoji: rawStatus.emoji ?? null,
-                        statusExpiresAt: rawStatus.expires_at ?? null,
+                        presence: status as PresenceStatus,
+                        statusText: (statusData.text ?? null) as string | null,
+                        statusEmoji: (statusData.emoji ?? null) as string | null,
+                        statusExpiresAt: (statusData.expires_at ?? null) as string | number | null,
                     })
 
                     if (userId === authStore.user?.id) {
                         authStore.syncUserStatusSnapshot({
-                            status: status,
-                            text: rawStatus.text ?? null,
-                            emoji: rawStatus.emoji ?? null,
-                            expiresAt: rawStatus.expires_at ?? null,
+                            status: status as PresenceStatus,
+                            text: (statusData.text ?? null) as string | null,
+                            emoji: (statusData.emoji ?? null) as string | null,
+                            expiresAt: (statusData.expires_at ?? null) as string | number | null,
                         })
                     }
                 }
@@ -459,7 +485,7 @@ export function useWebSocket() {
             case 'message_updated':
             case 'post_edited': // Fallback
             case 'thread_reply_updated':
-                if (envelope.data.id) {
+                if (envelope.data && typeof envelope.data === 'object' && 'id' in envelope.data) {
                     // Partial update or full post?
                     // Backend sends { id, reply_count_inc, last_reply_at } for thread updates
                     // Or full post for edits.
@@ -471,8 +497,12 @@ export function useWebSocket() {
             case 'message_deleted':
             case 'post_deleted': // Fallback
             case 'thread_reply_deleted':
-                if (envelope.data && (envelope.data.post_id || envelope.data.id)) {
-                    messageStore.handleMessageDelete(envelope.data.post_id || envelope.data.id)
+                if (envelope.data && typeof envelope.data === 'object') {
+                    const dataObj = envelope.data as Record<string, unknown>
+                    const postId = dataObj.post_id ?? dataObj.id
+                    if (postId) {
+                        messageStore.handleMessageDelete(String(postId))
+                    }
                 }
                 break
 
@@ -496,64 +526,67 @@ export function useWebSocket() {
 
             case 'user_typing':
             case 'typing': // Compatibility with some mobile clients
-                if (envelope.data) {
-                    const typingChannelId = envelope.channel_id || envelope.broadcast?.channel_id || envelope.data.channel_id
+                if (envelope.data && typeof envelope.data === 'object') {
+                    const dataObj = envelope.data as Record<string, unknown>
+                    const typingChannelId = envelope.channel_id || envelope.broadcast?.channel_id || dataObj.channel_id
                     if (!typingChannelId) {
                         break
                     }
                     presenceStore.addTypingUser(
-                        envelope.data.user_id,
-                        envelope.data.display_name || envelope.data.username || 'Someone',
-                        typingChannelId,
-                        envelope.data.thread_root_id
+                        String(dataObj.user_id || ''),
+                        String(dataObj.display_name || dataObj.username || 'Someone'),
+                        String(typingChannelId),
+                        dataObj.thread_root_id as string | undefined
                     )
                 }
                 break
 
             case 'user_typing_stop':
             case 'stop_typing':
-                if (envelope.data) {
-                    const typingChannelId = envelope.channel_id || envelope.broadcast?.channel_id || envelope.data.channel_id
+                if (envelope.data && typeof envelope.data === 'object') {
+                    const dataObj = envelope.data as Record<string, unknown>
+                    const typingChannelId = envelope.channel_id || envelope.broadcast?.channel_id || dataObj.channel_id
                     if (!typingChannelId) {
                         break
                     }
                     presenceStore.removeTypingUser(
-                        envelope.data.user_id,
-                        typingChannelId,
-                        envelope.data.thread_root_id
+                        String(dataObj.user_id || ''),
+                        String(typingChannelId),
+                        dataObj.thread_root_id as string | undefined
                     )
                 }
                 break
 
             case 'user_presence':
-                if (envelope.data) {
+                if (envelope.data && typeof envelope.data === 'object') {
+                    const dataObj = envelope.data as Record<string, unknown>
                     presenceStore.updatePresenceFromEvent(
-                        envelope.data.user_id,
-                        envelope.data.status || 'online'
+                        String(dataObj.user_id || ''),
+                        String(dataObj.status || 'online') as PresenceStatus
                     )
                 }
                 break
 
             case 'status_change':
-                if (envelope.data) {
-                    presenceStore.updatePresenceFromEvent(
-                        envelope.data.user_id,
-                        envelope.data.status || 'online'
-                    )
+                if (envelope.data && typeof envelope.data === 'object') {
+                    const dataObj = envelope.data as Record<string, unknown>
+                    const userId = String(dataObj.user_id || '')
+                    const status = String(dataObj.status || 'online')
+                    presenceStore.updatePresenceFromEvent(userId, status as PresenceStatus)
                     applyUserStatusSnapshot({
-                        userId: envelope.data.user_id,
-                        presence: envelope.data.status,
-                        statusText: envelope.data.text ?? null,
-                        statusEmoji: envelope.data.emoji ?? null,
-                        statusExpiresAt: envelope.data.expires_at ?? null,
+                        userId,
+                        presence: status as PresenceStatus,
+                        statusText: (dataObj.text ?? null) as string | null,
+                        statusEmoji: (dataObj.emoji ?? null) as string | null,
+                        statusExpiresAt: (dataObj.expires_at ?? null) as string | number | null,
                     })
 
-                    if (envelope.data.user_id === authStore.user?.id) {
+                    if (userId === authStore.user?.id) {
                         authStore.syncUserStatusSnapshot({
-                            status: envelope.data.status,
-                            text: envelope.data.text ?? null,
-                            emoji: envelope.data.emoji ?? null,
-                            expiresAt: envelope.data.expires_at ?? null,
+                            status: status as PresenceStatus,
+                            text: (dataObj.text ?? null) as string | null,
+                            emoji: (dataObj.emoji ?? null) as string | null,
+                            expiresAt: (dataObj.expires_at ?? null) as string | number | null,
                         })
                     }
                 }
@@ -571,7 +604,7 @@ export function useWebSocket() {
 
             case 'unread_counts_updated': {
                 if (envelope.data) {
-                    unreadStore.handleUnreadUpdate(envelope.data)
+                    unreadStore.handleUnreadUpdate(envelope.data as { channel_id: string; team_id: string; unread_count: number })
                 }
                 break
             }
@@ -668,7 +701,7 @@ export function useWebSocket() {
         const messageStore = useMessageStore()
 
         // Create temp message for optimistic UI
-        const tempMsg: any = {
+        const tempMsg: Message = {
             id: clientMsgId,
             channelId,
             userId: authStore.user?.id || '',
@@ -682,7 +715,8 @@ export function useWebSocket() {
             isSaved: false,
             status: 'sending',
             clientMsgId,
-            rootId
+            rootId,
+            seq: 0  // Will be assigned by server
         }
 
         messageStore.addOptimisticMessage(tempMsg)
@@ -715,14 +749,14 @@ export function useWebSocket() {
         })
     }
 
-    function onEvent(event: string, callback: (data: any) => void) {
+    function onEvent(event: string, callback: WsListener) {
         if (!listeners.value[event]) {
             listeners.value[event] = new Set()
         }
         listeners.value[event].add(callback)
     }
 
-    function offEvent(event: string, callback: (data: any) => void) {
+    function offEvent(event: string, callback: WsListener) {
         if (listeners.value[event]) {
             listeners.value[event].delete(callback)
         }

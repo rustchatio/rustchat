@@ -14,6 +14,8 @@ pub struct Organization {
     pub description: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    #[sqlx(default)]
+    pub deleted_at: Option<DateTime<Utc>>,
 }
 
 /// DTO for creating an organization

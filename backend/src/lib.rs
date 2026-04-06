@@ -14,6 +14,7 @@ pub mod mattermost_compat;
 pub mod middleware;
 pub mod models;
 pub mod realtime;
+pub mod repositories;
 pub mod services;
 pub mod storage;
 pub mod telemetry;
