@@ -127,12 +127,12 @@ async fn list_channels(
             return Err(AppError::Forbidden("Not a member of this team".to_string()));
         }
 
-        // List public channels user is NOT in
+        // List public and private channels user is NOT in
         let channels: Vec<Channel> = sqlx::query_as(
             r#"
             SELECT c.* FROM channels c
             WHERE c.team_id = $1 
-            AND c.type = 'public'::channel_type
+            AND c.type IN ('public', 'private')
             AND c.is_archived = false
             AND c.id NOT IN (
                 SELECT channel_id FROM channel_members WHERE user_id = $2
