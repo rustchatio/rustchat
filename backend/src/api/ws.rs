@@ -16,6 +16,7 @@ use futures_util::{SinkExt, StreamExt};
 use tokio::time::Duration;
 
 use super::AppState;
+use crate::api::v4::websocket::map_envelope_to_mm;
 use crate::api::websocket_core::{self, EnvelopeCommandOptions};
 use crate::realtime::WsEnvelope;
 use crate::telemetry::metrics;
@@ -145,7 +146,15 @@ async fn handle_socket(
                 msg_result = rx.recv() => {
                     match msg_result {
                         Ok(msg) => {
-                            if sender.send(Message::Text(msg.into())).await.is_err() {
+                            // Convert internal WsEnvelope to Mattermost-compatible format
+                            let mm_msg = if let Ok(envelope) = serde_json::from_str::<WsEnvelope>(&msg) {
+                                map_envelope_to_mm(&envelope)
+                                    .and_then(|m| serde_json::to_string(&m).ok())
+                                    .unwrap_or(msg)
+                            } else {
+                                msg
+                            };
+                            if sender.send(Message::Text(mm_msg.into())).await.is_err() {
                                 break;
                             }
                             metrics::record_ws_message("sent", "hub_event");
