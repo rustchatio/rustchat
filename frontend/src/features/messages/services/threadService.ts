@@ -66,7 +66,9 @@ export const threadService = {
   async getThreadPosts(postId: string): Promise<Post[]> {
     try {
       const response = await postsApi.getThread(postId)
-      return response.data
+      return response.data.order
+        .map(id => response.data.posts[id])
+        .filter((post): post is Post => post !== undefined)
     } catch (error) {
       throw new AppError(
         error instanceof Error ? error.message : 'Failed to fetch thread posts',

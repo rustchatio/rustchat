@@ -39,6 +39,12 @@ export interface PostListResponse {
     read_state: ReadState | null
 }
 
+export interface ThreadResponse {
+    order: string[]
+    posts: Record<string, Post>
+    next_cursor?: string
+}
+
 export interface CreatePostRequest {
     channel_id: string
     message: string
@@ -73,7 +79,7 @@ export const postsApi = {
     create: (data: CreatePostRequest) => api.post<Post>(`/channels/${data.channel_id}/posts`, data),
     update: (id: string, message: string) => api.put<Post>(`/posts/${id}`, { message }),
     delete: (id: string) => api.delete(`/posts/${id}`),
-    getThread: (id: string) => api.get<Post[]>(`/posts/${id}/thread`),
+    getThread: (id: string) => api.get<ThreadResponse>(`/posts/${id}/thread`),
     pin: (id: string) => api.post(`/posts/${id}/pin`),
     unpin: (id: string) => api.delete(`/posts/${id}/pin`),
     addReaction: (id: string, emoji: string) => api.post(`/posts/${id}/reactions`, { emoji_name: emoji }),
