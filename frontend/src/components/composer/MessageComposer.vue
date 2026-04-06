@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { useStorage } from '@vueuse/core'
 import { Smile, Paperclip, Send, X, File as FileIcon, Phone, ChevronDown, ChevronUp } from 'lucide-vue-next'
 import { useToast } from '../../composables/useToast'
 import { filesApi, type FileUploadResponse } from '../../api/files'
@@ -16,8 +17,9 @@ import { useCallsStore } from '../../stores/calls'
 import { useChannelStore } from '../../stores/channels'
 import { usePreferencesStore } from '../../stores/preferences'
 import { searchEmojis } from '../../utils/emoji'
+import { useCodeFormatting } from '../../composables/useCodeFormatting'
 
-const emit = defineEmits(['send', 'typing', 'startAudioCall'])
+const emit = defineEmits(['send', 'typing', 'stopTyping', 'startAudioCall'])
 
 const toast = useToast()
 const teamStore = useTeamStore()
@@ -27,7 +29,7 @@ const preferencesStore = usePreferencesStore()
 
 const content = ref('')
 const showEmojiPicker = ref(false)
-const showPreview = ref(false)
+const showPreview = useStorage('composer-show-preview', false)
 const showMentionMenu = ref(false)
 const showEmojiAutocomplete = ref(false)
 const showChannelAutocomplete = ref(false)
@@ -52,6 +54,22 @@ const attachedFiles = ref<{
   progress: number
   uploaded?: FileUploadResponse
 }[]>([])
+
+// Initialize code formatting composable
+const { formatInlineCode, formatCodeBlock } = useCodeFormatting(textareaRef)
+
+// Handle format events from toolbar
+function handleFormat(type: string) {
+  switch (type) {
+    case 'code':
+      formatInlineCode(content)
+      break
+    case 'codeblock':
+      formatCodeBlock(content)
+      break
+    // Other format cases can be added later
+  }
+}
 
 let lastTypingEmit = 0
 const TYPING_ACTIVITY_INTERVAL_MS = 2000
@@ -454,6 +472,9 @@ function handleInput() {
   if (content.value.trim().length > 0 && now - lastTypingEmit > TYPING_ACTIVITY_INTERVAL_MS) {
     lastTypingEmit = now
     emit('typing')
+  } else if (content.value.trim().length === 0) {
+    // Emit stop typing when user clears the input
+    emit('stopTyping')
   }
 
   const textarea = textareaRef.value
@@ -583,6 +604,8 @@ function handleCommandAutocompleteSelect(command: string) {
 }
 
 function handleTextareaBlur() {
+  // Emit stop typing when user leaves the textarea
+  emit('stopTyping')
   setTimeout(() => {
     showMentionMenu.value = false
     showEmojiAutocomplete.value = false
@@ -794,14 +817,9 @@ onUnmounted(() => {
       <FormattingToolbar
         v-if="showToolbar"
         :showPreview="showPreview"
-        @format="applyFormat"
+        @format="handleFormat"
         @togglePreview="showPreview = !showPreview"
       />
-
-      <!-- Markdown Preview -->
-      <div v-if="showPreview" class="border-b border-border-1 px-3 py-2">
-        <MarkdownPreview :content="content" />
-      </div>
 
       <!-- Attached Files -->
       <div v-if="attachedFiles.length > 0" class="flex flex-wrap gap-2 border-b border-border-1 bg-bg-surface-2/30 px-3 py-2">
@@ -830,48 +848,64 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- Autocomplete Menus -->
-      <div class="relative">
-        <MentionAutocomplete
-          :show="showMentionMenu"
-          :query="mentionQuery"
-          @select="handleMentionSelect"
-          @close="showMentionMenu = false"
-        />
-        <CommandAutocomplete
-          ref="commandAutocompleteRef"
-          :show="showCommandAutocomplete"
-          :query="commandQuery"
-          @select="handleCommandAutocompleteSelect"
-          @close="showCommandAutocomplete = false"
-        />
-        <EmojiAutocomplete
-          ref="emojiAutocompleteRef"
-          :show="showEmojiAutocomplete"
-          :query="emojiQuery"
-          @select="handleEmojiAutocompleteSelect"
-          @close="showEmojiAutocomplete = false"
-        />
-        <ChannelAutocomplete
-          ref="channelAutocompleteRef"
-          :show="showChannelAutocomplete"
-          :query="channelQuery"
-          @select="handleChannelAutocompleteSelect"
-          @close="showChannelAutocomplete = false"
-        />
+      <!-- Editor Container with Side-by-Side Layout -->
+      <div class="flex gap-3">
+        <!-- Textarea Container -->
+        <div :class="showPreview ? 'flex-1' : 'w-full'">
+          <!-- Markdown Preview (top preview - shown when preview enabled but not side-by-side) -->
+          <div v-if="showPreview" class="border-b border-border-1 px-3 py-2">
+            <MarkdownPreview :content="content" />
+          </div>
 
-        <!-- Textarea -->
-        <textarea
-          ref="textareaRef"
-          v-model="content"
-          rows="1"
-          class="max-h-80 min-h-[44px] w-full resize-none border-0 bg-transparent px-3 py-2.5 text-sm leading-relaxed text-text-1 placeholder:text-text-3 focus:ring-0"
-          :placeholder="placeholderText"
-          aria-label="Message composer"
-          @keydown="handleKeydown"
-          @input="handleInput"
-          @blur="handleTextareaBlur"
-        ></textarea>
+          <!-- Autocomplete Menus -->
+          <div class="relative">
+            <MentionAutocomplete
+              :show="showMentionMenu"
+              :query="mentionQuery"
+              @select="handleMentionSelect"
+              @close="showMentionMenu = false"
+            />
+            <CommandAutocomplete
+              ref="commandAutocompleteRef"
+              :show="showCommandAutocomplete"
+              :query="commandQuery"
+              @select="handleCommandAutocompleteSelect"
+              @close="showCommandAutocomplete = false"
+            />
+            <EmojiAutocomplete
+              ref="emojiAutocompleteRef"
+              :show="showEmojiAutocomplete"
+              :query="emojiQuery"
+              @select="handleEmojiAutocompleteSelect"
+              @close="showEmojiAutocomplete = false"
+            />
+            <ChannelAutocomplete
+              ref="channelAutocompleteRef"
+              :show="showChannelAutocomplete"
+              :query="channelQuery"
+              @select="handleChannelAutocompleteSelect"
+              @close="showChannelAutocomplete = false"
+            />
+
+            <!-- Textarea -->
+            <textarea
+              ref="textareaRef"
+              v-model="content"
+              rows="1"
+              class="max-h-80 min-h-[40px] w-full resize-none border-0 bg-transparent px-3 py-2 text-xs leading-relaxed text-text-1 placeholder:text-text-3 focus:ring-0"
+              :placeholder="placeholderText"
+              aria-label="Message composer"
+              @keydown="handleKeydown"
+              @input="handleInput"
+              @blur="handleTextareaBlur"
+            ></textarea>
+          </div>
+        </div>
+
+        <!-- Preview Panel (Side-by-Side) -->
+        <div v-if="showPreview" class="flex-1 border-l border-border-1 pl-3">
+          <MarkdownPreview :content="content" />
+        </div>
       </div>
 
       <!-- Bottom Toolbar -->
@@ -879,23 +913,23 @@ onUnmounted(() => {
         <!-- Left Actions -->
         <div class="flex items-center gap-1">
           <button
-            class="flex h-11 w-11 items-center justify-center rounded-r-1 transition-standard hover:bg-brand/10 hover:text-brand focus-ring"
+            class="flex h-9 w-9 items-center justify-center rounded-r-1 transition-standard hover:bg-brand/10 hover:text-brand focus-ring"
             title="Attach file"
             aria-label="Attach file"
             @click="openFilePicker"
           >
-            <Paperclip class="h-4 w-4" />
+            <Paperclip class="h-3.5 w-3.5" />
           </button>
 
           <div class="relative">
             <button
               ref="emojiButtonRef"
-              class="flex h-11 w-11 items-center justify-center rounded-r-1 transition-standard hover:bg-warning/10 hover:text-warning focus-ring"
+              class="flex h-9 w-9 items-center justify-center rounded-r-1 transition-standard hover:bg-warning/10 hover:text-warning focus-ring"
               title="Insert emoji"
               aria-label="Insert emoji"
               @click="showEmojiPicker = !showEmojiPicker"
             >
-              <Smile class="h-4 w-4" />
+              <Smile class="h-3.5 w-3.5" />
             </button>
             <EmojiPicker
               :show="showEmojiPicker"
@@ -920,21 +954,21 @@ onUnmounted(() => {
 
           <button
             v-if="!callsStore.isInCall"
-            class="flex h-11 w-11 items-center justify-center rounded-r-1 transition-standard hover:bg-success/10 hover:text-success focus-ring"
+            class="flex h-9 w-9 items-center justify-center rounded-r-1 transition-standard hover:bg-success/10 hover:text-success focus-ring"
             title="Start audio call"
             aria-label="Start audio call"
             @click="$emit('startAudioCall')"
           >
-            <Phone class="h-4 w-4" />
+            <Phone class="h-3.5 w-3.5" />
           </button>
           <button
             v-else
-            class="flex h-11 w-11 items-center justify-center rounded-r-1 bg-success/10 text-success transition-standard focus-ring"
+            class="flex h-9 w-9 items-center justify-center rounded-r-1 bg-success/10 text-success transition-standard focus-ring"
             title="Show active call"
             aria-label="Show active call"
             @click="callsStore.toggleExpanded()"
           >
-            <Phone class="h-4 w-4" />
+            <Phone class="h-3.5 w-3.5" />
           </button>
         </div>
 
@@ -961,13 +995,13 @@ onUnmounted(() => {
 
           <!-- Send Button -->
           <button
-            class="flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-r-1 bg-brand px-3 text-brand-foreground shadow-1 transition-standard hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50 sm:px-4"
+            class="flex h-9 min-w-9 items-center justify-center gap-1.5 rounded-r-1 bg-brand px-3 text-brand-foreground shadow-1 transition-standard hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50 sm:px-4"
             :disabled="!canSend"
             aria-label="Send message"
             @click="handleSend"
           >
             <Send class="h-4 w-4" />
-            <span class="hidden sm:inline text-sm font-medium">Send</span>
+            <span class="hidden sm:inline text-xs font-medium">Send</span>
           </button>
         </div>
       </div>
