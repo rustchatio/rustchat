@@ -1,53 +1,119 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { renderMarkdown } from '../../services/markdownService'
 
 const props = defineProps<{
   content: string
 }>()
 
-// Simple markdown to HTML converter
 const renderedHtml = computed(() => {
-  if (!props.content) return '<p class="text-gray-400">Nothing to preview</p>'
-  
-  let html = props.content
-    // Escape HTML
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    // Bold
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    // Italic
-    .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    // Inline code
-    .replace(/`(.+?)`/g, '<code class="px-1 py-0.5 bg-gray-200 rounded text-sm font-mono">$1</code>')
-    // Links
-    .replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" class="text-primary underline" target="_blank">$1</a>')
-    // Code blocks
-    .replace(/```(\w+)?\n([\s\S]+?)```/g, '<pre class="p-3 bg-gray-900 text-gray-100 rounded-lg overflow-x-auto my-2"><code>$2</code></pre>')
-    // Blockquotes
-    .replace(/^> (.+)$/gm, '<blockquote class="border-l-4 border-gray-300 pl-3 text-gray-600 italic">$1</blockquote>')
-    // Line breaks
-    .replace(/\n/g, '<br>')
-  
-  return html
+  return renderMarkdown(props.content)
 })
+
+function copyCode(event: MouseEvent) {
+  const target = event.target as HTMLElement
+  const codeBlock = target.closest('.code-block-wrapper')?.querySelector('code')
+  if (codeBlock) {
+    navigator.clipboard.writeText(codeBlock.textContent || '')
+    target.textContent = 'Copied!'
+    setTimeout(() => {
+      target.textContent = 'Copy'
+    }, 2000)
+  }
+}
 </script>
 
 <template>
   <div 
-    class="prose prose-sm max-w-none p-3 bg-gray-50 rounded-lg border border-gray-200"
+    class="markdown-preview prose prose-xs max-w-none p-3 bg-bg-surface-2/50 rounded-lg border border-border-1 overflow-auto max-h-80"
     v-html="renderedHtml"
+    @click="copyCode"
   ></div>
 </template>
 
 <style scoped>
-.prose :deep(strong) {
+.markdown-preview :deep(pre) {
+  position: relative;
+  background: #1e1e1e;
+  border-radius: 0.375rem;
+  padding: 0.75rem;
+  overflow-x: auto;
+  margin: 0.5rem 0;
+}
+
+.markdown-preview :deep(pre code) {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.markdown-preview :deep(code:not(pre code)) {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  background: rgba(0, 0, 0, 0.1);
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+}
+
+.markdown-preview :deep(.code-block-wrapper) {
+  position: relative;
+}
+
+.markdown-preview :deep(.copy-button) {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  padding: 0.25rem 0.5rem;
+  background: rgba(255, 255, 255, 0.1);
+  border: none;
+  border-radius: 0.25rem;
+  color: #fff;
+  font-size: 0.625rem;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.markdown-preview :deep(.code-block-wrapper:hover .copy-button) {
+  opacity: 1;
+}
+
+.markdown-preview :deep(p) {
+  margin: 0.5rem 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.markdown-preview :deep(strong) {
   font-weight: 700;
 }
-.prose :deep(em) {
+
+.markdown-preview :deep(em) {
   font-style: italic;
 }
-.prose :deep(code) {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+.markdown-preview :deep(blockquote) {
+  border-left: 3px solid var(--border-color, #ccc);
+  padding-left: 0.75rem;
+  margin: 0.5rem 0;
+  color: var(--text-muted, #666);
+  font-size: 0.75rem;
+}
+
+.markdown-preview :deep(ul), .markdown-preview :deep(ol) {
+  margin: 0.5rem 0;
+  padding-left: 1.25rem;
+  font-size: 0.75rem;
+}
+
+.markdown-preview :deep(a) {
+  color: var(--brand-color, #0066cc);
+  text-decoration: underline;
+}
+
+.markdown-preview :deep(hr) {
+  margin: 1rem 0;
+  border: none;
+  border-top: 1px solid var(--border-color, #ccc);
 }
 </style>

@@ -26,11 +26,11 @@ async function loadMarkdownLibs(): Promise<void> {
 
     // Configure marked with syntax highlighting
     const renderer = new marked.Renderer()
-    renderer.code = ({ text, lang }: { text: string; lang?: string }) => {
-      if (!hljsInstance) return `<pre><code>${text}</code></pre>`
-      const language = lang && hljsInstance.getLanguage(lang) ? lang : 'plaintext'
-      const highlighted = hljsInstance.highlight(text, { language }).value
-      return `<pre><code class="hljs ${language}">${highlighted}</code></pre>`
+    renderer.code = (code: string, infostring: string | undefined, _escaped: boolean) => {
+      if (!hljsInstance) return `<pre><code>${code}</code></pre>`
+      const language = infostring && hljsInstance.getLanguage(infostring) ? infostring : 'plaintext'
+      const highlighted = hljsInstance.highlight(code, { language }).value
+      return `<div class="code-block-wrapper"><pre><code class="hljs ${language}">${highlighted}</code><button class="copy-button">Copy</button></pre></div>`
     }
 
     marked.use({
