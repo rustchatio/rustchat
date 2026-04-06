@@ -407,6 +407,7 @@ mod tests {
             creator_id: None,
             created_at: now,
             updated_at: now,
+            deleted_at: None,
         };
 
         let mm_c: mm::Channel = c.into();
