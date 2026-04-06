@@ -542,7 +542,7 @@ async fn enforce_password_login_allowed(state: &AppState, user_email: &str) -> A
 /// - JWT token (for human users via browser/mobile)
 /// - API key (for agents, services, and CI systems)
 async fn me(State(state): State<AppState>, auth: PolymorphicAuth) -> ApiResult<Json<mm::User>> {
-    let mut user: User = sqlx::query_as("SELECT * FROM users WHERE id = $1")
+    let mut user: User = sqlx::query_as("SELECT * FROM users WHERE id = $1 AND deleted_at IS NULL")
         .bind(auth.user_id)
         .fetch_one(&state.db)
         .await?;
@@ -1933,7 +1933,7 @@ async fn get_users_by_ids(
     }
 
     let users: Vec<User> = sqlx::query_as(
-        "SELECT * FROM users WHERE id = ANY($1) AND (is_active = true OR deleted_at IS NOT NULL)",
+        "SELECT * FROM users WHERE id = ANY($1) AND is_active = true AND deleted_at IS NULL",
     )
     .bind(&uuids)
     .fetch_all(&state.db)

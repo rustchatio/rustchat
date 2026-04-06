@@ -147,7 +147,7 @@ async fn get_team(
     let team_id = parse_mm_or_uuid(&team_id)
         .ok_or_else(|| crate::error::AppError::BadRequest("Invalid team_id".to_string()))?;
     ensure_team_member(&state, team_id, auth.user_id).await?;
-    let team: Team = sqlx::query_as("SELECT * FROM teams WHERE id = $1")
+    let team: Team = sqlx::query_as("SELECT * FROM teams WHERE id = $1 AND deleted_at IS NULL")
         .bind(team_id)
         .fetch_one(&state.db)
         .await?;

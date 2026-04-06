@@ -390,7 +390,7 @@ async fn get_channel(
             .await?
             .ok_or_else(|| AppError::Forbidden("Not a member of this channel".to_string()))?;
 
-    let mut channel: Channel = sqlx::query_as("SELECT * FROM channels WHERE id = $1")
+    let mut channel: Channel = sqlx::query_as("SELECT * FROM channels WHERE id = $1 AND deleted_at IS NULL")
         .bind(id)
         .fetch_one(&state.db)
         .await?;

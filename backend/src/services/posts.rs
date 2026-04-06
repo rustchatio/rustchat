@@ -484,7 +484,7 @@ async fn ensure_permission(state: &AppState, user_id: Uuid, permission: &str) ->
 /// Helper to ensure all participants of a DM are members (resurrects DM)
 pub async fn ensure_dm_membership(state: &AppState, channel_id: Uuid) -> ApiResult<()> {
     // 1. Get channel info
-    let chan: crate::models::Channel = match sqlx::query_as("SELECT * FROM channels WHERE id = $1")
+    let chan: crate::models::Channel = match sqlx::query_as("SELECT * FROM channels WHERE id = $1 AND deleted_at IS NULL")
         .bind(channel_id)
         .fetch_optional(&state.db)
         .await?

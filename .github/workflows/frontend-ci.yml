@@ -34,6 +34,13 @@ jobs:
           npm ci
           echo "::endgroup::"
 
+      - name: Run unit tests
+        run: |
+          set -euo pipefail
+          echo "::group::npm run test:unit"
+          npm run test:unit
+          echo "::endgroup::"
+
       - name: Build frontend
         run: |
           set -euo pipefail

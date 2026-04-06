@@ -662,7 +662,7 @@ async fn get_channel(
             })?;
 
     let mut channel: crate::models::Channel =
-        sqlx::query_as("SELECT * FROM channels WHERE id = $1")
+        sqlx::query_as("SELECT * FROM channels WHERE id = $1 AND deleted_at IS NULL")
             .bind(channel_id)
             .fetch_one(&state.db)
             .await?;

@@ -270,7 +270,7 @@ async fn update_user(
     }
 
     // Fetch updated user
-    let user: User = sqlx::query_as("SELECT * FROM users WHERE id = $1")
+    let user: User = sqlx::query_as("SELECT * FROM users WHERE id = $1 AND deleted_at IS NULL")
         .bind(id)
         .fetch_one(&state.db)
         .await?;

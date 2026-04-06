@@ -123,7 +123,42 @@ async fn list_posts(
 
     let limit = query.limit.unwrap_or(50).min(100);
 
-    let mut sql = String::from(
+    // Build SQL query safely without format!() for dynamic parts
+    // Use separate condition arrays that we track in parallel with bound values
+    let mut conditions: Vec<&'static str> = Vec::new();
+    let mut arg_index: usize = 2;
+
+    if query.is_pinned.is_some() {
+        conditions.push(" AND p.is_pinned = $2");
+        arg_index = 3;
+    }
+
+    if query.q.is_some() {
+        conditions.push(" AND p.message ILIKE $3");
+        arg_index = 4;
+    }
+
+    if query.before.is_some() {
+        conditions.push(" AND p.created_at < (SELECT created_at FROM posts WHERE id = $4)");
+        arg_index = 5;
+    } else if query.after.is_some() {
+        conditions.push(" AND p.created_at > (SELECT created_at FROM posts WHERE id = $4)");
+        arg_index = 5;
+    }
+
+    // Determine ORDER BY direction (validated, not user-input)
+    let order_dir = if query.after.is_some() { "ASC" } else { "DESC" };
+    let limit_placeholder = if arg_index == 2 {
+        "$2"
+    } else if arg_index == 3 {
+        "$3"
+    } else if arg_index == 4 {
+        "$4"
+    } else {
+        "$5"
+    };
+
+    let sql = format!(
         r#"
         SELECT p.id, p.channel_id, p.user_id, p.root_post_id, p.message, p.props, p.file_ids,
                p.is_pinned, p.created_at, p.edited_at, p.deleted_at,
@@ -137,40 +172,13 @@ async fn list_posts(
         LEFT JOIN users u ON p.user_id = u.id
         WHERE p.channel_id = $1 AND p.deleted_at IS NULL
         AND (p.root_post_id IS NULL OR c.type IN ('direct', 'group'))
+        {}
+        ORDER BY p.created_at {} LIMIT {}
     "#,
+        conditions.join(""),
+        order_dir,
+        limit_placeholder
     );
-
-    let mut arg_index = 2;
-
-    if query.is_pinned.is_some() {
-        sql.push_str(&format!(" AND p.is_pinned = ${}", arg_index));
-        arg_index += 1;
-    }
-
-    if let Some(ref _q) = query.q {
-        sql.push_str(&format!(" AND p.message ILIKE ${}", arg_index));
-        arg_index += 1;
-    }
-
-    if query.before.is_some() {
-        sql.push_str(&format!(
-            " AND p.created_at < (SELECT created_at FROM posts WHERE id = ${})",
-            arg_index
-        ));
-        arg_index += 1;
-    } else if query.after.is_some() {
-        sql.push_str(&format!(
-            " AND p.created_at > (SELECT created_at FROM posts WHERE id = ${})",
-            arg_index
-        ));
-        arg_index += 1;
-    }
-
-    sql.push_str(&format!(
-        " ORDER BY p.created_at {} LIMIT ${}",
-        if query.after.is_some() { "ASC" } else { "DESC" },
-        arg_index
-    ));
 
     let mut q = sqlx::query_as::<_, PostResponse>(&sql).bind(channel_id);
 

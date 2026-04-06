@@ -60,7 +60,7 @@ pub struct EmailWorker {
     db: PgPool,
     config: EmailWorkerConfig,
     encryption_key: String,
-    provider_cache: std::sync::Mutex<std::collections::HashMap<Uuid, SmtpProvider>>,
+    provider_cache: tokio::sync::Mutex<std::collections::HashMap<Uuid, SmtpProvider>>,
 }
 
 impl EmailWorker {
@@ -70,7 +70,7 @@ impl EmailWorker {
             db,
             config,
             encryption_key,
-            provider_cache: std::sync::Mutex::new(std::collections::HashMap::new()),
+            provider_cache: tokio::sync::Mutex::new(std::collections::HashMap::new()),
         }
     }
 
@@ -283,7 +283,7 @@ impl EmailWorker {
 
         // Check cache
         {
-            let cache = self.provider_cache.lock().unwrap();
+            let cache = self.provider_cache.lock().await;
             if cache.contains_key(&settings.id) {
                 // In a real implementation, we'd need to clone the provider or use Arc
                 // For now, we'll create a new one each time (not optimal but works)
@@ -297,7 +297,7 @@ impl EmailWorker {
 
         // Cache it
         {
-            let mut cache = self.provider_cache.lock().unwrap();
+            let mut cache = self.provider_cache.lock().await;
             cache.insert(settings.id, provider.clone());
         }
 
