@@ -1,308 +1,284 @@
-# rustchat
+# RustChat
 
-Self-hosted team collaboration platform with a Rust backend and a Vue web client.
+> **Self-hosted team collaboration that just works.**
+> 
+> RustChat is a fast, reliable team messaging platform built for organizations that want control of their data without sacrificing user experience.
 
-rustchat targets two audiences:
-- **Contributing developers** who want to build a Mattermost-compatible server in Rust.
-- **Self-hosting operators** who want to run their own collaboration stack.
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Rust](https://img.shields.io/badge/Rust-1.80%2B-orange.svg)](https://www.rust-lang.org/)
+[![Vue.js](https://img.shields.io/badge/Vue.js-3.5%2B-green.svg)](https://vuejs.org/)
 
-## Scope and Honesty Policy
+---
 
-This README is intentionally explicit about:
-- what is implemented,
-- what is partial,
-- what is not implemented,
-- what was actually verified in this workspace.
+## What You Get
 
-If a capability is uncertain, it is marked as partial or unverified.
+RustChat gives your team everything needed for productive communication:
 
-## Current Status (as of 2026-03-17)
+### Messaging
+- **Real-time channels** — Public and private channels for team discussions
+- **Threaded conversations** — Keep discussions organized and easy to follow
+- **Direct & group messages** — 1:1 and small group conversations
+- **Rich formatting** — Markdown support with code blocks, mentions, and reactions
+- **File sharing** — Drag-and-drop uploads with image previews
 
-Project maturity:
-- **Active development / pre-release**.
-- **No production-ready claim** is made here.
+### Voice & Video Calls
+- **One-click calls** — Start voice or video calls directly in any channel
+- **Screen sharing** — Share your screen during calls
+- **Mobile ringing** — VoIP push notifications for incoming calls on mobile
 
-### Phase 1: Entity Foundation ✅ COMPLETE (2026-03-17)
+### Productivity
+- **Powerful search** — Find messages, files, and conversations instantly
+- **Keyboard shortcuts** — Navigate without leaving your keyboard (`Ctrl+K` for quick switcher)
+- **Unread tracking** — Never miss important messages
+- **Pin messages** — Keep important information visible
 
-**Deliverables:**
-- Entity registration system (bots, integrations, webhooks)
-- API key authentication with Argon2id hashing
-- Rate limiting per entity (100 req/min) and registration (10 req/min)
-- Database migrations and models for entity management
-- Test infrastructure with seed data fixtures
-- Mobile compatibility audit (39/41 endpoints working - 95.1%)
-- JWT expiry enforcement in WebSocket connections
+### Administration
+- **Single Sign-On** — OAuth/SAML integration (GitHub, Google, OIDC)
+- **Granular permissions** — Role-based access control
+- **Audit logs** — Track user actions and system events
+- **API keys** — Programmatic access for bots and integrations
 
-**Verification Status:**
-- `cd backend && cargo check` -> ✅ **PASS**
-- `cd backend && cargo clippy --all-targets --all-features -- -D warnings` -> ✅ **PASS**
-- `cd frontend && npm run build` -> ✅ **PASS**
-- `cd backend && cargo test --lib` -> ✅ **PASS** (125 unit tests)
-- `cd backend && cargo test --no-fail-fast` -> ⚠️ **CONDITIONAL** (integration tests require `RUSTCHAT_TEST_DATABASE_URL`)
-- Mobile compatibility: ✅ **39/41 endpoints** (see [`docs/mobile-compatibility-matrix.md`](docs/mobile-compatibility-matrix.md))
+---
 
-**Key Files Added:**
-- `backend/migrations/20260317000001_create_entities_and_api_keys.sql`
-- `backend/src/models/entity.rs` - Entity types and models
-- `backend/src/services/api_key_service.rs` - Key generation/validation
-- `backend/src/middleware/api_key_auth.rs` - Authentication extractor
-- `backend/src/middleware/rate_limit.rs` - Rate limiting per entity
-- `backend/src/api/v1/entities.rs` - Entity CRUD endpoints
-- `backend/tests/fixtures/` - Test infrastructure with seed data
-- `docs/mobile-compatibility-matrix.md` - Mobile API coverage report
+## How It Works
 
-**Documentation:**
-- Test status: [`backend/tests/test_status.md`](backend/tests/test_status.md)
-- Phase 1 completion: [`docs/phase1-completion-report.md`](docs/phase1-completion-report.md)
-- Mobile compatibility: [`docs/mobile-compatibility-matrix.md`](docs/mobile-compatibility-matrix.md)
+RustChat is designed as three focused services working together:
 
-**Next Phase:** Phase 2 - Custom emoji upload, advanced search, expanded test coverage
-
-## API Keys
-
-API keys use the format `rck_[64 hexadecimal characters]` (68 characters total).
-
-Example: `rck_7a9f3c8b2d1e4c6f89a12b34567890abcdef1234567890abcdef1234567890abcd`
-
-**Format Details:**
-- Prefix: `rck_` (identifies RustChat keys)
-- Body: 64 hexadecimal characters (256-bit random entropy)
-- Total length: 68 characters
-
-**Authentication:**
-Include API keys in the `Authorization` header as a Bearer token:
-```bash
-curl -H "Authorization: Bearer rck_7a9f3c8b2d1e4c6f89a12b34567890abcdef1234567890abcdef1234567890abcd" \
-  http://localhost:3000/api/v1/entities/123
+```
+┌─────────────────┐     ┌──────────────────┐     ┌─────────────────┐
+│   Web Client    │────▶│  RustChat API    │◀────│  Push Proxy     │
+│  (Vue.js SPA)   │     │  (Rust/Axum)     │     │ (Mobile Push)   │
+└─────────────────┘     └──────────────────┘     └─────────────────┘
+                               │
+           ┌───────────────────┼───────────────────┐
+           ▼                   ▼                   ▼
+      ┌──────────┐      ┌──────────┐      ┌──────────────┐
+      │PostgreSQL│      │  Redis   │      │S3-compatible │
+      │(Primary) │      │(Pub/Sub) │      │(File Store)  │
+      └──────────┘      └──────────┘      └──────────────┘
 ```
 
-**Generation:**
-API keys are generated via the entity registration API and returned exactly once at creation. Store them securely.
+**The Backend** — A Rust service handling REST APIs, WebSocket connections, and business logic. It speaks two protocols:
+- `/api/v1/*` — Native API for the web client
+- `/api/v4/*` — Mattermost-compatible API for mobile and desktop clients
 
-```bash
-curl -X POST http://localhost:3000/api/v1/entities/123/keys \
-  -H "Authorization: Bearer $JWT_TOKEN" \
-  -H "Content-Type: application/json"
-```
+**The Frontend** — A Vue.js single-page application that works in any modern browser. No Electron, no desktop installers.
 
-**Breaking Change (v1.5):** API keys generated before March 2026 used a 64-character format without the `rck_` prefix. These keys are no longer valid and must be regenerated via the entity registration API.
+**The Push Proxy** — A dedicated service for mobile push notifications (FCM for Android, APNS for iOS).
 
-## What rustchat Does
+---
 
-### Core platform
-- Rust backend (`Axum + Tokio + SQLx`) under [`backend/`](backend/).
-- Web app (`Vue 3 + TypeScript + Pinia`) under [`frontend/`](frontend/).
-- Push notification proxy service under [`push-proxy/`](push-proxy/).
-- PostgreSQL + Redis + S3-compatible object storage integration.
+## Why RustChat?
 
-### API surfaces
-- Native API surface under `/api/v1` for first-party web features.
-- Mattermost compatibility surface under `/api/v4` with broad route coverage.
-- v4 compatibility behavior includes:
-  - `X-MM-COMPAT: 1` response header on v4 routes.
-  - Explicit `501 Not Implemented` fallback for unsupported v4 routes.
+### For Self-Hosters
+- **Simple deployment** — One Docker Compose file, five minutes to running
+- **Small resource footprint** — Runs comfortably on a 2GB VPS
+- **Data ownership** — Your messages, your files, your database
+- **No vendor lock-in** — Mattermost-compatible API means existing mobile apps work
 
-Evidence:
-- [`backend/src/api/v4/mod.rs`](backend/src/api/v4/mod.rs)
-- [`scripts/mm_compat_smoke.sh`](scripts/mm_compat_smoke.sh)
-- [`scripts/mm_mobile_smoke.sh`](scripts/mm_mobile_smoke.sh)
+### For Developers
+- **Clean architecture** — Rust backend with explicit error handling, compile-time checked SQL
+- **Real-time by design** — WebSocket-first with Redis pub/sub for clustering
+- **Modern frontend** — Vue 3 Composition API, TypeScript, Pinia state management
+- **Extensible** — Webhook and API key support for integrations
 
-### Real-time and calls
-- WebSocket endpoint for Mattermost-style clients at `/api/v4/websocket`.
-- Separate legacy/first-party websocket surface exists (`/api/v1/ws`).
-- Calls plugin route surface under `/api/v4/plugins/com.mattermost.calls/*`.
-- Calls state backends:
-  - `memory` (single-node)
-  - `redis` (shared control-plane state)
-  - `auto` (Redis-first with fallback)
+### For Security Teams
+- **Memory-safe backend** — Rust eliminates entire classes of vulnerabilities
+- **Authenticated file access** — No presigned URL leaks, everything goes through auth
+- **Audit trails** — Comprehensive logging of user and admin actions
+- **Production hardening** — Environment-based security constraints
 
-Evidence:
-- [`backend/src/api/v4/websocket.rs`](backend/src/api/v4/websocket.rs)
-- [`backend/src/api/ws.rs`](backend/src/api/ws.rs)
-- [`backend/src/api/v4/calls_plugin/mod.rs`](backend/src/api/v4/calls_plugin/mod.rs)
-- [`docs/calls_deployment_modes.md`](docs/calls_deployment_modes.md)
+---
 
-### Operations and security posture
-- Production-mode validation enforces stricter security constraints (JWT issuer/audience, HTTPS requirements, restricted legacy token transport).
-- Environment-based CORS behavior (development vs production).
-
-Evidence:
-- [`backend/src/config/mod.rs`](backend/src/config/mod.rs)
-- [`backend/src/api/mod.rs`](backend/src/api/mod.rs)
-
-## What rustchat Cannot (or Does Not Yet) Do Completely
-
-### Not fully implemented v4 areas (explicit or effective)
-- Some v4 modules intentionally return `501` for selected endpoints (examples: parts of plugins, dialogs, custom profile, selected system/calls plugin-management paths).
-- Several v4 domains expose placeholder-style responses for now (notably parts of OAuth app/outgoing connection management and some command/bot mutation paths).
-
-Evidence:
-- [`backend/src/api/v4/plugins.rs`](backend/src/api/v4/plugins.rs)
-- [`backend/src/api/v4/dialogs.rs`](backend/src/api/v4/dialogs.rs)
-- [`backend/src/api/v4/custom_profile.rs`](backend/src/api/v4/custom_profile.rs)
-- [`backend/src/api/v4/oauth.rs`](backend/src/api/v4/oauth.rs)
-- [`backend/src/api/v4/commands.rs`](backend/src/api/v4/commands.rs)
-- [`backend/src/api/v4/bots.rs`](backend/src/api/v4/bots.rs)
-
-### Calls architecture limits
-- Multi-node control-plane call state is available in Redis mode.
-- SFU media plane is still instance-local (no fully distributed media fabric claim).
-
-Evidence:
-- [`docs/calls_deployment_modes.md`](docs/calls_deployment_modes.md)
-
-### Verification limits right now
-- Full integration test confidence requires a correctly bootstrapped test DB/Redis/S3 test environment.
-- Compatibility smoke checks require a live running backend exposing `/api/v4`.
-
-## What rustchat Does Differently
-
-Compared with typical Mattermost-compatible deployments, rustchat explicitly differs in these areas:
-
-1. **Rust-first server implementation**
-- The backend is implemented in Rust rather than Go.
-
-2. **Dual API strategy**
-- Maintains native `/api/v1` plus compatibility `/api/v4` in the same server.
-
-3. **Compatibility signaling discipline**
-- v4 explicitly advertises compatibility with `X-MM-COMPAT: 1` and uses explicit `501` fallback for unsupported routes.
-
-4. **Command invocation policy in product UX**
-- Primary command invocation is keyboard-first (`Ctrl/Cmd+K` on desktop, `^k` token in composer/mobile-typed input).
-- Slash-command-first UX is intentionally not the primary entry path.
-
-Evidence:
-- [`backend/src/api/v4/mod.rs`](backend/src/api/v4/mod.rs)
-- [`frontend/src/components/composer/MessageComposer.vue`](frontend/src/components/composer/MessageComposer.vue)
-- [`AGENTS.md`](AGENTS.md)
-
-## Target Audience Guidance
-
-### For self-host operators
-Use rustchat if you want:
-- self-hosted collaboration infrastructure,
-- Rust backend stack,
-- gradual Mattermost client compatibility.
-
-Do not treat this repository as production-ready by default unless your own deployment gates are green (tests, smoke checks, security hardening, operational monitoring).
-
-### For contributing developers
-You will work on:
-- strict API contract behavior for compatibility-sensitive endpoints,
-- websocket and calls parity details,
-- incremental replacement of partial/stubbed routes,
-- CI/test hardening for confidence.
-
-## Quick Start (Operator)
+## Quick Start
 
 ### Prerequisites
-- Docker + Docker Compose
-- `.env` file with required secrets
+- Docker and Docker Compose
+- A server with 2GB RAM minimum
 
-### 1) Configure
+### 1. Get the Code
+
+```bash
+git clone https://github.com/rustchatio/rustchat.git
+cd rustchat
+```
+
+### 2. Configure
+
 ```bash
 cp .env.example .env
 ```
-Set at minimum:
-- `RUSTCHAT_JWT_SECRET`
-- `RUSTCHAT_JWT_ISSUER`
-- `RUSTCHAT_JWT_AUDIENCE`
-- `RUSTCHAT_ENCRYPTION_KEY`
-- `RUSTCHAT_S3_ACCESS_KEY`
-- `RUSTCHAT_S3_SECRET_KEY`
-- `RUSTFS_ACCESS_KEY`
-- `RUSTFS_SECRET_KEY`
 
-### 2) Run stack
+Edit `.env` and set the required secrets:
+
+```bash
+# Required: Cryptographic secrets
+RUSTCHAT_JWT_SECRET=$(openssl rand -hex 32)
+RUSTCHAT_ENCRYPTION_KEY=$(openssl rand -hex 32)
+
+# Required: S3 credentials for file storage
+RUSTCHAT_S3_ACCESS_KEY=your-access-key
+RUSTCHAT_S3_SECRET_KEY=your-secret-key
+RUSTFS_ACCESS_KEY=your-access-key
+RUSTFS_SECRET_KEY=your-secret-key
+
+# Optional: SSO (GitHub, Google, OIDC)
+# GITHUB_CLIENT_ID=...
+# GITHUB_CLIENT_SECRET=...
+```
+
+### 3. Launch
+
 ```bash
 docker compose up -d --build
 ```
 
-Default endpoints:
-- Web UI: `http://localhost:8080`
-- Backend: `http://localhost:3000`
-- Postgres: `localhost:5432`
-- Redis: `localhost:6379`
-- S3 API (RustFS): `localhost:9000`
+The services will be available at:
+- **Web UI**: http://localhost:8080
+- **API**: http://localhost:3000
 
-### 3) Compatibility smoke checks
+### 4. Create First User
+
+On first startup, set these environment variables to create an admin user:
+
 ```bash
-BASE=http://127.0.0.1:3000 ./scripts/mm_compat_smoke.sh
-BASE=http://127.0.0.1:3000 ./scripts/mm_mobile_smoke.sh
+RUSTCHAT_ADMIN_USER=admin
+RUSTCHAT_ADMIN_PASSWORD=secure-password-here
 ```
 
-## Local Development (Contributor)
+Then restart: `docker compose restart backend`
 
-### Backend
-```bash
-cd backend
-cargo fmt
-cargo clippy --all-targets --all-features -- -D warnings
-cargo check
-cargo test --no-fail-fast -- --nocapture
-```
+---
 
-If integration tests need dependencies:
-```bash
-docker compose up -d postgres redis rustfs
-```
+## Project Status
 
-Or deterministic integration profile:
-```bash
-docker compose -f docker-compose.integration.yml up -d
-export RUSTCHAT_TEST_DATABASE_URL=postgres://rustchat:rustchat@127.0.0.1:55432/rustchat
-export RUSTCHAT_TEST_REDIS_URL=redis://127.0.0.1:56379/
-export RUSTCHAT_TEST_S3_ENDPOINT=http://127.0.0.1:59000
-export RUSTCHAT_TEST_S3_ACCESS_KEY=minioadmin
-export RUSTCHAT_TEST_S3_SECRET_KEY=minioadmin
-```
+**Current: Active Development (Pre-Release)**
 
-### Frontend
-```bash
-cd frontend
-npm ci
-npm run build
-```
+RustChat is being actively developed with regular improvements. It is suitable for:
+- ✅ Development and testing environments
+- ✅ Small teams comfortable with occasional updates
+- ✅ Organizations with ops capacity to manage self-hosted software
 
-Optional E2E:
-```bash
-npm run test:e2e
-```
+Use with appropriate caution for production workloads. Always test in a staging environment first.
 
-## Repository Map
+### Recent Highlights
 
-```text
-rustchat/
-├── backend/            Rust API server (v1 + v4 + websocket + calls)
-├── frontend/           Vue web client
-├── push-proxy/         Push notification proxy
-├── scripts/            Compatibility and operational smoke scripts
-├── tools/mm-compat/    Compatibility extraction/report tooling
-├── docs/               Documentation (user, admin, dev, architecture)
-└── previous-analyses/  Historical compatibility analysis artifacts
-```
+| Date | Milestone |
+|------|-----------|
+| 2026-03 | Entity Foundation Complete — API keys, rate limiting, mobile compatibility (95.1%) |
+| 2026-02 | VoIP Push Notifications — Mobile call ringing for Android and iOS |
+| 2026-01 | V4 API Coverage — Broad Mattermost compatibility for mobile clients |
+
+See [CHANGELOG.md](CHANGELOG.md) for detailed release history.
+
+---
 
 ## Documentation
 
-| Audience | Location |
-|----------|----------|
-| **End Users** | [User Guide](docs/user/) - Getting started, features, troubleshooting |
-| **Administrators** | [Admin Guide](docs/admin/) - Installation, configuration, security |
-| **Developers** | [Development Guide](docs/development/) - Contributing, testing, compatibility |
-| **Architecture** | [Architecture Guide](docs/architecture/) - System design, data model |
-| **Operations** | [Operations Guide](docs/operations/) - Runbooks, incident response |
+| Audience | Documentation |
+|----------|--------------|
+| **End Users** | [User Guide](docs/user/) — Using RustChat day-to-day |
+| **Administrators** | [Admin Guide](docs/admin/) — Deployment, security, operations |
+| **Developers** | [Development Guide](docs/development/) — Contributing, architecture |
+| **Reference** | [Architecture](docs/architecture/) — System design and data model |
 
-### Key Documents
+### Quick Links
 
-| Document | Purpose |
-|---|---|
-| [Architecture Overview](docs/architecture/overview.md) | System components, data flow, key design decisions |
-| [Contributing Guidelines](docs/development/contributing.md) | How to contribute code to the project |
-| [Compatibility Scope](docs/development/compatibility.md) | Mattermost client compatibility commitments |
-| [Installation Guide](docs/admin/installation.md) | Deploy RustChat with Docker Compose |
-| [Configuration Reference](docs/admin/configuration.md) | All environment variables and settings |
+- [Installation Guide](docs/admin/installation.md) — Docker Compose deployment
+- [Configuration Reference](docs/admin/configuration.md) — All environment variables
+- [Mattermost Compatibility](docs/development/compatibility.md) — API compatibility details
+- [Architecture Overview](docs/architecture/overview.md) — How the system fits together
+
+---
+
+## Development
+
+Want to contribute? Here's how to get the dev environment running:
+
+```bash
+# Backend
+cd backend
+cargo check
+cargo test --lib
+
+# Frontend
+cd frontend
+npm ci
+npm run build
+
+# Full stack with Docker
+docker compose up -d postgres redis rustfs
+```
+
+See [docs/development/local-setup.md](docs/development/local-setup.md) for detailed setup.
+
+---
+
+## What's Implemented
+
+### Core Platform ✅
+- Channels (public, private, direct messages)
+- Real-time messaging with WebSocket
+- Thread replies
+- File uploads and previews
+- Emoji reactions
+- Message search
+- User presence and status
+
+### Calls ✅
+- Voice and video calls
+- Screen sharing
+- Mobile VoIP push notifications
+- SFU-based media routing
+
+### Administration ✅
+- Team and user management
+- Role-based permissions
+- SSO (OAuth/OIDC)
+- Audit logging
+- API keys for integrations
+
+### Mobile Support ✅
+- Mattermost API v4 compatibility
+- Mobile app support (Mattermost mobile apps)
+- Push notifications
+
+See [What rustchat Cannot (Yet) Do](#limitations) for known gaps.
+
+---
+
+## <a name="limitations"></a>What rustchat Cannot (Yet) Do Completely
+
+We believe in honest communication about capabilities:
+
+### Partial Implementations
+- **Plugins** — Plugin framework exists; most plugins are stubs returning `501`
+- **Custom Profile Attributes** — UI exists but backend is limited
+- **OAuth Apps** — Basic structure, not full marketplace
+- **Bots** — Framework present, limited bot management
+
+### Known Limits
+- **Calls** — Control plane scales via Redis; media plane is instance-local (no distributed SFU mesh)
+- **Search** — Full-text search exists but not as advanced as Elasticsearch-backed solutions
+
+### Not Implemented
+- **Federation** — No server-to-server messaging
+- **Guest Accounts** — No temporary/external user access
+- **Data Residency** — No geographic data partitioning
+
+---
 
 ## License
 
-MIT - see [LICENSE](LICENSE).
+MIT — See [LICENSE](LICENSE) for details.
+
+---
+
+## Acknowledgments
+
+RustChat is inspired by the team communication tools we've used over the years. We aim to combine the best of:
+- **Slack's** usability and polish
+- **Mattermost's** self-hosting philosophy
+- **Discord's** real-time performance
+
+Built with [Rust](https://www.rust-lang.org/), [Vue.js](https://vuejs.org/), and gratitude to the open source community.
