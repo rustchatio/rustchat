@@ -390,10 +390,11 @@ async fn get_channel(
             .await?
             .ok_or_else(|| AppError::Forbidden("Not a member of this channel".to_string()))?;
 
-    let mut channel: Channel = sqlx::query_as("SELECT * FROM channels WHERE id = $1 AND deleted_at IS NULL")
-        .bind(id)
-        .fetch_one(&state.db)
-        .await?;
+    let mut channel: Channel =
+        sqlx::query_as("SELECT * FROM channels WHERE id = $1 AND deleted_at IS NULL")
+            .bind(id)
+            .fetch_one(&state.db)
+            .await?;
 
     hydrate_direct_channel_display_name(&state, auth.user_id, &mut channel).await?;
 

@@ -6,7 +6,7 @@ import type { Post } from '../../api/posts'
 import { useAuthStore } from '../../stores/auth'
 import RcAvatar from '../ui/RcAvatar.vue'
 import FilePreview from '../atomic/FilePreview.vue'
-import { renderMarkdown } from '../../utils/markdown'
+import { useMarkdownRenderer } from '../../composables/useMarkdownRenderer'
 
 interface Props {
   parentPost: Post | null
@@ -20,6 +20,7 @@ const emit = defineEmits<{
 }>()
 
 const authStore = useAuthStore()
+const { renderMarkdown } = useMarkdownRenderer()
 
 const formattedTime = computed(() => {
   if (!props.parentPost) return ''

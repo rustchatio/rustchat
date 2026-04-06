@@ -69,17 +69,15 @@ impl PostRepository {
     /// }
     /// ```
     pub async fn find_by_id(&self, post_id: Uuid) -> ApiResult<Option<PostWithUser>> {
-        let post = sqlx::query_as::<_, PostWithUserRow>(
-            &format!(
-                r#"
+        let post = sqlx::query_as::<_, PostWithUserRow>(&format!(
+            r#"
                 SELECT {}
                 FROM posts p
                 LEFT JOIN users u ON p.user_id = u.id
                 WHERE p.id = $1 AND p.deleted_at IS NULL
                 "#,
-                Self::POST_COLUMNS
-            ),
-        )
+            Self::POST_COLUMNS
+        ))
         .bind(post_id)
         .fetch_optional(&self.db)
         .await?;
@@ -102,9 +100,8 @@ impl PostRepository {
         limit: i64,
         offset: i64,
     ) -> ApiResult<Vec<PostWithUser>> {
-        let rows = sqlx::query_as::<_, PostWithUserRow>(
-            &format!(
-                r#"
+        let rows = sqlx::query_as::<_, PostWithUserRow>(&format!(
+            r#"
                 SELECT {}
                 FROM posts p
                 LEFT JOIN users u ON p.user_id = u.id
@@ -113,9 +110,8 @@ impl PostRepository {
                 ORDER BY p.created_at DESC
                 LIMIT $2 OFFSET $3
                 "#,
-                Self::POST_COLUMNS
-            ),
-        )
+            Self::POST_COLUMNS
+        ))
         .bind(channel_id)
         .bind(limit)
         .bind(offset)
@@ -133,9 +129,8 @@ impl PostRepository {
     /// # Arguments
     /// * `root_post_id` - The ID of the parent/root post
     pub async fn get_thread_replies(&self, root_post_id: Uuid) -> ApiResult<Vec<PostWithUser>> {
-        let rows = sqlx::query_as::<_, PostWithUserRow>(
-            &format!(
-                r#"
+        let rows = sqlx::query_as::<_, PostWithUserRow>(&format!(
+            r#"
                 SELECT {}
                 FROM posts p
                 LEFT JOIN users u ON p.user_id = u.id
@@ -143,9 +138,8 @@ impl PostRepository {
                   AND p.deleted_at IS NULL
                 ORDER BY p.created_at ASC
                 "#,
-                Self::POST_COLUMNS
-            ),
-        )
+            Self::POST_COLUMNS
+        ))
         .bind(root_post_id)
         .fetch_all(&self.db)
         .await?;
@@ -166,9 +160,8 @@ impl PostRepository {
         channel_id: Uuid,
         since: DateTime<Utc>,
     ) -> ApiResult<Vec<PostWithUser>> {
-        let rows = sqlx::query_as::<_, PostWithUserRow>(
-            &format!(
-                r#"
+        let rows = sqlx::query_as::<_, PostWithUserRow>(&format!(
+            r#"
                 SELECT {}
                 FROM posts p
                 LEFT JOIN users u ON p.user_id = u.id
@@ -177,9 +170,8 @@ impl PostRepository {
                   AND p.created_at > $2
                 ORDER BY p.created_at ASC
                 "#,
-                Self::POST_COLUMNS
-            ),
-        )
+            Self::POST_COLUMNS
+        ))
         .bind(channel_id)
         .bind(since)
         .fetch_all(&self.db)
@@ -198,9 +190,8 @@ impl PostRepository {
         before: DateTime<Utc>,
         limit: i64,
     ) -> ApiResult<Vec<PostWithUser>> {
-        let rows = sqlx::query_as::<_, PostWithUserRow>(
-            &format!(
-                r#"
+        let rows = sqlx::query_as::<_, PostWithUserRow>(&format!(
+            r#"
                 SELECT {}
                 FROM posts p
                 LEFT JOIN users u ON p.user_id = u.id
@@ -210,9 +201,8 @@ impl PostRepository {
                 ORDER BY p.created_at DESC
                 LIMIT $3
                 "#,
-                Self::POST_COLUMNS
-            ),
-        )
+            Self::POST_COLUMNS
+        ))
         .bind(channel_id)
         .bind(before)
         .bind(limit)
@@ -232,9 +222,8 @@ impl PostRepository {
         after: DateTime<Utc>,
         limit: i64,
     ) -> ApiResult<Vec<PostWithUser>> {
-        let rows = sqlx::query_as::<_, PostWithUserRow>(
-            &format!(
-                r#"
+        let rows = sqlx::query_as::<_, PostWithUserRow>(&format!(
+            r#"
                 SELECT {}
                 FROM posts p
                 LEFT JOIN users u ON p.user_id = u.id
@@ -244,9 +233,8 @@ impl PostRepository {
                 ORDER BY p.created_at ASC
                 LIMIT $3
                 "#,
-                Self::POST_COLUMNS
-            ),
-        )
+            Self::POST_COLUMNS
+        ))
         .bind(channel_id)
         .bind(after)
         .bind(limit)

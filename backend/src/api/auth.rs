@@ -147,20 +147,22 @@ async fn register(
     }
 
     // Check if email already exists
-    let existing: Option<User> = sqlx::query_as("SELECT * FROM users WHERE email = $1 AND deleted_at IS NULL")
-        .bind(&input.email)
-        .fetch_optional(&state.db)
-        .await?;
+    let existing: Option<User> =
+        sqlx::query_as("SELECT * FROM users WHERE email = $1 AND deleted_at IS NULL")
+            .bind(&input.email)
+            .fetch_optional(&state.db)
+            .await?;
 
     if existing.is_some() {
         return Err(AppError::Conflict("Email already registered".to_string()));
     }
 
     // Check if username already exists
-    let existing_username: Option<User> = sqlx::query_as("SELECT * FROM users WHERE username = $1 AND deleted_at IS NULL")
-        .bind(&input.username)
-        .fetch_optional(&state.db)
-        .await?;
+    let existing_username: Option<User> =
+        sqlx::query_as("SELECT * FROM users WHERE username = $1 AND deleted_at IS NULL")
+            .bind(&input.username)
+            .fetch_optional(&state.db)
+            .await?;
 
     if existing_username.is_some() {
         return Err(AppError::Conflict("Username already taken".to_string()));

@@ -12,7 +12,7 @@ import FilePreview from '../atomic/FilePreview.vue'
 import ImageGallery from '../atomic/ImageGallery.vue'
 import type { FileUploadResponse } from '../../api/files'
 import { threadsApi } from '../../api/threads'
-import { renderMarkdown } from '../../utils/markdown'
+import { useMarkdownRenderer } from '../../composables/useMarkdownRenderer'
 
 const messageStore = useMessageStore()
 const uiStore = useUIStore()
@@ -20,6 +20,7 @@ const authStore = useAuthStore()
 const teamStore = useTeamStore()
 
 const { sendMessage } = useWebSocket()
+const { renderMarkdown } = useMarkdownRenderer()
 
 const replyContent = ref('')
 const loading = ref(false)

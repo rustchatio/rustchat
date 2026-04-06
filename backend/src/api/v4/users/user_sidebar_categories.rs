@@ -18,7 +18,7 @@ use crate::mattermost_compat::{
 use crate::models::channel::ChannelType;
 
 #[derive(Deserialize)]
-pub(super) struct CategoriesPath {
+pub struct CategoriesPath {
     user_id: String,
 }
 
@@ -42,7 +42,7 @@ async fn resolve_team_id(state: &AppState, team_id_str: &str) -> ApiResult<Uuid>
     }
 }
 
-pub(super) async fn get_categories(
+pub async fn get_categories(
     State(state): State<AppState>,
     auth: MmAuthUser,
     Path(params): Path<CategoriesPath>,
@@ -56,7 +56,7 @@ pub(super) async fn get_categories(
     get_categories_internal(state, user_id, team_id).await
 }
 
-pub(super) async fn get_my_categories(
+pub async fn get_my_categories(
     State(state): State<AppState>,
     auth: MmAuthUser,
     Query(query): Query<std::collections::HashMap<String, String>>,
@@ -68,7 +68,7 @@ pub(super) async fn get_my_categories(
     get_categories_internal(state, auth.user_id, team_id).await
 }
 
-pub(super) async fn create_category(
+pub async fn create_category(
     State(state): State<AppState>,
     auth: MmAuthUser,
     Path(params): Path<CategoriesPath>,
@@ -83,7 +83,7 @@ pub(super) async fn create_category(
     create_category_internal(state, user_id, team_id, input).await
 }
 
-pub(super) async fn update_categories(
+pub async fn update_categories(
     State(state): State<AppState>,
     auth: MmAuthUser,
     Path(params): Path<CategoriesPath>,
@@ -98,7 +98,7 @@ pub(super) async fn update_categories(
     update_categories_internal(state, user_id, team_id, input.into_request()).await
 }
 
-pub(super) async fn update_category_order(
+pub async fn update_category_order(
     State(state): State<AppState>,
     auth: MmAuthUser,
     Path(params): Path<CategoriesPath>,
@@ -394,7 +394,7 @@ async fn get_default_categories(
 }
 
 #[derive(Deserialize)]
-pub(crate) struct CreateCategoryRequest {
+pub struct CreateCategoryRequest {
     #[serde(default)]
     user_id: Option<String>,
     #[serde(default)]
@@ -481,13 +481,13 @@ pub(crate) async fn create_category_internal(
 }
 
 #[derive(Deserialize)]
-pub(crate) struct UpdateCategoriesRequest {
+pub struct UpdateCategoriesRequest {
     categories: Vec<mm::SidebarCategory>,
 }
 
 #[derive(Deserialize)]
 #[serde(untagged)]
-pub(crate) enum UpdateCategoriesPayload {
+pub enum UpdateCategoriesPayload {
     Raw(Vec<mm::SidebarCategory>),
     Wrapped(UpdateCategoriesRequest),
 }

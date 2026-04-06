@@ -260,8 +260,7 @@ async fn update_user(
             .await?;
     }
     if let Some(ref avatar_url) = input.avatar_url {
-        let normalized_avatar_url =
-            normalize_avatar_url(id, Some(avatar_url)).unwrap_or_else(String::new);
+        let normalized_avatar_url = normalize_avatar_url(id, Some(avatar_url)).unwrap_or_default();
         sqlx::query("UPDATE users SET avatar_url = $1 WHERE id = $2")
             .bind(&normalized_avatar_url)
             .bind(id)

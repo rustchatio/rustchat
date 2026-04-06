@@ -49,7 +49,7 @@ fn resolve_activity_user_id(user_id_str: &str, auth: &MmAuthUser) -> ApiResult<u
 }
 
 /// Build the activity router - called from users.rs router function
-pub(super) fn routes() -> Router<AppState> {
+pub fn routes() -> Router<AppState> {
     Router::new()
         .route("/users/{user_id}/activity", get(get_activity_feed))
         .route("/users/{user_id}/activity/read", post(mark_read))

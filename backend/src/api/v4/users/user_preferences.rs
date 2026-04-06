@@ -14,14 +14,14 @@ use crate::mattermost_compat::{id::encode_mm_id, models as mm};
 
 const MAX_UPDATE_PREFERENCES: usize = 100;
 
-pub(super) async fn get_preferences(
+pub async fn get_preferences(
     State(state): State<AppState>,
     auth: MmAuthUser,
 ) -> ApiResult<Json<Vec<mm::Preference>>> {
     fetch_preferences(&state, auth.user_id).await
 }
 
-pub(super) async fn get_preferences_for_user(
+pub async fn get_preferences_for_user(
     State(state): State<AppState>,
     auth: MmAuthUser,
     Path(user_id): Path<String>,
@@ -30,7 +30,7 @@ pub(super) async fn get_preferences_for_user(
     fetch_preferences(&state, user_id).await
 }
 
-pub(super) async fn get_my_preferences_by_category(
+pub async fn get_my_preferences_by_category(
     State(state): State<AppState>,
     auth: MmAuthUser,
     Path(category): Path<String>,
@@ -47,7 +47,7 @@ pub(super) async fn get_my_preferences_by_category(
     Ok(Json(map_preference_rows(rows)))
 }
 
-pub(super) async fn get_preferences_by_category(
+pub async fn get_preferences_by_category(
     State(state): State<AppState>,
     auth: MmAuthUser,
     Path((user_id, category)): Path<(String, String)>,
@@ -65,7 +65,7 @@ pub(super) async fn get_preferences_by_category(
     Ok(Json(map_preference_rows(rows)))
 }
 
-pub(super) async fn get_preference_by_category_and_name(
+pub async fn get_preference_by_category_and_name(
     State(state): State<AppState>,
     auth: MmAuthUser,
     Path((user_id, category, preference_name)): Path<(String, String, String)>,
@@ -84,7 +84,7 @@ pub(super) async fn get_preference_by_category_and_name(
     Ok(Json(map_preference_row(row)))
 }
 
-pub(super) async fn update_preferences(
+pub async fn update_preferences(
     State(state): State<AppState>,
     auth: MmAuthUser,
     headers: HeaderMap,
@@ -95,7 +95,7 @@ pub(super) async fn update_preferences(
     update_preferences_internal(&state, auth.user_id, prefs).await
 }
 
-pub(super) async fn update_preferences_for_user(
+pub async fn update_preferences_for_user(
     State(state): State<AppState>,
     auth: MmAuthUser,
     Path(user_id): Path<String>,
@@ -108,7 +108,7 @@ pub(super) async fn update_preferences_for_user(
     update_preferences_internal(&state, user_id, prefs).await
 }
 
-pub(super) async fn delete_preferences_for_user(
+pub async fn delete_preferences_for_user(
     State(state): State<AppState>,
     auth: MmAuthUser,
     Path(user_id): Path<String>,
