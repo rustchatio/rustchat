@@ -82,14 +82,17 @@ jobs:
           # Using default 'postgres' superuser instead of creating a custom user
           POSTGRES_PASSWORD: password
           POSTGRES_DB: postgres
+          # Increase max connections and shared memory for tests
+          POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
         ports:
           - 5432:5432
         # Set health checks to wait until postgres is ready
         options: >-
           --health-cmd pg_isready
-          --health-interval 10s
+          --health-interval 5s
           --health-timeout 5s
-          --health-retries 5
+          --health-retries 10
+          --shm-size=256mb
 
       redis:
         image: redis:7
@@ -202,23 +205,32 @@ jobs:
         run: |
           set -euo pipefail
           echo "::group::Checking database health"
-          for i in {1..30}; do
+          for i in {1..60}; do
             if pg_isready -h localhost -p 5432 -U "postgres" >/dev/null 2>&1; then
               echo "PostgreSQL is healthy"
               break
             fi
-            echo "Waiting for PostgreSQL to be healthy..."
-            sleep 1
+            echo "Waiting for PostgreSQL to be healthy... (attempt $i/60)"
+            sleep 2
           done
           pg_isready -h localhost -p 5432 -U "postgres"
           echo "::endgroup::"
 
-      - name: Run cargo test
+      - name: Run cargo test (unit tests only)
         run: |
           set -euo pipefail
-          echo "::group::cargo test"
-          # Limit threads to prevent overwhelming the database
-          cargo test --no-fail-fast -- --nocapture --test-threads=4
+          echo "::group::cargo test --lib"
+          # Run only unit tests (no integration tests requiring database)
+          cargo test --lib --no-fail-fast -- --nocapture
+          echo "::endgroup::"
+
+      - name: Run integration tests sequentially
+        run: |
+          set -euo pipefail
+          echo "::group::cargo test (integration tests)"
+          # Run integration tests one at a time to prevent DB overload
+          # Limit to 2 threads to prevent overwhelming PostgreSQL
+          cargo test --tests --no-fail-fast -- --nocapture --test-threads=2
           echo "::endgroup::"
 
   cargo-check-test:
