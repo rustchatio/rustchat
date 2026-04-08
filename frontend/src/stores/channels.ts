@@ -16,15 +16,18 @@ export const useChannelStore = defineStore('channels', () => {
     )
 
     const publicChannels = computed(() =>
-        channels.value.filter(c => c.channel_type === 'public')
+        channels.value.filter(c => c.channel_type === 'public' || (c as any).type === 'public')
     )
 
     const privateChannels = computed(() =>
-        channels.value.filter(c => c.channel_type === 'private')
+        channels.value.filter(c => c.channel_type === 'private' || (c as any).type === 'private')
     )
 
     const directMessages = computed(() =>
-        channels.value.filter(c => c.channel_type === 'direct' || c.channel_type === 'group')
+        channels.value.filter(c => 
+            c.channel_type === 'direct' || c.channel_type === 'group' ||
+            (c as any).type === 'direct' || (c as any).type === 'group'
+        )
     )
 
     async function fetchChannels(teamId: string) {

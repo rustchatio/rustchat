@@ -68,7 +68,8 @@ const breadcrumbs = computed((): BreadcrumbSegment[] => {
   }
 
   if (currentChannel.value) {
-    const channelIcon = currentChannel.value.channel_type === 'private' ? 'Lock' : 'Hash'
+    const channelType = currentChannel.value?.channel_type || (currentChannel.value as any)?.type;
+    const channelIcon = channelType === 'private' ? 'Lock' : 'Hash'
     const channelName = currentChannel.value.display_name || currentChannel.value.name
     const isInThread = uiStore.rhsView === 'thread'
 

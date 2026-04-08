@@ -166,8 +166,11 @@ function normalizeChannelForDisplay(c: any) {
   let avatarUrl = '';
   let username = '';
   
+  // Support both 'type' and 'channel_type' field names
+  const channelTypeValue = c.type || c.channel_type;
+  
   // Handle DM channels
-  if (c.channel_type === 'direct' || c.name?.startsWith('dm_')) {
+  if (channelTypeValue === 'direct' || c.name?.startsWith('dm_')) {
     otherId = getDirectMessageCounterpartyId(c.name, authStore.user?.id) || '';
     const summary = otherId ? getUserSummarySnapshot(otherId) : null;
     const member = otherId ? teamStore.members.find(m => m.user_id === otherId) : null;
@@ -185,9 +188,9 @@ function normalizeChannelForDisplay(c: any) {
   const unreadCount = isCurrentChannel ? 0 : (c.unreadCount || 0);
   const mentionCount = isCurrentChannel ? 0 : (c.mentionCount || 0);
   
-  const channelType = c.channel_type === 'direct' ? 'dm' : 
-                    c.channel_type === 'group' ? 'group' :
-                    c.channel_type === 'private' ? 'private' : 'public';
+  const channelType = channelTypeValue === 'direct' ? 'dm' : 
+                    channelTypeValue === 'group' ? 'group' :
+                    channelTypeValue === 'private' ? 'private' : 'public';
   
   return {
     id: c.id,
