@@ -18,6 +18,7 @@ import { useChannelStore } from '../../stores/channels'
 import { usePreferencesStore } from '../../stores/preferences'
 import { searchEmojis } from '../../utils/emoji'
 import { useCodeFormatting } from '../../composables/useCodeFormatting'
+import { useWebSocket } from '../../composables/useWebSocket'
 
 const emit = defineEmits(['send', 'typing', 'stopTyping', 'startAudioCall'])
 
@@ -26,6 +27,9 @@ const teamStore = useTeamStore()
 const callsStore = useCallsStore()
 const channelStore = useChannelStore()
 const preferencesStore = usePreferencesStore()
+
+const { connectionStatus } = useWebSocket()
+const isConnected = computed(() => connectionStatus.value === 'connected')
 
 const content = ref('')
 const showEmojiPicker = ref(false)
@@ -87,10 +91,18 @@ const formattingAllowed = computed(() => preferencesStore.preferences?.enable_po
 const showToolbar = computed(() => formattingAllowed.value && showFormatting.value)
 
 const canSend = computed(() => {
+  if (!isConnected.value) return false
   const hasContent = content.value.trim().length > 0
   const hasUploadedFiles = attachedFiles.value.some((file) => file.uploaded)
   const hasUploadInProgress = attachedFiles.value.some((file) => file.uploading)
   return (hasContent || hasUploadedFiles) && !hasUploadInProgress
+})
+
+const sendDisabledReason = computed(() => {
+  if (!isConnected.value) return 'Reconnecting...'
+  if (attachedFiles.value.some(f => f.uploading)) return 'Uploading...'
+  if (!content.value.trim() && !attachedFiles.value.some(f => f.uploaded)) return 'Type a message'
+  return ''
 })
 
 const uploadInProgressCount = computed(
@@ -1004,6 +1016,7 @@ onUnmounted(() => {
           <button
             class="flex h-9 min-w-9 items-center justify-center gap-1.5 rounded-r-1 bg-brand px-3 text-brand-foreground shadow-1 transition-standard hover:bg-brand-hover disabled:cursor-not-allowed disabled:opacity-50 sm:px-4"
             :disabled="!canSend"
+            :title="sendDisabledReason"
             aria-label="Send message"
             @click="handleSend"
           >
