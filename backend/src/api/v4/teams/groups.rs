@@ -208,7 +208,7 @@ fn should_filter_allow_reference(auth: &MmAuthUser, query: &GroupAssociationQuer
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]
-struct TeamGroupRow {
+pub(crate) struct TeamGroupRow {
     id: Uuid,
     name: Option<String>,
     display_name: String,

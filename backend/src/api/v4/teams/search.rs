@@ -80,6 +80,7 @@ pub async fn search_teams(
     Ok(Json(teams.into_iter().map(|t| t.into()).collect()))
 }
 
+#[allow(dead_code)]
 pub async fn search_team_channels(
     state: &AppState,
     user_id: Uuid,
