@@ -19,6 +19,7 @@ import { useUnreadStore } from '../../stores/unreads';
 import { useBreakpoints } from '../../composables/useBreakpoints';
 import { activityService } from '../../features/activity/services/activityService';
 import { useActivityStore } from '../../features/activity/stores/activityStore';
+import { useWebSocket } from '../../composables/useWebSocket'
 
 const auth = useAuthStore();
 const ui = useUIStore();
@@ -30,6 +31,18 @@ const activityStore = useActivityStore();
 const activityUnreadCount = computed(() => activityStore.unreadCount);
 const router = useRouter();
 const { isMobile } = useBreakpoints();
+
+const { connectionStatus } = useWebSocket()
+
+const connectionDotClass = computed(() => {
+  switch (connectionStatus.value) {
+    case 'connected': return 'bg-green-500'
+    case 'reconnecting': return 'bg-amber-500 animate-pulse'
+    case 'disconnected': return 'bg-orange-500 animate-pulse'
+    case 'failed': return 'bg-red-500'
+    default: return 'bg-gray-400'
+  }
+})
 
 const showSearch = ref(false);
 const quickSwitcher = useQuickSwitcher();
@@ -282,6 +295,13 @@ function handleQuickSwitcherSelect(item: QuickSwitcherItem) {
           </span>
         </button>
       </div>
+
+      <!-- Connection indicator -->
+      <div 
+        :class="connectionDotClass"
+        class="h-2 w-2 rounded-full"
+        :title="`Connection: ${connectionStatus}`"
+      />
 
       <!-- User Menu -->
       <div class="relative ml-1">
