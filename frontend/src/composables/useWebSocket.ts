@@ -49,6 +49,74 @@ const listeners = ref<Record<string, Set<WsListener>>>({})
 let actionSeq = 1
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null
 
+// Connection state management
+const connectionStatus = ref<'connected' | 'reconnecting' | 'disconnected' | 'failed'>('connected')
+const disconnectedAt = ref<Date | null>(null)
+const reconnectAttempt = ref(0)
+const nextRetryIn = ref(0)
+const connectionError = ref<string | null>(null)
+
+// Constants
+const MAX_RECONNECT_ATTEMPTS = 10
+const RECONNECT_DELAY_BASE = 1000
+const RECONNECT_DELAY_MAX = 10000
+const STATE_TRANSITION_MS = {
+  TO_DISCONNECTED: 5000,   // 5 seconds
+  TO_FAILED: 30000         // 30 seconds
+}
+
+// Countdown timer
+let countdownTimer: ReturnType<typeof setInterval> | null = null
+
+function startCountdown() {
+  stopCountdown()
+  nextRetryIn.value = Math.min(
+    RECONNECT_DELAY_BASE * Math.pow(1.5, reconnectAttempt.value),
+    RECONNECT_DELAY_MAX
+  ) / 1000
+
+  countdownTimer = setInterval(() => {
+    if (nextRetryIn.value > 0) {
+      nextRetryIn.value--
+    } else {
+      stopCountdown()
+    }
+  }, 1000)
+}
+
+function stopCountdown() {
+  if (countdownTimer) {
+    clearInterval(countdownTimer)
+    countdownTimer = null
+  }
+}
+
+function updateConnectionStatus() {
+  if (connected.value) {
+    connectionStatus.value = 'connected'
+    disconnectedAt.value = null
+    connectionError.value = null
+    stopCountdown()
+    return
+  }
+
+  if (!disconnectedAt.value) {
+    connectionStatus.value = 'reconnecting'
+    return
+  }
+
+  const disconnectedMs = Date.now() - disconnectedAt.value.getTime()
+
+  if (disconnectedMs >= STATE_TRANSITION_MS.TO_FAILED || reconnectAttempt.value >= MAX_RECONNECT_ATTEMPTS) {
+    connectionStatus.value = 'failed'
+    stopCountdown()
+  } else if (disconnectedMs >= STATE_TRANSITION_MS.TO_DISCONNECTED) {
+    connectionStatus.value = 'disconnected'
+  } else {
+    connectionStatus.value = 'reconnecting'
+  }
+}
+
 function clearReconnectTimer() {
     if (reconnectTimer) {
         clearTimeout(reconnectTimer)
@@ -356,7 +424,10 @@ export function useWebSocket() {
                 console.log('WebSocket connected')
                 connected.value = true
                 reconnectAttempts.value = 0
+                reconnectAttempt.value = 0
                 clearReconnectTimer()
+                updateConnectionStatus()
+                stopCountdown()
 
                 // Resubscribe to channels
                 subscriptions.value.forEach(cid => {
@@ -386,10 +457,16 @@ export function useWebSocket() {
                 console.log('WebSocket disconnected', event.code, event.reason)
                 connected.value = false
                 ws.value = null
+                disconnectedAt.value = new Date()
+                reconnectAttempt.value++
+                updateConnectionStatus()
+                startCountdown()
 
                 if (isAuthExpiryCloseEvent(event)) {
                     clearReconnectTimer()
                     reconnectAttempts.value = 0
+                    reconnectAttempt.value = 0
+                    stopCountdown()
                     void authStore.logout('expired')
                     return
                 }
@@ -397,6 +474,8 @@ export function useWebSocket() {
                 if (!authStore.token) {
                     clearReconnectTimer()
                     reconnectAttempts.value = 0
+                    reconnectAttempt.value = 0
+                    stopCountdown()
                     return
                 }
 
@@ -629,13 +708,17 @@ export function useWebSocket() {
 
     function disconnect() {
         clearReconnectTimer()
+        stopCountdown()
         if (ws.value) {
             ws.value.close()
             ws.value = null
         }
         connected.value = false
         reconnectAttempts.value = 0
+        reconnectAttempt.value = 0
+        disconnectedAt.value = null
         subscriptions.value.clear()
+        updateConnectionStatus()
     }
 
     function send(envelope: ClientEnvelope) {
@@ -762,6 +845,11 @@ export function useWebSocket() {
 
     return {
         connected,
+        connectionStatus,
+        disconnectedAt,
+        reconnectAttempt,
+        nextRetryIn,
+        connectionError,
         connect,
         disconnect,
         subscribe,
