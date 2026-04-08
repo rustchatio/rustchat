@@ -369,11 +369,12 @@ pub async fn delete_channel(
     ensure_channel_admin_or_system_manage(&state, channel_id, &auth).await?;
 
     // Get channel info for the broadcast
-    let channel: Channel = sqlx::query_as("SELECT * FROM channels WHERE id = $1 AND deleted_at IS NULL")
-        .bind(channel_id)
-        .fetch_optional(&state.db)
-        .await?
-        .ok_or_else(|| AppError::NotFound("Channel not found".to_string()))?;
+    let channel: Channel =
+        sqlx::query_as("SELECT * FROM channels WHERE id = $1 AND deleted_at IS NULL")
+            .bind(channel_id)
+            .fetch_optional(&state.db)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Channel not found".to_string()))?;
 
     // Soft delete the channel
     sqlx::query("UPDATE channels SET deleted_at = NOW() WHERE id = $1")

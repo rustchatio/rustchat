@@ -31,7 +31,7 @@ async fn is_channel_creator_or_admin(
             JOIN roles r ON u.role = r.name
             WHERE u.id = $1 AND r.permissions @> ARRAY['system_manage']
         )
-        "#
+        "#,
     )
     .bind(user_id)
     .fetch_one(&state.db)
@@ -42,12 +42,11 @@ async fn is_channel_creator_or_admin(
     }
 
     // Check if user is channel creator
-    let creator_id: Option<Uuid> = sqlx::query_scalar(
-        "SELECT creator_id FROM channels WHERE id = $1"
-    )
-    .bind(channel_id)
-    .fetch_optional(&state.db)
-    .await?;
+    let creator_id: Option<Uuid> =
+        sqlx::query_scalar("SELECT creator_id FROM channels WHERE id = $1")
+            .bind(channel_id)
+            .fetch_optional(&state.db)
+            .await?;
 
     if creator_id == Some(user_id) {
         return Ok(true);
@@ -55,15 +54,18 @@ async fn is_channel_creator_or_admin(
 
     // Check if user is channel admin
     let role: Option<String> = sqlx::query_scalar(
-        "SELECT role FROM channel_members WHERE channel_id = $1 AND user_id = $2"
+        "SELECT role FROM channel_members WHERE channel_id = $1 AND user_id = $2",
     )
     .bind(channel_id)
     .bind(user_id)
     .fetch_optional(&state.db)
     .await?;
 
-    let is_admin = matches!(role.as_deref(), Some("admin") | Some("channel_admin") | Some("team_admin"));
-    
+    let is_admin = matches!(
+        role.as_deref(),
+        Some("admin") | Some("channel_admin") | Some("team_admin")
+    );
+
     Ok(is_admin)
 }
 
@@ -462,7 +464,7 @@ async fn update_channel(
 ) -> ApiResult<Json<Channel>> {
     // Check if user is creator or admin
     let can_update = is_channel_creator_or_admin(&state, id, auth.user_id).await?;
-    
+
     if !can_update {
         return Err(AppError::Forbidden(
             "Only channel creator or admin can update this channel".to_string(),
@@ -512,8 +514,8 @@ async fn update_channel(
         user_id: None,
         exclude_user_id: Some(auth.user_id),
     };
-    let event = WsEnvelope::event(EventType::ChannelUpdated, &channel, Some(id))
-        .with_broadcast(broadcast);
+    let event =
+        WsEnvelope::event(EventType::ChannelUpdated, &channel, Some(id)).with_broadcast(broadcast);
     state.ws_hub.broadcast(event).await;
 
     Ok(Json(channel))
@@ -527,7 +529,7 @@ async fn delete_channel(
 ) -> ApiResult<Json<serde_json::Value>> {
     // Check if user is creator or admin
     let can_delete = is_channel_creator_or_admin(&state, id, auth.user_id).await?;
-    
+
     if !can_delete {
         return Err(AppError::Forbidden(
             "Only channel creator or admin can delete this channel".to_string(),
@@ -535,11 +537,12 @@ async fn delete_channel(
     }
 
     // Get channel info for the broadcast
-    let channel: Channel = sqlx::query_as("SELECT * FROM channels WHERE id = $1 AND deleted_at IS NULL")
-        .bind(id)
-        .fetch_optional(&state.db)
-        .await?
-        .ok_or_else(|| AppError::NotFound("Channel not found".to_string()))?;
+    let channel: Channel =
+        sqlx::query_as("SELECT * FROM channels WHERE id = $1 AND deleted_at IS NULL")
+            .bind(id)
+            .fetch_optional(&state.db)
+            .await?
+            .ok_or_else(|| AppError::NotFound("Channel not found".to_string()))?;
 
     // Soft delete the channel
     sqlx::query("UPDATE channels SET deleted_at = NOW() WHERE id = $1")
@@ -613,10 +616,11 @@ async fn add_member(
     // Check permissions
     if auth.user_id == input.user_id {
         // User joining themselves
-        let channel: Channel = sqlx::query_as("SELECT * FROM channels WHERE id = $1 AND deleted_at IS NULL")
-            .bind(id)
-            .fetch_one(&state.db)
-            .await?;
+        let channel: Channel =
+            sqlx::query_as("SELECT * FROM channels WHERE id = $1 AND deleted_at IS NULL")
+                .bind(id)
+                .fetch_one(&state.db)
+                .await?;
 
         if channel.channel_type != crate::models::ChannelType::Public {
             let member: ChannelMember = sqlx::query_as(
