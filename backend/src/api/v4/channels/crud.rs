@@ -112,7 +112,7 @@ pub async fn get_all_channels(
         FROM channels c
         JOIN teams t ON t.id = c.team_id
         WHERE
-            ($1::bool OR c.is_archived = false)
+            ($1::bool OR (c.is_archived = false AND c.deleted_at IS NULL))
             AND (NOT $2::bool OR c.name NOT IN ('town-square', 'off-topic'))
             AND (
                 $3::uuid IS NULL
@@ -147,7 +147,7 @@ pub async fn get_all_channels(
             SELECT COUNT(*)::BIGINT
             FROM channels c
             WHERE
-                ($1::bool OR c.is_archived = false)
+                ($1::bool OR (c.is_archived = false AND c.deleted_at IS NULL))
                 AND (NOT $2::bool OR c.name NOT IN ('town-square', 'off-topic'))
                 AND (
                     $3::uuid IS NULL
