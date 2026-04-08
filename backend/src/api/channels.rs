@@ -184,6 +184,7 @@ async fn list_channels(
             WHERE c.team_id = $1 
             AND c.type IN ('public', 'private')
             AND c.is_archived = false
+            AND c.deleted_at IS NULL
             AND c.id NOT IN (
                 SELECT channel_id FROM channel_members WHERE user_id = $2
             )
@@ -204,7 +205,7 @@ async fn list_channels(
             r#"
             SELECT c.* FROM channels c
             INNER JOIN channel_members cm ON cm.channel_id = c.id
-            WHERE c.team_id = $1 AND cm.user_id = $2
+            WHERE c.team_id = $1 AND cm.user_id = $2 AND c.deleted_at IS NULL
             ORDER BY c.name
             "#,
         )
@@ -217,7 +218,7 @@ async fn list_channels(
             r#"
             SELECT c.* FROM channels c
             INNER JOIN channel_members cm ON cm.channel_id = c.id
-            WHERE c.team_id = $1 AND cm.user_id = $2 AND c.is_archived = false
+            WHERE c.team_id = $1 AND cm.user_id = $2 AND c.is_archived = false AND c.deleted_at IS NULL
             ORDER BY c.name
             "#,
         )
@@ -260,6 +261,7 @@ async fn create_channel(
             WHERE team_id = $1
               AND type = 'direct'::channel_type
               AND (name = $2 OR name = $3)
+              AND deleted_at IS NULL
             ORDER BY created_at ASC
             LIMIT 1
             "#,
@@ -611,7 +613,7 @@ async fn add_member(
     // Check permissions
     if auth.user_id == input.user_id {
         // User joining themselves
-        let channel: Channel = sqlx::query_as("SELECT * FROM channels WHERE id = $1")
+        let channel: Channel = sqlx::query_as("SELECT * FROM channels WHERE id = $1 AND deleted_at IS NULL")
             .bind(id)
             .fetch_one(&state.db)
             .await?;
@@ -666,7 +668,7 @@ async fn add_member(
 
     // Announce join in public channels
     let channel_type = sqlx::query_scalar::<_, crate::models::ChannelType>(
-        "SELECT type FROM channels WHERE id = $1",
+        "SELECT type FROM channels WHERE id = $1 AND deleted_at IS NULL",
     )
     .bind(id)
     .fetch_one(&state.db)
