@@ -12,6 +12,7 @@ Welcome to RustChat! This guide helps you get started and make the most of RustC
 ### Basics
 - Sign in and account setup
 - Understanding the UI layout
+- [Connection status and disconnection handling](./connection-status.md)
 - Status indicators and presence
 - Basic navigation
 

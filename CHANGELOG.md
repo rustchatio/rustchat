@@ -7,10 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **WebSocket Disconnection UX**: Progressive disconnection handling to prevent users from acting on stale data.
+  - Three visual states: Reconnecting (< 5s), Disconnected (5-30s), Failed (> 30s).
+  - Connection status banner with countdown timer and manual retry option.
+  - Full-screen modal with reconnect/refresh actions for extended disconnections.
+  - Header connection indicator dot (🟢🟡🟠🔴) showing real-time status.
+  - Message composer disabled with tooltip during disconnections.
+  - Content dimming (80% → 60%) to indicate potentially stale data.
+  - Automatic sync of missed messages and unread counts on reconnect.
+- **Channel Management**: Channel creators can now update and delete their channels.
+  - Edit channel name, display name, and description via channel context menu.
+  - Delete channels with confirmation (soft delete).
+  - Real-time updates via WebSocket when channels are modified.
+- **Private Channels**: Merged into main Channels sidebar section with lock icon indicator.
+- **Browse Channels**: Fixed public channel discovery and joining.
+- **Message Notifications**: Browser notifications now show for all new messages, not just mentions.
+- **Composer Fix**: Send button now properly enables after attachment upload completes.
+
 ### Fixed
 - Admin panel team members now load correctly (fixed missing `presence` column in SQL query)
 - Thread view now displays replies properly (fixed API response format mismatch)
 - Typing indicators now appear when other users are typing (fixed v1 WebSocket message format conversion)
+- Real-time message deletion now works correctly (standardized WebSocket payload)
 
 ## [0.3.5] - 2026-03-09
 

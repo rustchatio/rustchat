@@ -124,6 +124,26 @@ Service writes event → realtime::hub → broadcast to subscribed connections
                                     → Redis pub/sub → other backend instances → their hubs
 ```
 
+**Client-side Connection State Management:**
+
+The frontend implements progressive disconnection UX to handle network interruptions gracefully:
+
+| State | Duration | Visual | Behavior |
+|-------|----------|--------|----------|
+| `connected` | — | 🟢 Green dot | Normal operation |
+| `reconnecting` | < 5s | 🟡 Yellow banner, 80% opacity | Auto-retry with backoff |
+| `disconnected` | 5-30s | 🟠 Orange banner, 60% opacity | Manual retry option |
+| `failed` | > 30s | 🔴 Full-screen modal | Explicit reconnect required |
+
+**State transitions:**
+```
+CONNECTED → onClose → RECONNECTING (auto-retry, exponential backoff)
+RECONNECTING → timeout 5s → DISCONNECTED (manual retry available)
+DISCONNECTED → timeout 30s → FAILED (must reconnect or refresh)
+```
+
+See `SPEC-WEBSOCKET-DISCONNECTION-UX.md` for full specification.
+
 ---
 
 ## 3. Frontend
