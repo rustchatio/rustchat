@@ -135,7 +135,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             backend/target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('backend/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-v2-${{ hashFiles('backend/Cargo.lock') }}
 
       - name: Wait for services
         run: |
