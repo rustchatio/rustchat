@@ -1,2 +1,6 @@
 [net]
 git-fetch-with-cli = true
+
+[env]
+# Limit test parallelism to prevent overwhelming the CI database
+RUST_TEST_THREADS = "4"

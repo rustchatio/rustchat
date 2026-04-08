@@ -198,11 +198,27 @@ jobs:
           cargo clippy --all-targets --all-features -- -D warnings
           echo "::endgroup::"
 
+      - name: Verify database health before tests
+        run: |
+          set -euo pipefail
+          echo "::group::Checking database health"
+          for i in {1..30}; do
+            if pg_isready -h localhost -p 5432 -U "postgres" >/dev/null 2>&1; then
+              echo "PostgreSQL is healthy"
+              break
+            fi
+            echo "Waiting for PostgreSQL to be healthy..."
+            sleep 1
+          done
+          pg_isready -h localhost -p 5432 -U "postgres"
+          echo "::endgroup::"
+
       - name: Run cargo test
         run: |
           set -euo pipefail
           echo "::group::cargo test"
-          cargo test --no-fail-fast -- --nocapture
+          # Limit threads to prevent overwhelming the database
+          cargo test --no-fail-fast -- --nocapture --test-threads=4
           echo "::endgroup::"
 
   cargo-check-test:
