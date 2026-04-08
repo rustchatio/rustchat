@@ -82,7 +82,7 @@ jobs:
           # Using default 'postgres' superuser instead of creating a custom user
           POSTGRES_PASSWORD: password
           POSTGRES_DB: postgres
-          # Increase max connections and shared memory for tests
+          # Optimize PostgreSQL for CI testing - reduce resource usage
           POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
         ports:
           - 5432:5432
@@ -92,7 +92,7 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
-          --shm-size=256mb
+          --shm-size=512mb
 
       redis:
         image: redis:7
@@ -228,9 +228,9 @@ jobs:
         run: |
           set -euo pipefail
           echo "::group::cargo test (integration tests)"
-          # Run integration tests one at a time to prevent DB overload
-          # Limit to 2 threads to prevent overwhelming PostgreSQL
-          cargo test --tests --no-fail-fast -- --nocapture --test-threads=2
+          # Run integration tests with single thread to prevent DB overload
+          # Each test creates/drops databases which is resource intensive
+          cargo test --tests --no-fail-fast -- --nocapture --test-threads=1
           echo "::endgroup::"
 
   cargo-check-test:
