@@ -2,6 +2,8 @@
 import { ref, onMounted, watch, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import ToastManager from './components/ui/ToastManager.vue'
+import ConnectionStatusBar from './components/ui/ConnectionStatusBar.vue'
+import ConnectionLostModal from './components/ui/ConnectionLostModal.vue'
 import CommandPalette from './components/ui/CommandPalette.vue'
 import SettingsModal from './components/settings/SettingsModal.vue'
 import TermsAcceptanceModal from './components/modals/TermsAcceptanceModal.vue'
@@ -22,7 +24,12 @@ const authStore = useAuthStore()
 const unreadStore = useUnreadStore()
 const configStore = useConfigStore()
 const route = useRoute()
-const { connect, disconnect } = useWebSocket()
+const { 
+    connect, 
+    disconnect, 
+    connectionStatus,
+    nextRetryIn
+} = useWebSocket()
 const singleTabEnabled = computed(() => authStore.isAuthenticated)
 const { isActiveTab, takeOver } = useSingleActiveTab(singleTabEnabled)
 
@@ -30,6 +37,17 @@ const showTermsModal = computed(() => {
     // Only show terms modal for authenticated users outside of admin section
     return authStore.isAuthenticated && !route.path.startsWith('/admin')
 })
+
+// Connection action handlers
+function handleRetryConnection() {
+    // Force immediate reconnect attempt
+    disconnect()
+    setTimeout(() => connect(), 100)
+}
+
+function handleRefreshPage() {
+    window.location.reload()
+}
 
 onMounted(async () => {
     if (toastManagerRef.value) {
@@ -52,12 +70,38 @@ watch([() => authStore.isAuthenticated, isActiveTab], async ([isAuth, isActive])
 
 <template>
   <ToastManager ref="toastManagerRef" />
+  
+  <!-- Connection status banner (States 1 & 2) -->
+  <ConnectionStatusBar
+    v-if="connectionStatus !== 'connected' && connectionStatus !== 'failed'"
+    :status="connectionStatus"
+    :next-retry-in="nextRetryIn"
+    @retry="handleRetryConnection"
+  />
+  
+  <!-- Connection lost modal (State 3) -->
+  <ConnectionLostModal
+    v-if="connectionStatus === 'failed'"
+    @reconnect="handleRetryConnection"
+    @refresh="handleRefreshPage"
+  />
+  
   <CommandPalette v-if="isActiveTab" />
   <SettingsModal v-if="isActiveTab" :isOpen="ui.isSettingsOpen" @close="ui.closeSettings()" />
   <ActiveCall v-if="isActiveTab" />
   <IncomingCallModal v-if="isActiveTab" />
   <TermsAcceptanceModal v-if="showTermsModal" />
-  <router-view />
+  
+  <!-- Main content with dimming when disconnected -->
+  <div 
+    :class="{ 
+      'opacity-60': connectionStatus === 'disconnected',
+      'opacity-80': connectionStatus === 'reconnecting'
+    }"
+    class="transition-opacity duration-500"
+  >
+    <router-view />
+  </div>
   <div
     v-if="authStore.isAuthenticated && !isActiveTab"
     class="fixed inset-0 z-[120] flex items-center justify-center bg-bg-app/90 backdrop-blur-sm p-6"
