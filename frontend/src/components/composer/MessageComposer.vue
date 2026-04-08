@@ -716,21 +716,33 @@ async function handleFiles(files: File[]) {
       uploaded: undefined as FileUploadResponse | undefined,
     }
     attachedFiles.value.push(attachment)
+    const attachmentIndex = attachedFiles.value.length - 1
 
     try {
       const response = await filesApi.upload(file, channelStore.currentChannelId || undefined, (progressEvent) => {
         if (progressEvent.total) {
-          attachment.progress = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+          const currentAttachment = attachedFiles.value[attachmentIndex]
+          if (currentAttachment) {
+            attachedFiles.value[attachmentIndex] = {
+              ...currentAttachment,
+              progress: Math.round((progressEvent.loaded * 100) / progressEvent.total)
+            }
+          }
         }
       })
 
-      attachment.uploaded = response.data
+      const currentAttachment = attachedFiles.value[attachmentIndex]
+      if (currentAttachment) {
+        attachedFiles.value[attachmentIndex] = {
+          ...currentAttachment,
+          uploaded: response.data,
+          uploading: false
+        }
+      }
       toast.success('File uploaded', file.name)
     } catch (error: any) {
       toast.error('Upload failed', error.message || 'Unknown error')
       attachedFiles.value = attachedFiles.value.filter((fileItem) => fileItem !== attachment)
-    } finally {
-      attachment.uploading = false
     }
   }
 }

@@ -13,6 +13,7 @@ use super::{
     mm, parse_mm_or_uuid, permissions, ApiResult, AppError, AppState, Channel, MmAuthUser,
 };
 use crate::api::v4::channels::utils::map_channel_with_team_data_row;
+use crate::realtime::events::{EventType, WsBroadcast, WsEnvelope};
 use serde_json::json;
 
 #[derive(Debug, Deserialize, Default)]
@@ -341,6 +342,17 @@ pub async fn update_channel(
     .fetch_one(&state.db)
     .await?;
 
+    // Broadcast ChannelUpdated event
+    let broadcast = WsBroadcast {
+        channel_id: Some(channel_id),
+        team_id: Some(channel.team_id),
+        user_id: None,
+        exclude_user_id: Some(auth.user_id),
+    };
+    let event = WsEnvelope::event(EventType::ChannelUpdated, &channel, Some(channel_id))
+        .with_broadcast(broadcast);
+    state.ws_hub.broadcast(event).await;
+
     Ok(Json(channel.into()))
 }
 
@@ -356,11 +368,36 @@ pub async fn delete_channel(
     // Only channel admins or system admins may delete a channel
     ensure_channel_admin_or_system_manage(&state, channel_id, &auth).await?;
 
+    // Get channel info for the broadcast
+    let channel: Channel = sqlx::query_as("SELECT * FROM channels WHERE id = $1 AND deleted_at IS NULL")
+        .bind(channel_id)
+        .fetch_optional(&state.db)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Channel not found".to_string()))?;
+
     // Soft delete the channel
     sqlx::query("UPDATE channels SET deleted_at = NOW() WHERE id = $1")
         .bind(channel_id)
         .execute(&state.db)
         .await?;
+
+    // Broadcast ChannelDeleted event
+    let broadcast = WsBroadcast {
+        channel_id: Some(channel_id),
+        team_id: Some(channel.team_id),
+        user_id: None,
+        exclude_user_id: Some(auth.user_id),
+    };
+    let event = WsEnvelope::event(
+        EventType::ChannelDeleted,
+        serde_json::json!({
+            "channel_id": channel_id.to_string(),
+            "team_id": channel.team_id.to_string(),
+        }),
+        Some(channel_id),
+    )
+    .with_broadcast(broadcast);
+    state.ws_hub.broadcast(event).await;
 
     Ok(Json(serde_json::json!({"status": "OK"})))
 }
@@ -408,6 +445,17 @@ pub async fn patch_channel(
     .bind(&input.header)
     .fetch_one(&state.db)
     .await?;
+
+    // Broadcast ChannelUpdated event
+    let broadcast = WsBroadcast {
+        channel_id: Some(channel_id),
+        team_id: Some(channel.team_id),
+        user_id: None,
+        exclude_user_id: Some(auth.user_id),
+    };
+    let event = WsEnvelope::event(EventType::ChannelUpdated, &channel, Some(channel_id))
+        .with_broadcast(broadcast);
+    state.ws_hub.broadcast(event).await;
 
     Ok(Json(channel.into()))
 }

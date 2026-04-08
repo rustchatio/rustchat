@@ -1210,7 +1210,10 @@ async fn delete_post(
 
     let broadcast = WsEnvelope::event(
         EventType::MessageDeleted,
-        deleted_post,
+        serde_json::json!({
+            "post_id": post_id,
+            "channel_id": post_channel_id
+        }),
         Some(post_channel_id),
     )
     .with_broadcast(WsBroadcast {

@@ -388,7 +388,7 @@ async fn delete_post(
     let broadcast = crate::realtime::WsEnvelope::event(
         crate::realtime::EventType::MessageDeleted,
         serde_json::json!({
-            "id": id,
+            "post_id": id,
             "channel_id": post.channel_id
         }),
         Some(post.channel_id),

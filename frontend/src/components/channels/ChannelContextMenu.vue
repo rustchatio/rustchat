@@ -8,13 +8,15 @@ import {
     FolderOpen, 
     Link, 
     UserPlus, 
-    LogOut
+    LogOut,
+    Settings,
+    Trash2
 } from 'lucide-vue-next';
 import { useChannelPreferencesStore } from '../../stores/channelPreferences';
 import { useUnreadStore } from '../../stores/unreads';
 import { useTeamStore } from '../../stores/teams';
 import { useAuthStore } from '../../stores/auth';
-import { channelRepository } from '../../features/channels/repositories/channelRepository';
+import { channelRepository, channelService } from '../../features/channels';
 import type { SidebarCategory } from '../../api/channels';
 import { postsApi } from '../../api/posts';
 import { useChannelManagementPermission } from '../../features/permissions/capabilities';
@@ -45,6 +47,8 @@ const emit = defineEmits<{
     (e: 'action', action: string): void
     (e: 'open-add-members'): void
     (e: 'open-move-to', categories: SidebarCategory[]): void
+    (e: 'open-edit'): void
+    (e: 'open-delete'): void
 }>()
 
 const channelPrefsStore = useChannelPreferencesStore()
@@ -224,7 +228,31 @@ async function handleMoveTo() {
     emit('close')
 }
 
+// Handle edit channel
+function handleEdit() {
+    emit('open-edit')
+    emit('close')
+}
 
+// Handle delete channel
+async function handleDelete() {
+    if (!confirm(`Are you sure you want to delete #${props.channelName}? This action cannot be undone.`)) {
+        return
+    }
+    try {
+        await channelService.deleteChannel(props.channelId)
+        emit('action', 'delete')
+    } catch (e) {
+        console.error('Failed to delete channel:', e)
+        alert('Failed to delete channel. Please try again.')
+    }
+    emit('close')
+}
+
+// Check if user can edit/delete (creator or admin)
+const canEditOrDelete = computed(() => {
+    return canManageCurrentChannel.value
+})
 
 // Menu items computed based on state
 const menuItems = computed<ChannelMenuItem[]>(() => {
@@ -287,10 +315,34 @@ const menuItems = computed<ChannelMenuItem[]>(() => {
         })
     }
 
-    // Separator before Leave/Delete
-    items.push({ id: 'sep3', label: '', action: () => {}, separator: true })
+    // Separator before management options
+    items.push({ id: 'sep-management', label: '', action: () => {}, separator: true })
 
-    // 7. Leave Channel
+    // 7. Edit Channel (creator or admin only)
+    if (canEditOrDelete.value) {
+        items.push({
+            id: 'edit',
+            label: 'Edit Channel',
+            icon: Settings,
+            action: handleEdit
+        })
+    }
+
+    // 8. Delete Channel (creator or admin only)
+    if (canEditOrDelete.value) {
+        items.push({
+            id: 'delete',
+            label: 'Delete Channel',
+            icon: Trash2,
+            action: handleDelete,
+            danger: true
+        })
+    }
+
+    // Separator before Leave
+    items.push({ id: 'sep-leave', label: '', action: () => {}, separator: true })
+
+    // 9. Leave Channel
     items.push({
         id: 'leave',
         label: 'Leave Channel',

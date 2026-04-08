@@ -17,6 +17,56 @@ use crate::models::{
 };
 use crate::realtime::events::{EventType, WsBroadcast, WsEnvelope};
 
+/// Check if user is channel creator, admin, or has system manage permission
+async fn is_channel_creator_or_admin(
+    state: &AppState,
+    channel_id: Uuid,
+    user_id: Uuid,
+) -> ApiResult<bool> {
+    // Check system manage permission first
+    let has_system_manage = sqlx::query_scalar::<_, bool>(
+        r#"
+        SELECT EXISTS(
+            SELECT 1 FROM users u
+            JOIN roles r ON u.role = r.name
+            WHERE u.id = $1 AND r.permissions @> ARRAY['system_manage']
+        )
+        "#
+    )
+    .bind(user_id)
+    .fetch_one(&state.db)
+    .await?;
+
+    if has_system_manage {
+        return Ok(true);
+    }
+
+    // Check if user is channel creator
+    let creator_id: Option<Uuid> = sqlx::query_scalar(
+        "SELECT creator_id FROM channels WHERE id = $1"
+    )
+    .bind(channel_id)
+    .fetch_optional(&state.db)
+    .await?;
+
+    if creator_id == Some(user_id) {
+        return Ok(true);
+    }
+
+    // Check if user is channel admin
+    let role: Option<String> = sqlx::query_scalar(
+        "SELECT role FROM channel_members WHERE channel_id = $1 AND user_id = $2"
+    )
+    .bind(channel_id)
+    .bind(user_id)
+    .fetch_optional(&state.db)
+    .await?;
+
+    let is_admin = matches!(role.as_deref(), Some("admin") | Some("channel_admin") | Some("team_admin"));
+    
+    Ok(is_admin)
+}
+
 /// Build channels routes
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -24,7 +74,7 @@ pub fn router() -> Router<AppState> {
         .route("/unreads", get(get_all_unread_counts))
         .route(
             "/{id}",
-            get(get_channel).put(update_channel).delete(archive_channel),
+            get(get_channel).put(update_channel).delete(delete_channel),
         )
         .route("/{id}/members", get(list_members).post(add_member))
         .route("/{id}/members/{user_id}", delete(remove_member))
@@ -408,80 +458,112 @@ async fn update_channel(
     Path(id): Path<Uuid>,
     Json(input): Json<UpdateChannel>,
 ) -> ApiResult<Json<Channel>> {
-    // Check admin membership
-    let member: ChannelMember =
-        sqlx::query_as("SELECT * FROM channel_members WHERE channel_id = $1 AND user_id = $2")
-            .bind(id)
-            .bind(auth.user_id)
-            .fetch_optional(&state.db)
-            .await?
-            .ok_or_else(|| AppError::Forbidden("Not a member of this channel".to_string()))?;
-
-    if member.role != "admin" && !auth.has_permission(&permissions::CHANNEL_MANAGE) {
+    // Check if user is creator or admin
+    let can_update = is_channel_creator_or_admin(&state, id, auth.user_id).await?;
+    
+    if !can_update {
         return Err(AppError::Forbidden(
-            "Not an admin of this channel".to_string(),
+            "Only channel creator or admin can update this channel".to_string(),
         ));
     }
 
-    // Update fields
-    if let Some(ref display_name) = input.display_name {
-        sqlx::query("UPDATE channels SET display_name = $1 WHERE id = $2")
-            .bind(display_name)
-            .bind(id)
-            .execute(&state.db)
-            .await?;
-    }
-    if let Some(ref purpose) = input.purpose {
-        sqlx::query("UPDATE channels SET purpose = $1 WHERE id = $2")
-            .bind(purpose)
-            .bind(id)
-            .execute(&state.db)
-            .await?;
-    }
-    if let Some(ref header) = input.header {
-        sqlx::query("UPDATE channels SET header = $1 WHERE id = $2")
-            .bind(header)
-            .bind(id)
-            .execute(&state.db)
-            .await?;
+    // Validate name if provided (must be at least 2 chars and lowercase/no spaces)
+    if let Some(ref name) = input.name {
+        if name.len() < 2 {
+            return Err(AppError::Validation(
+                "Channel name must be at least 2 characters".to_string(),
+            ));
+        }
+        // Check name doesn't contain spaces
+        if name.contains(' ') {
+            return Err(AppError::Validation(
+                "Channel name cannot contain spaces".to_string(),
+            ));
+        }
     }
 
-    let channel: Channel = sqlx::query_as("SELECT * FROM channels WHERE id = $1")
-        .bind(id)
-        .fetch_one(&state.db)
-        .await?;
+    // Update channel using a single query with COALESCE for optional fields
+    let channel: Channel = sqlx::query_as(
+        r#"
+        UPDATE channels SET
+            name = COALESCE($2, name),
+            display_name = COALESCE($3, display_name),
+            purpose = COALESCE($4, purpose),
+            header = COALESCE($5, header),
+            updated_at = NOW()
+        WHERE id = $1
+        RETURNING *
+        "#,
+    )
+    .bind(id)
+    .bind(&input.name)
+    .bind(&input.display_name)
+    .bind(&input.purpose)
+    .bind(&input.header)
+    .fetch_one(&state.db)
+    .await?;
+
+    // Broadcast ChannelUpdated event
+    let broadcast = WsBroadcast {
+        channel_id: Some(id),
+        team_id: Some(channel.team_id),
+        user_id: None,
+        exclude_user_id: Some(auth.user_id),
+    };
+    let event = WsEnvelope::event(EventType::ChannelUpdated, &channel, Some(id))
+        .with_broadcast(broadcast);
+    state.ws_hub.broadcast(event).await;
 
     Ok(Json(channel))
 }
 
-/// Archive a channel
-async fn archive_channel(
+/// Delete a channel (soft delete)
+async fn delete_channel(
     State(state): State<AppState>,
     auth: AuthUser,
     Path(id): Path<Uuid>,
-) -> ApiResult<Json<Channel>> {
-    // Check admin
-    let member: ChannelMember =
-        sqlx::query_as("SELECT * FROM channel_members WHERE channel_id = $1 AND user_id = $2")
-            .bind(id)
-            .bind(auth.user_id)
-            .fetch_optional(&state.db)
-            .await?
-            .ok_or_else(|| AppError::Forbidden("Not a member of this channel".to_string()))?;
-
-    if member.role != "admin" && !auth.has_permission(&permissions::CHANNEL_MANAGE) {
+) -> ApiResult<Json<serde_json::Value>> {
+    // Check if user is creator or admin
+    let can_delete = is_channel_creator_or_admin(&state, id, auth.user_id).await?;
+    
+    if !can_delete {
         return Err(AppError::Forbidden(
-            "Not an admin of this channel".to_string(),
+            "Only channel creator or admin can delete this channel".to_string(),
         ));
     }
 
-    let channel: Channel =
-        sqlx::query_as("UPDATE channels SET is_archived = true WHERE id = $1 RETURNING *")
-            .bind(id)
-            .fetch_one(&state.db)
-            .await?;
+    // Get channel info for the broadcast
+    let channel: Channel = sqlx::query_as("SELECT * FROM channels WHERE id = $1 AND deleted_at IS NULL")
+        .bind(id)
+        .fetch_optional(&state.db)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Channel not found".to_string()))?;
 
-    Ok(Json(channel))
+    // Soft delete the channel
+    sqlx::query("UPDATE channels SET deleted_at = NOW() WHERE id = $1")
+        .bind(id)
+        .execute(&state.db)
+        .await?;
+
+    // Broadcast ChannelDeleted event
+    let broadcast = WsBroadcast {
+        channel_id: Some(id),
+        team_id: Some(channel.team_id),
+        user_id: None,
+        exclude_user_id: Some(auth.user_id),
+    };
+    let event = WsEnvelope::event(
+        EventType::ChannelDeleted,
+        serde_json::json!({
+            "channel_id": id.to_string(),
+            "team_id": channel.team_id.to_string(),
+        }),
+        Some(id),
+    )
+    .with_broadcast(broadcast);
+    state.ws_hub.broadcast(event).await;
+
+    Ok(Json(serde_json::json!({"status": "OK"})))
 }
 
 /// List channel members

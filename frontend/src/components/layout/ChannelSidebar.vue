@@ -16,6 +16,7 @@ import BrowseTeamsModal from '../modals/BrowseTeamsModal.vue';
 import BrowseChannelsModal from '../modals/BrowseChannelsModal.vue';
 import ChannelContextMenu from '../channels/ChannelContextMenu.vue';
 import AddChannelMembersModal from '../modals/AddChannelMembersModal.vue';
+import EditChannelModal from '../channels/EditChannelModal.vue';
 import type { SidebarCategory } from '../../api/channels';
 import { channelRepository } from '../../features/channels/repositories/channelRepository';
 import RcAvatar from '../ui/RcAvatar.vue';
@@ -43,6 +44,10 @@ const showBrowseChannels = ref(false);
 const showAddMembersModal = ref(false);
 const addMembersChannelId = ref('');
 const addMembersChannelName = ref('');
+
+// Edit channel modal state
+const showEditChannelModal = ref(false);
+const editingChannel = ref<any>(null);
 
 // Context menu state
 const contextMenuChannel = ref<{
@@ -122,19 +127,23 @@ const categories = computed(() => {
     });
   }
 
+  // Combine public and private channels, sort alphabetically by display name
+  const allNonFavoriteChannels = dedupeChannels([
+    ...nonFavoritePublic,
+    ...nonFavoritePrivate
+  ]).sort((a, b) => {
+    const nameA = (a.display_name || a.name || '').toLowerCase();
+    const nameB = (b.display_name || b.name || '').toLowerCase();
+    return nameA.localeCompare(nameB);
+  });
+
   // Regular categories
   result.push(
     {
       id: 'channels',
       name: 'Channels',
       collapsed: false,
-      channels: dedupeChannels(nonFavoritePublic).map(c => normalizeChannelForDisplay(c)),
-    },
-    {
-      id: 'private',
-      name: 'Private Channels',
-      collapsed: false,
-      channels: dedupeChannels(nonFavoritePrivate).map(c => normalizeChannelForDisplay(c)),
+      channels: allNonFavoriteChannels.map(c => normalizeChannelForDisplay(c)),
     },
     {
       id: 'dms',
@@ -292,6 +301,29 @@ async function handleMoveToCategory(cat: SidebarCategory) {
   } catch (e) {
     console.error('Failed to move channel:', e);
   }
+}
+
+// Handle edit channel
+function handleOpenEditChannel() {
+  if (contextMenuChannel.value) {
+    // Find the full channel data
+    const channel = channelStore.channels.find(c => c.id === contextMenuChannel.value?.id);
+    if (channel) {
+      editingChannel.value = channel;
+      showEditChannelModal.value = true;
+    }
+  }
+}
+
+// Handle channel updated
+function handleChannelUpdated() {
+  showEditChannelModal.value = false;
+  editingChannel.value = null;
+}
+
+// Handle delete channel
+async function handleOpenDeleteChannel() {
+  // This is handled within ChannelContextMenu now
 }
 
 onMounted(() => {
@@ -591,6 +623,8 @@ async function handleLeaveTeam() {
                     @action="handleContextMenuAction"
                     @open-add-members="handleOpenAddMembers"
                     @open-move-to="handleOpenMoveTo"
+                    @open-edit="handleOpenEditChannel"
+                    @open-delete="handleOpenDeleteChannel"
                   />
                 </Teleport>
               </div>
@@ -651,6 +685,12 @@ async function handleLeaveTeam() {
       :channel-id="addMembersChannelId"
       :channel-name="addMembersChannelName"
       @close="showAddMembersModal = false"
+    />
+    <EditChannelModal
+      :is-open="showEditChannelModal"
+      :channel="editingChannel"
+      @close="showEditChannelModal = false"
+      @updated="handleChannelUpdated"
     />
 
     <!-- Move to Category Modal -->

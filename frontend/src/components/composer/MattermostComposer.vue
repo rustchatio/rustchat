@@ -417,14 +417,27 @@ async function uploadFile(file: File) {
         progress: 0
     }
     attachedFiles.value.push(fileItem)
+    const fileIndex = attachedFiles.value.length - 1
     
     try {
         const response = await filesApi.upload(file, props.channelId, (progress) => {
-            fileItem.progress = Math.round((progress.loaded / progress.total) * 100)
+            const currentFile = attachedFiles.value[fileIndex]
+            if (currentFile) {
+                attachedFiles.value[fileIndex] = {
+                    ...currentFile,
+                    progress: Math.round((progress.loaded / progress.total) * 100)
+                }
+            }
         })
         
-        fileItem.uploaded = response.data
-        fileItem.uploading = false
+        const currentFile = attachedFiles.value[fileIndex]
+        if (currentFile) {
+            attachedFiles.value[fileIndex] = {
+                ...currentFile,
+                uploaded: response.data,
+                uploading: false
+            }
+        }
     } catch (e) {
         console.error('Upload failed:', e)
         // Remove failed upload

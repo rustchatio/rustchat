@@ -215,13 +215,13 @@ function normalizeChannel(raw: any): Channel {
     teamId: raw.team_id,
     name: raw.name,
     displayName: raw.display_name,
-    type: raw.channel_type,
+    type: raw.type || raw.channel_type, // Support both field names (backend now sends 'type')
     purpose: raw.purpose,
     header: raw.header,
     creatorId: raw.creator_id as UserId,
     createdAt: new Date(raw.created_at),
     updatedAt: new Date(raw.updated_at || raw.created_at),
-    isArchived: false, // Will be added to API later
+    isArchived: raw.is_archived || false,
     memberCount: raw.member_count
   }
 }

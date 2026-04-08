@@ -462,21 +462,19 @@ export function useWebSocket() {
 
                 // Notifications handling (counters are handled by unread_counts_updated)
                 if (post.channel_id !== channelStore.currentChannelId && post.user_id !== authStore.user?.id) {
-                    const mentionsUser = post.message?.includes(`@${authStore.user?.username}`) || false
+                    const channel = channelStore.channels.find(c => c.id === post.channel_id)
+                    const channelName = channel?.name || 'Unknown Channel'
+                    const senderName = post.username || 'Someone'
+                    const title = `#${channelName} - ${senderName}`
 
-                    if (mentionsUser) {
-                        const channel = channelStore.channels.find(c => c.id === post.channel_id)
-                        const title = channel ? `#${channel.name}` : 'New Mention'
-
-                        if (Notification.permission === 'granted') {
-                            new Notification(title, { body: post.message })
-                        } else if (Notification.permission !== 'denied') {
-                            Notification.requestPermission().then(p => {
-                                if (p === 'granted') {
-                                    new Notification(title, { body: post.message })
-                                }
-                            })
-                        }
+                    if (Notification.permission === 'granted') {
+                        new Notification(title, { body: post.message, icon: '/favicon.ico' })
+                    } else if (Notification.permission !== 'denied') {
+                        Notification.requestPermission().then(p => {
+                            if (p === 'granted') {
+                                new Notification(title, { body: post.message, icon: '/favicon.ico' })
+                            }
+                        })
                     }
                 }
                 break
