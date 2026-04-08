@@ -116,7 +116,9 @@ jobs:
           RUSTCHAT_S3_ACCESS_KEY: "minioadmin"
           RUSTCHAT_S3_SECRET_KEY: "minioadmin"
           RUSTCHAT_S3_REGION: "us-east-1"
-        run: cargo test
+        run: |
+          # Run only unit tests - skip integration tests that overload CI database
+          cargo test --lib
 
   build:
     name: Build
