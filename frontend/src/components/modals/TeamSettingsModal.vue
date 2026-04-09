@@ -362,7 +362,7 @@ async function removeMember(userId: string) {
                   v-if="canManageCurrentTeam"
                   @click="handleDelete"
                   :disabled="deleting || leaving"
-                  class="flex items-center px-4 py-2 text-sm font-medium text-danger border border-red-300 dark:border-red-800 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors disabled:opacity-50"
+                  class="flex items-center px-4 py-2 text-sm font-medium text-danger border border-red-300 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50"
                 >
                   <Trash2 class="w-4 h-4 mr-2" />
                   {{ deleting ? 'Deleting...' : 'Delete Team' }}
@@ -386,7 +386,7 @@ async function removeMember(userId: string) {
                   v-model="searchQuery"
                   @input="onSearchInput"
                   placeholder="Search users by name or username"
-                  class="block w-full pl-10 pr-3 py-2 border border-border-2 rounded-lg leading-5 bg-bg-surface-1 placeholder-text-4 focus:outline-none focus:placeholder-text-4 focus:ring-1 focus:ring-primary focus:border-primary sm:text-sm transition duration-150 ease-in-out dark:text-white"
+                  class="block w-full pl-10 pr-3 py-2 border border-border-2 rounded-lg leading-5 bg-bg-surface-1 placeholder-text-4 focus:outline-none focus:placeholder-text-4 focus:ring-1 focus:ring-primary focus:border-primary sm:text-sm transition duration-150 ease-in-out"
                 />
                 <div v-if="searching" class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
                   <div class="animate-spin h-4 w-4 border-2 border-text-4 border-t-transparent rounded-full"></div>

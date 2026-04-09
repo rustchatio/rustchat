@@ -34,12 +34,12 @@ async function handleStartRun(playbook: any) {
         <!-- New Playbook Card -->
         <button 
             @click="router.push('/playbooks/new')"
-            class="flex flex-col items-center justify-center p-8 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-xl hover:border-indigo-500 hover:bg-gray-50 dark:hover:bg-gray-800 transition-all group"
+            class="flex flex-col items-center justify-center p-8 border-2 border-dashed border-gray-300 rounded-xl hover:border-indigo-500 hover:bg-gray-50 transition-all group"
         >
-            <div class="w-12 h-12 rounded-full bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <Plus class="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
+            <div class="w-12 h-12 rounded-full bg-indigo-50 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                <Plus class="w-6 h-6 text-indigo-600" />
             </div>
-            <h3 class="font-semibold text-gray-900 dark:text-white">Create New Playbook</h3>
+            <h3 class="font-semibold text-gray-900">Create New Playbook</h3>
             <p class="text-sm text-gray-500 mt-1">Start from scratch or template</p>
         </button>
 
@@ -47,13 +47,13 @@ async function handleStartRun(playbook: any) {
         <div 
             v-for="playbook in playbooks" 
             :key="playbook.id"
-            class="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-shadow p-6 flex flex-col"
+            class="bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow p-6 flex flex-col"
         >
             <div class="flex items-start justify-between mb-4">
                 <div class="flex items-center space-x-3">
                     <span class="text-3xl">{{ playbook.icon || '📘' }}</span>
                     <div>
-                        <h3 class="font-semibold text-gray-900 dark:text-white line-clamp-1">{{ playbook.name }}</h3>
+                        <h3 class="font-semibold text-gray-900 line-clamp-1">{{ playbook.name }}</h3>
                         <p class="text-xs text-gray-500 flex items-center mt-1">
                             <Clock class="w-3 h-3 mr-1" />
                             Updated {{ formatDate(playbook.updated_at) }}
@@ -62,7 +62,7 @@ async function handleStartRun(playbook: any) {
                 </div>
             </div>
             
-            <p class="text-sm text-gray-600 dark:text-gray-400 mb-6 line-clamp-2 min-h-[40px]">
+            <p class="text-sm text-gray-600 mb-6 line-clamp-2 min-h-[40px]">
                 {{ playbook.description || 'No description provided' }}
             </p>
 

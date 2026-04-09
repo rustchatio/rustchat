@@ -11,13 +11,18 @@ export interface User {
   username: string
   email: string
   firstName?: string
+  first_name?: string  // API compatibility
   lastName?: string
+  last_name?: string  // API compatibility
   displayName?: string
+  display_name?: string  // API compatibility
   nickname?: string
   position?: string
   avatarUrl?: string
+  avatar_url?: string  // API compatibility
   role: 'system_admin' | 'org_admin' | 'user' | 'guest'
   presence: PresenceStatus
+  isActive: boolean
   isBot?: boolean
   timezone?: string
   locale?: string

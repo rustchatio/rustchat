@@ -113,7 +113,7 @@ impl S3Client {
         Ok(())
     }
 
-    /// Ensure bucket exists (create if missing)
+    /// Ensure bucket exists (create if missing) and configure CORS
     pub async fn ensure_bucket(&self) -> Result<(), AppError> {
         let result = self
             .client
@@ -123,10 +123,16 @@ impl S3Client {
             .await;
 
         match result {
-            Ok(_) => Ok(()),
+            Ok(_) => {
+                // New bucket created, configure CORS
+                self.configure_cors().await?;
+                Ok(())
+            }
             Err(SdkError::ServiceError(service_error)) => {
                 let code = service_error.err().code().unwrap_or_default();
                 if code == "BucketAlreadyOwnedByYou" || code == "BucketAlreadyExists" {
+                    // Bucket exists, ensure CORS is configured
+                    self.configure_cors().await?;
                     Ok(())
                 } else {
                     error!(error = ?service_error, bucket = %self.bucket, "S3 create bucket failed");
@@ -139,6 +145,44 @@ impl S3Client {
             Err(e) => {
                 error!(error = ?e, bucket = %self.bucket, "S3 create bucket failed");
                 Err(AppError::Internal(format!("S3 create bucket error: {}", e)))
+            }
+        }
+    }
+
+    /// Configure CORS for the bucket to allow cross-origin image loading
+    async fn configure_cors(&self) -> Result<(), AppError> {
+        use aws_sdk_s3::types::{CorsConfiguration, CorsRule};
+
+        let cors_rule = CorsRule::builder()
+            .allowed_origins("*") // Allow all origins - files are accessed via presigned URLs
+            .allowed_methods("GET")
+            .allowed_methods("HEAD")
+            .allowed_headers("*")
+            .max_age_seconds(3600)
+            .build()
+            .map_err(|e| AppError::Internal(format!("CORS rule build error: {}", e)))?;
+
+        let cors_config = CorsConfiguration::builder()
+            .cors_rules(cors_rule)
+            .build()
+            .map_err(|e| AppError::Internal(format!("CORS config build error: {}", e)))?;
+
+        match self
+            .client
+            .put_bucket_cors()
+            .bucket(&self.bucket)
+            .cors_configuration(cors_config)
+            .send()
+            .await
+        {
+            Ok(_) => {
+                tracing::info!(bucket = %self.bucket, "S3 CORS configuration applied");
+                Ok(())
+            }
+            Err(e) => {
+                // Log but don't fail - some S3-compatible services don't support CORS
+                tracing::warn!(error = ?e, bucket = %self.bucket, "Failed to configure S3 CORS");
+                Ok(())
             }
         }
     }

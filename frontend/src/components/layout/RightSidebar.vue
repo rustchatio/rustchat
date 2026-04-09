@@ -28,15 +28,15 @@ function handleJump(messageId: string) {
 
 <template>
   <aside 
-    class="w-[400px] bg-surface dark:bg-surface-dim border-l border-border-dim dark:border-white/5 flex flex-col shadow-2xl z-20 shrink-0 transition-all duration-300 ease-out"
+    class="w-[400px] bg-surface border-l border-border-dim flex flex-col shadow-2xl z-20 shrink-0 transition-all duration-300 ease-out"
     :class="{ 'translate-x-0': ui.isRhsOpen, 'translate-x-full': !ui.isRhsOpen }"
   >
     <!-- Header -->
     <div
       v-if="ui.rhsView !== 'saved' && ui.rhsView !== 'pinned'"
-      class="h-12 border-b border-border-dim dark:border-white/5 flex items-center justify-between px-4 shrink-0 bg-surface-dim dark:bg-surface-dim/50"
+      class="h-12 border-b border-border-dim flex items-center justify-between px-4 shrink-0 bg-surface-dim"
     >
-        <h3 class="font-bold text-[15px] text-gray-900 dark:text-gray-100 uppercase tracking-wider">
+        <h3 class="font-bold text-[15px] text-gray-900 uppercase tracking-wider">
             <span v-if="ui.rhsView === 'thread'">Thread</span>
             <span v-else-if="ui.rhsView === 'search'">Search</span>
             <span v-else-if="ui.rhsView === 'info'">Channel Info</span>
@@ -44,7 +44,7 @@ function handleJump(messageId: string) {
         </h3>
         <button 
           @click="ui.closeRhs()" 
-          class="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-700/50 rounded-lg text-gray-500 transition-standard focus-ring"
+          class="p-1.5 hover:bg-gray-200 rounded-lg text-gray-500 transition-standard focus-ring"
           aria-label="Close sidebar"
           title="Close sidebar"
         >
@@ -53,7 +53,7 @@ function handleJump(messageId: string) {
     </div>
 
     <!-- Content -->
-    <div class="flex-1 overflow-hidden flex flex-col bg-surface dark:bg-surface-dim relative">
+    <div class="flex-1 overflow-hidden flex flex-col bg-surface relative">
          <ThreadPanel v-if="ui.rhsView === 'thread'" />
          <SavedMessagesPanel v-else-if="ui.rhsView === 'saved'" :show="true" @close="ui.closeRhs()" @jump="handleJump" />
          <PinnedMessagesPanel v-else-if="ui.rhsView === 'pinned'" :show="true" @close="ui.closeRhs()" @jump="handleJump" />

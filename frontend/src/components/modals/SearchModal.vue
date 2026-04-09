@@ -95,20 +95,20 @@ function getChannelName(channelId: string): string {
       <div class="absolute inset-0 bg-black/50" @click="handleClose"></div>
       
       <!-- Search Modal -->
-      <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-2xl mx-4 overflow-hidden">
+      <div class="relative bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-4 overflow-hidden">
         <!-- Search Input -->
-        <div class="flex items-center px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+        <div class="flex items-center px-4 py-3 border-b border-gray-200">
           <Search class="w-5 h-5 text-gray-400 mr-3" />
           <input
             v-model="query"
             type="text"
             placeholder="Search messages, files, and more..."
-            class="flex-1 bg-transparent text-lg text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none"
+            class="flex-1 bg-transparent text-lg text-gray-900 placeholder-gray-400 focus:outline-none"
             autofocus
           />
           <div class="flex items-center space-x-2">
-            <kbd class="hidden sm:block px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-500 rounded">ESC</kbd>
-            <button @click="handleClose" class="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded">
+            <kbd class="hidden sm:block px-2 py-1 text-xs bg-gray-100 text-gray-500 rounded">ESC</kbd>
+            <button @click="handleClose" class="p-1 hover:bg-gray-100 rounded">
               <X class="w-5 h-5 text-gray-400" />
             </button>
           </div>
@@ -136,7 +136,7 @@ function getChannelName(channelId: string): string {
               v-for="post in results.posts"
               :key="post.id"
               @click="handleResultClick(post.channel_id, post.id)"
-              class="px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer border-b border-gray-100 dark:border-gray-700 last:border-0"
+              class="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-0"
             >
               <div class="flex items-center space-x-2 text-xs text-gray-500 mb-1">
                 <Hash class="w-3 h-3" />
@@ -145,7 +145,7 @@ function getChannelName(channelId: string): string {
                 <Clock class="w-3 h-3" />
                 <span>{{ format(new Date(post.created_at), 'MMM d, yyyy') }}</span>
               </div>
-              <div class="text-sm text-gray-900 dark:text-white line-clamp-2">
+              <div class="text-sm text-gray-900 line-clamp-2">
                 {{ post.message }}
               </div>
             </div>
@@ -166,7 +166,7 @@ function getChannelName(channelId: string): string {
                   v-for="search in recentSearches"
                   :key="search"
                   @click="handleRecentClick(search)"
-                  class="flex items-center w-full px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+                  class="flex items-center w-full px-3 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-lg"
                 >
                   <Clock class="w-4 h-4 mr-2 text-gray-400" />
                   {{ search }}
@@ -181,7 +181,7 @@ function getChannelName(channelId: string): string {
         </div>
 
         <!-- Footer -->
-        <div class="px-4 py-2 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-xs text-gray-500 flex items-center justify-between">
+        <div class="px-4 py-2 border-t border-gray-200 bg-gray-50 text-xs text-gray-500 flex items-center justify-between">
           <span>Search powered by PostgreSQL full-text search</span>
           <span>↵ to select</span>
         </div>

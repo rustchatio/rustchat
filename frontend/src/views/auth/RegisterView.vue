@@ -114,15 +114,15 @@ async function handleRegister() {
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
         </svg>
       </div>
-      <h3 class="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+      <h3 class="text-xl font-semibold text-gray-900 mb-2">
         Check your email
       </h3>
-      <p class="text-gray-600 dark:text-gray-300 mb-6">
+      <p class="text-gray-600 mb-6">
         We've sent a password setup link to <strong>{{ registeredEmail }}</strong>.
         Please check your inbox and click the link to set your password and complete your registration.
       </p>
       <div class="space-y-4">
-        <p class="text-sm text-gray-500 dark:text-gray-400">
+        <p class="text-sm text-gray-500">
           Didn't receive the email? Check your spam folder or 
           <router-link to="/login" class="text-indigo-600 hover:text-indigo-500">try logging in</router-link>
           to resend.
@@ -167,7 +167,7 @@ async function handleRegister() {
         placeholder="you@example.com"
       />
 
-      <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-md p-4">
+      <div class="bg-blue-50 border border-blue-200 rounded-md p-4">
         <div class="flex">
           <div class="flex-shrink-0">
             <svg class="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
@@ -175,7 +175,7 @@ async function handleRegister() {
             </svg>
           </div>
           <div class="ml-3">
-            <p class="text-sm text-blue-700 dark:text-blue-300">
+            <p class="text-sm text-blue-700">
               You'll receive an email with a link to set your password after registration.
             </p>
           </div>

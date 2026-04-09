@@ -149,6 +149,7 @@ function normalizeUser(raw: any): User {
     avatarUrl: raw.avatar_url || raw.profile_image,
     role: raw.role || 'user',
     presence: raw.presence || 'offline',
+    isActive: raw.is_active !== false, // Default to true if not specified
     isBot: raw.is_bot || false,
     timezone: raw.timezone,
     locale: raw.locale,

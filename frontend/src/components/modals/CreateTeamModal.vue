@@ -74,17 +74,17 @@ function handleClose() {
       <div class="absolute inset-0 bg-black/50" @click="handleClose"></div>
       
       <!-- Modal -->
-      <div class="relative bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
+      <div class="relative bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 overflow-hidden">
         <!-- Header -->
-        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-          <h2 class="text-xl font-bold text-gray-900 dark:text-white">Create Team</h2>
-          <button @click="handleClose" class="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors">
+        <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+          <h2 class="text-xl font-bold text-gray-900">Create Team</h2>
+          <button @click="handleClose" class="p-1 hover:bg-gray-100 rounded-lg transition-colors">
             <X class="w-5 h-5 text-gray-500" />
           </button>
         </div>
 
         <div v-if="!canCreateTeam" class="p-6 space-y-4">
-          <div class="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-300">
+          <div class="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
             You do not have permission to create teams.
           </div>
 
@@ -98,7 +98,7 @@ function handleClose() {
         <!-- Form -->
         <form v-else @submit.prevent="handleSubmit" class="p-6 space-y-4">
           <!-- Error -->
-          <div v-if="error" class="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-600 dark:text-red-400 text-sm">
+          <div v-if="error" class="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
             {{ error }}
           </div>
 
@@ -118,13 +118,13 @@ function handleClose() {
           />
 
           <div>
-            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label class="block text-sm font-medium text-gray-700 mb-1">
               Description
             </label>
             <textarea
               v-model="description"
               rows="3"
-              class="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
               placeholder="What's this team about?"
               :disabled="loading"
             ></textarea>

@@ -81,7 +81,7 @@ impl From<BookmarkRow> for ChannelBookmarkResponse {
             bookmark_type: row.bookmark_type,
             original_id: row.original_id.map(encode_mm_id),
             parent_id: row.parent_id.map(encode_mm_id),
-            file: None, // TODO: join with files table if needed
+            file: None, // Note: File attachment data not currently loaded; join with files table if needed in future
         }
     }
 }

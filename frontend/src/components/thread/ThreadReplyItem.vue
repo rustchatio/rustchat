@@ -5,7 +5,7 @@ import type { Post } from '../../api/posts'
 import { useAuthStore } from '../../stores/auth'
 import RcAvatar from '../ui/RcAvatar.vue'
 import FilePreview from '../atomic/FilePreview.vue'
-import { renderMarkdown } from '../../utils/markdown'
+import { useMarkdownRenderer } from '../../composables/useMarkdownRenderer'
 import { getEmojiChar } from '../../utils/emoji'
 
 interface Props {
@@ -15,6 +15,7 @@ interface Props {
 const props = defineProps<Props>()
 
 const authStore = useAuthStore()
+const { renderMarkdown } = useMarkdownRenderer()
 
 const formattedTime = computed(() => {
   return format(new Date(props.reply.created_at), 'h:mm a')

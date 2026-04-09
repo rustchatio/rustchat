@@ -96,17 +96,12 @@ async function handleAvatarUpload(event: Event) {
     error.value = null;
     
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append('image', file);
 
     try {
-        // 1. Upload file
-        const uploadRes = await api.post('/files', formData);
-        const avatarUrl = uploadRes.data.url;
-
-        // 2. Update user with new avatar URL
-        await api.put(`/users/${user.value.id}`, { avatar_url: avatarUrl });
-        
-        // 3. Refresh user
+        await api.post(`/users/${user.value.id}/image`, formData, {
+            baseURL: '/api/v4',
+        });
         await authStore.fetchMe();
     } catch (e: any) {
         error.value = e.response?.data?.message || 'Failed to upload avatar';

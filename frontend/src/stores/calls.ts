@@ -116,16 +116,18 @@ export const useCallsStore = defineStore('calls', () => {
 
     onEvent('custom_com.mattermost.calls_user_muted', (data) => {
         console.log('User muted:', data)
-        const eventChannelId = readEventChannelId(data)
+        const d = data as Record<string, unknown>
+        const eventChannelId = readEventChannelId(d)
         if (eventChannelId && currentCall.value?.channelId === eventChannelId) {
-            const userId = readEventUserId(data)
+            const userId = readEventUserId(d)
             if (userId === authStore.user?.id) {
-                isMuted.value = data.muted
+                const muted = d.muted as boolean
+                isMuted.value = muted
                 // Update local tracks
                 const active = currentCall.value
                 if (active) {
                     active.localStream?.getAudioTracks().forEach(track => {
-                        track.enabled = !data.muted
+                        track.enabled = !muted
                     })
                 }
             }
@@ -215,16 +217,18 @@ export const useCallsStore = defineStore('calls', () => {
     })
 
     onEvent('custom_com.mattermost.calls_host_changed', (data) => {
-        const eventChannelId = readEventChannelId(data)
+        const d = data as Record<string, unknown>
+        const eventChannelId = readEventChannelId(d)
         if (currentCall.value && currentCall.value.channelId === eventChannelId) {
-            currentCall.value.call.host_id = data.host_id || data.host_id_raw
+            currentCall.value.call.host_id = (d.host_id || d.host_id_raw) as string
         }
     })
 
     onEvent('custom_com.mattermost.calls_ringing', (data) => {
         if (isInCall.value) return
-        const eventChannelId = readEventChannelId(data)
-        const callerId = data.sender_id || data.sender_id_raw
+        const d = data as Record<string, unknown>
+        const eventChannelId = readEventChannelId(d)
+        const callerId = (d.sender_id || d.sender_id_raw) as string | undefined
         if (eventChannelId && callerId) {
             setIncomingCall({ channelId: eventChannelId, callerId })
         }
@@ -258,18 +262,19 @@ export const useCallsStore = defineStore('calls', () => {
         const active = currentCall.value
         if (!active?.peerConnection) return
 
-        const eventChannelId = readEventChannelId(data)
+        const d = data as Record<string, unknown>
+        const eventChannelId = readEventChannelId(d)
         if (eventChannelId !== active.channelId) return
 
-        const signal = data.signal
+        const signal = d.signal as Record<string, unknown>
         if (!signal?.type) return
 
         try {
             if (signal.type === 'ice-candidate' && signal.candidate) {
                 await active.peerConnection.addIceCandidate({
-                    candidate: signal.candidate,
-                    sdpMid: signal.sdp_mid ?? null,
-                    sdpMLineIndex: signal.sdp_mline_index ?? null
+                    candidate: signal.candidate as string,
+                    sdpMid: (signal.sdp_mid ?? null) as string | null,
+                    sdpMLineIndex: (signal.sdp_mline_index ?? null) as number | null
                 })
             }
         } catch (error) {

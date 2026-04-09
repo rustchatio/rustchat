@@ -103,6 +103,14 @@ vi.mock('../../composables/useToast', () => ({
     useToast: () => mocks.toast,
 }))
 
+vi.mock('../../features/presence', () => ({
+    usePresenceStore: () => ({
+        hasTypingUsers: vi.fn(() => false),
+        getTypingUsersForChannel: vi.fn(() => ({ value: [] })),
+        typingUsers: { value: new Map() },
+    }),
+}))
+
 vi.mock('./capabilities', () => ({
     canCreateTeam: (role?: string | null) =>
         ['system_admin', 'org_admin', 'team_admin', 'admin'].includes(role ?? ''),

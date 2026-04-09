@@ -30,7 +30,7 @@ const messageStore = useMessageStore();
 const unreadStore = useUnreadStore();
 const callsStore = useCallsStore();
 const uiStore = useUIStore();
-const { sendTyping, sendMessage, subscribe, unsubscribe } = useWebSocket();
+const { sendTyping, sendStopTyping, sendMessage, subscribe, unsubscribe } = useWebSocket();
 
 // Persist RHS state per channel
 const rhsStateByChannel = useStorage<Record<string, { view: RhsView; contextId?: string }>>('rhs_state_by_channel', {});
@@ -68,7 +68,8 @@ const breadcrumbs = computed((): BreadcrumbSegment[] => {
   }
 
   if (currentChannel.value) {
-    const channelIcon = currentChannel.value.channel_type === 'private' ? 'Lock' : 'Hash'
+    const channelType = currentChannel.value?.channel_type || (currentChannel.value as any)?.type;
+    const channelIcon = channelType === 'private' ? 'Lock' : 'Hash'
     const channelName = currentChannel.value.display_name || currentChannel.value.name
     const isInThread = uiStore.rhsView === 'thread'
 
@@ -142,7 +143,11 @@ watch(channelId, (newId, oldId) => {
 }, { immediate: true });
 
 // Mark as read when channel changes
-watch(channelId, (newId) => {
+watch(channelId, (newId, oldId) => {
+    // Send stop typing for the old channel when switching
+    if (oldId) {
+        sendStopTyping(oldId);
+    }
     if (newId) {
         // Clear counts in channel store immediately for responsive UI
         channelStore.clearCounts(newId);
@@ -153,6 +158,8 @@ watch(channelId, (newId) => {
 
 async function onSendMessage(data: { content: string, file_ids: string[] }) {
     if (channelId.value) {
+        // Send stop typing before sending message
+        sendStopTyping(channelId.value);
         // Optimistic send via WebSocket
         await sendMessage(channelId.value, data.content, undefined, data.file_ids);
     }
@@ -161,6 +168,12 @@ async function onSendMessage(data: { content: string, file_ids: string[] }) {
 function onTyping() {
     if (channelId.value) {
         sendTyping(channelId.value);
+    }
+}
+
+function onStopTyping() {
+    if (channelId.value) {
+        sendStopTyping(channelId.value);
     }
 }
 
@@ -273,7 +286,7 @@ function handleKeydown(e: KeyboardEvent) {
                   />
                   
                   <!-- Breadcrumb navigation -->
-                  <div class="flex items-center px-4 py-1.5 border-b border-gray-100 dark:border-gray-800/50 bg-white dark:bg-gray-900">
+                  <div class="flex items-center px-4 py-1.5 border-b border-gray-100 bg-white">
                     <BreadcrumbBar :segments="breadcrumbs" />
                   </div>
 
@@ -293,6 +306,7 @@ function handleKeydown(e: KeyboardEvent) {
                   <MessageComposer 
                     @send="onSendMessage" 
                     @typing="onTyping" 
+                    @stopTyping="onStopTyping"
                     @startAudioCall="onStartAudioCall"
                   />
               </template>

@@ -1,3 +1,124 @@
+# SPEC: Permanent Avatar URL Stabilization (2026-04-05)
+
+## Problem Statement
+
+Authenticated RustChat surfaces are rendering expired S3 presigned URLs from `users.avatar_url`, which causes repeated browser `403 AccessDenied` console errors after login and during channel/team rendering.
+
+The current broken path is:
+1. The profile UI uploads an avatar through `/api/v1/files`.
+2. `/api/v1/files` returns a 1-hour presigned S3 download URL.
+3. The frontend persists that URL directly into `users.avatar_url`.
+4. Auth, user, team-member, activity, and post APIs return the stored value unchanged.
+5. The frontend renders that stale URL later in `<img>` tags, which then fails with `Request has expired`.
+
+The repository already contains the correct long-term pattern on the Mattermost-compatible avatar path:
+- upload to a stable object key under `avatars/{user}`
+- expose a stable authenticated app URL at `/api/v4/users/{id}/image`
+- avoid persisting expiring S3 URLs in user profile records
+
+## Goals
+
+1. Eliminate expired-avatar console errors permanently.
+2. Stop storing temporary presigned S3 URLs in `users.avatar_url`.
+3. Normalize backend avatar responses so all authenticated app APIs return stable, non-expiring avatar URLs.
+4. Preserve already-uploaded legacy avatars that were stored via the older generic-files path.
+5. Keep avatar image access authenticated and compatible with the current frontend cookie-based `<img>` loading model.
+
+## Non-Goals
+
+1. No redesign of general file attachment URLs in this pass.
+2. No S3 bucket policy changes.
+3. No profile UI redesign beyond changing the avatar upload flow.
+4. No broad migration of unrelated `avatar_url`-like fields unless they are required to close this bug.
+
+## Scope and Contract Impact
+
+### In Scope
+
+1. Frontend avatar upload flows:
+   - [frontend/src/views/settings/ProfileView.vue](/Users/scolak/Projects/rustchat/frontend/src/views/settings/ProfileView.vue)
+   - [frontend/src/components/settings/profile/ProfileTab.vue](/Users/scolak/Projects/rustchat/frontend/src/components/settings/profile/ProfileTab.vue)
+2. Backend avatar response normalization for native authenticated APIs that currently emit raw `users.avatar_url`.
+3. Backward-compatible serving of legacy avatar uploads that were stored under `files/{user}/{file}` and persisted as expiring presigned URLs.
+4. Regression coverage for stable avatar URL emission and legacy fallback handling.
+
+### Contract Impact
+
+1. `avatar_url` in authenticated API responses should become a stable RustChat URL, not a temporary S3 presigned URL.
+2. New avatar uploads from the frontend should use the profile-image upload endpoint instead of the generic files upload endpoint.
+3. Previously stored legacy avatar URLs should continue to resolve via a stable authenticated URL after this change.
+
+### Out of Scope
+
+1. Rewriting generic `files.url` payloads for normal post attachments.
+2. Guest/public avatar access semantics.
+3. Full API v4 parity review for every user/team/member endpoint not touched by this fix.
+
+## Current Findings
+
+1. `/api/v1/files` currently returns a presigned download URL:
+   - [backend/src/api/files.rs](/Users/scolak/Projects/rustchat/backend/src/api/files.rs)
+2. Both profile UIs persist that returned URL directly into `users.avatar_url`:
+   - [frontend/src/views/settings/ProfileView.vue](/Users/scolak/Projects/rustchat/frontend/src/views/settings/ProfileView.vue)
+   - [frontend/src/components/settings/profile/ProfileTab.vue](/Users/scolak/Projects/rustchat/frontend/src/components/settings/profile/ProfileTab.vue)
+3. `UserResponse::from(User)` currently returns `user.avatar_url` verbatim:
+   - [backend/src/models/user.rs](/Users/scolak/Projects/rustchat/backend/src/models/user.rs)
+4. Native auth, posts, teams, and related joins also expose `u.avatar_url` directly:
+   - [backend/src/api/auth.rs](/Users/scolak/Projects/rustchat/backend/src/api/auth.rs)
+   - [backend/src/api/posts.rs](/Users/scolak/Projects/rustchat/backend/src/api/posts.rs)
+   - [backend/src/api/teams.rs](/Users/scolak/Projects/rustchat/backend/src/api/teams.rs)
+5. The stable avatar implementation already exists on the v4 upload/read path:
+   - [backend/src/api/v4/users.rs](/Users/scolak/Projects/rustchat/backend/src/api/v4/users.rs)
+
+## Implementation Outline
+
+### Phase 1: Regression Harness
+
+1. Add backend tests that prove:
+   - presigned S3 avatar URLs are normalized into stable `/api/v4/users/{id}/image` responses
+   - stable relative avatar URLs are preserved
+   - legacy file-backed avatars still resolve through the stable image endpoint
+
+### Phase 2: Backend Stabilization
+
+1. Add one shared backend helper that computes the effective public avatar URL for a user.
+2. Update `UserResponse::from(User)` and other native response builders/joins to emit the effective stable avatar URL instead of the raw stored value.
+3. Extend `GET /api/v4/users/{user_id}/image` so it:
+   - first checks the new `avatars/{user}` object
+   - then falls back to a legacy file object derived from the previously stored S3 URL or stored file key
+4. Keep `POST /api/v4/users/{user_id}/image` as the canonical long-term write path.
+
+### Phase 3: Frontend Upload Flow
+
+1. Change both profile-avatar upload flows to use `POST /api/v4/users/{id}/image`.
+2. Refresh the authenticated user after upload instead of persisting a presigned URL locally.
+3. Keep remove-avatar behavior compatible with the current backend semantics, or leave it unchanged if deletion support is not part of the current stable image contract.
+
+### Phase 4: Verification
+
+1. Run focused backend tests for avatar normalization and fallback.
+2. Run targeted frontend tests or build checks for the updated upload flow.
+3. Reproduce the original live login scenario and confirm the prior expired-avatar console errors no longer occur.
+
+## Verification Plan
+
+Automated:
+1. `cd /Users/scolak/Projects/rustchat/backend && cargo test avatar -- --nocapture`
+2. `cd /Users/scolak/Projects/rustchat/backend && cargo test --no-fail-fast -- --nocapture`
+3. `cd /Users/scolak/Projects/rustchat/backend && cargo check`
+4. `cd /Users/scolak/Projects/rustchat/frontend && npm run build`
+
+Manual:
+1. Log in at `https://app.rustchat.io` and confirm avatars render without `403 AccessDenied` console errors.
+2. Open the main channel view, team member lists, DM surfaces, and admin pages and confirm avatar requests target stable app URLs rather than `s3.rustchat.io` presigned URLs.
+3. Upload a new avatar from profile settings, refresh the app, and confirm the avatar still loads after re-login.
+
+## Risks and Notes
+
+1. Some existing users only have legacy file-backed avatar data, so removing the old path without a fallback would break their avatars.
+2. Native API joins that return `u.avatar_url` directly may need response-level normalization rather than schema changes to avoid a wide DB migration in this pass.
+3. The cleanest permanent state is to migrate old users onto the canonical `avatars/{user}` object path, but runtime fallback is still needed to make the fix safe immediately.
+
 # SPEC: Categories Test Fix Without Relaxing Team Creation Permissions (2026-03-29)
 
 ## Problem Statement

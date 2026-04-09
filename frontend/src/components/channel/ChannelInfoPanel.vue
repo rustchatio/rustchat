@@ -57,11 +57,13 @@ const isCreator = computed(() =>
   channel.value?.creator_id === authStore.user?.id
 )
 
+const channelTypeValue = computed(() => channel.value?.channel_type || (channel.value as any)?.type);
+
 const directContactId = computed(() => {
-  if (channel.value?.channel_type !== 'direct') {
+  if (channelTypeValue.value !== 'direct') {
     return null
   }
-  return getDirectMessageCounterpartyId(channel.value.name, authStore.user?.id)
+  return getDirectMessageCounterpartyId(channel.value!.name, authStore.user?.id)
 })
 
 const { userSummary: directContact, isLoading: directContactLoading } = useUserSummary(() => directContactId.value)
@@ -86,7 +88,7 @@ const directContactName = computed(() => {
 
 const directContactPresenceMeta = computed(() => getPresencePresentation(directContact.value?.presence || directContactMember.value?.presence))
 
-const showDirectMessageProfile = computed(() => channel.value?.channel_type === 'direct' && !!directContactId.value)
+const showDirectMessageProfile = computed(() => channelTypeValue.value === 'direct' && !!directContactId.value)
 const { canManageChannel: canManageCurrentChannel } = useChannelManagementPermission(
   () => props.channelId,
   () => channel.value?.creator_id ?? null,
@@ -94,7 +96,7 @@ const { canManageChannel: canManageCurrentChannel } = useChannelManagementPermis
 
 const channelIcon = computed(() => {
   if (!channel.value) return Hash
-  return channel.value.channel_type === 'private' ? Lock : Hash
+  return channelTypeValue.value === 'private' ? Lock : Hash
 })
 
 const channelTypeLabel = computed(() => {
@@ -105,7 +107,7 @@ const channelTypeLabel = computed(() => {
     direct: 'Direct Message',
     group: 'Group Message'
   }
-  return types[channel.value.channel_type] || 'Channel'
+  return types[channelTypeValue.value] || 'Channel'
 })
 
 async function loadStats() {
@@ -221,7 +223,7 @@ watch(() => props.channelId, async () => {
         <div 
           v-else
           class="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
-          :class="channel?.channel_type === 'private' ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'"
+          :class="channelTypeValue === 'private' ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'"
         >
           <component :is="channelIcon" class="w-6 h-6" />
         </div>

@@ -198,7 +198,7 @@ router.beforeEach(async (to, _from, next) => {
     }
 
     const requiresAdmin = to.matched.some(record => record.meta.requiresAdmin)
-    const isAdmin = ['system_admin', 'org_admin', 'admin', 'administrator'].includes(auth.user?.role)
+    const isAdmin = ['system_admin', 'org_admin', 'admin', 'administrator'].includes(auth.user?.role || '')
 
     if (to.meta.requiresAuth && !auth.isAuthenticated) {
         next('/login')

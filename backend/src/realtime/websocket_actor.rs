@@ -345,7 +345,9 @@ impl ActorTask {
                 msg = ws_stream.next() => {
                     match msg {
                         Some(Ok(Message::Text(text))) => {
-                            *last_pong.lock().unwrap() = Instant::now();
+                            if let Ok(mut guard) = last_pong.lock() {
+                                *guard = Instant::now();
+                            }
                             self.state.touch();
 
                             let text_str = text.to_string();
@@ -360,7 +362,9 @@ impl ActorTask {
                             }
                         }
                         Some(Ok(Message::Binary(bin))) => {
-                            *last_pong.lock().unwrap() = Instant::now();
+                            if let Ok(mut guard) = last_pong.lock() {
+                                *guard = Instant::now();
+                            }
                             self.state.touch();
                             if !emit_event(&event_tx, &event_connection_id, WsEvent::BinaryReceived(bin.to_vec())) {
                                 break;
@@ -368,7 +372,9 @@ impl ActorTask {
                         }
                         Some(Ok(Message::Pong(_))) => {
                             trace!(connection_id = %self.connection_id, "Received Pong frame");
-                            *last_pong.lock().unwrap() = Instant::now();
+                            if let Ok(mut guard) = last_pong.lock() {
+                                *guard = Instant::now();
+                            }
                             self.state.touch();
 
                             if !emit_event(&event_tx, &event_connection_id, WsEvent::PongReceived) {
@@ -566,7 +572,7 @@ impl ActorTask {
                         break;
                     }
 
-                    let last_pong_time = *last_pong.lock().unwrap();
+                    let last_pong_time = last_pong.lock().ok().map(|g| *g).unwrap_or_else(Instant::now);
                     let heartbeat_deadline =
                         PING_INTERVAL.saturating_mul(MAX_MISSED_HEARTBEATS);
                     if Instant::now().duration_since(last_pong_time) > heartbeat_deadline {

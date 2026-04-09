@@ -111,22 +111,22 @@ function formatDate(date: string) {
 </script>
 
 <template>
-    <div class="h-full flex flex-col bg-gray-50 dark:bg-gray-900">
+    <div class="h-full flex flex-col bg-gray-50">
         <div v-if="loading" class="flex-1 flex items-center justify-center">
             <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
         </div>
 
         <template v-else-if="run">
             <!-- Header -->
-            <header class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
+            <header class="bg-white border-b border-gray-200 px-6 py-4">
                 <div class="flex items-center space-x-4 mb-4">
-                    <button @click="router.push('/playbooks')" class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
+                    <button @click="router.push('/playbooks')" class="p-2 hover:bg-gray-100 rounded-lg">
                         <ArrowLeft class="w-5 h-5 text-gray-500" />
                     </button>
                     <div>
                         <div class="flex items-center space-x-2">
-                            <h1 class="text-xl font-bold text-gray-900 dark:text-white">{{ run.run.name }}</h1>
-                            <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 capitalize">
+                            <h1 class="text-xl font-bold text-gray-900">{{ run.run.name }}</h1>
+                            <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 capitalize">
                                 {{ run.run.status.replace('_', ' ') }}
                             </span>
                         </div>
@@ -135,7 +135,7 @@ function formatDate(date: string) {
                 </div>
 
                 <!-- Progress Bar -->
-                <div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5 mb-1">
+                <div class="w-full bg-gray-200 rounded-full h-2.5 mb-1">
                     <div class="bg-primary h-2.5 rounded-full transition-all duration-500" :style="{ width: `${progressPercent}%` }"></div>
                 </div>
                 <div class="flex justify-between text-xs text-gray-500">
@@ -146,13 +146,13 @@ function formatDate(date: string) {
 
             <div class="flex-1 flex overflow-hidden">
                 <!-- Tasks List -->
-                <div class="flex-1 overflow-y-auto p-6 border-r border-gray-200 dark:border-gray-700">
-                    <h2 class="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Tasks</h2>
+                <div class="flex-1 overflow-y-auto p-6 border-r border-gray-200">
+                    <h2 class="text-lg font-semibold mb-4 text-gray-900">Tasks</h2>
                     <div class="space-y-4">
                         <div 
                             v-for="task in run.tasks" 
                             :key="task.id"
-                            class="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700 flex items-start space-x-3 hover:shadow-sm transition-shadow"
+                            class="bg-white p-4 rounded-lg border border-gray-200 flex items-start space-x-3 hover:shadow-sm transition-shadow"
                             :class="{ 'opacity-75': task.status === 'done' }"
                         >
                             <button 
@@ -165,7 +165,7 @@ function formatDate(date: string) {
                             </button>
                             
                             <div class="flex-1">
-                                <p class="text-gray-900 dark:text-white font-medium" :class="{ 'line-through text-gray-500': task.status === 'done' }">
+                                <p class="text-gray-900 font-medium" :class="{ 'line-through text-gray-500': task.status === 'done' }">
                                     {{ taskMap[task.task_id]?.title || 'Unknown Task' }}
                                 </p>
                                 <p v-if="taskMap[task.task_id]?.description" class="text-sm text-gray-500 mt-0.5">{{ taskMap[task.task_id]?.description }}</p>
@@ -176,18 +176,18 @@ function formatDate(date: string) {
                 </div>
 
                 <!-- Sidebar: Status Updates -->
-                <div class="w-80 bg-white dark:bg-gray-800 flex flex-col border-l border-gray-200 dark:border-gray-700">
-                    <div class="p-4 border-b border-gray-200 dark:border-gray-700">
-                        <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Timeline</h2>
+                <div class="w-80 bg-white flex flex-col border-l border-gray-200">
+                    <div class="p-4 border-b border-gray-200">
+                        <h2 class="text-lg font-semibold text-gray-900">Timeline</h2>
                     </div>
 
                     <div class="flex-1 overflow-y-auto p-4 space-y-4">
                         <div v-for="update in updates" :key="update.id" class="flex space-x-3">
-                            <div class="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
-                                <span class="text-xs font-medium text-gray-600 dark:text-gray-300">U</span>
+                            <div class="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
+                                <span class="text-xs font-medium text-gray-600">U</span>
                             </div>
                             <div>
-                                <div class="bg-gray-100 dark:bg-gray-700/50 rounded-lg p-3 text-sm text-gray-800 dark:text-gray-200">
+                                <div class="bg-gray-100 rounded-lg p-3 text-sm text-gray-800">
                                     {{ update.message }}
                                 </div>
                                 <p class="text-xs text-gray-500 mt-1">{{ formatDate(update.created_at) }}</p>
@@ -195,12 +195,12 @@ function formatDate(date: string) {
                         </div>
                     </div>
 
-                    <div class="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+                    <div class="p-4 border-t border-gray-200 bg-gray-50">
                         <form @submit.prevent="postUpdate" class="flex space-x-2">
                             <input 
                                 v-model="newUpdate"
                                 placeholder="Post an update..." 
-                                class="flex-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                                class="flex-1 bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                             />
                             <button 
                                 type="submit" 

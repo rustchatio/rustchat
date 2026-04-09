@@ -165,6 +165,52 @@ impl User {
     }
 }
 
+pub fn stable_avatar_path(user_id: Uuid) -> String {
+    format!("/api/v4/users/{user_id}/image")
+}
+
+pub fn legacy_avatar_key_from_url(user_id: Uuid, avatar_url: &str) -> Option<String> {
+    let trimmed = avatar_url.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    let path_without_query = trimmed.split('?').next().unwrap_or(trimmed);
+    let candidate = if let Some(idx) = path_without_query.find("/files/") {
+        &path_without_query[(idx + 1)..]
+    } else if let Some(stripped) = path_without_query.strip_prefix("files/") {
+        return Some(format!("files/{stripped}"));
+    } else if let Some(stripped) = path_without_query.strip_prefix("/files/") {
+        return Some(format!("files/{stripped}"));
+    } else {
+        return None;
+    };
+
+    let expected_prefix = format!("files/{user_id}/");
+    if candidate.starts_with(&expected_prefix) {
+        Some(candidate.to_string())
+    } else {
+        None
+    }
+}
+
+pub fn normalize_avatar_url(user_id: Uuid, avatar_url: Option<&str>) -> Option<String> {
+    let trimmed = avatar_url?.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    if trimmed.starts_with("/api/v4/users/") || trimmed.starts_with("/api/v1/files/") {
+        return Some(trimmed.to_string());
+    }
+
+    if legacy_avatar_key_from_url(user_id, trimmed).is_some() {
+        return Some(stable_avatar_path(user_id));
+    }
+
+    Some(trimmed.to_string())
+}
+
 impl From<User> for UserResponse {
     fn from(user: User) -> Self {
         Self {
@@ -173,7 +219,7 @@ impl From<User> for UserResponse {
             username: user.public_username(),
             email: user.public_email(),
             display_name: user.public_display_name(),
-            avatar_url: user.avatar_url,
+            avatar_url: normalize_avatar_url(user.id, user.avatar_url.as_deref()),
             first_name: user.first_name,
             last_name: user.last_name,
             nickname: user.nickname,
@@ -237,4 +283,43 @@ pub struct AuthResponse {
     pub token_type: String,
     pub expires_in: u64,
     pub user: UserResponse,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{legacy_avatar_key_from_url, normalize_avatar_url, stable_avatar_path};
+    use uuid::Uuid;
+
+    #[test]
+    fn normalizes_internal_presigned_avatar_urls_to_stable_path() {
+        let user_id = Uuid::parse_str("545a19ad-35e4-4cb6-85d6-8b6fc9b09b50").unwrap();
+        let presigned = "https://s3.rustchat.io/rustchat-uploads/files/545a19ad-35e4-4cb6-85d6-8b6fc9b09b50/9e0472c0-de97-4b1a-a2cc-b3b929f53f16.jpg?x-id=GetObject&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20260401T232501Z";
+
+        assert_eq!(
+            normalize_avatar_url(user_id, Some(presigned)),
+            Some(stable_avatar_path(user_id))
+        );
+    }
+
+    #[test]
+    fn preserves_external_avatar_urls() {
+        let user_id = Uuid::new_v4();
+        let external = "https://cdn.example.com/avatar.jpg";
+
+        assert_eq!(
+            normalize_avatar_url(user_id, Some(external)),
+            Some(external.to_string())
+        );
+    }
+
+    #[test]
+    fn extracts_legacy_avatar_key_from_presigned_url() {
+        let user_id = Uuid::parse_str("545a19ad-35e4-4cb6-85d6-8b6fc9b09b50").unwrap();
+        let presigned = "https://s3.rustchat.io/rustchat-uploads/files/545a19ad-35e4-4cb6-85d6-8b6fc9b09b50/9e0472c0-de97-4b1a-a2cc-b3b929f53f16.jpg?x-id=GetObject&X-Amz-Algorithm=AWS4-HMAC-SHA256";
+
+        assert_eq!(
+            legacy_avatar_key_from_url(user_id, presigned),
+            Some("files/545a19ad-35e4-4cb6-85d6-8b6fc9b09b50/9e0472c0-de97-4b1a-a2cc-b3b929f53f16.jpg".to_string())
+        );
+    }
 }

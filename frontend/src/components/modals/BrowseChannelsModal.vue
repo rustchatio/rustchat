@@ -17,12 +17,13 @@ const channelStore = useChannelStore();
 const teamStore = useTeamStore();
 const toast = useToast();
 const joining = ref<string | null>(null);
+const activeTeamId = computed(() => teamStore.currentTeamId || teamStore.currentTeam?.id || null);
 
-watch(() => props.open, (isOpen) => {
-    if (isOpen && teamStore.currentTeam?.id) {
-        channelStore.fetchJoinableChannels(teamStore.currentTeam.id);
+watch([() => props.open, activeTeamId], ([isOpen, teamId]) => {
+    if (isOpen && teamId) {
+        channelStore.fetchJoinableChannels(teamId);
     }
-});
+}, { immediate: true });
 
 const availableChannels = computed(() => channelStore.joinableChannels);
 
@@ -30,11 +31,11 @@ async function joinChannel(channelId: string) {
     joining.value = channelId;
     try {
         await channelStore.joinChannel(channelId);
-        if (teamStore.currentTeam?.id) {
+        if (activeTeamId.value) {
             // Refresh my channels
-            await channelStore.fetchChannels(teamStore.currentTeam.id);
+            await channelStore.fetchChannels(activeTeamId.value);
             // Refresh joinable list
-            await channelStore.fetchJoinableChannels(teamStore.currentTeam.id);
+            await channelStore.fetchJoinableChannels(activeTeamId.value);
         }
         emit('close');
         toast.success('Joined channel', 'You have successfully joined the channel');

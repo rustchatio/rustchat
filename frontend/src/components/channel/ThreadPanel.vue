@@ -12,7 +12,7 @@ import FilePreview from '../atomic/FilePreview.vue'
 import ImageGallery from '../atomic/ImageGallery.vue'
 import type { FileUploadResponse } from '../../api/files'
 import { threadsApi } from '../../api/threads'
-import { renderMarkdown } from '../../utils/markdown'
+import { useMarkdownRenderer } from '../../composables/useMarkdownRenderer'
 
 const messageStore = useMessageStore()
 const uiStore = useUIStore()
@@ -20,6 +20,7 @@ const authStore = useAuthStore()
 const teamStore = useTeamStore()
 
 const { sendMessage } = useWebSocket()
+const { renderMarkdown } = useMarkdownRenderer()
 
 const replyContent = ref('')
 const loading = ref(false)
@@ -102,11 +103,11 @@ function handleKeydown(e: KeyboardEvent) {
 <template>
   <div 
     v-if="parentMessage"
-    class="flex-1 flex flex-col min-h-0 bg-surface dark:bg-surface-dim"
+    class="flex-1 flex flex-col min-h-0 bg-surface"
   >
     <!-- Thread Header (Simplified since RightSidebar provides the main header) -->
     <!-- Parent Message -->
-    <div class="p-5 border-b border-border-dim dark:border-white/5 bg-surface-dim/30">
+    <div class="p-5 border-b border-border-dim bg-surface-dim/30">
       <div class="flex items-start space-x-3">
         <RcAvatar 
           :userId="parentMessage.userId" 
@@ -117,11 +118,11 @@ function handleKeydown(e: KeyboardEvent) {
         />
         <div class="flex-1 min-w-0">
           <div class="flex items-baseline space-x-2 mb-1">
-            <span class="font-bold text-[15px] text-gray-900 dark:text-white leading-tight">{{ parentMessage.username }}</span>
+            <span class="font-bold text-[15px] text-gray-900 leading-tight">{{ parentMessage.username }}</span>
             <span class="text-[11px] text-gray-500 font-medium">{{ format(new Date(parentMessage.timestamp), 'MMM d, h:mm a') }}</span>
           </div>
           <div 
-            class="text-[15px] text-gray-800 dark:text-gray-200 leading-relaxed markdown-content"
+            class="text-[15px] text-gray-800 leading-relaxed markdown-content"
             v-html="renderMarkdown(parentMessage.content, authStore.user?.username || undefined)"
           ></div>
 
@@ -136,7 +137,7 @@ function handleKeydown(e: KeyboardEvent) {
     </div>
 
     <!-- Replies Count -->
-    <div v-if="replies.length > 0" class="px-5 py-3 border-b border-border-dim dark:border-white/5 text-[11px] font-bold text-gray-500 uppercase tracking-widest bg-surface/50">
+    <div v-if="replies.length > 0" class="px-5 py-3 border-b border-border-dim text-[11px] font-bold text-gray-500 uppercase tracking-widest bg-surface/50">
       {{ replies.length }} {{ replies.length === 1 ? 'reply' : 'replies' }}
     </div>
 
@@ -148,10 +149,10 @@ function handleKeydown(e: KeyboardEvent) {
       </div>
       
       <div v-else-if="replies.length === 0" class="text-center py-12">
-          <div class="w-16 h-16 bg-surface-dim dark:bg-slate-800/50 rounded-full flex items-center justify-center mx-auto mb-4 border border-border-dim dark:border-white/5">
+          <div class="w-16 h-16 bg-surface-dim rounded-full flex items-center justify-center mx-auto mb-4 border border-border-dim">
              <MessageSquare class="w-8 h-8 text-gray-400" />
           </div>
-          <p class="text-[15px] font-semibold text-gray-700 dark:text-gray-200">No replies yet.</p>
+          <p class="text-[15px] font-semibold text-gray-700">No replies yet.</p>
           <p class="text-xs text-gray-500 mt-1">Be the first to share your thoughts!</p>
       </div>
 
@@ -170,11 +171,11 @@ function handleKeydown(e: KeyboardEvent) {
         />
         <div class="flex-1 min-w-0">
           <div class="flex items-baseline space-x-2 mb-0.5">
-            <span class="font-bold text-sm text-gray-900 dark:text-gray-100 leading-tight">{{ reply.username }}</span>
+            <span class="font-bold text-sm text-gray-900 leading-tight">{{ reply.username }}</span>
             <span class="text-[10px] text-gray-500 font-medium">{{ format(new Date(reply.timestamp), 'h:mm a') }}</span>
           </div>
           <div 
-            class="text-[14px] text-gray-700 dark:text-gray-300 leading-normal markdown-content"
+            class="text-[14px] text-gray-700 leading-normal markdown-content"
             v-html="renderMarkdown(reply.content, authStore.user?.username || undefined)"
           ></div>
 
@@ -189,13 +190,13 @@ function handleKeydown(e: KeyboardEvent) {
     </div>
 
     <!-- Reply Composer -->
-    <div class="p-4 border-t border-border-dim dark:border-white/5 bg-surface-dim/30">
-      <div class="flex items-end space-x-2 bg-surface dark:bg-surface-dim border border-border-dim dark:border-white/5 rounded-xl focus-within:ring-2 focus-within:ring-primary/40 focus-within:border-primary/50 transition-all p-1.5 shadow-sm">
+    <div class="p-4 border-t border-border-dim bg-surface-dim/30">
+      <div class="flex items-end space-x-2 bg-surface border border-border-dim rounded-xl focus-within:ring-2 focus-within:ring-primary/40 focus-within:border-primary/50 transition-all p-1.5 shadow-sm">
         <textarea
           v-model="replyContent"
           @keydown="handleKeydown"
           rows="2"
-          class="flex-1 px-3 py-2 bg-transparent text-gray-900 dark:text-white resize-none border-none focus:ring-0 text-[14px] scrollbar-none"
+          class="flex-1 px-3 py-2 bg-transparent text-gray-900 resize-none border-none focus:ring-0 text-[14px] scrollbar-none"
           placeholder="Reply to thread..."
         ></textarea>
         <button

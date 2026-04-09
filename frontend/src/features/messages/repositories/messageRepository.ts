@@ -70,7 +70,11 @@ export const messageRepository = {
   ): Promise<Message[]> {
     return withRetry(async () => {
       const response = await postsApi.getThread(rootMessageId)
-      return response.data.map(postToMessage)
+      return response.data.order
+        .filter(id => id !== rootMessageId)
+        .map(id => response.data.posts[id])
+        .filter((post): post is Post => post !== undefined)
+        .map(postToMessage)
     })
   },
 

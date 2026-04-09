@@ -8,7 +8,8 @@ use serde::Deserialize;
 use std::collections::HashMap;
 use uuid::Uuid;
 
-use super::{encode_mm_id, parse_body, parse_mm_or_uuid, ApiResult, AppState, MmAuthUser};
+use super::utils::parse_body;
+use super::{encode_mm_id, parse_mm_or_uuid, ApiResult, AppState, MmAuthUser};
 use crate::error::AppError;
 
 #[derive(Deserialize)]

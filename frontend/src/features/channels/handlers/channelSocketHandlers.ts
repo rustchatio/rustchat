@@ -33,9 +33,6 @@ export function handleChannelWebSocketEvent(event: WebSocketChannelEvent) {
     case 'channel_viewed':
       handleChannelViewed(event)
       break
-    case 'channel_updated':
-      handleChannelUpdated(event)
-      break
   }
 }
 
@@ -124,18 +121,23 @@ function handleChannelViewed(event: WebSocketChannelEvent) {
 
 // Normalize WebSocket channel data to domain entity
 function normalizeChannel(data: any): any {
+  // Handle both full channel objects and event data with channel_id
+  const channelData = data.channel || data;
+  
   return {
-    id: data.channel_id || data.id,
-    teamId: data.team_id,
-    name: data.name || data.channel_name,
-    displayName: data.display_name || data.channel_display_name,
-    type: data.channel_type || data.type,
-    purpose: data.purpose,
-    header: data.header,
-    creatorId: data.creator_id,
-    createdAt: data.create_at ? new Date(data.create_at) : new Date(),
-    updatedAt: data.update_at ? new Date(data.update_at) : new Date(),
-    isArchived: data.delete_at ? true : false,
-    memberCount: data.member_count
+    id: channelData.id || channelData.channel_id || data.channel_id,
+    teamId: channelData.team_id || data.team_id,
+    name: channelData.name || channelData.channel_name || data.channel_name,
+    displayName: channelData.display_name || channelData.channel_display_name || data.channel_display_name,
+    type: channelData.type || channelData.channel_type || data.channel_type,
+    purpose: channelData.purpose,
+    header: channelData.header,
+    creatorId: channelData.creator_id || data.creator_id,
+    createdAt: channelData.created_at ? new Date(channelData.created_at) : 
+               channelData.create_at ? new Date(channelData.create_at) : new Date(),
+    updatedAt: channelData.updated_at ? new Date(channelData.updated_at) : 
+               channelData.update_at ? new Date(channelData.update_at) : new Date(),
+    isArchived: (channelData.deleted_at || channelData.delete_at) ? true : false,
+    memberCount: channelData.member_count || data.member_count
   }
 }

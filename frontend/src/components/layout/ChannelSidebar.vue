@@ -8,6 +8,7 @@ import { useChannelStore } from '../../stores/channels';
 import { useAuthStore } from '../../stores/auth';
 import { useUnreadStore } from '../../stores/unreads';
 import { useChannelPreferencesStore } from '../../stores/channelPreferences';
+import { usePresenceStore } from '../../features/presence';
 import CreateChannelModal from '../modals/CreateChannelModal.vue';
 import DirectMessageModal from '../modals/DirectMessageModal.vue';
 import TeamSettingsModal from '../modals/TeamSettingsModal.vue';
@@ -15,6 +16,7 @@ import BrowseTeamsModal from '../modals/BrowseTeamsModal.vue';
 import BrowseChannelsModal from '../modals/BrowseChannelsModal.vue';
 import ChannelContextMenu from '../channels/ChannelContextMenu.vue';
 import AddChannelMembersModal from '../modals/AddChannelMembersModal.vue';
+import EditChannelModal from '../channels/EditChannelModal.vue';
 import type { SidebarCategory } from '../../api/channels';
 import { channelRepository } from '../../features/channels/repositories/channelRepository';
 import RcAvatar from '../ui/RcAvatar.vue';
@@ -31,6 +33,7 @@ const channelStore = useChannelStore();
 const authStore = useAuthStore();
 const unreadStore = useUnreadStore();
 const channelPrefsStore = useChannelPreferencesStore();
+const presenceStore = usePresenceStore();
 
 const showCreateModal = ref(false);
 const showDirectMessageModal = ref(false);
@@ -41,6 +44,10 @@ const showBrowseChannels = ref(false);
 const showAddMembersModal = ref(false);
 const addMembersChannelId = ref('');
 const addMembersChannelName = ref('');
+
+// Edit channel modal state
+const showEditChannelModal = ref(false);
+const editingChannel = ref<any>(null);
 
 // Context menu state
 const contextMenuChannel = ref<{
@@ -120,19 +127,23 @@ const categories = computed(() => {
     });
   }
 
+  // Combine public and private channels, sort alphabetically by display name
+  const allNonFavoriteChannels = dedupeChannels([
+    ...nonFavoritePublic,
+    ...nonFavoritePrivate
+  ]).sort((a, b) => {
+    const nameA = (a.display_name || a.name || '').toLowerCase();
+    const nameB = (b.display_name || b.name || '').toLowerCase();
+    return nameA.localeCompare(nameB);
+  });
+
   // Regular categories
   result.push(
     {
       id: 'channels',
       name: 'Channels',
       collapsed: false,
-      channels: dedupeChannels(nonFavoritePublic).map(c => normalizeChannelForDisplay(c)),
-    },
-    {
-      id: 'private',
-      name: 'Private Channels',
-      collapsed: false,
-      channels: dedupeChannels(nonFavoritePrivate).map(c => normalizeChannelForDisplay(c)),
+      channels: allNonFavoriteChannels.map(c => normalizeChannelForDisplay(c)),
     },
     {
       id: 'dms',
@@ -155,8 +166,11 @@ function normalizeChannelForDisplay(c: any) {
   let avatarUrl = '';
   let username = '';
   
+  // Support both 'type' and 'channel_type' field names
+  const channelTypeValue = c.type || c.channel_type;
+  
   // Handle DM channels
-  if (c.channel_type === 'direct' || c.name?.startsWith('dm_')) {
+  if (channelTypeValue === 'direct' || c.name?.startsWith('dm_')) {
     otherId = getDirectMessageCounterpartyId(c.name, authStore.user?.id) || '';
     const summary = otherId ? getUserSummarySnapshot(otherId) : null;
     const member = otherId ? teamStore.members.find(m => m.user_id === otherId) : null;
@@ -174,9 +188,9 @@ function normalizeChannelForDisplay(c: any) {
   const unreadCount = isCurrentChannel ? 0 : (c.unreadCount || 0);
   const mentionCount = isCurrentChannel ? 0 : (c.mentionCount || 0);
   
-  const channelType = c.channel_type === 'direct' ? 'dm' : 
-                    c.channel_type === 'group' ? 'group' :
-                    c.channel_type === 'private' ? 'private' : 'public';
+  const channelType = channelTypeValue === 'direct' ? 'dm' : 
+                    channelTypeValue === 'group' ? 'group' :
+                    channelTypeValue === 'private' ? 'private' : 'public';
   
   return {
     id: c.id,
@@ -193,6 +207,7 @@ function normalizeChannelForDisplay(c: any) {
     mention: mentionCount > 0,
     mentionCount: mentionCount,
     creator_id: c.creator_id,
+    isTyping: presenceStore.hasTypingUsers(c.id),
   };
 }
 
@@ -289,6 +304,29 @@ async function handleMoveToCategory(cat: SidebarCategory) {
   } catch (e) {
     console.error('Failed to move channel:', e);
   }
+}
+
+// Handle edit channel
+function handleOpenEditChannel() {
+  if (contextMenuChannel.value) {
+    // Find the full channel data
+    const channel = channelStore.channels.find(c => c.id === contextMenuChannel.value?.id);
+    if (channel) {
+      editingChannel.value = channel;
+      showEditChannelModal.value = true;
+    }
+  }
+}
+
+// Handle channel updated
+function handleChannelUpdated() {
+  showEditChannelModal.value = false;
+  editingChannel.value = null;
+}
+
+// Handle delete channel
+async function handleOpenDeleteChannel() {
+  // This is handled within ChannelContextMenu now
 }
 
 onMounted(() => {
@@ -552,6 +590,17 @@ async function handleLeaveTeam() {
                   :class="channelStore.currentChannelId === channel.id ? 'bg-brand' : 'bg-text-2'"
                 />
 
+                <!-- Typing indicator badge -->
+                <div 
+                  v-else-if="channel.isTyping && channelStore.currentChannelId !== channel.id" 
+                  class="shrink-0 flex items-center gap-0.5"
+                  title="Someone is typing..."
+                >
+                  <div class="w-1 h-1 rounded-full bg-blue-500 animate-bounce" style="animation-delay: 0ms"></div>
+                  <div class="w-1 h-1 rounded-full bg-blue-500 animate-bounce" style="animation-delay: 150ms"></div>
+                  <div class="w-1 h-1 rounded-full bg-blue-500 animate-bounce" style="animation-delay: 300ms"></div>
+                </div>
+
                 <!-- Context Menu Trigger -->
                 <button
                   @click.stop="openContextMenu(channel, $event)"
@@ -577,6 +626,8 @@ async function handleLeaveTeam() {
                     @action="handleContextMenuAction"
                     @open-add-members="handleOpenAddMembers"
                     @open-move-to="handleOpenMoveTo"
+                    @open-edit="handleOpenEditChannel"
+                    @open-delete="handleOpenDeleteChannel"
                   />
                 </Teleport>
               </div>
@@ -637,6 +688,12 @@ async function handleLeaveTeam() {
       :channel-id="addMembersChannelId"
       :channel-name="addMembersChannelName"
       @close="showAddMembersModal = false"
+    />
+    <EditChannelModal
+      :is-open="showEditChannelModal"
+      :channel="editingChannel"
+      @close="showEditChannelModal = false"
+      @updated="handleChannelUpdated"
     />
 
     <!-- Move to Category Modal -->

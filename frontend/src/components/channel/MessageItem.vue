@@ -15,7 +15,7 @@ import RcAvatar from '../ui/RcAvatar.vue'
 import ImageGallery from '../atomic/ImageGallery.vue'
 import { getEmojiChar, getPreferredEmojiName, getReactionEmojiKey } from '../../utils/emoji'
 import type { FileUploadResponse } from '../../api/files'
-import { renderMarkdown } from '../../utils/markdown'
+import { useMarkdownRenderer } from '../../composables/useMarkdownRenderer'
 
 const props = defineProps<{
   message: Message
@@ -48,6 +48,7 @@ const editContent = ref('')
 const editInputRef = ref<HTMLTextAreaElement | null>(null)
 const emojiButtonRef = ref<HTMLElement | null>(null)
 const saving = ref(false)
+const { renderMarkdown } = useMarkdownRenderer()
 
 const isOwnMessage = computed(() => authStore.user?.id === props.message.userId)
 const isEdited = computed(() => Boolean(props.message.editedAt))
@@ -439,7 +440,7 @@ async function toggleReaction(emoji: string) {
       <!-- Message Content -->
       <div v-else class="relative">
         <div 
-          class="text-text-1 text-sm mt-0.5 whitespace-pre-wrap leading-relaxed max-w-full break-words"
+          class="message-content text-text-1 text-sm mt-0.5 whitespace-pre-wrap leading-relaxed max-w-full break-words"
           :class="{ 'bg-brand/5 -mx-2 px-2 py-1 rounded': isMentioned }"
           v-html="formattedContent"
         ></div>

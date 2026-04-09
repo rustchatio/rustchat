@@ -114,13 +114,13 @@ function removeStunServer(index: number) {
 </script>
 
 <template>
-    <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <div class="flex items-center justify-between mb-4">
             <div class="flex items-center">
                 <Phone class="w-6 h-6 text-indigo-500 mr-3" />
                 <div>
-                    <h3 class="font-semibold text-gray-900 dark:text-white">RustChat Calls Plugin</h3>
-                    <p class="text-sm text-gray-500 dark:text-gray-400">Configure WebRTC calling infrastructure and TURN servers</p>
+                    <h3 class="font-semibold text-gray-900">RustChat Calls Plugin</h3>
+                    <p class="text-sm text-gray-500">Configure WebRTC calling infrastructure and TURN servers</p>
                 </div>
             </div>
 
@@ -131,13 +131,13 @@ function removeStunServer(index: number) {
             />
         </div>
 
-        <div v-if="loading" class="text-gray-500 dark:text-gray-400">Loading...</div>
-        <div v-else-if="config.enabled" class="mt-4 pt-4 border-t border-gray-200 dark:border-slate-700 space-y-6">
+        <div v-if="loading" class="text-gray-500">Loading...</div>
+        <div v-else-if="config.enabled" class="mt-4 pt-4 border-t border-gray-200 space-y-6">
 
             <!-- TURN Server Settings -->
             <div>
                 <div class="flex items-center justify-between mb-3">
-                    <h4 class="text-sm font-semibold text-gray-900 dark:text-white flex items-center">
+                    <h4 class="text-sm font-semibold text-gray-900 flex items-center">
                         <Server class="w-4 h-4 mr-2 text-blue-500" />
                         TURN Server Configuration
                     </h4>
@@ -147,53 +147,53 @@ function removeStunServer(index: number) {
                             v-model="config.turn_server_enabled"
                             class="w-4 h-4 text-indigo-600 rounded"
                         />
-                        <span class="text-sm text-gray-700 dark:text-gray-300">Enable TURN Server</span>
+                        <span class="text-sm text-gray-700">Enable TURN Server</span>
                     </label>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
                             TURN Server URL
                         </label>
                         <input
                             type="text"
                             v-model="config.turn_server_url"
                             placeholder="turn:turn.example.com:3478"
-                            class="w-full px-3 py-2 border rounded-lg dark:bg-slate-900 dark:border-gray-600 dark:text-white"
+                            class="w-full px-3 py-2 border rounded-lg"
                         />
                         <p class="text-xs text-gray-500 mt-1">Format: turn:hostname:port or turns:hostname:port</p>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
                             Username
                         </label>
                         <input
                             type="text"
                             v-model="config.turn_server_username"
                             placeholder="TURN username"
-                            class="w-full px-3 py-2 border rounded-lg dark:bg-slate-900 dark:border-gray-600 dark:text-white"
+                            class="w-full px-3 py-2 border rounded-lg"
                         />
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
                             Credential (Password)
                         </label>
                         <input
                             type="password"
                             v-model="config.turn_server_credential"
                             placeholder="TURN password"
-                            class="w-full px-3 py-2 border rounded-lg dark:bg-slate-900 dark:border-gray-600 dark:text-white"
+                            class="w-full px-3 py-2 border rounded-lg"
                         />
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
                             ICE Host Override
                         </label>
                         <input
                             type="text"
                             v-model="config.ice_host_override"
                             placeholder="Optional: public IP or hostname"
-                            class="w-full px-3 py-2 border rounded-lg dark:bg-slate-900 dark:border-gray-600 dark:text-white"
+                            class="w-full px-3 py-2 border rounded-lg"
                         />
                         <p class="text-xs text-gray-500 mt-1">Override the public IP address for ICE candidates</p>
                     </div>
@@ -202,10 +202,10 @@ function removeStunServer(index: number) {
 
             <!-- Port Configuration -->
             <div>
-                <h4 class="text-sm font-semibold text-gray-900 dark:text-white mb-3">Port Configuration</h4>
+                <h4 class="text-sm font-semibold text-gray-900 mb-3">Port Configuration</h4>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
                             UDP Port
                         </label>
                         <input
@@ -213,11 +213,11 @@ function removeStunServer(index: number) {
                             v-model.number="config.udp_port"
                             min="1"
                             max="65535"
-                            class="w-full px-3 py-2 border rounded-lg dark:bg-slate-900 dark:border-gray-600 dark:text-white"
+                            class="w-full px-3 py-2 border rounded-lg"
                         />
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">
                             TCP Port
                         </label>
                         <input
@@ -225,7 +225,7 @@ function removeStunServer(index: number) {
                             v-model.number="config.tcp_port"
                             min="1"
                             max="65535"
-                            class="w-full px-3 py-2 border rounded-lg dark:bg-slate-900 dark:border-gray-600 dark:text-white"
+                            class="w-full px-3 py-2 border rounded-lg"
                         />
                     </div>
                 </div>
@@ -233,7 +233,7 @@ function removeStunServer(index: number) {
 
             <!-- STUN Servers -->
             <div>
-                <h4 class="text-sm font-semibold text-gray-900 dark:text-white mb-3 flex items-center">
+                <h4 class="text-sm font-semibold text-gray-900 mb-3 flex items-center">
                     <Globe class="w-4 h-4 mr-2 text-green-500" />
                     STUN Servers
                 </h4>
@@ -247,11 +247,11 @@ function removeStunServer(index: number) {
                             type="text"
                             v-model="config.stun_servers[index]"
                             :placeholder="'STUN Server ' + (index + 1)"
-                            class="flex-1 px-3 py-2 border rounded-lg dark:bg-slate-900 dark:border-gray-600 dark:text-white"
+                            class="flex-1 px-3 py-2 border rounded-lg"
                         />
                         <button
                             @click="removeStunServer(index)"
-                            class="px-3 py-2 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg"
+                            class="px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg"
                         >
                             Remove
                         </button>
@@ -261,12 +261,12 @@ function removeStunServer(index: number) {
                             type="text"
                             v-model="stunServerInput"
                             placeholder="stun:stun.example.com:19302"
-                            class="flex-1 px-3 py-2 border rounded-lg dark:bg-slate-900 dark:border-gray-600 dark:text-white"
+                            class="flex-1 px-3 py-2 border rounded-lg"
                             @keyup.enter="addStunServer"
                         />
                         <button
                             @click="addStunServer"
-                            class="px-4 py-2 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded-lg text-sm font-medium"
+                            class="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg text-sm font-medium"
                         >
                             Add Server
                         </button>
@@ -275,12 +275,12 @@ function removeStunServer(index: number) {
             </div>
 
             <!-- Actions -->
-            <div class="flex items-center justify-between pt-4 mt-4 border-t border-gray-200 dark:border-slate-700">
+            <div class="flex items-center justify-between pt-4 mt-4 border-t border-gray-200">
                 <div class="flex items-center gap-4">
                     <button
                         @click="testConfiguration"
                         :disabled="testing"
-                        class="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 shadow-sm text-sm font-medium rounded-md text-gray-700 dark:text-gray-300 bg-white dark:bg-slate-700 hover:bg-gray-50 dark:hover:bg-slate-600 focus:outline-none"
+                        class="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none"
                     >
                         <TestTube class="w-4 h-4 mr-2" />
                         <span v-if="testing">Testing...</span>
@@ -307,7 +307,7 @@ function removeStunServer(index: number) {
             <div
                 v-if="testResult"
                 class="mt-4 p-4 rounded-md"
-                :class="testSuccess ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400' : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400'"
+                :class="testSuccess ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'"
             >
                 <pre class="text-sm whitespace-pre-wrap">{{ testResult }}</pre>
             </div>
@@ -315,7 +315,7 @@ function removeStunServer(index: number) {
             <!-- Error Alert -->
             <div
                 v-if="saveError"
-                class="flex items-center gap-2 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-400"
+                class="flex items-center gap-2 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700"
             >
                 <AlertCircle class="w-5 h-5 shrink-0" />
                 {{ saveError }}

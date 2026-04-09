@@ -1273,7 +1273,7 @@ fn parse_authentication_challenge(text: &str) -> Option<AuthenticationChallenge>
 }
 
 /// Map internal envelope to Mattermost-compatible message
-fn map_envelope_to_mm(env: &WsEnvelope) -> Option<mm::WebSocketMessage> {
+pub fn map_envelope_to_mm(env: &WsEnvelope) -> Option<mm::WebSocketMessage> {
     let seq = None; // Will be assigned by actor
 
     match env.event.as_str() {

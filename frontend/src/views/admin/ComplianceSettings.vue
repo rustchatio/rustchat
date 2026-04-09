@@ -65,8 +65,8 @@ const triggerExport = async () => {
     <div class="space-y-6">
         <div class="flex items-center justify-between">
             <div>
-                <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Compliance & Retention</h1>
-                <p class="text-gray-500 dark:text-gray-400 mt-1">Configure data retention policies</p>
+                <h1 class="text-2xl font-bold text-gray-900">Compliance & Retention</h1>
+                <p class="text-gray-500 mt-1">Configure data retention policies</p>
             </div>
             <div class="flex items-center gap-3">
                 <span v-if="saveSuccess" class="flex items-center text-green-600 text-sm">
@@ -84,46 +84,46 @@ const triggerExport = async () => {
         </div>
 
         <!-- Error Alert -->
-        <div v-if="saveError" class="flex items-center gap-2 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-400">
+        <div v-if="saveError" class="flex items-center gap-2 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
             <AlertCircle class="w-5 h-5 shrink-0" />
             {{ saveError }}
         </div>
 
-        <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <div class="flex items-center mb-6">
                 <Scale class="w-5 h-5 text-gray-400 mr-2" />
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Global Retention Policy</h2>
+                <h2 class="text-lg font-semibold text-gray-900">Global Retention Policy</h2>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Message Retention (days)</label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Message Retention (days)</label>
                     <input 
                         v-model.number="form.message_retention_days"
                         type="number"
                         min="0"
-                        class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-900"
                     />
                     <p class="text-xs text-gray-500 mt-1">0 = Keep forever</p>
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">File Retention (days)</label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">File Retention (days)</label>
                     <input 
                         v-model.number="form.file_retention_days"
                         type="number"
                         min="0"
-                        class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-900"
                     />
                     <p class="text-xs text-gray-500 mt-1">0 = Keep forever</p>
                 </div>
             </div>
 
-            <div v-if="form.message_retention_days > 0 || form.file_retention_days > 0" class="mt-6 p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
+            <div v-if="form.message_retention_days > 0 || form.file_retention_days > 0" class="mt-6 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
                 <div class="flex items-start">
-                    <Trash2 class="w-5 h-5 text-yellow-600 dark:text-yellow-400 mr-3 mt-0.5" />
+                    <Trash2 class="w-5 h-5 text-yellow-600 mr-3 mt-0.5" />
                     <div>
-                        <p class="font-medium text-yellow-800 dark:text-yellow-200">Data Deletion Warning</p>
-                        <p class="text-sm text-yellow-700 dark:text-yellow-300 mt-1">
+                        <p class="font-medium text-yellow-800">Data Deletion Warning</p>
+                        <p class="text-sm text-yellow-700 mt-1">
                             With these settings, data older than the retention period will be permanently deleted. 
                             This action cannot be undone.
                         </p>
@@ -133,11 +133,11 @@ const triggerExport = async () => {
         </div>
 
         <!-- Compliance Export -->
-        <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <div class="flex items-center justify-between mb-4">
                 <div class="flex items-center">
                     <Download class="w-5 h-5 text-gray-400 mr-2" />
-                    <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Compliance Export</h2>
+                    <h2 class="text-lg font-semibold text-gray-900">Compliance Export</h2>
                 </div>
             </div>
             <p class="text-sm text-gray-500 mb-4">
@@ -145,14 +145,14 @@ const triggerExport = async () => {
                 The export will be generated in the background and a download link will be emailed to you.
             </p>
             
-            <div v-if="exportSuccess" class="mb-4 p-3 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-lg text-sm">
+            <div v-if="exportSuccess" class="mb-4 p-3 bg-green-50 text-green-700 rounded-lg text-sm">
                 Compliance export started successfully.
             </div>
 
             <button 
                 @click="triggerExport"
                 :disabled="exporting"
-                class="px-4 py-2 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-slate-700 rounded-lg text-gray-700 dark:text-gray-300 font-medium transition-colors"
+                class="px-4 py-2 border border-gray-300 hover:bg-gray-50 rounded-lg text-gray-700 font-medium transition-colors"
             >
                 {{ exporting ? 'Starting Export...' : 'Start Compliance Export' }}
             </button>

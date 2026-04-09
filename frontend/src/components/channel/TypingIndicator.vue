@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, watch, ref } from 'vue'
 import { usePresenceStore } from '../../features/presence'
 
 const props = defineProps<{
@@ -8,11 +8,54 @@ const props = defineProps<{
 }>()
 
 const presenceStore = usePresenceStore()
-// Use the store getter which handles thread filtering
-const typingUsers = presenceStore.getTypingUsersForChannel(props.channelId, props.threadId)
+
+// Local reactive ref for typing users - ensures reactivity when channel changes
+const localTypingUsers = ref<{ userId: string; username: string }[]>([])
+
+// Watch for changes in the store and update local ref
+watch(
+  () => presenceStore.typingUsers,
+  () => {
+    const users: { userId: string; username: string }[] = []
+    for (const user of presenceStore.typingUsers.values()) {
+      if (user.channelId === props.channelId) {
+        if (props.threadId) {
+          if (user.threadRootId === props.threadId) {
+            users.push({ userId: user.userId, username: user.username })
+          }
+        } else {
+          if (!user.threadRootId) {
+            users.push({ userId: user.userId, username: user.username })
+          }
+        }
+      }
+    }
+    localTypingUsers.value = users
+  },
+  { immediate: true, deep: true }
+)
+
+// Also re-evaluate when channelId changes
+watch(() => props.channelId, () => {
+  const users: { userId: string; username: string }[] = []
+  for (const user of presenceStore.typingUsers.values()) {
+    if (user.channelId === props.channelId) {
+      if (props.threadId) {
+        if (user.threadRootId === props.threadId) {
+          users.push({ userId: user.userId, username: user.username })
+        }
+      } else {
+        if (!user.threadRootId) {
+          users.push({ userId: user.userId, username: user.username })
+        }
+      }
+    }
+  }
+  localTypingUsers.value = users
+}, { immediate: true })
 
 const typingText = computed(() => {
-    const names = typingUsers.value.map(u => u.username)
+    const names = localTypingUsers.value.map(u => u.username)
     if (names.length === 0) return ''
     if (names.length === 1) return `${names[0]} is typing...`
     if (names.length === 2) return `${names[0]} and ${names[1]} are typing...`
@@ -23,8 +66,8 @@ const typingText = computed(() => {
 
 <template>
   <div 
-    v-if="typingUsers.length > 0"
-    class="px-5 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 flex items-center space-x-2 bg-transparent transition-opacity duration-200"
+    v-if="localTypingUsers.length > 0"
+    class="px-5 py-2 text-xs font-medium text-gray-500 flex items-center space-x-2 bg-transparent transition-opacity duration-200"
   >
     <!-- Typing dots animation -->
     <div class="flex space-x-1">

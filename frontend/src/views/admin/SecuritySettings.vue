@@ -42,8 +42,8 @@ const saveSettings = async () => {
     <div class="space-y-6">
         <div class="flex items-center justify-between">
             <div>
-                <h1 class="text-2xl font-bold text-gray-900 dark:text-white">Security Settings</h1>
-                <p class="text-gray-500 dark:text-gray-400 mt-1">Configure authentication and access policies</p>
+                <h1 class="text-2xl font-bold text-gray-900">Security Settings</h1>
+                <p class="text-gray-500 mt-1">Configure authentication and access policies</p>
             </div>
             <button 
                 @click="saveSettings"
@@ -55,33 +55,33 @@ const saveSettings = async () => {
         </div>
 
         <!-- Authentication Methods -->
-        <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <div class="flex items-center mb-6">
                 <Key class="w-5 h-5 text-gray-400 mr-2" />
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Authentication Methods</h2>
+                <h2 class="text-lg font-semibold text-gray-900">Authentication Methods</h2>
             </div>
             
             <div class="space-y-4">
-                <label class="flex items-center justify-between p-4 bg-gray-50 dark:bg-slate-900 rounded-lg">
+                <label class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                     <div>
-                        <p class="font-medium text-gray-900 dark:text-white">Email & Password</p>
+                        <p class="font-medium text-gray-900">Email & Password</p>
                         <p class="text-sm text-gray-500">Allow users to sign in with email and password</p>
                     </div>
                     <input type="checkbox" v-model="authForm.enable_email_password" class="w-5 h-5 text-indigo-600 rounded" />
                 </label>
 
-                <label class="flex items-center justify-between p-4 bg-gray-50 dark:bg-slate-900 rounded-lg">
+                <label class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                     <div>
-                        <p class="font-medium text-gray-900 dark:text-white">Single Sign-On (OIDC)</p>
+                        <p class="font-medium text-gray-900">Single Sign-On (OIDC)</p>
                         <p class="text-sm text-gray-500">Enable login via external identity provider</p>
                     </div>
                     <input type="checkbox" v-model="authForm.enable_sso" class="w-5 h-5 text-indigo-600 rounded" />
                 </label>
 
-                <label v-if="authForm.enable_sso" class="flex items-center justify-between p-4 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-200 dark:border-yellow-800">
+                <label v-if="authForm.enable_sso" class="flex items-center justify-between p-4 bg-yellow-50 rounded-lg border border-yellow-200">
                     <div>
-                        <p class="font-medium text-yellow-800 dark:text-yellow-200">Require SSO</p>
-                        <p class="text-sm text-yellow-600 dark:text-yellow-400">Disable password login, require SSO only</p>
+                        <p class="font-medium text-yellow-800">Require SSO</p>
+                        <p class="text-sm text-yellow-600">Disable password login, require SSO only</p>
                     </div>
                     <input type="checkbox" v-model="authForm.require_sso" class="w-5 h-5 text-yellow-600 rounded" />
                 </label>
@@ -89,31 +89,31 @@ const saveSettings = async () => {
         </div>
 
         <!-- Password Policy -->
-        <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <div class="flex items-center mb-6">
                 <Lock class="w-5 h-5 text-gray-400 mr-2" />
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Password Policy</h2>
+                <h2 class="text-lg font-semibold text-gray-900">Password Policy</h2>
             </div>
             
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Minimum Length</label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Minimum Length</label>
                     <input 
                         v-model.number="authForm.password_min_length"
                         type="number"
                         min="6"
                         max="32"
-                        class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-900"
                     />
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Session Length (hours)</label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Session Length (hours)</label>
                     <input 
                         v-model.number="authForm.session_length_hours"
                         type="number"
                         min="1"
                         max="720"
-                        class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-slate-900 text-gray-900 dark:text-white"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg bg-white text-gray-900"
                     />
                 </div>
             </div>
@@ -121,37 +121,37 @@ const saveSettings = async () => {
             <div class="mt-4 space-y-2">
                 <label class="flex items-center">
                     <input type="checkbox" v-model="authForm.password_require_lowercase" class="w-4 h-4 text-indigo-600 rounded mr-3" />
-                    <span class="text-gray-700 dark:text-gray-300">Require lowercase letter</span>
+                    <span class="text-gray-700">Require lowercase letter</span>
                 </label>
                 <label class="flex items-center">
                     <input type="checkbox" v-model="authForm.password_require_uppercase" class="w-4 h-4 text-indigo-600 rounded mr-3" />
-                    <span class="text-gray-700 dark:text-gray-300">Require uppercase letter</span>
+                    <span class="text-gray-700">Require uppercase letter</span>
                 </label>
                 <label class="flex items-center">
                     <input type="checkbox" v-model="authForm.password_require_number" class="w-4 h-4 text-indigo-600 rounded mr-3" />
-                    <span class="text-gray-700 dark:text-gray-300">Require number</span>
+                    <span class="text-gray-700">Require number</span>
                 </label>
                 <label class="flex items-center">
                     <input type="checkbox" v-model="authForm.password_require_symbol" class="w-4 h-4 text-indigo-600 rounded mr-3" />
-                    <span class="text-gray-700 dark:text-gray-300">Require symbol</span>
+                    <span class="text-gray-700">Require symbol</span>
                 </label>
                 <label class="flex items-center">
                     <input type="checkbox" v-model="authForm.password_enable_forgot_link" class="w-4 h-4 text-indigo-600 rounded mr-3" />
-                    <span class="text-gray-700 dark:text-gray-300">Enable forgot password link</span>
+                    <span class="text-gray-700">Enable forgot password link</span>
                 </label>
             </div>
         </div>
 
         <!-- Registration -->
-        <div class="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-gray-200 dark:border-slate-700 p-6">
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <div class="flex items-center mb-6">
                 <Users class="w-5 h-5 text-gray-400 mr-2" />
-                <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Registration</h2>
+                <h2 class="text-lg font-semibold text-gray-900">Registration</h2>
             </div>
             
-            <label class="flex items-center justify-between p-4 bg-gray-50 dark:bg-slate-900 rounded-lg">
+            <label class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                 <div>
-                    <p class="font-medium text-gray-900 dark:text-white">Allow Public Registration</p>
+                    <p class="font-medium text-gray-900">Allow Public Registration</p>
                     <p class="text-sm text-gray-500">Anyone can create an account</p>
                 </div>
                 <input type="checkbox" v-model="authForm.allow_registration" class="w-5 h-5 text-indigo-600 rounded" />

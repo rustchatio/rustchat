@@ -198,7 +198,7 @@ async fn get_post(
 ) -> ApiResult<Json<mm::Post>> {
     let post_id = parse_mm_or_uuid(&post_id)
         .ok_or_else(|| AppError::BadRequest("Invalid post_id".to_string()))?;
-    let post: crate::models::post::PostResponse = sqlx::query_as(
+    let mut post: crate::models::post::PostResponse = sqlx::query_as(
         r#"
         SELECT p.id, p.channel_id, p.user_id, p.root_post_id, p.message, p.props, p.file_ids,
                p.is_pinned, p.created_at, p.edited_at, p.deleted_at,
@@ -224,6 +224,7 @@ async fn get_post(
                 crate::error::AppError::Forbidden("Not a member of this channel".to_string())
             })?;
 
+    posts::normalize_post_avatar_urls(std::slice::from_mut(&mut post));
     let mut mm_post: mm::Post = post.into();
     let reactions_map = reactions_for_posts(&state, &[post_id]).await?;
     if let Some(reactions) = reactions_map.get(&post_id) {
@@ -257,7 +258,7 @@ async fn get_posts_by_ids(
         post_ids.push(parsed);
     }
 
-    let posts: Vec<crate::models::post::PostResponse> = sqlx::query_as(
+    let mut posts: Vec<crate::models::post::PostResponse> = sqlx::query_as(
         r#"
         SELECT p.id, p.channel_id, p.user_id, p.root_post_id, p.message, p.props, p.file_ids,
                p.is_pinned, p.created_at, p.edited_at, p.deleted_at,
@@ -274,6 +275,8 @@ async fn get_posts_by_ids(
     .bind(auth.user_id)
     .fetch_all(&state.db)
     .await?;
+
+    posts::normalize_post_avatar_urls(&mut posts);
 
     let mut map = std::collections::HashMap::new();
     for post in posts {
@@ -1111,7 +1114,7 @@ async fn get_flagged_posts(
         parsed
     };
 
-    let posts: Vec<crate::models::post::PostResponse> = sqlx::query_as(
+    let mut posts: Vec<crate::models::post::PostResponse> = sqlx::query_as(
         r#"
         SELECT p.id, p.channel_id, p.user_id, p.root_post_id, p.message, p.props, p.file_ids,
                p.is_pinned, p.created_at, p.edited_at, p.deleted_at,
@@ -1128,6 +1131,8 @@ async fn get_flagged_posts(
     .bind(user_id)
     .fetch_all(&state.db)
     .await?;
+
+    posts::normalize_post_avatar_urls(&mut posts);
 
     let mut order = Vec::new();
     let mut posts_map: std::collections::HashMap<String, mm::Post> =
@@ -1182,7 +1187,7 @@ async fn delete_post(
         ));
     }
 
-    let deleted_post: crate::models::post::PostResponse = sqlx::query_as(
+    let mut deleted_post: crate::models::post::PostResponse = sqlx::query_as(
         r#"
         WITH updated_post AS (
             UPDATE posts SET deleted_at = NOW() WHERE id = $1
@@ -1201,9 +1206,14 @@ async fn delete_post(
     .fetch_one(&state.db)
     .await?;
 
+    posts::normalize_post_avatar_urls(std::slice::from_mut(&mut deleted_post));
+
     let broadcast = WsEnvelope::event(
         EventType::MessageDeleted,
-        deleted_post,
+        serde_json::json!({
+            "post_id": post_id,
+            "channel_id": post_channel_id
+        }),
         Some(post_channel_id),
     )
     .with_broadcast(WsBroadcast {
@@ -1301,7 +1311,7 @@ async fn update_post_message(
         }
     }
 
-    let updated: crate::models::post::PostResponse = sqlx::query_as(
+    let mut updated: crate::models::post::PostResponse = sqlx::query_as(
         r#"
         WITH updated_post AS (
             UPDATE posts SET message = $1, edited_at = NOW()
@@ -1321,6 +1331,8 @@ async fn update_post_message(
     .bind(post_id)
     .fetch_one(&state.db)
     .await?;
+
+    posts::normalize_post_avatar_urls(std::slice::from_mut(&mut updated));
 
     let broadcast = WsEnvelope::event(
         EventType::MessageUpdated,

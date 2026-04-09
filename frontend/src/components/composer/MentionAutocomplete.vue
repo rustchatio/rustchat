@@ -63,9 +63,9 @@ onUnmounted(() => {
 <template>
   <div 
     v-if="show && filteredMembers.length > 0"
-    class="absolute bottom-full left-0 mb-2 w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl overflow-hidden z-[120] animate-in fade-in slide-in-from-bottom-2 duration-200"
+    class="absolute bottom-full left-0 mb-2 w-64 bg-white border border-gray-200 rounded-lg shadow-xl overflow-hidden z-[120] animate-in fade-in slide-in-from-bottom-2 duration-200"
   >
-    <div class="p-2 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
+    <div class="p-2 border-b border-gray-100 bg-gray-50">
       <span class="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Channel Members</span>
     </div>
     
@@ -76,7 +76,7 @@ onUnmounted(() => {
         @click="select(member.username)"
         @mouseenter="selectedIndex = index"
         class="w-full px-3 py-2 flex items-center space-x-3 transition-colors text-left"
-        :class="selectedIndex === index ? 'bg-blue-50 dark:bg-blue-900/40' : 'hover:bg-gray-50 dark:hover:bg-gray-700/30'"
+        :class="selectedIndex === index ? 'bg-blue-50' : 'hover:bg-gray-50'"
       >
         <RcAvatar 
           :userId="member.user_id" 
@@ -87,7 +87,7 @@ onUnmounted(() => {
         />
         <div class="flex-1 min-w-0">
           <div class="flex items-center justify-between">
-            <span class="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">
+            <span class="text-sm font-semibold text-gray-900 truncate">
               {{ member.username }}
             </span>
             <span v-if="selectedIndex === index" class="text-[10px] text-blue-500 font-medium">Enter</span>

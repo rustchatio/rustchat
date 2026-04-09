@@ -29,13 +29,13 @@ function handlePreview() {
 
 <template>
   <div 
-    class="group relative flex flex-col p-1 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:shadow-md transition-all duration-200 max-w-sm overflow-hidden"
-    :class="{ 'cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-500': isImage(file.mime_type) }"
+    class="group relative flex flex-col p-1 rounded-xl border border-gray-200 bg-white hover:shadow-md transition-all duration-200 max-w-sm overflow-hidden"
+    :class="{ 'cursor-pointer hover:border-indigo-400': isImage(file.mime_type) }"
     @click="handlePreview"
   >
       
       <!-- Icon or Thumbnail -->
-      <div class="relative aspect-video w-full rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-900 border border-gray-100 dark:border-gray-800">
+      <div class="relative aspect-video w-full rounded-lg overflow-hidden bg-gray-100 border border-gray-100">
           <img 
             v-if="isImage(file.mime_type)" 
             :src="file.thumbnail_url || file.url" 
@@ -57,7 +57,7 @@ function handlePreview() {
       <!-- Details -->
       <div class="p-2 flex items-center justify-between">
           <div class="flex-1 min-w-0 mr-2">
-              <div class="text-xs font-semibold text-gray-900 dark:text-gray-100 truncate" :title="file.name">
+              <div class="text-xs font-semibold text-gray-900 truncate" :title="file.name">
                   {{ file.name }}
               </div>
               <div class="text-[10px] text-gray-500 flex items-center space-x-2 font-medium">
@@ -69,7 +69,7 @@ function handlePreview() {
             :href="file.url" 
             download 
             @click.stop
-            class="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-gray-500 hover:text-indigo-600 dark:text-gray-400 dark:hover:text-indigo-400 transition-colors"
+            class="p-1.5 hover:bg-gray-100 rounded-lg text-gray-500 hover:text-indigo-600 transition-colors"
           >
               <Download class="w-4 h-4" />
           </a>

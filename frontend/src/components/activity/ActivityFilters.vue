@@ -1,13 +1,13 @@
 <template>
-  <div class="flex gap-1.5 p-3 border-b border-gray-200 dark:border-gray-800 overflow-x-auto">
+  <div class="flex gap-1.5 p-3 border-b border-gray-200 overflow-x-auto">
     <button
       v-for="filter in filters"
       :key="filter.value ?? 'all'"
       class="px-3 py-1 text-xs font-medium rounded-full whitespace-nowrap transition-colors"
       :class="[
         modelValue === filter.value
-          ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900'
-          : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+          ? 'bg-gray-900 text-white'
+          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
       ]"
       @click="$emit('update:modelValue', filter.value)"
     >

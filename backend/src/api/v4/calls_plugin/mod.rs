@@ -881,7 +881,7 @@ async fn mark_call_thread_post_ended(
     thread_id: Uuid,
     ended_at: i64,
 ) -> Result<Option<crate::models::post::PostResponse>, sqlx::Error> {
-    sqlx::query_as(
+    let mut post = sqlx::query_as(
         r#"
         WITH updated_post AS (
             UPDATE posts
@@ -907,7 +907,13 @@ async fn mark_call_thread_post_ended(
     .bind(ended_at)
     .bind(thread_id)
     .fetch_optional(&state.db)
-    .await
+    .await?;
+
+    if let Some(post) = &mut post {
+        crate::services::posts::normalize_post_avatar_urls(std::slice::from_mut(post));
+    }
+
+    Ok(post)
 }
 
 async fn ensure_call_thread_id(state: &AppState, call: &CallState) -> Option<Uuid> {

@@ -43,7 +43,7 @@ export function useQuickSwitcher() {
         type: 'channel',
         name: channel.display_name || channel.name,
         subtitle: team?.display_name || team?.name,
-        icon: channel.channel_type === 'private' ? 'Lock' : 'Hash',
+        icon: (channel.channel_type === 'private' || (channel as any).type === 'private') ? 'Lock' : 'Hash',
         to: `/channels/${channel.id}`
       })
     }

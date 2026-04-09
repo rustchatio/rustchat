@@ -81,10 +81,10 @@ function jumpToMessage(message: Message) {
       </div>
       
       <div v-else-if="searchQuery && searchResults.length === 0" class="text-center py-12 text-gray-500 px-6">
-        <div class="w-16 h-16 bg-surface-dim dark:bg-slate-800/50 rounded-full flex items-center justify-center mx-auto mb-4 border border-border-dim dark:border-white/5">
+        <div class="w-16 h-16 bg-surface-dim rounded-full flex items-center justify-center mx-auto mb-4 border border-border-dim">
              <Search class="w-8 h-8 text-gray-300" />
         </div>
-        <p class="text-[15px] font-semibold text-gray-700 dark:text-gray-200">No results found</p>
+        <p class="text-[15px] font-semibold text-gray-700">No results found</p>
         <p class="text-xs text-gray-500 mt-1">We couldn't find anything matching "{{ searchQuery }}"</p>
       </div>
 

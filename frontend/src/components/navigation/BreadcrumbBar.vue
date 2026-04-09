@@ -8,7 +8,7 @@
       <RouterLink
         v-if="segment.to"
         :to="segment.to"
-        class="flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400 transition-colors truncate max-w-[180px]"
+        class="flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-gray-100 text-gray-600 transition-colors truncate max-w-[180px]"
       >
         <component :is="getIcon(segment.icon)" v-if="segment.icon" class="w-3.5 h-3.5 flex-shrink-0" />
         <span class="truncate">{{ segment.label }}</span>
@@ -17,7 +17,7 @@
       <!-- Non-clickable segment (current location) -->
       <span
         v-else
-        class="flex items-center gap-1 px-1.5 py-0.5 text-gray-900 dark:text-gray-100 font-medium truncate max-w-[180px]"
+        class="flex items-center gap-1 px-1.5 py-0.5 text-gray-900 font-medium truncate max-w-[180px]"
         :aria-current="index === segments.length - 1 ? 'location' : undefined"
       >
         <component :is="getIcon(segment.icon)" v-if="segment.icon" class="w-3.5 h-3.5 flex-shrink-0" />

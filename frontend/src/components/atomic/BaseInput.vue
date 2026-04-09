@@ -19,7 +19,7 @@ const inputId = computed(() => props.id || `input-${Math.random().toString(36).s
 
 <template>
   <div class="space-y-1">
-    <label v-if="label" :for="inputId" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+    <label v-if="label" :for="inputId" class="block text-sm font-medium text-gray-700">
       {{ label }}
     </label>
     <div class="relative rounded-md shadow-sm">
@@ -31,10 +31,10 @@ const inputId = computed(() => props.id || `input-${Math.random().toString(36).s
         :placeholder="placeholder"
         :required="required"
         :disabled="disabled"
-        class="block w-full px-3 py-2 rounded-lg border border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary/20 sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white transition-colors"
+        class="block w-full px-3 py-2 rounded-lg border border-gray-300 focus:border-primary focus:ring-2 focus:ring-primary/20 sm:text-sm transition-colors"
         :class="[
           error ? 'border-red-300 text-red-900 placeholder-red-300 focus:border-red-500 focus:ring-red-500' : '',
-          disabled ? 'bg-gray-100 dark:bg-gray-800 cursor-not-allowed' : ''
+          disabled ? 'bg-gray-100 cursor-not-allowed' : ''
         ]"
       />
     </div>

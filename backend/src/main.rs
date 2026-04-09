@@ -40,8 +40,8 @@ async fn main() -> anyhow::Result<()> {
 
             sqlx::query(
                 r#"
-                INSERT INTO users (username, email, password_hash, role, is_active, display_name)
-                VALUES ($1, $2, $3, 'system_admin', true, 'System Admin')
+                INSERT INTO users (username, email, password_hash, role, is_active, display_name, email_verified, email_verified_at)
+                VALUES ($1, $2, $3, 'system_admin', true, 'System Admin', true, NOW())
                 "#,
             )
             .bind(username)

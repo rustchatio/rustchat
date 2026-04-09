@@ -23,6 +23,7 @@ pub struct Channel {
     pub id: Uuid,
     pub team_id: Uuid,
     #[sqlx(rename = "type")]
+    #[serde(rename = "type")]
     pub channel_type: ChannelType,
     pub name: String,
     pub display_name: Option<String>,
@@ -32,6 +33,8 @@ pub struct Channel {
     pub creator_id: Option<Uuid>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    #[sqlx(default)]
+    pub deleted_at: Option<DateTime<Utc>>,
 }
 
 /// Channel member
@@ -84,6 +87,7 @@ pub struct CreateChannel {
 /// DTO for updating a channel
 #[derive(Debug, Clone, Deserialize)]
 pub struct UpdateChannel {
+    pub name: Option<String>,
     pub display_name: Option<String>,
     pub purpose: Option<String>,
     pub header: Option<String>,

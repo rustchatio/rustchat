@@ -89,7 +89,7 @@ function getProviderIcon(providerType: string): string {
         SSO authentication is required for this server
       </span>
       <span v-else>
-        Or <router-link to="/register" class="font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400">create a new account</router-link>
+        Or <router-link to="/register" class="font-medium text-indigo-600 hover:text-indigo-500">create a new account</router-link>
       </span>
     </template>
 
@@ -100,7 +100,7 @@ function getProviderIcon(providerType: string): string {
           v-for="provider in ssoProviders"
           :key="provider.id"
           @click="loginWithSSO(provider)"
-          class="w-full flex items-center justify-center gap-3 px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-gray-700 dark:text-gray-200 font-medium"
+          class="w-full flex items-center justify-center gap-3 px-4 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-gray-700 font-medium"
         >
           <span v-html="getProviderIcon(provider.provider_type)"></span>
           <span>Continue with {{ provider.display_name }}</span>
@@ -110,17 +110,17 @@ function getProviderIcon(providerType: string): string {
       <!-- Divider - only show if password login is also available -->
       <div v-if="showPasswordLogin" class="relative my-6">
         <div class="absolute inset-0 flex items-center">
-          <div class="w-full border-t border-gray-300 dark:border-gray-600"></div>
+          <div class="w-full border-t border-gray-300"></div>
         </div>
         <div class="relative flex justify-center text-sm leading-5">
-          <span class="px-2 bg-white dark:bg-gray-800 text-gray-500 font-medium">Or continue with email</span>
+          <span class="px-2 bg-white text-gray-500 font-medium">Or continue with email</span>
         </div>
       </div>
     </div>
 
     <!-- Password Login Form -->
     <form v-if="showPasswordLogin" class="space-y-6" @submit.prevent="handleLogin">
-      <div v-if="error" class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 px-4 py-3 rounded-md text-sm">
+      <div v-if="error" class="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm">
         {{ error }}
       </div>
 
@@ -144,13 +144,13 @@ function getProviderIcon(providerType: string): string {
       <div class="flex items-center justify-between">
         <div class="flex items-center">
           <input id="remember-me" name="remember-me" type="checkbox" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded cursor-pointer">
-          <label for="remember-me" class="ml-2 block text-sm text-gray-900 dark:text-gray-300 cursor-pointer">
+          <label for="remember-me" class="ml-2 block text-sm text-gray-900 cursor-pointer">
             Remember me
           </label>
         </div>
 
         <div class="text-sm">
-          <router-link to="/forgot-password" class="font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400">
+          <router-link to="/forgot-password" class="font-medium text-indigo-600 hover:text-indigo-500">
             Forgot your password?
           </router-link>
         </div>

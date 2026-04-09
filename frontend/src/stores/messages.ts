@@ -320,7 +320,11 @@ export const useMessageStore = defineStore('messages', () => {
         error.value = null
         try {
             const response = await postsApi.getThread(rootId)
-            const replies = response.data.map(postToMessage)
+            const replies = response.data.order
+                .filter(id => id !== rootId)
+                .map(id => response.data.posts[id])
+                .filter((post): post is Post => post !== undefined)
+                .map(postToMessage)
             repliesByThread.value[rootId] = replies
         } catch (e: any) {
             console.error(`Failed to fetch thread ${rootId}:`, e);
