@@ -1,3 +1,245 @@
+# SPEC: Frontend Supply-Chain Hardening and Dependency Minimization (2026-04-11)
+
+## Problem Statement
+
+The frontend supply chain is only partially hardened today:
+1. frontend CI installs with `npm ci`, but lifecycle scripts are still enabled.
+2. There is no dependency-review gate, vulnerability gate, or release-time dependency inventory artifact for frontend changes.
+3. The repo has had mixed package-manager signals (`frontend/package-lock.json` is active in CI, while `frontend/pnpm-lock.yaml` existed in git history until the current branch removed it), which weakens contributor clarity.
+4. The frontend already contains an internal fetch-based transport layer in [frontend/src/api/http/HttpClient.ts](/Users/scolak/Projects/rustchat/frontend/src/api/http/HttpClient.ts), but raw `fetch()` calls still exist in theme preference code, leaving the HTTP boundary inconsistent.
+5. Several direct dependencies appear to be unnecessary or no longer used in the current source tree, increasing review and remediation burden without clear payoff.
+
+The goal of this task is to harden the existing Vue frontend delivery path without rewriting the framework or expanding the dependency surface to solve dependency problems.
+
+## Current-State Findings
+
+### Package Management / Install Surface
+
+1. Frontend CI already assumes npm and `frontend/package-lock.json`:
+   - [frontend/package-lock.json](/Users/scolak/Projects/rustchat/frontend/package-lock.json)
+   - [.github/workflows/frontend-ci.yml](/Users/scolak/Projects/rustchat/.github/workflows/frontend-ci.yml)
+2. The current branch also deletes `frontend/pnpm-lock.yaml`, confirming package-manager normalization is already in motion:
+   - [frontend/pnpm-lock.yaml](/Users/scolak/Projects/rustchat/frontend/pnpm-lock.yaml)
+3. The frontend Docker build still falls back to `npm install` if a lockfile is missing, which violates strict lockfile-only intent:
+   - [docker/frontend.Dockerfile](/Users/scolak/Projects/rustchat/docker/frontend.Dockerfile)
+
+### CI / Review Gaps
+
+1. No workflow currently performs dependency review, vulnerability scanning, SBOM generation, or dependency policy validation for frontend changes.
+2. Frontend CI currently runs:
+   - checkout
+   - `npm ci`
+   - unit tests
+   - build
+3. That means dependency drift visibility and install-time trust are not yet enforced in PRs.
+
+### HTTP Boundary
+
+1. The project already has a centralized internal fetch client:
+   - [frontend/src/api/client.ts](/Users/scolak/Projects/rustchat/frontend/src/api/client.ts)
+   - [frontend/src/api/http/HttpClient.ts](/Users/scolak/Projects/rustchat/frontend/src/api/http/HttpClient.ts)
+2. Raw `fetch()` remains in theme preference code:
+   - [frontend/src/features/theme/repositories/themeRepository.ts](/Users/scolak/Projects/rustchat/frontend/src/features/theme/repositories/themeRepository.ts)
+   - [frontend/src/stores/theme.ts](/Users/scolak/Projects/rustchat/frontend/src/stores/theme.ts)
+3. The legacy store in [frontend/src/stores/theme.ts](/Users/scolak/Projects/rustchat/frontend/src/stores/theme.ts) duplicates behavior that already exists in the feature-layer theme service/repository path.
+
+### Initial Dependency Audit
+
+Likely required direct dependencies:
+1. `vue`, `vue-router`, `pinia`
+2. `vite`, `@vitejs/plugin-vue`, `typescript`, `vue-tsc`
+3. `@vueuse/core`
+4. `lucide-vue-next`
+5. `date-fns`
+6. `dompurify`, `marked`, `highlight.js`
+7. `@tiptap/vue-3`, `@tiptap/starter-kit`, `@tiptap/extension-placeholder`
+8. `match-sorter`
+9. test/build dependencies already exercised by the repo (`vitest`, `@vue/test-utils`, `jsdom`, `@playwright/test`, Tailwind/PostCSS stack)
+
+Likely removable direct dependencies based on current source usage:
+1. `clsx`
+2. `tailwind-merge`
+3. `@tiptap/extension-mention`
+
+Likely removable type-only packages if local typecheck confirms bundled upstream types are sufficient:
+1. `@types/marked`
+2. `@types/dompurify`
+
+Needs confirmation before removal:
+1. `@types/md5`
+2. Any dependency only referenced through currently-unused legacy files
+
+### Validation Constraint
+
+The current Codex shell environment does not expose `node`, `npm`, `pnpm`, or `corepack` on the default `PATH`, so frontend verification may require explicitly adding the Homebrew toolchain path before running install/build commands. CI remains the primary trust boundary for enforcing the hardened dependency workflow.
+
+## Goals
+
+1. Reduce direct frontend dependency surface where removal is low-risk and justified.
+2. Standardize the repo on one frontend package manager with one committed lockfile.
+3. Enforce lockfile-only frontend installs in CI and release builds.
+4. Block package lifecycle scripts by default in CI, with explicit documented exceptions only.
+5. Add automated PR visibility and gating for dependency changes.
+6. Support central transitive remediation via overrides and a documented patch workflow.
+7. Tighten the frontend HTTP boundary around the existing internal fetch wrapper.
+8. Document the dependency policy so contributors default to the secure path.
+
+## Non-Goals
+
+1. Replacing Vue or changing the frontend framework.
+2. Broad frontend architecture rewrites unrelated to dependency/HTTP hardening.
+3. Backend dependency hardening.
+4. Browser runtime hardening beyond the frontend build/install supply-chain path.
+5. Adding convenience dependencies to solve a dependency-management problem unless the ADR proves the tradeoff is necessary.
+
+## Scope and Contract Impact
+
+### In Scope
+
+1. Frontend package manager and lockfile normalization.
+2. Frontend dependency minimization and dependency policy documentation.
+3. Frontend CI hardening for install behavior, dependency review, vulnerability checks, and dependency-policy enforcement.
+4. Release/build-path hardening for frontend install behavior where practical.
+5. Frontend override and patch workflow for vulnerable transitive dependencies.
+6. Simplifying remaining raw frontend HTTP access behind internal wrappers where reasonable.
+7. Machine-readable dependency inventory/SBOM generation in CI when feasible without expanding the dependency surface unnecessarily.
+
+### Contract Impact
+
+1. Frontend dependency changes will become review-gated in PRs rather than passive lockfile churn.
+2. CI frontend installs will stop executing package lifecycle scripts by default.
+3. Contributors will need to use the approved package-manager workflow and lockfile discipline.
+4. Theme preference HTTP traffic will move onto the internal transport boundary instead of raw `fetch()` usage.
+
+## Architecture Questions That Must Be Locked in ADR
+
+1. Package manager choice:
+   - npm vs pnpm
+   - decision criteria: patchability, contributor clarity, existing repo direction, CI simplicity
+2. HTTP boundary:
+   - keep the internal fetch wrapper and migrate remaining raw `fetch()` theme flows behind it
+   - or retain raw fetch in narrowly scoped areas if the ADR proves that is safer/simpler
+3. Lifecycle-script policy:
+   - CI-only blocking by default vs broader/global blocking
+4. Transitive remediation:
+   - overrides only vs overrides plus repository-managed patch workflow
+5. Update workflow:
+   - Dependabot or equivalent PR-based review flow
+   - severity/merge policy for majors vs security patches
+6. Dependency inventory:
+   - minimal machine-readable manifest only
+   - or SBOM artifact generation during CI/release
+
+## Implementation Outline
+
+### Phase 1: ADR + Policy Baseline
+
+1. Write `docs/adr/ADR-frontend-supply-chain-security.md` with the required comparisons and explicit decisions.
+2. Write `docs/frontend-dependency-policy.md` covering:
+   - allowed dependency categories
+   - PR requirements for new dependencies
+   - override workflow
+   - patch workflow
+   - exception process for trusted install scripts
+
+### Phase 2: Dependency Surface Reduction
+
+1. Remove confirmed-unused direct dependencies from [frontend/package.json](/Users/scolak/Projects/rustchat/frontend/package.json).
+2. Remove redundant type packages when upstream bundled types are sufficient.
+3. Preserve only dependencies with clear functional or tooling justification in the policy document.
+
+### Phase 3: HTTP Boundary Tightening
+
+1. Route theme preference network access through the internal HTTP client boundary.
+2. Remove or isolate duplicate legacy raw-fetch logic where it is safe to do so.
+3. Keep request auth/header/error handling centralized.
+
+### Phase 4: CI / Build Hardening
+
+1. Update frontend CI to:
+   - install from lockfile only
+   - block lifecycle scripts by default
+   - validate dependency policy when manifests/lockfiles change
+   - run dependency review on PRs
+   - run vulnerability scanning
+   - generate dependency inventory / SBOM artifact if feasible
+2. Update the frontend Docker build path so it no longer falls back to unlocked installs.
+
+### Phase 5: Override / Patch Controls
+
+1. Keep `overrides` in the package manifest as the first emergency mitigation tool.
+2. Add a repository-managed patch workflow for cases where version forcing is insufficient.
+3. Document version pinning, patch application, and patch retirement steps.
+
+### Phase 6: Contributor Workflow Updates
+
+1. Update contributor-facing docs to standardize frontend install/update commands.
+2. Document how security patch updates differ from normal feature dependency updates.
+
+## Contract / Verification Plan
+
+### Contract A: Lockfile Enforcement
+
+Goal:
+1. A frontend manifest change without synchronized lockfile changes must fail CI.
+
+Planned verification:
+1. Frontend CI installs with a lockfile-only command.
+2. A dependency-policy check runs on manifest/lockfile changes and treats missing/mismatched lockfile updates as failure.
+
+### Contract B: Script Blocking
+
+Goal:
+1. Frontend CI must not execute dependency lifecycle scripts unless an explicit exception path is invoked.
+
+Planned verification:
+1. CI uses install commands with script blocking enabled.
+2. Policy documentation records any exceptions and their rationale.
+
+### Contract C: Dependency Review
+
+Goal:
+1. PRs that introduce vulnerable or disallowed dependency changes must be surfaced and blocked.
+
+Planned verification:
+1. GitHub dependency review action for PRs.
+2. Repo-owned dependency policy check for direct dependency allowlisting and justification coverage.
+
+### Contract D: Override / Patch Path
+
+Goal:
+1. A vulnerable transitive dependency can be remediated centrally without unrelated application edits.
+
+Planned verification:
+1. Use `overrides` for version forcing.
+2. Add a documented and runnable repository patch path when override is insufficient.
+
+### Contract E: Build Integrity
+
+Goal:
+1. Hardened frontend install/build flow still produces a working build.
+
+Planned verification:
+1. Frontend unit-test/build CI continues to pass under the hardened install settings.
+2. Frontend Docker/release build path uses the same lockfile trust model.
+
+### Contract F: HTTP Boundary Behavior
+
+Goal:
+1. Theme preference flows keep working after raw `fetch()` migration behind the internal client.
+
+Planned verification:
+1. Request auth header behavior preserved.
+2. JSON serialization/deserialization preserved.
+3. Error handling remains centralized and consistent.
+
+## Risks and Notes
+
+1. Package-manager normalization is the most consequential decision because it affects every contributor workflow; the ADR needs to be explicit and durable.
+2. Blocking lifecycle scripts may expose hidden assumptions in packages such as Playwright or native optional dependencies; the implementation should keep exception handling explicit rather than silently re-enabling scripts.
+3. Because the shell environment may require explicit PATH setup for local Node tooling, CI remains the most reliable enforcement point for frontend install/build hardening.
+4. The repo currently contains both legacy and feature-structured theme code; this task should reduce boundary inconsistency without trying to refactor the whole theming subsystem.
+
 # SPEC: Permanent Avatar URL Stabilization (2026-04-05)
 
 ## Problem Statement
