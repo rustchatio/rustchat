@@ -120,7 +120,7 @@ class ThemeService {
     if (!force && this.store.syncedServerToken === token) return
 
     try {
-      const prefs = await themeRepository.loadFromServer(token)
+      const prefs = await themeRepository.loadFromServer()
 
       if (prefs.theme && this.isValidTheme(prefs.theme)) {
         this.store.setTheme(prefs.theme)
@@ -150,12 +150,7 @@ class ThemeService {
     if (!token) return
 
     try {
-      await themeRepository.saveToServer(
-        this.store.theme,
-        this.store.font,
-        this.store.fontSize,
-        token
-      )
+      await themeRepository.saveToServer(this.store.theme, this.store.font, this.store.fontSize)
     } catch (error) {
       console.debug('Failed to persist theme to server', error)
     }

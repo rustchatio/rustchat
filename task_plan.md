@@ -1,5 +1,55 @@
 # Task Plan
 
+## 2026-04-11 Frontend Supply-Chain Hardening
+
+### Task
+- Reduce frontend direct dependency surface where removal is low-risk.
+- Standardize frontend package management on npm plus `package-lock.json`.
+- Harden frontend CI and Docker installs to lockfile-only, script-blocked installs.
+- Add dependency review, policy enforcement, transitive override/patch support, and dependency inventory output.
+- Move remaining theme preference HTTP flows onto the internal fetch-based client boundary.
+
+### Implementation Checklist
+- [x] Added a task-specific spec in [SPEC.md](/Users/scolak/Projects/rustchat/SPEC.md) and received user approval before implementation.
+- [x] Added ADR [docs/adr/ADR-frontend-supply-chain-security.md](/Users/scolak/Projects/rustchat/docs/adr/ADR-frontend-supply-chain-security.md).
+- [x] Added contributor-facing policy [docs/frontend-dependency-policy.md](/Users/scolak/Projects/rustchat/docs/frontend-dependency-policy.md).
+- [x] Added contract/verification mapping in [docs/frontend-supply-chain-contracts.md](/Users/scolak/Projects/rustchat/docs/frontend-supply-chain-contracts.md).
+- [x] Added machine-readable dependency metadata in [frontend/dependency-policy.json](/Users/scolak/Projects/rustchat/frontend/dependency-policy.json).
+- [x] Added repo-managed patch support via [frontend/dependency-patches.json](/Users/scolak/Projects/rustchat/frontend/dependency-patches.json), [frontend/patches/README.md](/Users/scolak/Projects/rustchat/frontend/patches/README.md), and [frontend/scripts/apply-dependency-patches.mjs](/Users/scolak/Projects/rustchat/frontend/scripts/apply-dependency-patches.mjs).
+- [x] Added repo-owned dependency policy enforcement in [frontend/scripts/check-dependency-policy.mjs](/Users/scolak/Projects/rustchat/frontend/scripts/check-dependency-policy.mjs).
+- [x] Reduced direct dependency surface by removing `@tiptap/extension-mention`, `clsx`, and `tailwind-merge` from [frontend/package.json](/Users/scolak/Projects/rustchat/frontend/package.json).
+- [x] Moved remaining theme preference raw `fetch()` usage behind the internal client boundary through [frontend/src/api/preferences.ts](/Users/scolak/Projects/rustchat/frontend/src/api/preferences.ts), [frontend/src/stores/theme.ts](/Users/scolak/Projects/rustchat/frontend/src/stores/theme.ts), and [frontend/src/features/theme/repositories/themeRepository.ts](/Users/scolak/Projects/rustchat/frontend/src/features/theme/repositories/themeRepository.ts).
+- [x] Hardened frontend CI in [frontend-ci.yml](/Users/scolak/Projects/rustchat/.github/workflows/frontend-ci.yml) and added dependency governance workflow [frontend-dependency-review.yml](/Users/scolak/Projects/rustchat/.github/workflows/frontend-dependency-review.yml).
+- [x] Hardened frontend Docker builds in [docker/frontend.Dockerfile](/Users/scolak/Projects/rustchat/docker/frontend.Dockerfile).
+- [x] Added PR/update workflow guidance via [.github/dependabot.yml](/Users/scolak/Projects/rustchat/.github/dependabot.yml), [CONTRIBUTING.md](/Users/scolak/Projects/rustchat/CONTRIBUTING.md), [README.md](/Users/scolak/Projects/rustchat/README.md), and [frontend/README.md](/Users/scolak/Projects/rustchat/frontend/README.md).
+
+### Manual Verification Commands
+1. `cd /Users/scolak/Projects/rustchat/frontend && npm run check:dependency-policy`
+2. `cd /Users/scolak/Projects/rustchat/frontend && npm ci --ignore-scripts`
+3. `cd /Users/scolak/Projects/rustchat/frontend && npm run apply:dependency-patches`
+4. `cd /Users/scolak/Projects/rustchat/frontend && npm run build`
+5. Open a pull request that changes `frontend/package.json` or `frontend/package-lock.json` and confirm:
+   - `Frontend Dependency Governance / GitHub dependency review` runs
+   - `Frontend Dependency Governance / Policy + audit` runs
+   - `Frontend CI / Hardened install + build` installs with scripts blocked and uploads `frontend-dependency-inventory`
+
+### Expected vs Actual
+- Expected:
+  - direct dependency count decreases without a Vue rewrite
+  - CI installs from lockfile only and blocks lifecycle scripts by default
+  - dependency changes are surfaced and reviewed in PRs
+  - vulnerable transitives can be controlled through overrides and, if needed, repo-managed patches
+  - theme preference requests use the internal HTTP client boundary instead of scattered raw `fetch()`
+- Actual:
+  - implementation is complete in the tracked files above
+  - static verification confirms JSON integrity, no whitespace errors, and no remaining raw frontend `fetch()` call sites outside the internal HTTP client
+  - full frontend runtime validation is still pending CI because this Codex session does not have `node`/`npm` available locally
+
+### Readiness
+- Approved by the user on `2026-04-11` after the task-specific supply-chain hardening spec was added to `SPEC.md`.
+- Ready for CI-backed verification.
+- Known limitation: local `npm ci`, `npm audit`, and `npm run build` could not be executed in this session because the current environment does not expose `node`, `npm`, `pnpm`, or `corepack` on `PATH`.
+
 ## 2026-04-05 Permanent Avatar URL Stabilization
 
 ### Task

@@ -11,6 +11,8 @@ node_modules
 dist
 dist-ssr
 *.local
+dependency-inventory.json
+dependency-audit.json
 
 # Editor directories and files
 .vscode/*

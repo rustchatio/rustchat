@@ -1,0 +1,151 @@
+{
+  "metadataVersion": 1,
+  "packageManager": "npm",
+  "lockfile": "package-lock.json",
+  "approvedCategories": [
+    "framework-critical",
+    "build-tool-critical",
+    "security-critical",
+    "editor-format-tooling-critical",
+    "impossible-to-replace-economically"
+  ],
+  "directDependencies": {
+    "@tiptap/extension-placeholder": {
+      "category": "impossible-to-replace-economically",
+      "reason": "Placeholder support for the Tiptap-based thread composer."
+    },
+    "@tiptap/starter-kit": {
+      "category": "impossible-to-replace-economically",
+      "reason": "Bundles the editor primitives used by the Tiptap-based composer."
+    },
+    "@tiptap/vue-3": {
+      "category": "impossible-to-replace-economically",
+      "reason": "Vue integration layer for the existing rich text composer."
+    },
+    "@types/md5": {
+      "category": "editor-format-tooling-critical",
+      "reason": "Type coverage for the md5 package used in avatar hashing."
+    },
+    "@vueuse/core": {
+      "category": "impossible-to-replace-economically",
+      "reason": "Shared reactive browser utilities already used for storage and breakpoint hooks."
+    },
+    "date-fns": {
+      "category": "impossible-to-replace-economically",
+      "reason": "Date formatting and relative time utilities across channel, thread, and admin views."
+    },
+    "dompurify": {
+      "category": "security-critical",
+      "reason": "Sanitizes rendered markdown HTML before insertion into the DOM."
+    },
+    "highlight.js": {
+      "category": "impossible-to-replace-economically",
+      "reason": "Syntax highlighting for markdown code blocks."
+    },
+    "lucide-vue-next": {
+      "category": "impossible-to-replace-economically",
+      "reason": "Shared icon set used throughout the Vue UI."
+    },
+    "marked": {
+      "category": "impossible-to-replace-economically",
+      "reason": "Markdown parsing for preview and message rendering flows."
+    },
+    "match-sorter": {
+      "category": "impossible-to-replace-economically",
+      "reason": "Fuzzy ranking for quick-switcher search results."
+    },
+    "md5": {
+      "category": "impossible-to-replace-economically",
+      "reason": "Gravatar-compatible MD5 hashing for email-based avatar fallbacks."
+    },
+    "pinia": {
+      "category": "framework-critical",
+      "reason": "Primary frontend state management library."
+    },
+    "vue": {
+      "category": "framework-critical",
+      "reason": "Core frontend runtime framework."
+    },
+    "vue-router": {
+      "category": "framework-critical",
+      "reason": "Primary frontend routing library."
+    }
+  },
+  "directDevDependencies": {
+    "@playwright/test": {
+      "category": "build-tool-critical",
+      "reason": "End-to-end and visual regression testing framework."
+    },
+    "@tailwindcss/postcss": {
+      "category": "build-tool-critical",
+      "reason": "PostCSS integration for the Tailwind CSS build pipeline."
+    },
+    "@types/dompurify": {
+      "category": "editor-format-tooling-critical",
+      "reason": "Pinned compatibility types for the current DOMPurify import shape."
+    },
+    "@types/marked": {
+      "category": "editor-format-tooling-critical",
+      "reason": "Pinned compatibility types for the current marked import shape."
+    },
+    "@types/node": {
+      "category": "build-tool-critical",
+      "reason": "Node.js type definitions required by Vite, Vitest, and config files."
+    },
+    "@vitejs/plugin-vue": {
+      "category": "build-tool-critical",
+      "reason": "Official Vite integration for Vue SFC compilation."
+    },
+    "@vue/test-utils": {
+      "category": "build-tool-critical",
+      "reason": "Vue component testing utilities used by existing frontend tests."
+    },
+    "@vue/tsconfig": {
+      "category": "build-tool-critical",
+      "reason": "Base TypeScript configuration preset for Vue projects."
+    },
+    "jsdom": {
+      "category": "build-tool-critical",
+      "reason": "DOM environment for frontend unit and integration-style tests."
+    },
+    "postcss": {
+      "category": "build-tool-critical",
+      "reason": "CSS transformation pipeline used by Vite and Tailwind."
+    },
+    "tailwindcss": {
+      "category": "build-tool-critical",
+      "reason": "Primary utility CSS framework for the frontend."
+    },
+    "typescript": {
+      "category": "build-tool-critical",
+      "reason": "Type checking and type-driven build support for the frontend."
+    },
+    "vite": {
+      "category": "build-tool-critical",
+      "reason": "Primary frontend development server and production bundler."
+    },
+    "vitest": {
+      "category": "build-tool-critical",
+      "reason": "Primary frontend unit and integration test runner."
+    },
+    "vue-tsc": {
+      "category": "build-tool-critical",
+      "reason": "Vue-aware TypeScript checking for the production build."
+    }
+  },
+  "overrides": {
+    "picomatch": {
+      "reason": "Force a known-safe transitive matcher release across the frontend toolchain.",
+      "removeWhen": "All upstream build and test dependencies resolve to an equivalent or newer safe picomatch release without local forcing.",
+      "reviewedOn": "2026-04-11"
+    }
+  },
+  "trustedPostInstallSteps": [
+    {
+      "name": "Playwright browser install",
+      "command": "npx playwright install chromium",
+      "scope": "Explicit local E2E setup and the CI visual parity job only.",
+      "reason": "Browser binaries are required for Playwright tests but must not be installed through dependency lifecycle scripts."
+    }
+  ]
+}

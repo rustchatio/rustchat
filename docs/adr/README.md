@@ -32,4 +32,4 @@ Per `.governance/risk-tiers.yml`, an ADR is required for `architectural` tier ch
 
 ## Index
 
-_(No ADRs yet. Add entries here as ADRs are created.)_
+- [ADR: Frontend Supply-Chain Security Model](./ADR-frontend-supply-chain-security.md) - npm normalization, hardened CI installs, dependency governance, and override/patch policy for the Vue frontend.

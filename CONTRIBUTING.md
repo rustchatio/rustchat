@@ -32,6 +32,12 @@ Thank you for contributing to rustchat.
    cd frontend && npm ci && npm run dev
    ```
 
+Frontend package-management rules:
+- use `npm` only in `frontend/`
+- use `npm ci` for routine setup
+- keep `frontend/package-lock.json` committed
+- see [docs/frontend-dependency-policy.md](docs/frontend-dependency-policy.md) before adding or changing dependencies
+
 For full containerized startup, use:
 
 ```bash
@@ -65,6 +71,7 @@ cargo test --no-fail-fast -- --nocapture
 ```bash
 cd frontend
 npm ci
+npm run check:dependency-policy
 npm run build
 ```
 
@@ -100,6 +107,7 @@ Run these when touching v4 API/websocket/compatibility-sensitive behavior:
    - concise summary
    - verification steps/commands run
    - compatibility impact (if any)
+   - dependency rationale if `frontend/package.json` or `frontend/package-lock.json` changed
 5. Address review feedback and keep history clean.
 
 ## Commit Messages
