@@ -18,6 +18,7 @@ import { useUnreadStore } from './unreads'
 import { useTeamStore } from './teams'
 import { useChannelPreferencesStore } from './channelPreferences'
 import { useUIStore } from './ui'
+import { useCallsStore } from './calls'
 
 type LogoutReason = 'manual' | 'expired' | 'unauthorized'
 
@@ -135,13 +136,7 @@ export const useAuthStore = defineStore('auth', () => {
         uiStore.closeSettings()
         uiStore.closeLhs()
 
-        // Avoid import cycles with the calls store by loading it lazily.
-        try {
-            const callsModule = await import('./calls')
-            callsModule.useCallsStore().resetSessionState()
-        } catch (error) {
-            console.debug('Failed to reset calls state during logout', error)
-        }
+        useCallsStore().resetSessionState()
     }
 
     function scheduleTokenExpiryLogout() {

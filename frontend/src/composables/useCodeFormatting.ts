@@ -1,5 +1,5 @@
 import type { Ref } from 'vue'
-import { wrapWithInlineCode, wrapWithCodeBlock } from '../services/markdownService'
+import { wrapWithInlineCode, wrapWithCodeBlock } from '../utils/markdownFormatting'
 
 export function useCodeFormatting(textareaRef: Ref<HTMLTextAreaElement | null>) {
 
