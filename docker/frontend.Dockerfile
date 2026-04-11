@@ -1,9 +1,13 @@
 # Build stage
 FROM node:24-alpine AS builder
+RUN apk add --no-cache git
 WORKDIR /app
-COPY package*.json ./
-RUN npm cache clean --force && \
-    if [ -f package-lock.json ]; then npm ci; else npm install; fi
+COPY package.json package-lock.json .npmrc dependency-policy.json dependency-patches.json ./
+COPY scripts ./scripts
+COPY patches ./patches
+RUN node scripts/check-dependency-policy.mjs
+RUN npm ci --ignore-scripts
+RUN node scripts/apply-dependency-patches.mjs
 COPY . .
 RUN npm run build
 

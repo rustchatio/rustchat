@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import { preferencesApi, type Preference } from '../api/preferences'
 
 export type Theme =
     | 'light'
@@ -190,7 +191,6 @@ const STORAGE_FONT = 'chat_font'
 const STORAGE_FONT_SIZE = 'chat_font_size'
 const AUTH_TOKEN_KEY = 'auth_token'
 
-const SERVER_PREFERENCE_URL = '/api/v4/users/me/preferences'
 const SERVER_PREFERENCE_CATEGORY = 'rustchat_display'
 const SERVER_PREFERENCE_THEME = 'theme'
 const SERVER_PREFERENCE_FONT = 'font'
@@ -230,13 +230,6 @@ function normalizeFontSize(value: string | null): ChatFontSize {
     return 14
 }
 
-type MmPreference = {
-    user_id: string
-    category: string
-    name: string
-    value: string
-}
-
 type ServerAppearancePreferences = {
     theme?: Theme
     font?: ChatFont
@@ -250,7 +243,7 @@ function getAuthToken(): string {
     return localStorage.getItem(AUTH_TOKEN_KEY) || ''
 }
 
-function buildPreferencePayload(theme: Theme, font: ChatFont, fontSize: ChatFontSize): MmPreference[] {
+function buildPreferencePayload(theme: Theme, font: ChatFont, fontSize: ChatFontSize): Preference[] {
     return [
         {
             user_id: 'me',
@@ -278,7 +271,7 @@ function parseServerAppearancePreferences(rows: unknown): ServerAppearancePrefer
         return {}
     }
 
-    const prefs = rows as MmPreference[]
+    const prefs = rows as Preference[]
     const getValue = (name: string) =>
         prefs.find((p) => p.category === SERVER_PREFERENCE_CATEGORY && p.name === name)?.value
 
@@ -355,14 +348,7 @@ export const useThemeStore = defineStore('theme', () => {
         const payload = buildPreferencePayload(theme.value, chatFont.value, chatFontSize.value)
 
         try {
-            await fetch(SERVER_PREFERENCE_URL, {
-                method: 'PUT',
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(payload),
-            })
+            await preferencesApi.updatePreferencesV4('me', payload)
         } catch (error) {
             console.debug('Failed to persist appearance preferences to server', error)
         }
@@ -383,15 +369,8 @@ export const useThemeStore = defineStore('theme', () => {
         }
 
         try {
-            const response = await fetch(SERVER_PREFERENCE_URL, {
-                headers: { Authorization: `Bearer ${token}` },
-            })
-            if (!response.ok) {
-                return
-            }
-
-            const rows = await response.json()
-            const serverPrefs = parseServerAppearancePreferences(rows)
+            const { data } = await preferencesApi.getMyPreferencesMmV4()
+            const serverPrefs = parseServerAppearancePreferences(data)
 
             if (serverPrefs.theme) {
                 theme.value = serverPrefs.theme

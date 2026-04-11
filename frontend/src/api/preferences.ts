@@ -143,10 +143,14 @@ export const preferencesApi = {
     
     // Mattermost-compatible preferences (for favorites)
     getMyPreferencesMm: () => api.get<Preference[]>('/users/me/preferences'),
+    getMyPreferencesMmV4: () =>
+        api.get<Preference[]>('/users/me/preferences', { baseURL: '/api/v4' }),
     getPreferencesByCategory: (userId: string, category: string) =>
         api.get<Preference[]>(`/users/${userId}/preferences/${category}`),
     updatePreferences: (userId: string, preferences: Preference[]) =>
         api.put(`/users/${userId}/preferences`, preferences),
+    updatePreferencesV4: (userId: string, preferences: Preference[]) =>
+        api.put(`/users/${userId}/preferences`, preferences, { baseURL: '/api/v4' }),
     deletePreferences: (userId: string, preferences: Preference[]) =>
         api.delete(`/users/${userId}/preferences`, { data: preferences }),
 }

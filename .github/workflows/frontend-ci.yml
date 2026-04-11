@@ -11,7 +11,7 @@ on:
 
 jobs:
   build:
-    name: npm ci + build
+    name: Hardened install + build
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -23,16 +23,25 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
+
+      - name: Validate dependency policy
+        run: npm run check:dependency-policy
 
       - name: Install dependencies
         run: |
           set -euo pipefail
-          echo "::group::npm ci"
-          npm ci
+          echo "::group::npm ci --ignore-scripts"
+          npm ci --ignore-scripts
           echo "::endgroup::"
+
+      - name: Apply trusted dependency patches
+        run: npm run apply:dependency-patches
+
+      - name: Generate dependency inventory
+        run: npm run deps:inventory > dependency-inventory.json
 
       - name: Run unit tests
         run: |
@@ -47,6 +56,14 @@ jobs:
           echo "::group::npm run build"
           npm run build
           echo "::endgroup::"
+
+      - name: Upload dependency inventory
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dependency-inventory
+          path: frontend/dependency-inventory.json
+          if-no-files-found: ignore
 
   settings-visual-parity:
     name: Settings visual parity (Playwright)
@@ -67,7 +84,10 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
+
+      - name: Apply trusted dependency patches
+        run: npm run apply:dependency-patches
 
       - name: Install Playwright browser
         run: npx playwright install chromium

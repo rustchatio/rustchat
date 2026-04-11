@@ -206,6 +206,10 @@ cd frontend
 npm ci
 npm run build
 
+# Frontend dependency policy
+# npm only, package-lock committed, CI blocks install scripts by default
+# see docs/frontend-dependency-policy.md
+
 # Full stack with Docker
 docker compose up -d postgres redis rustfs
 ```

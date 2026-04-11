@@ -33,6 +33,11 @@
 - [ ] ADR created — link: <!-- link -->
 - [ ] Not needed
 
+## Dependency Changes
+
+- [ ] Frontend dependencies unchanged
+- [ ] Frontend dependency policy updated — link or note: <!-- required if frontend/package.json or frontend/package-lock.json changed -->
+
 ## Decision note (required for elevated and architectural changes)
 
 <!-- 3–5 lines: what was decided and why. -->
