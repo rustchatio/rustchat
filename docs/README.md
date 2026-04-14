@@ -8,22 +8,22 @@ Complete documentation for RustChat — self-hosted team collaboration platform.
 
 | If you're a... | Start here |
 |----------------|------------|
-| **End User** looking to use RustChat | [User Guide](./user/) |
-| **Administrator** deploying or managing RustChat | [Admin Guide](./admin/) |
-| **Developer** contributing code | [Development Guide](./development/) |
-| **Operator** handling incidents | [Operations](./operations/) |
+| **End User** looking to use RustChat | [User Guide](./user/README.md) |
+| **Administrator** deploying or managing RustChat | [Admin Guide](./admin/README.md) |
+| **Developer** contributing code | [Development Guide](./development/README.md) |
+| **Operator** handling incidents | [Operations](./operations/README.md) |
 
 ---
 
 ## Documentation Structure
 
-### 📖 [User Documentation](./user/)
+### 📖 [User Documentation](./user/README.md)
 End-user guides for using RustChat features.
 - [Quick Start](./user/quick-start.md) — Get chatting in minutes
 - [Feature Guide](./user/features.md) — Messaging, channels, search, notifications
 - [Troubleshooting](./user/troubleshooting.md) — Common issues and solutions
 
-### 🔧 [Admin Documentation](./admin/)
+### 🔧 [Admin Documentation](./admin/README.md)
 Guides for system administrators and operators.
 - [Installation](./admin/installation.md) — Docker Compose deployment
 - [Configuration](./admin/configuration.md) — Environment variables and settings
@@ -34,7 +34,7 @@ Guides for system administrators and operators.
 - [Scaling](./admin/scaling.md) — Horizontal scaling and HA
 - [Backup and Restore](./admin/backup-restore.md) — Data protection
 
-### 🏗️ [Architecture](./architecture/)
+### 🏗️ [Architecture](./architecture/README.md)
 System architecture and design documentation.
 - [Overview](./architecture/overview.md) — High-level system design
 - [Backend](./architecture/backend.md) — Rust API server architecture
@@ -43,7 +43,7 @@ System architecture and design documentation.
 - [Calls Deployment](./architecture/calls-deployment.md) — Voice/video call architecture
 - [WebSocket](./architecture/websocket.md) — Real-time communication
 
-### 👨‍💻 [Development](./development/)
+### 👨‍💻 [Development](./development/README.md)
 Resources for contributors and developers.
 - [Local Setup](./development/local-setup.md) — Development environment
 - [Contributing](./development/contributing.md) — How to contribute
@@ -53,11 +53,11 @@ Resources for contributors and developers.
 - [Agent Model](./development/agent-model.md) — LLM agent workflows
 - [Releasing](./development/releasing.md) — Release process
 
-### 🚨 [Operations](./operations/)
+### 🚨 [Operations](./operations/README.md)
 Operational runbooks and procedures.
 - [Runbook](./operations/runbook.md) — Incident response and common tasks
 
-### 📚 [Reference](./reference/)
+### 📚 [Reference](./reference/README.md)
 Reference documentation.
 - [Compatibility Matrix](./reference/compatibility-matrix.md) — API coverage
 
@@ -85,8 +85,8 @@ Reference documentation.
 ## External Resources
 
 - [Main Repository](https://github.com/rustchatio/rustchat) — Source code and issues
-- [CHANGELOG](../CHANGELOG.md) — Release history
-- [LICENSE](../LICENSE) — MIT License
+- [CHANGELOG](https://github.com/rustchatio/rustchat/blob/main/CHANGELOG.md) — Release history
+- [LICENSE](https://github.com/rustchatio/rustchat/blob/main/LICENSE) — MIT License
 
 ---
 
@@ -99,4 +99,4 @@ Documentation improvements are welcome! When contributing:
 3. Test commands before including them
 4. Update the table of contents when adding pages
 
-See [Development Guide](./development/) for contribution workflow.
+See [Development Guide](./development/README.md) for contribution workflow.

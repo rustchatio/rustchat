@@ -1,1 +1,1 @@
-> **Moved:** WebSocket architecture details have been consolidated into [`docs/architecture/architecture-overview.md`](architecture/architecture-overview.md) (Section 2: Backend — WebSocket Hub).
+> **Moved:** WebSocket architecture details have been consolidated into [Architecture Overview](./overview.md) (Backend and data flow sections).

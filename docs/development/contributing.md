@@ -28,7 +28,7 @@
 
 ### Quick Start
 
-See [`running_environment.md`](running_environment.md) for full Docker-based local development setup.
+See [Running Environment](../running_environment.md) for full Docker-based local development setup.
 
 ---
 
@@ -41,7 +41,7 @@ See [`running_environment.md`](running_environment.md) for full Docker-based loc
    - Does behavior change?
    - What tests are added?
 3. **Do not mix unrelated domains** in one PR (e.g., auth + UI + CI changes should be separate).
-4. **Risky changes require tests** before code movement — see [Testing Model](testing-model.md).
+4. **Risky changes require tests** before code movement — see [Testing Model](testing.md).
 5. **Architecture changes require an ADR** — add to `docs/adr/` following the template.
 
 ---
@@ -65,10 +65,10 @@ Use the appropriate issue template:
 
 1. Create a branch from `main`
 2. Implement the smallest safe change
-3. Add/update tests (see [Testing Model](testing-model.md))
+3. Add/update tests (see [Testing Model](testing.md))
 4. Update docs if structure changed
 5. Fill in the PR template completely
-6. Request review from the appropriate code owner (see [Ownership Map](ownership-map.md))
+6. Request review from the appropriate code owner (see [Ownership Map](ownership.md))
 7. Address review comments
 8. Merge only after all checks pass and review is approved
 
@@ -174,13 +174,13 @@ cd backend && cargo fmt --check && cargo clippy -- -D warnings && cargo test
 cd frontend && npm run lint && npm run type-check
 ```
 
-See [Testing Model](testing-model.md) for complete testing strategy.
+See [Testing Model](testing.md) for complete testing strategy.
 
 ---
 
 ## Where to Get Help
 
-- **Architecture questions:** See [Architecture Overview](architecture/architecture-overview.md)
-- **Agent/LLM workflow:** See [Agent Operating Model](agent-operating-model.md)
-- **Mattermost compatibility:** See [Compatibility Scope](compatibility-scope.md)
-- **Code ownership:** See [Ownership Map](ownership-map.md)
+- **Architecture questions:** See [Architecture Overview](../architecture/overview.md)
+- **Agent/LLM workflow:** See [Agent Operating Model](agent-model.md)
+- **Mattermost compatibility:** See [Compatibility Scope](../compatibility-scope.md)
+- **Code ownership:** See [Ownership Map](ownership.md)

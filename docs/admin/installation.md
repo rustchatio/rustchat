@@ -56,10 +56,11 @@ For a quick local or small-scale setup:
 
 ### Deployment Targets
 
-#### Kubernetes (Helm)
-For enterprise production environments, we provide a Helm chart (see the `helm/` directory).
-- **TLS:** Integrated with Cert-Manager for automatic SSL.
-- **Auto-Scaling:** HPA (Horizontal Pod Autoscaler) for the backend and frontend.
+#### Kubernetes
+For enterprise production environments, deploy RustChat with your standard Kubernetes manifests and ingress stack.
+- **TLS:** Terminate TLS at ingress (for example with Cert-Manager managed certificates).
+- **Auto-Scaling:** Configure HPA for backend and frontend workloads.
+- **Note:** This repository does not currently ship an official `helm/` chart directory.
 
 #### Bare Metal / Systemd
 1. Compile the backend: `cargo build --release`.

@@ -73,6 +73,7 @@ ENV/
 env/
 
 # Package managers
+node_modules/
 .pnpm-store/
 .yarn/cache
 .pnp.*

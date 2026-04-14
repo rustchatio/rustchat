@@ -83,4 +83,4 @@ Contact your system administrator with:
 
 ---
 
-*For administrators: See [Operations Guide](../operations/) for server-side troubleshooting.*
+*For administrators: See [Operations Guide](../operations/README.md) for server-side troubleshooting.*

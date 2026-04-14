@@ -1,0 +1,19 @@
+{
+  "name": "rustchat-docs",
+  "private": true,
+  "version": "0.1.0",
+  "description": "RustChat documentation site",
+  "scripts": {
+    "docs:dev": "vitepress dev . --host 0.0.0.0 --port 5174",
+    "docs:build": "vitepress build .",
+    "docs:preview": "vitepress preview . --host 0.0.0.0 --port 4174",
+    "docs:check-links": "node ./scripts/check-internal-links.mjs",
+    "ci": "npm run docs:check-links && npm run docs:build"
+  },
+  "devDependencies": {
+    "vitepress": "^1.6.4"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

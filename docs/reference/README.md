@@ -13,7 +13,7 @@ Quick reference materials for RustChat.
 - [Mobile Compatibility Matrix](./compatibility-matrix.md) - Mattermost mobile client API coverage
 
 ### Configuration Reference
-- [Environment Variables](./environment-variables.md) - Complete list of all configuration options
+- [Admin Configuration](../admin/configuration.md) - Complete list of runtime configuration options
 
 ## Quick Links
 

@@ -1,6 +1,6 @@
-# Running the RustMatch Environment
+# Running the RustChat Environment
 
-RustMatch is containerized using Docker Compose for easy setup and development. The environment includes:
+RustChat is containerized using Docker Compose for easy setup and development. The environment includes:
 
 - **Backend**: Rust (Axum) API
 - **Frontend**: Vue 3 + Vite (Served via Nginx)

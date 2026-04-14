@@ -44,4 +44,4 @@ Before deploying, review the [System Architecture](../architecture/overview.md) 
 
 ---
 
-*For end users: See the [User Guide](../user/) for using RustChat.*
+*For end users: See the [User Guide](../user/README.md) for using RustChat.*

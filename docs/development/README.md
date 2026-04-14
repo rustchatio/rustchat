@@ -54,4 +54,4 @@ rustchat/
 
 ---
 
-*For system architecture: See the [Architecture Guide](../architecture/).*
+*For system architecture: See the [Architecture Guide](../architecture/README.md).*

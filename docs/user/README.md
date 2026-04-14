@@ -52,4 +52,4 @@ See the [Troubleshooting](./troubleshooting.md) section for solutions to common 
 
 ---
 
-*For administrators: See the [Admin Guide](../admin/) for deployment and configuration.*
+*For administrators: See the [Admin Guide](../admin/README.md) for deployment and configuration.*
