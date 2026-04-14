@@ -62,4 +62,4 @@ See the [Troubleshooting](./troubleshooting.md) section or contact your system a
 
 ---
 
-*For administrators: See the [Admin Guide](../admin/) for deployment and configuration.*
+*For administrators: See the [Admin Guide](../admin/README.md) for deployment and configuration.*

@@ -9,7 +9,7 @@
 RustChat's frontend is a Vue 3 SPA with a standard JavaScript dependency graph and build pipeline. The current baseline already has some good properties:
 
 1. The active frontend CI path uses `npm ci` and a committed `frontend/package-lock.json`.
-2. The app already ships an internal fetch-based HTTP client in [frontend/src/api/http/HttpClient.ts](/Users/scolak/Projects/rustchat/frontend/src/api/http/HttpClient.ts).
+2. The app already ships an internal fetch-based HTTP client in [frontend/src/api/http/HttpClient.ts](../../frontend/src/api/http/HttpClient.ts).
 3. The current branch is already removing the stale `frontend/pnpm-lock.yaml`, signaling package-manager normalization toward npm.
 
 But several supply-chain gaps remain:

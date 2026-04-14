@@ -1,7 +1,7 @@
 # Compatibility Scope
 
 **Last updated:** 2026-03-22
-**Source docs consolidated:** `docs/MATTERMOST_CLIENTS.md`, `docs/mobile-compatibility-matrix.md`
+**Source docs consolidated:** `docs/MATTERMOST_CLIENTS.md`, `docs/reference/compatibility-matrix.md`
 
 ---
 
@@ -44,11 +44,11 @@ This is not a full Mattermost clone — some advanced features (plugins, advance
 | `POST /api/v4/emoji` | ❌ Not implemented | Medium — custom emoji upload unavailable | Phase 2 |
 | `POST /api/v4/posts/search` | ❌ Not implemented | Medium — advanced search unavailable | Phase 2 |
 
-For the full endpoint-by-endpoint table see `docs/mobile-compatibility-matrix.md`.
+For the endpoint coverage summary, see [Reference Compatibility Matrix](../reference/compatibility-matrix.md).
 
 ### Full v4 API surface (secondary metric)
 
-The `docs/V4_API_GAP_ANALYSIS.md` measures coverage of the *entire* Mattermost v4 API surface — not just mobile-critical endpoints. That analysis reports approximately **60% coverage** of the full v4 surface. The gap is expected: rustchat does not aim to implement the full Mattermost v4 API, only the subset required for mobile and desktop client operation.
+Historical full-surface analysis is available in archived compatibility notes and is intentionally broader than the mobile-critical metric. The gap is expected: rustchat does not aim to implement the full Mattermost v4 API, only the subset required for mobile and desktop client operation.
 
 Do not conflate these two numbers. **39/41 (95.1%)** is the mobile compatibility headline. **~60%** is the broader full-API coverage figure.
 

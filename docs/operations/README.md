@@ -6,6 +6,7 @@ This section contains operational runbooks and procedures for running RustChat i
 
 ### Runbooks
 - [Operations Runbook](./runbook.md) - Common operational tasks and procedures
+- [Docs Site Deployment](./docs-site-deployment.md) - CI/CD deployment for `docs.rustchat.io`
 
 ### Topics Covered
 
@@ -56,4 +57,4 @@ docker compose logs -f frontend
 
 ---
 
-*For deployment: See [Admin Guide](../admin/).*
+*For deployment: See [Admin Guide](../admin/README.md).*

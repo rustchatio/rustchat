@@ -73,9 +73,12 @@ ENV/
 env/
 
 # Package managers
+node_modules/
 .pnpm-store/
 .yarn/cache
 .pnp.*
+docs/.vitepress/dist/
+docs/.vitepress/cache/
 
 # Cache files
 .eslintcache
